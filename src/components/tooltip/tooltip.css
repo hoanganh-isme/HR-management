@@ -1,0 +1,35 @@
+/* ═══════════════════════════════════════════
+   TOOLTIP COMPONENT — JS-driven (position: fixed)
+   CSS chỉ định style cho #ui-tooltip element được JS tạo ra
+   ═══════════════════════════════════════════ */
+
+#ui-tooltip {
+  position: fixed;
+  z-index: 99999;
+  background: #1E293B;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+#ui-tooltip.visible {
+  opacity: 1;
+}
+
+#ui-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent #1E293B transparent;
+}

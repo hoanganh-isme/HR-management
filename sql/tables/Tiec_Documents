@@ -1,0 +1,103 @@
+-- =========================================================================
+-- SCRIPT NÂNG CẤP DATABASE: HỆ THỐNG QUẢN LÝ TÀI LIỆU & HỢP ĐỒNG TIỆC CƯỚI
+-- MỤC TIÊU: Áp dụng Soft Delete, Quản lý trạng thái (State Machine), Lưu vết file
+-- =========================================================================
+
+-- LƯU Ý: Vui lòng thay đổi [QLTiec] thành tên Database thực tế của bạn
+USE [QLTiec]
+GO
+
+-- =========================================================================
+-- PHẦN 1: KHỞI TẠO SỔ LƯU TRỮ TÀI LIỆU TRUNG TÂM (Tiec_Documents)
+-- =========================================================================
+IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Tiec_Documents')
+BEGIN
+    CREATE TABLE Tiec_Documents (
+        DocumentID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+        TiecID VARCHAR(50) NOT NULL,            -- Mã Hợp đồng (Sohopdong) hoặc Mã chứng từ liên kết
+        DocType VARCHAR(50) NOT NULL,           -- Phân loại: HOP_DONG, BIEN_COC, QUYET_TOAN, PHU_LUC
+        VersionNo INT DEFAULT 1,                -- Số thứ tự phiên bản xuất file
+        FilePath NVARCHAR(500) NOT NULL,        -- Đường dẫn lưu file vật lý trên server
+        FileHash VARCHAR(255),                  -- Chuỗi băm (MD5/SHA256) chống sửa file ngoài hệ thống
+        TemplateVersion VARCHAR(50),            -- Ghi nhận dùng Mẫu (Template) nào để xuất
+        Status VARCHAR(20) DEFAULT 'ACTIVE',    -- Trạng thái file: ACTIVE (Đang dùng), DELETED (Bị xóa - Bia mộ)
+        GeneratedBy VARCHAR(50),                -- Nhân viên xuất file
+        GeneratedAt DATETIME DEFAULT GETDATE(), -- Thời gian xuất file
+        DeletedBy VARCHAR(50) NULL,             -- Người xóa file (Nếu có)
+        DeletedAt DATETIME NULL                 -- Thời gian xóa file (Bia mộ)
+    );
+    
+    -- Tạo Index để tăng tốc độ truy vấn danh sách file theo Mã tiệc
+    CREATE NONCLUSTERED INDEX IX_TiecDocuments_TiecID ON Tiec_Documents(TiecID);
+    PRINT '>> DA TAO BANG Tiec_Documents THANH CONG.';
+END
+ELSE
+BEGIN
+    PRINT '>> BANG Tiec_Documents DA TON TAI. BO QUA.';
+END
+GO
+
+
+-- =========================================================================
+-- PHẦN 2: THÊM CÁC CỘT CHUẨN ENTERPRISE VÀO CÁC BẢNG NGHIỆP VỤ GỐC
+-- Bao gồm: Cột Trạng Thái (Status), Cột Xóa Mềm (IsDeleted, DeletedBy, DeletedAt)
+-- =========================================================================
+
+-- -------------------------------------------------------------------------
+-- 2.1 BẢNG HỢP ĐỒNG (tbmk_Hopdong)
+-- -------------------------------------------------------------------------
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbmk_Hopdong]') AND name = 'Status')
+    ALTER TABLE tbmk_Hopdong ADD Status VARCHAR(20) DEFAULT 'DRAFT'; -- DRAFT, SUBMITTED, SIGNED, COMPLETED
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbmk_Hopdong]') AND name = 'IsDeleted')
+BEGIN
+    ALTER TABLE tbmk_Hopdong ADD IsDeleted BIT DEFAULT 0;
+    ALTER TABLE tbmk_Hopdong ADD DeletedBy VARCHAR(50) NULL;
+    ALTER TABLE tbmk_Hopdong ADD DeletedAt DATETIME NULL;
+END
+GO
+
+-- -------------------------------------------------------------------------
+-- 2.2 BẢNG PHIẾU ĐẶT CỌC (tbmk_Biennhancoccho)
+-- -------------------------------------------------------------------------
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbmk_Biennhancoccho]') AND name = 'Status')
+    ALTER TABLE tbmk_Biennhancoccho ADD Status VARCHAR(20) DEFAULT 'DRAFT';
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbmk_Biennhancoccho]') AND name = 'IsDeleted')
+BEGIN
+    ALTER TABLE tbmk_Biennhancoccho ADD IsDeleted BIT DEFAULT 0;
+    ALTER TABLE tbmk_Biennhancoccho ADD DeletedBy VARCHAR(50) NULL;
+    ALTER TABLE tbmk_Biennhancoccho ADD DeletedAt DATETIME NULL;
+END
+GO
+
+-- -------------------------------------------------------------------------
+-- 2.3 BẢNG PHỤ LỤC THAY ĐỔI (tbmk_Thaydoi)
+-- -------------------------------------------------------------------------
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbmk_Thaydoi]') AND name = 'Status')
+    ALTER TABLE tbmk_Thaydoi ADD Status VARCHAR(20) DEFAULT 'DRAFT';
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbmk_Thaydoi]') AND name = 'IsDeleted')
+BEGIN
+    ALTER TABLE tbmk_Thaydoi ADD IsDeleted BIT DEFAULT 0;
+    ALTER TABLE tbmk_Thaydoi ADD DeletedBy VARCHAR(50) NULL;
+    ALTER TABLE tbmk_Thaydoi ADD DeletedAt DATETIME NULL;
+END
+GO
+
+-- -------------------------------------------------------------------------
+-- 2.4 BẢNG PHIẾU THU QUYẾT TOÁN (tbPhieuthu)
+-- -------------------------------------------------------------------------
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbPhieuthu]') AND name = 'Status')
+    ALTER TABLE tbPhieuthu ADD Status VARCHAR(20) DEFAULT 'DRAFT';
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[tbPhieuthu]') AND name = 'IsDeleted')
+BEGIN
+    ALTER TABLE tbPhieuthu ADD IsDeleted BIT DEFAULT 0;
+    ALTER TABLE tbPhieuthu ADD DeletedBy VARCHAR(50) NULL;
+    ALTER TABLE tbPhieuthu ADD DeletedAt DATETIME NULL;
+END
+GO
+
+PRINT '>> DA CAP NHAT THANH CONG CAU TRUC CAC BANG NGHIEP VU.';
+GO

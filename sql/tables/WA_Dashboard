@@ -1,0 +1,10 @@
+UserAutoID	varchar
+STT	int
+StoreName	nvarchar
+UserGroupID	varchar
+isDesktop	bit
+isMobile	bit
+Template	varchar
+isDisable	bit
+Note	nvarchar
+Note2	nvarchar

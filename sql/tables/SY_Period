@@ -1,0 +1,10 @@
+PeriodID	varchar
+PeriodName	nvarchar
+PeriodName2	nvarchar
+FromDate	datetime
+ToDate	datetime
+YearID	smallint
+PeriodNo	tinyint
+isLock	bit
+isUse	bit
+IsLockData	bit

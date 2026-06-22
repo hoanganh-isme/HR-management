@@ -1,0 +1,108 @@
+/* ═══════════════════════════════════════════
+   REPORT FILTER DIALOG COMPONENT
+   Dialog "Chọn báo cáo" với fields động từ API
+   ═══════════════════════════════════════════ */
+
+/* ─── Body layout ─── */
+.rfd-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* ─── Loading spinner ─── */
+.rfd-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.rfd-spin {
+  animation: rfd-rotate 1s linear infinite;
+  font-size: 20px !important;
+  color: var(--color-primary);
+}
+
+@keyframes rfd-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ─── Row: label + input ─── */
+.rfd-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rfd-row:last-child { border-bottom: none; }
+
+.rfd-row:hover { background: rgba(79, 70, 229, 0.015); }
+
+/* ─── Label ─── */
+.rfd-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* ─── Input override (compact hơn .ui-input mặc định) ─── */
+.rfd-input {
+  padding: 5px 10px !important;
+  font-size: 13px !important;
+  height: 32px;
+}
+
+.rfd-select {
+  cursor: pointer;
+}
+
+/* ─── Date range ─── */
+.rfd-date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rfd-date-range .rfd-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.rfd-date-sep {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Footer ─── */
+.rfd-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 480px) {
+  .rfd-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .rfd-date-range {
+    flex-wrap: wrap;
+  }
+}

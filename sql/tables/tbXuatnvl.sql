@@ -1,0 +1,21 @@
+CREATE TABLE [dbo].[tbXuatnvl](
+    [DocumentID] [varchar](50) NOT NULL,
+    [DocumentDate] [datetime] NULL,
+    [Phieuxuatnvl] [varchar](50) NULL,
+    [Ngayxuatnvl] [datetime] NULL,
+    [Nguoinhanid] [varchar](50) NULL,
+    [Manv] [varchar](50) NULL,
+    [Tongtien] [float] NULL,
+    [Ghichu] [nvarchar](500) NULL,
+    [UserCreate] [varchar](50) NULL,
+    [UserUpdate] [varchar](50) NULL,
+    [DateCreate] [datetime] NULL,
+    [DateUpdate] [datetime] NULL,
+    [IsLoaixuat] [bit] NULL,
+    [Nhahangid] [varchar](50) NULL,
+    [Loainhapxuatid] [varchar](50) NULL,
+    [Hopdongtiec] [varchar](50) NULL,
+    [Phieunhap] [varchar](50) NULL,
+    [Makh] [varchar](50) NULL,
+ CONSTRAINT [PK_tbXuatnvl] PRIMARY KEY CLUSTERED ([DocumentID] ASC)
+)

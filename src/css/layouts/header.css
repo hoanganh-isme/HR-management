@@ -1,0 +1,89 @@
+/* ═══════════════════════════════════════════
+   HEADER COMPONENTS
+   ═══════════════════════════════════════════ */
+
+.app-header {
+  height: var(--header-height);
+  background-color: var(--color-header);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-xl);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-glass);
+  z-index: 99;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: #EFF4FB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  position: relative;
+  transition: all var(--transition-fast);
+}
+
+.icon-btn:hover {
+  color: var(--color-primary);
+}
+
+.icon-btn .badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: var(--color-danger);
+  border-radius: 50%;
+}
+
+/* ════ RESPONSIVE QUERIES ════ */
+@media (max-width: 1024px) {
+  .search-box {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+
+  .app-header {
+    padding: 0 16px;
+    gap: 8px;
+  }
+  .user-info {
+    display: none !important;
+  }
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .icon-btn .material-symbols-outlined {
+    font-size: 18px !important;
+  }
+  .header-right {
+    gap: 8px;
+  }
+}
+

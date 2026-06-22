@@ -1,0 +1,14 @@
+SELECT COLUMN_NAME
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'dmLoaihinhtiec'
+ORDER BY ORDINAL_POSITION;
+
+Loaitiecid	varchar	10	NO
+Tenloaitiec	nvarchar	250	YES
+UserCreate	varchar	20	YES
+UserUpdate	varchar	20	YES
+DateCreate	datetime	NULL	YES
+DateUpdate	datetime	NULL	YES
+Nhahangid	varchar	50	YES
+isHoiNghi	bit	NULL	YES
+isDefault	bit	NULL	YES

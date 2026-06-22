@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS Demo - Modern Clean Premium</title>
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap-grid.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      /* Modern SaaS Color Palette */
+      --color-primary: #10b981; /* Premium Emerald Green */
+      --color-primary-dark: #059669;
+      --color-nav-right: #064e3b; /* Very dark elegant green */
+      --color-footer: #022c22;
+      
+      --color-text: #0f172a; /* Slate 900 */
+      --color-text-secondary: #64748b; /* Slate 500 */
+      --color-border: #e2e8f0; /* Slate 200 */
+      --color-bg-subtle: #f8fafc; /* Slate 50 */
+      
+      --bg-body: #ffffff;
+      --font-family: 'Inter', sans-serif;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-pill: 99px;
+      
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-hover: 0 4px 12px rgba(0,0,0,0.06);
+      --transition: all 0.2s ease-in-out;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-family);
+      color: var(--color-text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-body);
+    }
+    
+    /* ════ Layout Split Pane ════ */
+    .app-container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 32px); /* Minus footer */
+      width: 100vw;
+    }
+    
+    /* ======== LEFT PANE ======== */
+    .pane-left {
+      flex: 5.8;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-body);
+      border-right: 1px solid var(--color-border);
+    }
+    
+    .nav-left-top {
+      background-color: var(--color-primary);
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      color: white;
+    }
+
+    .nav-left-menu {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: var(--transition);
+    }
+
+    .nav-pill.active {
+      background-color: white;
+      color: var(--color-primary);
+      box-shadow: var(--shadow-sm);
+    }
+    .nav-pill:not(.active):hover {
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .nav-search {
+      background: rgba(0,0,0,0.15);
+      border-radius: var(--radius-pill);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 260px;
+      margin-left: 12px;
+      transition: var(--transition);
+    }
+    .nav-search:focus-within {
+      background: rgba(255,255,255,0.25);
+    }
+    .nav-search input {
+      background: transparent;
+      border: none;
+      color: white;
+      outline: none;
+      width: 100%;
+      font-family: var(--font-family);
+      font-size: 14px;
+    }
+    .nav-search input::placeholder { color: rgba(255,255,255,0.7); }
+
+    .nav-left-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .icon-btn-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.2);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .icon-btn-circle:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
+
+    .pane-left-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding-top: 16px;
+    }
+
+    /* Left Content Header */
+    .left-header { padding: 0 20px; }
+    
+    .tabs-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 16px;
+    }
+    .tab-item {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      padding: 8px 20px;
+      border-radius: var(--radius-pill);
+      transition: var(--transition);
+    }
+    .tab-item:hover { background: var(--color-bg-subtle); color: var(--color-text); }
+    .tab-item.active {
+      background-color: var(--color-primary);
+      color: white;
+    }
+
+    .filter-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+    }
+    .status-filters {
+      display: flex;
+      gap: 24px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .status-filters label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .status-filters input[type="radio"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #cbd5e1;
+      border-radius: 50%;
+      outline: none;
+      margin: 0;
+      display: grid;
+      place-content: center;
+      transition: var(--transition);
+    }
+    .status-filters input[type="radio"]::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      transform: scale(0);
+      background-color: var(--color-primary);
+      transition: transform 0.2s ease;
+    }
+    .status-filters input[type="radio"]:checked { border-color: var(--color-primary); }
+    .status-filters input[type="radio"]:checked::before { transform: scale(1); }
+
+    /* Modern Clean Table Grid */
+    .table-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 16px;
+      padding: 0 20px 20px 20px;
+      overflow-y: auto;
+      flex: 1;
+      align-content: start;
+    }
+    
+    .pos-table-card {
+      background: #ffffff;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .pos-table-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: var(--shadow-hover);
+      transform: translateY(-2px);
+    }
+
+    .pos-table-card.status-using {
+      background: #f0fdf4;
+      border-color: #86efac;
+    }
+
+    .pos-table-card.status-active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: white;
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.2);
+    }
+    
+    .card-top { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+    }
+    .card-amount { font-weight: 700; font-size: 14px; }
+    .card-time { font-size: 11px; font-weight: 500; opacity: 0.8; }
+    
+    .card-icons {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+    .card-icons span { display: flex; align-items: center; gap: 4px; }
+    
+    .card-name { 
+      font-weight: 700; 
+      font-size: 14px; 
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--color-border);
+    }
+    .status-using .card-name { border-color: #bbf7d0; }
+    .status-active .card-name { border-color: rgba(255,255,255,0.2); }
+
+    .left-bottom-bar {
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+
+    /* ======== RIGHT PANE ======== */
+    .pane-right {
+      flex: 4.2;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--color-nav-right);
+    }
+
+    .nav-right-top {
+      height: 56px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 0 20px 0 12px;
+      color: white;
+    }
+
+    .invoice-tabs {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .invoice-tab {
+      background-color: var(--bg-body);
+      color: var(--color-text);
+      font-weight: 600;
+      font-size: 14px;
+      padding: 10px 20px;
+      border-radius: 10px 10px 0 0; 
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    }
+    .invoice-tab .close-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      color: var(--color-text-secondary);
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      transition: var(--transition);
+    }
+    .invoice-tab .close-icon:hover { background: #e2e8f0; color: var(--color-text); }
+
+    .invoice-tab-add {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      cursor: pointer;
+      margin-left: 8px;
+      margin-bottom: 6px;
+      transition: var(--transition);
+    }
+    .invoice-tab-add:hover { background: rgba(255,255,255,0.15); }
+
+    .nav-right-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 12px;
+      color: rgba(255,255,255,0.9);
+    }
+    .nav-right-actions span { cursor: pointer; transition: var(--transition); }
+    .nav-right-actions span:hover { color: white; transform: translateY(-1px); }
+
+    /* Content Right */
+    .pane-right-content {
+      flex: 1;
+      background-color: var(--bg-body);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .order-header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--color-bg-subtle);
+    }
+    
+    .order-search {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: white;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 8px 12px;
+      transition: var(--transition);
+    }
+    .order-search:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1); }
+    .order-search input {
+      border: none;
+      outline: none;
+      width: 100%;
+      font-size: 14px;
+      font-family: var(--font-family);
+    }
+    
+    .order-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    
+    .order-item {
+      display: flex;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--color-border);
+      transition: var(--transition);
+    }
+    .order-item:hover { background: var(--color-bg-subtle); }
+    
+    .item-info { flex: 2; }
+    .item-name { font-weight: 600; font-size: 14px; color: var(--color-text); }
+    .item-note { font-size: 12px; color: var(--color-text-secondary); margin-top: 6px; display:flex; align-items:center; gap:4px; }
+    
+    .item-qty {
+      flex: 1.5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    /* Modern Stepper */
+    .qty-control {
+      display: flex;
+      align-items: center;
+      background: #f1f5f9;
+      border-radius: var(--radius-pill);
+      padding: 4px;
+    }
+    .qty-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: white;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      color: var(--color-text);
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+    }
+    .qty-btn:hover { background: var(--color-border); }
+    .qty-input {
+      width: 36px;
+      text-align: center;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-family);
+    }
+    
+    .item-price { flex: 1; text-align: right; font-size: 14px; color: var(--color-text-secondary); }
+    .item-total { flex: 1; text-align: right; font-size: 15px; font-weight: 700; color: var(--color-text); }
+    
+    .error-icon {
+      font-size: 16px; 
+      color: #ef4444; 
+    }
+
+    /* Order Footer */
+    .order-footer {
+      padding: 20px;
+      background: var(--bg-body);
+      border-top: 1px solid var(--color-border);
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.02);
+    }
+    
+    .footer-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .custom-select {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 14px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+      background: white;
+    }
+    
+    .action-icons-row {
+      display: flex;
+      gap: 16px;
+      color: var(--color-text-secondary);
+    }
+    .action-icons-row span { cursor: pointer; transition: var(--transition); }
+    .action-icons-row span:hover { color: var(--color-primary); }
+
+    .total-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .total-amount { font-size: 28px; font-weight: 800; color: var(--color-primary-dark); }
+    .total-badge {
+      background: var(--color-primary);
+      color: white;
+      border-radius: 50%;
+      width: 24px; height: 24px;
+      display: inline-grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    
+    .checkout-buttons { display: flex; gap: 12px; }
+    .btn-notify {
+      flex: 1;
+      background-color: #f1f5f9;
+      color: #334155;
+      border: 1px solid var(--color-border);
+      padding: 14px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .btn-notify:hover { background: #e2e8f0; }
+
+    .btn-checkout {
+      flex: 3;
+      background-color: var(--color-primary);
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      transition: var(--transition);
+    }
+    .btn-checkout:hover { background-color: var(--color-primary-dark); }
+
+    /* ======== BOTTOM FOOTER ======== */
+    .bottom-footer {
+      height: 32px;
+      background-color: var(--color-footer);
+      color: rgba(255,255,255,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 500;
+      gap: 20px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- ======== LEFT PANE ======== -->
+    <div class="pane-left">
+      <div class="nav-left-top">
+        <div class="nav-left-menu">
+          <div class="nav-pill active">
+            <span class="material-symbols-rounded" style="font-size:20px;">grid_view</span> Phòng bàn
+          </div>
+          <div class="nav-pill" style="color:white; background:transparent;">
+            <span class="material-symbols-rounded" style="font-size:20px;">description</span> Thực đơn
+          </div>
+          <div class="nav-search">
+            <span class="material-symbols-rounded" style="font-size: 18px;">search</span>
+            <input type="text" placeholder="Tìm món (F3)">
+          </div>
+        </div>
+        <div class="nav-left-actions">
+          <span style="font-size: 14px; font-weight: 500;">Số lượng</span>
+          <div class="icon-btn-circle"><span class="material-symbols-rounded" style="font-size:18px;">bolt</span></div>
+          <div class="icon-btn-circle"><span class="material-symbols-rounded" style="font-size:18px;">add</span></div>
+          <span class="material-symbols-rounded" style="font-size:22px; cursor:pointer;">apps</span>
+          <span class="material-symbols-rounded" style="font-size:22px; cursor:pointer;">search</span>
+        </div>
+      </div>
+      
+      <div class="pane-left-content">
+        <div class="left-header">
+          <div class="tabs-row">
+            <div class="tab-item active">Tất cả</div>
+            <div class="tab-item">Khu A</div>
+            <div class="tab-item">Khu B</div>
+            <div class="tab-item">VIP</div>
+          </div>
+          
+          <div class="filter-row">
+            <div class="status-filters">
+              <label><input type="radio" name="status" checked> Tất cả (51)</label>
+              <label><input type="radio" name="status"> <span style="color:var(--color-primary); font-size:18px;">●</span> Sử dụng (4)</label>
+              <label><input type="radio" name="status"> <span style="color:var(--color-border); font-size:18px;">●</span> Còn trống (47)</label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="table-grid">
+          <div class="pos-table-card status-using">
+            <div class="card-top">
+              <span class="card-amount">1,636,000</span>
+              <span class="card-time">17g6p</span>
+            </div>
+            <div class="card-icons">
+              <span><span class="material-symbols-rounded" style="font-size:14px;">person</span> 2</span>
+              <span><span class="material-symbols-rounded" style="font-size:14px;">restaurant</span> 1</span>
+            </div>
+            <div class="card-name">Bàn 17</div>
+          </div>
+          
+          <div class="pos-table-card status-using">
+            <div class="card-top">
+              <span class="card-amount">543,000</span>
+              <span class="card-time">8p</span>
+            </div>
+            <div class="card-icons">
+              <span><span class="material-symbols-rounded" style="font-size:14px;">person</span> 1</span>
+              <span><span class="material-symbols-rounded" style="font-size:14px;">restaurant</span> 1</span>
+            </div>
+            <div class="card-name">Bàn 18</div>
+          </div>
+          
+          <div class="pos-table-card status-active">
+            <div class="card-top">
+              <span class="card-amount">1,038,000</span>
+              <span class="card-time">103p</span>
+            </div>
+            <div class="card-icons">
+              <span><span class="material-symbols-rounded" style="font-size:14px;">person</span> 4</span>
+              <span><span class="material-symbols-rounded" style="font-size:14px;">restaurant</span> 1</span>
+            </div>
+            <div class="card-name">Bàn 21</div>
+          </div>
+          
+          <div class="pos-table-card">
+            <div class="card-top">
+              <span class="card-amount" style="color: var(--color-text-secondary);">0</span>
+              <span class="card-time"></span>
+            </div>
+            <div class="card-icons">
+              <span><span class="material-symbols-rounded" style="font-size:14px;">person</span> 0</span>
+              <span><span class="material-symbols-rounded" style="font-size:14px;">restaurant</span> 0</span>
+            </div>
+            <div class="card-name" style="color: var(--color-text-secondary);">VIP 1</div>
+          </div>
+        </div>
+
+        <div class="left-bottom-bar">
+          <input type="checkbox" id="openMenu" style="margin:0; width:16px; height:16px; cursor:pointer;">
+          <label for="openMenu" style="cursor:pointer;">Mở thực đơn khi chọn bàn</label>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ======== RIGHT PANE ======== -->
+    <div class="pane-right">
+      <div class="nav-right-top">
+        <div class="invoice-tabs">
+          <div class="invoice-tab active">
+            <span class="material-symbols-rounded" style="font-size: 18px; color:var(--color-primary);">grid_view</span>
+            Bàn 21 / Khu A
+            <span class="material-symbols-rounded close-icon">close</span>
+          </div>
+          <div class="invoice-tab-add"><span class="material-symbols-rounded" style="font-size:20px;">add</span></div>
+        </div>
+        
+        <div class="nav-right-actions">
+          <span class="material-symbols-rounded" style="font-size:22px;">volume_up</span>
+          <span class="material-symbols-rounded" style="font-size:22px;">info</span>
+          <span class="material-symbols-rounded" style="font-size:22px;">sync</span>
+          <span class="material-symbols-rounded" style="font-size:22px;">print</span>
+          <img src="https://flagcdn.com/w20/vn.png" style="width:22px; border-radius:2px;">
+          <div style="font-size:14px; font-weight:600; display:flex; align-items:center; gap:4px;">
+            ducluong <span class="material-symbols-rounded" style="font-size:18px;">expand_more</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="pane-right-content">
+        <div class="order-header">
+          <div class="order-search">
+            <span class="material-symbols-rounded" style="font-size: 20px; color: var(--color-text-secondary);">search</span>
+            <input type="text" placeholder="Tìm khách hàng (F4)">
+          </div>
+          <span class="material-symbols-rounded" style="color: var(--color-text-secondary); font-size:22px; cursor:pointer;">add</span>
+          <span class="material-symbols-rounded" style="color: var(--color-text-secondary); font-size:22px; cursor:pointer;">shopping_basket</span>
+          <span class="material-symbols-rounded" style="color: var(--color-text-secondary); font-size:22px; cursor:pointer;">tune</span>
+        </div>
+        
+        <ul class="order-list">
+          <li class="order-item">
+            <div class="item-info">
+              <div class="item-name">7. Rau thêm</div>
+              <div class="item-note"><span class="material-symbols-rounded" style="font-size: 16px; color: var(--color-primary);">edit_note</span> lá mơ</div>
+            </div>
+            <div class="item-qty">
+              <span class="material-symbols-rounded" style="font-size:18px; color:var(--color-primary);">lock_open</span>
+              <div class="qty-control">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">remove</span></button>
+                <input type="text" class="qty-input" value="1">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">add</span></button>
+              </div>
+              <span class="material-symbols-rounded error-icon">error_outline</span>
+            </div>
+            <div class="item-price">15,000</div>
+            <div class="item-total">15,000</div>
+          </li>
+          <li class="order-item">
+            <div class="item-info">
+              <div class="item-name">6. Thịt dê quay</div>
+              <div class="item-note" style="color:var(--color-text);">Lạng</div>
+            </div>
+            <div class="item-qty">
+              <span class="material-symbols-rounded" style="font-size:18px; color:var(--color-primary);">lock_open</span>
+              <div class="qty-control">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">remove</span></button>
+                <input type="text" class="qty-input" value="3">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">add</span></button>
+              </div>
+              <div style="width:18px;"></div>
+            </div>
+            <div class="item-price">79,000</div>
+            <div class="item-total">237,000</div>
+          </li>
+          <li class="order-item">
+            <div class="item-info">
+              <div class="item-name">5. Dê Hấp Tía Tô</div>
+            </div>
+            <div class="item-qty">
+              <span class="material-symbols-rounded" style="font-size:18px; color:var(--color-primary);">lock_open</span>
+              <div class="qty-control">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">remove</span></button>
+                <input type="text" class="qty-input" value="1">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">add</span></button>
+              </div>
+              <div style="width:18px;"></div>
+            </div>
+            <div class="item-price">169,000</div>
+            <div class="item-total">169,000</div>
+          </li>
+          <li class="order-item">
+            <div class="item-info">
+              <div class="item-name">4. Khăn lạnh</div>
+              <div class="item-note" style="color:var(--color-text);">cái</div>
+            </div>
+            <div class="item-qty">
+              <span class="material-symbols-rounded" style="font-size:18px; color:var(--color-primary);">lock_open</span>
+              <div class="qty-control">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">remove</span></button>
+                <input type="text" class="qty-input" value="10">
+                <button class="qty-btn"><span class="material-symbols-rounded" style="font-size: 16px;">add</span></button>
+              </div>
+              <span class="material-symbols-rounded error-icon">error_outline</span>
+            </div>
+            <div class="item-price">3,000</div>
+            <div class="item-total">30,000</div>
+          </li>
+        </ul>
+        
+        <div class="order-footer">
+          <div class="footer-actions">
+            <select class="custom-select">
+              <option>Bảng giá thường</option>
+            </select>
+            <div class="action-icons-row">
+              <div style="background:var(--color-primary); color:white; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:bold;">1</div>
+              <span class="material-symbols-rounded" style="font-size:22px;">edit</span>
+              <span class="material-symbols-rounded" style="font-size:22px;">refresh</span>
+              <span class="material-symbols-rounded" style="font-size:22px;">delete</span>
+              <span class="material-symbols-rounded" style="font-size:22px;">save</span>
+              <span class="material-symbols-rounded" style="font-size:22px;">inventory_2</span>
+            </div>
+          </div>
+          
+          <div class="total-row">
+            <div>Tổng tiền <span class="total-badge">41</span></div>
+            <div class="total-amount">1,038,000</div>
+          </div>
+          
+          <div class="checkout-buttons">
+            <button class="btn-notify">
+              Thông báo (F10)
+            </button>
+            <button class="btn-checkout">
+              <span class="material-symbols-rounded" style="font-size: 20px;">payments</span>
+              Thanh toán (F9)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bottom-footer">
+    <span><span class="material-symbols-rounded" style="font-size:16px; vertical-align:middle; margin-right:4px;">call</span>Hỗ trợ 1900 6522</span> |
+    <span>ĐẾ HƯƠNG SƠN 2</span> |
+    <span><span class="material-symbols-rounded" style="font-size:16px; vertical-align:middle; margin-right:4px;">info</span>Phím tắt</span> |
+    <span>Phiên bản 26.5.15</span>
+  </div>
+
+</body>
+</html>

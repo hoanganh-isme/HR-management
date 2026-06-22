@@ -1,0 +1,69 @@
+/* ═══════════════════════════════════════════
+   PREMIUM CUSTOM CONTROLS (RADIO)
+   ═══════════════════════════════════════════ */
+
+/* 1. CUSTOM RADIO */
+.modern-radio-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--color-text, #333);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  transition: background var(--transition-fast, 0.2s ease);
+}
+
+.modern-radio-wrapper:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.modern-radio {
+  appearance: none;
+  background-color: transparent;
+  margin: 0;
+  font: inherit;
+  color: currentColor;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border-strong, #ccc);
+  border-radius: 50%; /* Circle shape for radio */
+  display: grid;
+  place-content: center;
+  transition: all var(--transition-fast, 0.2s ease);
+  cursor: pointer;
+}
+
+.modern-radio::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: scale(0);
+  transition: 120ms transform ease-in-out;
+  background-color: white;
+}
+
+.modern-radio:checked {
+  background-color: var(--color-primary, #00B14F);
+  border-color: var(--color-primary, #00B14F);
+}
+
+.modern-radio:checked::before {
+  transform: scale(1);
+}
+
+.modern-radio:focus-visible {
+  outline: 2px solid var(--color-primary-light, #e0f4e6);
+  outline-offset: 2px;
+}
+
+.modern-radio-group {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}

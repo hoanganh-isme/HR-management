@@ -1,0 +1,15 @@
+Sanhtiecid	varchar
+Tensanhtiec	nvarchar
+UserCreate	varchar
+UserUpdate	varchar
+DateCreate	datetime
+DateUpdate	datetime
+Nhahangid	varchar
+Succhua	int
+IsTamngung	bit
+Dongia	decimal
+GhiChuSanh	nvarchar
+isSanh	bit
+SLBanMin	int
+SLBanMax	int
+MaGopSanh	varchar

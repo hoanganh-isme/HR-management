@@ -1,0 +1,15 @@
+Thoigianid	varchar
+Thoigian	nvarchar
+UserCreate	varchar
+UserUpdate	varchar
+DateCreate	datetime
+DateUpdate	datetime
+Nhahangid	varchar
+Tenngan	varchar
+IsTiecCuoi	bit
+IsHoiNghi	bit
+IsFullNgay	bit
+GhiBatDau	decimal
+GioKetThuc	decimal
+AMPM	varchar
+NhomBCLichTiec	nvarchar

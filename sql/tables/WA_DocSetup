@@ -1,0 +1,11 @@
+DocType	varchar
+DocName	nvarchar
+PreFix	varchar
+isAuto	bit
+AccountID	varchar
+STT	int
+TableName	varchar
+TableDetail	varchar
+FormID	varchar
+DocGroupName	nvarchar
+isAcc	int

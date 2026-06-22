@@ -1,0 +1,53 @@
+<!-- ═══════════════════════════════════════════
+   BÁO CÁO DOANH THU TIỆC - HTML Template
+   Dùng Bootstrap 5 Grid & Utilities cho Layout
+   ═══════════════════════════════════════════ -->
+
+<!-- BỘ LỌC -->
+<div id="filter-wrapper" class="mb-4" style="animation: slideUp 0.4s ease forwards;"></div>
+
+<!-- BIỂU ĐỒ -->
+<div class="row mb-4" style="animation: slideUp 0.5s ease forwards;">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span id="chart-title">Biểu đồ Doanh thu</span>
+      </div>
+      <div class="card-body p-0" id="chart-tabs-wrapper">
+        <!-- TABS SẼ RENDER Ở ĐÂY BỞI JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BẢNG DỮ LIỆU -->
+<div class="row" style="animation: slideUp 0.6s ease forwards;">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <span id="table-title">Chi tiết Doanh thu</span>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="revenue-table">
+          <thead>
+            <tr>
+              <th class="text-center" style="width: 60px;">STT</th>
+              <th>Mã HĐ</th>
+              <th>Khách Hàng</th>
+              <th class="text-center">Ngày Tổ Chức</th>
+              <th class="text-center">Sảnh Tiệc</th>
+              <th class="text-end">Số Bàn</th>
+              <th class="text-end">Doanh Thu (VNĐ)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- RENDER BỞI JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOTAL BAR -->
+<div id="total-bar-wrapper" class="mt-3"></div>

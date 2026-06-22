@@ -1,0 +1,20 @@
+SELECT 
+    COLUMN_NAME,
+    DATA_TYPE,
+    CHARACTER_MAXIMUM_LENGTH,
+    IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'tbmk_Hopdongsanhtiec'
+ORDER BY ORDINAL_POSITION;
+
+UserAutoid	varchar	40	NO
+Sohopdong	varchar	20	NO
+Sanhtiecid	varchar	10	NO
+IsSanhchinh	bit	NULL	YES
+Ghichuct	nvarchar	250	YES
+UserCreate	varchar	20	YES
+UserUpdate	varchar	20	YES
+DateCreate	datetime	NULL	YES
+DateUpdate	datetime	NULL	YES
+Giatiensanh	decimal	NULL	YES
+ParentID	nvarchar	50	YES

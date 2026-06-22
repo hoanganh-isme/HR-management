@@ -1,0 +1,15 @@
+/* ═══════════════════════════════════════════
+   SPARKLINE CHART COMPONENT
+   Mini trend chart trên Canvas
+   ═══════════════════════════════════════════ */
+
+.sparkline-canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* Wrapper dùng khi cần căn chỉnh vị trí */
+.sparkline-wrap {
+  display: flex;
+  align-items: flex-end;
+}

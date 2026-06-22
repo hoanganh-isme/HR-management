@@ -1,0 +1,148 @@
+/* ═══════════════════════════════════════════
+   DATAGRID PAGER COMPONENT
+   ═══════════════════════════════════════════ */
+
+.datagrid-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 8px 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  gap: 12px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.pager-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
+  margin: 0 4px;
+}
+
+/* 1. Size Selector */
+.pager-size-selector select {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  outline: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.pager-size-selector select:hover {
+  border-color: var(--color-primary);
+}
+
+/* 2. Controls */
+.pager-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pager-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pager-btn:hover:not(:disabled) {
+  background: var(--color-background);
+  color: var(--color-primary);
+  border-color: var(--color-border);
+}
+
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pager-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.pager-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px;
+}
+
+.pager-input {
+  width: 45px;
+  height: 26px;
+  text-align: center;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.pager-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+/* 3. Info */
+.pager-info {
+  margin-left: auto; /* Push info to the right */
+}
+
+/* --- RESPONSIVE PAGINATION --- */
+@media (max-width: 768px) {
+  .datagrid-pager {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    padding: 8px 0;
+    gap: 8px;
+  }
+  
+  .pager-separator {
+    display: none;
+  }
+
+  .pager-btn-capture {
+    display: none; /* Ẩn nút chụp màn hình cho đỡ tốn diện tích */
+  }
+
+  .pager-btn {
+    width: 24px;
+    height: 24px;
+  }
+
+  .pager-btn .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  .pager-input {
+    width: 35px;
+    height: 24px;
+    font-size: 12px;
+  }
+
+  .pager-size-selector select {
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+  
+  .pager-info {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+    margin-top: 6px;
+    font-size: 12px;
+  }
+}

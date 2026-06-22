@@ -1,0 +1,68 @@
+/* ═══════════════════════════════════════════
+   COMPARE BADGE COMPONENT
+   So sánh kỳ trước: +12.5% ▲ / -3.2% ▼
+   ═══════════════════════════════════════════ */
+
+.compare-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 7px;
+  border-radius: 99px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Sizes */
+.compare-badge--md {
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+.compare-badge--sm {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+/* Icon */
+.compare-badge .cb-icon {
+  font-size: 12px !important;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.compare-badge--sm .cb-icon {
+  font-size: 11px !important;
+}
+
+/* Directions */
+.compare-badge--up {
+  background: rgba(16, 185, 129, 0.10);
+  color: var(--color-success);
+}
+
+.compare-badge--down {
+  background: rgba(244, 63, 94, 0.10);
+  color: var(--color-danger);
+}
+
+.compare-badge--neutral {
+  background: rgba(148, 163, 184, 0.10);
+  color: var(--color-text-secondary);
+}
+
+/* Dark theme */
+body.dark-theme .compare-badge--up {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+body.dark-theme .compare-badge--down {
+  background: rgba(244, 63, 94, 0.15);
+}
+
+body.dark-theme .compare-badge--neutral {
+  background: rgba(148, 163, 184, 0.12);
+}

@@ -1,0 +1,36 @@
+/* ═══════════════════════════════════════════
+   SCREEN CAPTURE COMPONENT CSS
+   ═══════════════════════════════════════════ */
+
+.screen-capture-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 99999;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.screen-capture-toolbar button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.screen-capture-toolbar button:hover {
+  background: var(--color-background);
+  color: var(--color-primary);
+}
+
+.screen-capture-toolbar button .material-symbols-outlined {
+  font-size: 18px;
+}

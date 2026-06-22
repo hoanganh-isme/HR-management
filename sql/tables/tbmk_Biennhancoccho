@@ -1,0 +1,86 @@
+SELECT 
+    COLUMN_NAME,
+    DATA_TYPE,
+    CHARACTER_MAXIMUM_LENGTH,
+    IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'tbmk_Biennhancoccho'
+ORDER BY ORDINAL_POSITION;
+
+
+DocumentID	varchar	20	NO
+SoBN	varchar	20	NO
+DocumentDate	datetime	NULL	YES
+Makh	varchar	20	NO
+Solan	tinyint	NULL	YES
+Manv	varchar	20	YES
+Loaitiecid	varchar	10	YES
+Ngaytochuc	datetime	NULL	NO
+Nhamngay	nvarchar	100	YES
+Tongtien	decimal	NULL	YES
+Truocngay	datetime	NULL	YES
+Ghichu	nvarchar	-1	YES
+UserCreate	varchar	20	YES
+UserUpdate	varchar	20	YES
+DateCreate	datetime	NULL	YES
+DateUpdate	datetime	NULL	YES
+Nhahangid	varchar	50	YES
+IsHuy	bit	NULL	YES
+Lydohuy	nvarchar	250	YES
+Thoigianid	varchar	20	NO
+IsKetthuc	bit	NULL	YES
+SobanManchinhthuc	int	NULL	YES
+SobanManduphong	int	NULL	YES
+Giabanman	decimal	NULL	YES
+SobanChaychinhthuc	int	NULL	YES
+SobanChayduphong	int	NULL	YES
+Giabanchay	decimal	NULL	YES
+SoTienBanMan	decimal	NULL	YES
+SoTienBanChay	decimal	NULL	YES
+SoTienCocCho	decimal	NULL	YES
+Tongsoban	int	NULL	YES
+Soluongkhach	int	NULL	YES
+SoNguoiTrenBan	int	NULL	YES
+SoBanTang	int	NULL	YES
+Nguoinhantt	varchar	20	YES
+Ngayhuy	datetime	NULL	YES
+TiecCuoiHoiNghi	nvarchar	2	YES
+PhiPhucVu	decimal	NULL	YES
+DiaDiemToChuc	nvarchar	250	YES
+MauNo	nvarchar	250	YES
+TuNgaySetup	datetime	NULL	YES
+DenNgaySetup	datetime	NULL	YES
+TuGioDenGioSetup	nvarchar	50	YES
+DenGioSetup	nvarchar	50	YES
+TuNgayThuDon	datetime	NULL	YES
+DenNgayThuDon	datetime	NULL	YES
+GioKetThucThuDon	nvarchar	50	YES
+DenGioKetThucThuDon	nvarchar	50	YES
+GioDienRaSuKien	nvarchar	50	YES
+GioKetThucSuKien	nvarchar	50	YES
+ChuongTrinhUuDai	varchar	20	YES
+ThanhToanID	varchar	20	YES
+NganHang	nvarchar	250	YES
+GioBanGiaoSanhTiecCuoi	varchar	20	YES
+GioTraSanhTiecCuoi	varchar	20	YES
+SoNgayToChuc	int	NULL	YES
+NgayBanGiaoSanhDV	datetime	NULL	YES
+GioBanGiaoSanhDV	nvarchar	50	YES
+NgayTraSanhDV	datetime	NULL	YES
+GioTraSanhDV	nvarchar	50	YES
+GhiChuSetup	nvarchar	250	YES
+GoiThucDonID	varchar	50	NO
+SetMenuID	varchar	50	YES
+IsBaoLuu	bit	NULL	YES
+IsChuyenCocCho	bit	NULL	YES
+IsDaChuyenCocCho	bit	NULL	YES
+NgayBaoLuu	datetime	NULL	YES
+NgayChuyenCocCho	datetime	NULL	YES
+MakhChuyen	varchar	50	YES
+SobanManchinhthucChuyen	int	NULL	YES
+SobanManduphongChuyen	int	NULL	YES
+SobanChaychinhthucChuyen	int	NULL	YES
+SobanChayduphongChuyen	int	NULL	YES
+SoBanTangChuyen	int	NULL	YES
+DocumentIDcu	varchar	20	YES
+NgayHenChuyen	datetime	NULL	YES

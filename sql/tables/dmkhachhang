@@ -1,0 +1,62 @@
+SELECT 
+    COLUMN_NAME,
+    DATA_TYPE,
+    CHARACTER_MAXIMUM_LENGTH,
+    IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'dmkhachhang'
+ORDER BY ORDINAL_POSITION;
+
+Makh	varchar	20	NO
+Tenkh	nvarchar	250	YES
+Tencodau	nvarchar	250	YES
+Tenchure	nvarchar	250	YES
+Ngaysinhcodau	datetime	NULL	YES
+Ngaysinhchure	datetime	NULL	YES
+DTcodau	nvarchar	50	YES
+DTchure	nvarchar	50	YES
+Diachi	nvarchar	254	YES
+Masothue	varchar	50	YES
+Nguoigd	nvarchar	100	YES
+Dienthoai	nvarchar	50	YES
+Fax	nvarchar	50	YES
+Mail	nvarchar	50	YES
+NhomkhID	varchar	10	YES
+KhuvucID	varchar	20	YES
+IsKhachhang	bit	NULL	YES
+IsNCC	bit	NULL	YES
+IsNhanvien	bit	NULL	YES
+IsTinhcongno	bit	NULL	YES
+DateCreate	datetime	NULL	YES
+DateUpdate	datetime	NULL	YES
+UserCreate	varchar	50	YES
+UserUpdate	varchar	50	YES
+TheVIP	nvarchar	10	YES
+Ghichu	nvarchar	2000	YES
+IsMacdinh	bit	NULL	YES
+CMNDchure	varchar	50	YES
+CMNDcodau	varchar	50	YES
+CMNDnguoidd	varchar	50	YES
+Noilamviec	nvarchar	250	YES
+IsDiachiChuRe	bit	NULL	YES
+IsMailChuRe	bit	NULL	YES
+ChucVu	nvarchar	250	YES
+TenCty	nvarchar	250	YES
+DiaChiCty	nvarchar	250	YES
+NguoiLienHeHoaDon	nvarchar	250	YES
+DienThoaiHoaDon	nvarchar	250	YES
+NgayCap	datetime	NULL	YES
+NoiCap	nvarchar	250	YES
+NgayDeLaiThongTin	datetime	NULL	YES
+NguoiPhuTrachID	varchar	50	YES
+TinhTrangKhachHang	nvarchar	250	YES
+LoaiTiecID	varchar	10	YES
+MakhChamSoc	varchar	50	YES
+IsGioiTinhNguoidd	bit	NULL	YES
+MakhKT	varchar	50	YES
+isOngBaDaiDien	bit	NULL	YES
+CMNDDaiDien	varchar	50	YES
+DienThoaiDaiDien	varchar	50	YES
+SoTaiKhoan	varchar	50	YES
+TaiNganHang	nvarchar	250	YES
+BranchID	varchar	50	YES

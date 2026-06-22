@@ -1,0 +1,58 @@
+<!-- ═══════════════════════════════════════════
+   QUẢN LÝ KHO & ĐỊNH LƯỢNG - HTML Template
+   ═══════════════════════════════════════════ -->
+
+<div class="inventory-module-container" style="display:flex; flex-direction:column; min-height: 80vh; width: 100%;">
+  <div class="custom-tabs-header">
+    <button id="tab-kho-btn" class="custom-tab-btn active">
+      <i class="material-symbols-outlined align-middle me-1" style="font-size: 18px;">warehouse</i>
+      <span class="d-none d-sm-inline">Danh mục </span>Kho
+    </button>
+    <button id="tab-nvl-btn" class="custom-tab-btn">
+      <i class="material-symbols-outlined align-middle me-1" style="font-size: 18px;">kitchen</i>
+      NVL
+    </button>
+    <button id="tab-bom-btn" class="custom-tab-btn">
+      <i class="material-symbols-outlined align-middle me-1" style="font-size: 18px;">receipt_long</i>
+      <span class="d-none d-sm-inline">Định lượng </span>(BOM)
+    </button>
+    <button id="tab-nhap-btn" class="custom-tab-btn">
+      <i class="material-symbols-outlined align-middle me-1" style="font-size: 18px;">move_to_inbox</i>
+      Nhập kho
+    </button>
+    <button id="tab-xuat-btn" class="custom-tab-btn">
+      <i class="material-symbols-outlined align-middle me-1" style="font-size: 18px;">outbox</i>
+      Xuất kho
+    </button>
+  </div>
+
+  <!-- Tabs Content -->
+  <div class="tab-content pt-3" style="flex:1; width: 100%; background: transparent;" id="inventoryTabsContent">
+    
+    <!-- PANE 1: KHO -->
+    <div id="tab-kho-pane" style="display: block; width: 100%;">
+      <div id="kho-list-view"></div>
+    </div>
+    
+    <!-- PANE 2: NGUYÊN VẬT LIỆU -->
+    <div id="tab-nvl-pane" style="display: none; width: 100%;">
+      <div id="nvl-list-view"></div>
+    </div>
+
+    <!-- PANE 3: BOM -->
+    <div id="tab-bom-pane" style="display: none; width: 100%;">
+      <div id="bom-list-view"></div>
+    </div>
+
+    <!-- PANE 4: NHẬP KHO -->
+    <div id="tab-nhap-pane" style="display: none; width: 100%;">
+      <div id="nhap-list-view"></div>
+    </div>
+
+    <!-- PANE 5: XUẤT KHO -->
+    <div id="tab-xuat-pane" style="display: none; width: 100%;">
+      <div id="xuat-list-view"></div>
+    </div>
+
+  </div>
+</div>

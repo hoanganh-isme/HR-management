@@ -1,0 +1,139 @@
+/* ═══════════════════════════════════════════
+   DATAGRID TABLE COMPONENTS
+   ═══════════════════════════════════════════ */
+
+.table-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden; /* Ensure vertical corners are clipped */
+  border-radius: var(--radius-sm);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.data-table th {
+  background: var(--color-surface);
+  padding: 16px 24px;
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  padding-right: 32px;
+}
+
+.data-table tbody tr {
+  cursor: pointer;
+  transition: 
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.data-table tbody tr.active {
+  background-color: var(--color-primary-light);
+  box-shadow: inset 4px 0 0 var(--color-primary);
+}
+
+.data-table tbody tr td {
+  transition: 
+    color 0.2s ease,
+    font-weight 0.2s ease;
+}
+
+.data-table tbody tr.active td {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ════ DARK THEME OVERRIDES ════ */
+body.dark-theme .data-table {
+  background-color: var(--color-surface);
+}
+body.dark-theme .data-table th {
+  background-color: var(--color-surface);
+  border-bottom-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+body.dark-theme .data-table td {
+  border-bottom-color: var(--color-border);
+  color: var(--color-text);
+}
+body.dark-theme .data-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* --- RESPONSIVE TABLE (Card View on Mobile) --- */
+@media (max-width: 768px) {
+  .data-table:not(.no-mobile-stack),
+  .data-table:not(.no-mobile-stack) tbody {
+    display: block;
+    width: 100%;
+  }
+  .data-table:not(.no-mobile-stack) thead {
+    display: none; /* Ẩn tiêu đề ngang trên mobile */
+  }
+
+  .data-table:not(.no-mobile-stack) tbody tr {
+    display: block;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
+    padding: 8px;
+    background: var(--color-surface);
+  }
+
+  .data-table:not(.no-mobile-stack) tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding: 12px 12px;
+    text-align: right !important;
+    white-space: normal; word-break: break-word;
+    max-width: 100%;
+  }
+
+  .data-table:not(.no-mobile-stack) tbody td:last-child {
+    border-bottom: none;
+  }
+
+  /* Tạo tiêu đề ảo từ thuộc tính data-label */
+  .data-table:not(.no-mobile-stack) tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-align: left;
+    margin-right: 16px;
+    text-transform: uppercase;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+}
+
+
+

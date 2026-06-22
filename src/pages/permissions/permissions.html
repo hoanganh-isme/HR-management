@@ -1,0 +1,51 @@
+<div class="row g-4" style="animation: slideUp 0.3s ease forwards;">
+  <!-- CỘT TRÁI: DANH SÁCH NHÓM QUYỀN -->
+  <div class="col-lg-2 col-md-3">
+    <div class="card">
+      <div class="card-header" style="background: var(--color-background);">
+        <h3 class="mb-0" style="font-size: var(--font-size-md);">Nhóm quyền</h3>
+      </div>
+      <div class="card-body p-2" id="role-list-container">
+        <!-- JS GENERATED ROLE LIST -->
+      </div>
+    </div>
+  </div>
+
+  <!-- CỘT PHẢI: CHI TIẾT PHÂN QUYỀN -->
+  <div class="col-lg-10 col-md-9">
+    <div class="card d-flex flex-column" style="min-height: 400px;">
+      <div class="card-header d-flex justify-content-between align-items-center" style="background: var(--color-background);">
+        <h3 class="d-flex align-items-center gap-2 mb-0" style="font-size: var(--font-size-md);">
+          <span class="material-symbols-outlined" style="font-size:var(--font-size-lg);">account_tree</span>
+          Chi tiết Phân quyền: <span id="current-role-name" style="color: var(--color-primary); font-weight: 600;"></span>
+        </h3>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary" id="btn-sync-permission" style="padding: 4px 12px; font-size:var(--font-size-sm);">Đồng Bộ Menu</button>
+        </div>
+      </div>
+      <div class="card-body table-wrapper p-0" style="border-radius:0 0 8px 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <table class="data-table no-mobile-stack" id="permission-tree-table" style="margin:0; table-layout: fixed; min-width: 950px;">
+          <thead>
+            <tr>
+              <th style="width: 240px;">Cấu trúc Phân quyền</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;">Xem</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;">Thêm</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;">Sửa</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;">Xóa</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;">Quản lý</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;">Admin</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;" title="Khóa Tự Động">Khóa TĐ</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;" title="Ẩn Số Tiền">Ẩn T.Tiền</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;" title="Khóa Chứng Từ">Khóa CT</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;" title="Mở Chứng Từ">Mở CT</th>
+              <th class="text-center" style="width: 56px; font-size: 11px; white-space: normal; line-height: 1.3;" title="Xuất Excel">Xuất Excel</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JS GENERATED TREE ROWS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

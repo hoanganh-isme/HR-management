@@ -1,0 +1,650 @@
+/* ═══════════════════════════════════════════
+   Global Styles — Reset & Core Layout (TailAdmin Clone)
+   ═══════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  background-color: var(--color-background);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+  /* Modern tighten */
+  overflow: hidden;
+}
+
+/* ════ CUSTOM SCROLLBAR (Global) ════ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+  /* Tighter headers */
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════
+   APP SHELL LAYOUT
+   ═══════════════════════════════════════════ */
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+
+
+/* ════ SCROLLABLE CONTENT ════ */
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px var(--spacing-xl);
+  background: var(--color-background);
+}
+
+/* Fix width form container if needed */
+.content-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 12px;
+  background: var(--color-surface);
+  padding: clamp(12px, 3vw, 20px) clamp(12px, 4vw, 24px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+  margin-bottom: 24px;
+}
+
+.page-title-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.page-title-heading {
+  margin: 0;
+  font-size: clamp(15px, 3vw, 19px);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--color-text);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-title-sub {
+  font-size: clamp(11px, 1.5vw, 12px);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.page-title-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.page-title-actions .button-bar {
+  width: 100%;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+
+
+
+
+/* ════ RESPONSIVE QUERIES ════ */
+/* Desktop / Tablet (1024px) */
+@media (max-width: 1024px) {
+  /* no sidebar overrides needed — navbar handles mobile internally */
+}
+
+/* Tablet Small / Mobile (768px) */
+@media (max-width: 768px) {
+  :root {
+    --header-height: 64px;
+    --sidebar-width: 260px;
+    /* Scale down typography on mobile screens */
+    --font-size-xs: 11px;
+    --font-size-sm: 13px;
+    --font-size-md: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 20px;
+    --font-size-2xl: 24px;
+  }
+
+  .search-box {
+    display: none;
+  }
+
+  .user-text {
+    display: none;
+  }
+
+  .app-header {
+    padding: 0 16px;
+    gap: 8px;
+  }
+
+  .app-content {
+    padding: 16px;
+  }
+
+  /* Tràn lề 2 bên (Full-bleed) cho các khối độc lập trên Mobile */
+  .app-content>.button-bar,
+  .dynamic-grid-card {
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    width: calc(100% + 32px) !important;
+    max-width: none !important;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+
+  /* Trên mobile, tách hẳn Title ra khỏi hộp: Bỏ nền, viền của khung bọc ngoài */
+  .page-title-bar {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Biến phần tiêu đề thành một khối (card) riêng */
+  .page-title-info {
+    background: var(--color-surface);
+    width: calc(100% + 32px) !important;
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    padding: 16px;
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  /* Biến toolbar thành một thanh riêng biệt, tràn lề trên mobile */
+  .page-title-actions {
+    min-width: 0;
+    width: calc(100% + 32px) !important;
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    padding: 12px 16px;
+  }
+
+  .page-title-actions .button-bar {
+    width: auto !important;
+    margin: 0 !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .header-left {
+    gap: 12px;
+  }
+
+  .header-right {
+    gap: 14px;
+  }
+
+  .btn-hamburger,
+  .navbar-hamburger {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+  }
+
+  .btn-hamburger .material-symbols-outlined,
+  .navbar-hamburger .material-symbols-outlined {
+    font-size: 20px;
+  }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .user-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    padding: 12px;
+    gap: 12px;
+    border-radius: var(--radius-md);
+  }
+
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .stat-icon .material-symbols-outlined {
+    font-size: 22px;
+  }
+
+  .stat-info h3 {
+    font-size: 20px;
+    margin-bottom: 2px;
+  }
+
+  .stat-info p {
+    font-size: 13px;
+    margin-bottom: 0;
+  }
+
+  .card-header {
+    padding: 16px;
+    font-size: 16px;
+  }
+
+  .card-body {
+    padding: 16px;
+  }
+
+  .table-wrapper {
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    width: calc(100% + 32px) !important;
+    border-radius: 0 !important;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 10px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Cach trai 1 xiu de thay chu cot dau tien */
+  .table-wrapper .data-table th:first-child,
+  .table-wrapper .data-table td:first-child {
+    padding-left: 16px !important;
+  }
+}
+
+/* Extremely Small Mobile (e.g. 320px - iPhone SE) */
+@media (max-width: 480px) {
+  :root {
+    --header-height: 56px;
+    --sidebar-width: 240px;
+    --font-size-2xl: 20px;
+    --font-size-xl: 18px;
+    --spacing-xl: 16px;
+  }
+
+  .btn-hamburger,
+  .navbar-hamburger {
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .icon-btn .material-symbols-outlined {
+    font-size: 18px !important;
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .sidebar-header {
+    padding: 0 12px;
+    font-size: 15px;
+  }
+
+  .sidebar-header>div>.material-symbols-outlined {
+    font-size: 22px !important;
+    margin-right: 4px !important;
+  }
+
+  .btn-close-sidebar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-group-title {
+    font-size: 10px;
+    padding: 4px 12px;
+    margin-top: 12px;
+  }
+
+  .nav-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    gap: 8px;
+    margin: 2px 8px;
+  }
+
+  .nav-item span.icon {
+    font-size: 18px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .stat-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+  }
+
+  .stat-icon .material-symbols-outlined {
+    font-size: 20px;
+  }
+
+  .stat-info h3 {
+    font-size: 18px;
+  }
+
+  .stat-info p {
+    font-size: 12px;
+  }
+
+  .card-header {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .card-body {
+    padding: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
+
+/* ════ GLOBAL COMPONENTS ════ */
+.panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10004;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.panel-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ════ ANIMATIONS ════ */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ════ FLATPICKR OVERRIDES (Thu nhỏ) ════ */
+.flatpickr-calendar {
+  width: 260px !important;
+  font-size: 13px !important;
+}
+
+.flatpickr-days,
+.flatpickr-weeks {
+  width: 260px !important;
+}
+
+.dayContainer {
+  width: 260px !important;
+  min-width: 260px !important;
+  max-width: 260px !important;
+}
+
+.flatpickr-day {
+  max-width: 34px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+}
+
+.flatpickr-month {
+  height: 44px !important;
+}
+
+.flatpickr-current-month {
+  font-size: 110% !important;
+  padding-top: 6px !important;
+}
+
+span.flatpickr-weekday {
+  font-size: 12px !important;
+  color: var(--color-text-secondary) !important;
+  font-weight: 700 !important;
+}
+
+/* ════ FLATPICKR COLORS (Màu sắc) ════ */
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected:hover,
+.flatpickr-day.selected:focus {
+  background: var(--color-primary) !important;
+  color: #ffffff !important;
+  border-color: var(--color-primary) !important;
+  border-bottom: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3) !important;
+}
+
+.flatpickr-day.today.selected {
+  color: #ffffff !important;
+}
+
+.flatpickr-day.today {
+  border: 1px solid var(--color-primary) !important;
+  border-bottom: 2px solid var(--color-primary) !important;
+  color: var(--color-primary) !important;
+  font-weight: bold;
+  border-radius: 8px !important;
+}
+
+.flatpickr-day:hover {
+  background: rgba(79, 70, 229, 0.08) !important;
+  color: var(--color-primary) !important;
+  border-radius: 8px !important;
+  border-bottom: none !important;
+}
+
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+  fill: var(--color-primary) !important;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  color: var(--color-primary) !important;
+  font-weight: 800 !important;
+}
+
+/* ---- LOGO THEME SWITCHING ---- */
+body.dark-theme .app-logo-light {
+  display: none !important;
+}
+
+body:not(.dark-theme) .app-logo-dark {
+  display: none !important;
+}
+
+/* Sidebar Text Brightness for Dark Theme */
+body.dark-theme .nav-item {
+  color: #f8fafc;
+}
+
+body.dark-theme .nav-item span.icon {
+  color: #f8fafc;
+  opacity: 0.9;
+}
+
+body.dark-theme .nav-group-title {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+body.dark-theme .nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-theme .nav-item:hover span.icon {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .app-navbar .navbar-brand {
+    display: none !important;
+  }
+}
+
+/* ════ DYNAMIC FORM GRID SYSTEM ════ */
+.df-col-12 {
+  width: 100% !important;
+}
+
+.df-col-8 {
+  width: calc(66.666% - 3px) !important;
+}
+
+.df-col-6 {
+  width: calc(50% - 5px) !important;
+}
+
+.df-col-4 {
+  width: calc(33.333% - 7px) !important;
+}
+
+.df-col-3 {
+  width: calc(25% - 8px) !important;
+}
+
+@media (max-width: 768px) {
+
+  /* Trên Mobile: 
+     - Mặc định 100% (df-col-12) vẫn giữ 100%.
+     - Các ô 50% (df-col-6) vẫn giữ nguyên 50% để cho phép xếp 2 ô 1 hàng.
+     - Các ô quá nhỏ như 33% và 25% sẽ được tự động giãn ra thành 50% (xếp 2 ô 1 hàng) 
+       thay vì bị bóp nghẹt quá nhỏ hoặc bị giãn quá to 100%. */
+  .df-col-8,
+  .df-col-6,
+  .df-col-4,
+  .df-col-3 {
+    width: calc(50% - 5px) !important;
+  }
+}

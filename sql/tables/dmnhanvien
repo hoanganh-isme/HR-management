@@ -1,0 +1,48 @@
+-- ==========================================================
+-- SCHEMA BẢNG DMNHANVIEN & VIEW dmNhanvienView
+-- ==========================================================
+
+-- BẢNG GỐC: DMNHANVIEN
+DMNHANVIEN	NHANVIENID	varchar
+DMNHANVIEN	USERNAME	varchar
+DMNHANVIEN	TENNHANVIEN	nvarchar
+DMNHANVIEN	CMND	varchar
+DMNHANVIEN	NGAYSINH	datetime
+DMNHANVIEN	Namsinh	varchar
+DMNHANVIEN	DIACHI	nvarchar
+DMNHANVIEN	DIENTHOAI	varchar
+DMNHANVIEN	NGAYVAOLAM	datetime
+DMNHANVIEN	NGAYNGHI	datetime
+DMNHANVIEN	ISDANGHI	bit
+DMNHANVIEN	USERCREATE	nvarchar
+DMNHANVIEN	DATECREATE	datetime
+DMNHANVIEN	USERUPDATE	nvarchar
+DMNHANVIEN	DATEUPDATE	datetime
+DMNHANVIEN	Khuvucid	varchar
+DMNHANVIEN	IsGioitinh	bit
+DMNHANVIEN	IsMacdinh	bit
+DMNHANVIEN	Nhahangid	varchar
+DMNHANVIEN	Caid	varchar
+DMNHANVIEN	Mail	nvarchar
+DMNHANVIEN	Bophanid	varchar
+
+-- VIEW: dmNhanvienView
+dmNhanvienView	Manv	varchar
+dmNhanvienView	USERNAME	varchar
+dmNhanvienView	Tennv	nvarchar
+dmNhanvienView	CMND	varchar
+dmNhanvienView	NGAYSINH	datetime
+dmNhanvienView	DIACHI	nvarchar
+dmNhanvienView	DIENTHOAI	varchar
+dmNhanvienView	NGAYVAOLAM	datetime
+dmNhanvienView	NGAYNGHI	datetime
+dmNhanvienView	ISDANGHI	bit
+dmNhanvienView	NHANVIENID	varchar
+dmNhanvienView	Mail	nvarchar
+dmNhanvienView	Bophanid	varchar
+dmNhanvienView	Tenbophan	nvarchar
+dmNhanvienView	NguoiPhuTrachID	varchar
+dmNhanvienView	TenNguoiPhuTrach	nvarchar
+dmNhanvienView	ManvDuyet	varchar
+dmNhanvienView	TennvDuyet	nvarchar
+dmNhanvienView	Expr1	varchar

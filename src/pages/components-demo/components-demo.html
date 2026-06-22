@@ -1,0 +1,248 @@
+<!-- ═══════════════════════════════════════════
+   MINH HOẠ TOÀN BỘ UI COMPONENTS - HTML Template
+   ═══════════════════════════════════════════ -->
+
+<!-- 1. CHECKBOX -->
+<div class="card mb-4" style="animation: slideUp 0.3s ease forwards;">
+  <div class="card-header">1. Checkbox</div>
+  <div class="card-body d-flex gap-4 flex-wrap p-4" id="demo-checkbox-group"></div>
+</div>
+
+<!-- 2. COMBOBOX -->
+<div class="card mb-4" style="animation: slideUp 0.32s ease forwards;">
+  <div class="card-header">2. ComboBox (DataGrid xổ xuống)</div>
+  <div class="card-body p-4 d-flex flex-column gap-3">
+    <div style="max-width: 400px;">
+      <label class="form-label" style="color:var(--color-text-secondary);">Người bán (F4 hiển thị, F3 tra cứu, F2 thêm)</label>
+      <div id="demo-combobox-wrapper"></div>
+    </div>
+    <div style="max-width: 400px;">
+      <label class="form-label" style="color:var(--color-text-secondary);">ComboBox (Trạng thái vô hiệu hóa - Disabled)</label>
+      <div id="demo-combobox-disabled-wrapper"></div>
+    </div>
+    <div style="max-width: 400px;">
+      <label class="form-label" style="color:var(--color-text-secondary);">ComboBox (Chỉ chọn từ danh sách - Readonly)</label>
+      <div id="demo-combobox-readonly-wrapper"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. GRID DROPDOWN -->
+<div class="card mb-4" style="animation: slideUp 0.34s ease forwards;">
+  <div class="card-header">3. Grid Dropdown (trong DataGrid)</div>
+  <div class="card-body p-0">
+    <div class="table-wrapper">
+      <table class="data-table no-mobile-stack">
+        <thead><tr><th>Mã kho</th><th style="width:300px;">Mã hàng (Click/Focus)</th><th>Tên hàng</th><th>ĐVT</th></tr></thead>
+        <tbody>
+          <tr><td>K001</td><td id="td-grid-dropdown-1" class="p-0"></td><td id="lbl-tenhang-1"></td><td id="lbl-dvt-1"></td></tr>
+          <tr><td>K001</td><td id="td-grid-dropdown-2" class="p-0"></td><td id="lbl-tenhang-2"></td><td id="lbl-dvt-2"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 4. BUTTONS -->
+<div class="card mb-4" style="animation: slideUp 0.36s ease forwards;">
+  <div class="card-header">4. Buttons</div>
+  <div class="card-body d-flex gap-3 flex-wrap p-4" id="demo-buttons"></div>
+</div>
+
+<!-- 5. BADGES -->
+<div class="card mb-4" style="animation: slideUp 0.38s ease forwards;">
+  <div class="card-header">5. Status Badges</div>
+  <div class="card-body d-flex gap-3 flex-wrap p-4" id="demo-badges"></div>
+</div>
+
+<!-- 6. ALERTS -->
+<div class="card mb-4" style="animation: slideUp 0.4s ease forwards;">
+  <div class="card-header">6. Alert Dialogs</div>
+  <div class="card-body d-flex gap-3 flex-wrap p-4" id="demo-alerts"></div>
+</div>
+
+<!-- 7. TOAST -->
+<div class="card mb-4" style="animation: slideUp 0.42s ease forwards;">
+  <div class="card-header">7. Toast Notifications</div>
+  <div class="card-body d-flex gap-3 flex-wrap p-4" id="demo-toasts"></div>
+</div>
+
+<!-- 8. CONFIRM MODAL -->
+<div class="card mb-4" style="animation: slideUp 0.44s ease forwards;">
+  <div class="card-header">8. ConfirmModal (Hộp xác nhận)</div>
+  <div class="card-body d-flex gap-3 flex-wrap p-4" id="demo-confirm-modal"></div>
+</div>
+
+<!-- 8b. MODAL (UIModal) -->
+<div class="card mb-4" style="animation: slideUp 0.45s ease forwards;">
+  <div class="card-header">8b. UIModal (Form Modal tổng quát)</div>
+  <div class="card-body d-flex gap-3 flex-wrap p-4" id="demo-ui-modal"></div>
+</div>
+
+<!-- 9. TABS -->
+<div class="card mb-4" style="animation: slideUp 0.46s ease forwards;">
+  <div class="card-header">9. Tabs</div>
+  <div class="card-body p-0" id="demo-tabs"></div>
+</div>
+
+<!-- 9b. NESTED TABS -->
+<div class="card mb-4" style="animation: slideUp 0.47s ease forwards;">
+  <div class="card-header">9b. Nested Tabs — Ngang (Tab phân cấp Cha → Con)</div>
+  <div class="card-body p-4" id="demo-nested-tabs"></div>
+</div>
+
+<!-- 9c. NESTED TABS VERTICAL -->
+<div class="card mb-4" style="animation: slideUp 0.475s ease forwards;">
+  <div class="card-header">9c. Nested Tabs — Dọc (Sidebar accordion + Content panel)</div>
+  <div class="card-body p-4" id="demo-nested-tabs-v"></div>
+</div>
+
+<!-- 10. ACCORDION -->
+<div class="card mb-4" style="animation: slideUp 0.48s ease forwards;">
+  <div class="card-header">10. Accordion</div>
+  <div class="card-body p-4" id="demo-accordion"></div>
+</div>
+
+<!-- 11. STEPPER -->
+<div class="card mb-4" style="animation: slideUp 0.5s ease forwards;">
+  <div class="card-header">11. Stepper (Progress Steps)</div>
+  <div class="card-body p-4" id="demo-stepper"></div>
+</div>
+
+<!-- 12. TIMELINE -->
+<div class="card mb-4" style="animation: slideUp 0.52s ease forwards;">
+  <div class="card-header">12. Timeline</div>
+  <div class="card-body p-4" id="demo-timeline"></div>
+</div>
+
+<!-- 13. CALENDAR MINI -->
+<div class="card mb-4" style="animation: slideUp 0.54s ease forwards;">
+  <div class="card-header">13. Calendar (Mini DatePicker)</div>
+  <div class="card-body p-4" id="demo-calendar"></div>
+</div>
+
+<!-- 14. SLIDER -->
+<div class="card mb-4" style="animation: slideUp 0.56s ease forwards;">
+  <div class="card-header">14. Slider</div>
+  <div class="card-body p-4" id="demo-slider"></div>
+</div>
+
+<!-- 15. FILE UPLOAD -->
+<div class="card mb-4" style="animation: slideUp 0.58s ease forwards;">
+  <div class="card-header">15. File Upload</div>
+  <div class="card-body p-4" id="demo-file-upload"></div>
+</div>
+
+<!-- 16. PAGINATION -->
+<div class="card mb-4" style="animation: slideUp 0.6s ease forwards;">
+  <div class="card-header">16. Pagination</div>
+  <div class="card-body p-4" id="demo-pagination"></div>
+</div>
+
+<!-- 17. EMPTY STATE -->
+<div class="card mb-4" style="animation: slideUp 0.62s ease forwards;">
+  <div class="card-header">17. Empty State</div>
+  <div class="card-body p-4" id="demo-empty-state"></div>
+</div>
+
+<!-- 18. LOADING SPINNER -->
+<div class="card mb-4" style="animation: slideUp 0.64s ease forwards;">
+  <div class="card-header">18. Loading Spinner</div>
+  <div class="card-body p-4 d-flex gap-4 align-items-center" style="flex-wrap: wrap;" id="demo-spinner"></div>
+</div>
+
+<!-- 19. POPOVER -->
+<div class="card mb-4" style="animation: slideUp 0.66s ease forwards;">
+  <div class="card-header">19. Popover</div>
+  <div class="card-body p-4" id="demo-popover"></div>
+</div>
+
+<!-- 20. CONTEXT MENU -->
+<div class="card mb-4" style="animation: slideUp 0.68s ease forwards;">
+  <div class="card-header">20. Context Menu (Chuột phải)</div>
+  <div class="card-body p-4" id="demo-context-menu">
+    <div id="ctx-menu-area" style="border: 2px dashed var(--color-border-strong); border-radius: 8px; padding: 40px; text-align: center; color: var(--color-text-secondary); cursor: context-menu;">
+      Click chuột phải vào vùng này để xem Context Menu
+    </div>
+  </div>
+</div>
+
+<!-- 21. CHART -->
+<div class="card mb-4" style="animation: slideUp 0.7s ease forwards;">
+  <div class="card-header">21. Chart (Biểu đồ)</div>
+  <div class="card-body p-4">
+    <div class="row g-4">
+      <div class="col-md-6"><div id="demo-chart-bar"></div></div>
+      <div class="col-md-6"><div id="demo-chart-pie"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 22. INPUT -->
+<div class="card mb-4" style="animation: slideUp 0.72s ease forwards;">
+  <div class="card-header">22. Input Fields</div>
+  <div class="card-body p-4" id="demo-inputs"></div>
+</div>
+
+<!-- 23. TREE VIEW -->
+<div class="card mb-4" style="animation: slideUp 0.74s ease forwards;">
+  <div class="card-header">23. Tree View</div>
+  <div class="card-body p-4" id="demo-treeview"></div>
+</div>
+
+<!-- 24. CARD (JS tạo) -->
+<div class="card mb-4" style="animation: slideUp 0.76s ease forwards;">
+  <div class="card-header">24. Card Component (JS Create)</div>
+  <div class="card-body p-4" id="demo-card"></div>
+</div>
+
+<!-- 25. TABLE (DataGrid JS) -->
+<div class="card mb-4" style="animation: slideUp 0.78s ease forwards;">
+  <div class="card-header">25. DataTable (JS Create)</div>
+  <div class="card-body p-0" id="demo-table"></div>
+</div>
+
+<!-- 26. ACTION TOOLBAR -->
+<div class="card mb-4" style="animation: slideUp 0.8s ease forwards;">
+  <div class="card-header">26. Action Toolbar (6 nút chuẩn)</div>
+  <div class="card-body p-4" id="demo-action-toolbar"></div>
+</div>
+
+<!-- 27. TOTAL BAR -->
+<div class="card mb-4" style="animation: slideUp 0.82s ease forwards;">
+  <div class="card-header">27. Total Bar (Thanh tổng cộng)</div>
+  <div class="card-body p-0" id="demo-total-bar"></div>
+</div>
+
+<!-- 28. FILTER COMPONENT -->
+<div class="card mb-4" style="animation: slideUp 0.84s ease forwards;">
+  <div class="card-header">28. Filter Component (Bộ lọc)</div>
+  <div class="card-body p-4" id="demo-filter"></div>
+</div>
+
+<!-- 29. HEADER -->
+<div class="card mb-4" style="animation: slideUp 0.86s ease forwards;">
+  <div class="card-header">29. Header Component (Thanh tiêu đề trang)</div>
+  <div class="card-body p-0" id="demo-header"></div>
+</div>
+
+<!-- 30. SIDEBAR -->
+<div class="card mb-4" style="animation: slideUp 0.88s ease forwards;">
+  <div class="card-header">30. Sidebar Component (Menu dọc)</div>
+  <div class="card-body p-0" id="demo-sidebar" style="max-height:400px; overflow-y:auto;"></div>
+</div>
+
+<!-- 31. NAVBAR -->
+<div class="card mb-4" style="animation: slideUp 0.9s ease forwards;">
+  <div class="card-header">31. Navbar Component (Menu ngang)</div>
+  <div class="card-body p-4" id="demo-navbar">
+    <p style="color:var(--color-text-secondary);">Navbar đang hiển thị ngay trên cùng màn hình. Bấm nút bên dưới để chuyển layout:</p>
+    <div class="d-flex gap-3" id="demo-navbar-btns"></div>
+  </div>
+</div>
+
+<!-- 32. UI UTILS -->
+<div class="card mb-4" style="animation: slideUp 0.92s ease forwards;">
+  <div class="card-header">32. UIUtils / UIControls.utils (Tiện ích chia sẻ)</div>
+  <div class="card-body p-4" id="demo-ui-utils"></div>
+</div>

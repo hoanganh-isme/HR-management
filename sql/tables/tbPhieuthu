@@ -1,0 +1,22 @@
+DocumentID	varchar
+DocumentDate	datetime
+SPthu	varchar
+Ngaythu	datetime
+SoBienNhan	varchar
+Makh	varchar
+Nguoinop	nvarchar
+Manv	varchar
+Tongtien	decimal
+Lydo	nvarchar
+Kemtheo	nvarchar
+IsTinhcongno	bit
+DateCreate	datetime
+DateUpdate	datetime
+UserCreate	varchar
+UserUpdate	varchar
+IsTienmat	bit
+Nhahangid	varchar
+Loaithanhtoanid	varchar
+Loaithuchiid	varchar
+
+PT10223/001	2023-02-16 00:00:00.000	PT10223/001	2023-02-16 00:00:00.000	BN10223/001	10005	aaa	Admin	174000000	NULL	NULL	1	2023-02-16 11:26:40.000	NULL	Admin	NULL	0	1	ATT000001	NULL

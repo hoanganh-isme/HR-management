@@ -1,0 +1,18 @@
+version: '3'
+services:
+  backend-app:
+    build: ./backend-app
+    container_name: backend_app
+    ports:
+      - "8081:8081"
+    restart: always
+
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: onlyoffice_server
+    ports:
+      - "8082:80"
+    environment:
+      # Tắt JWT đi để anh dễ test trên Localhost không bị lỗi chặn Token
+      - JWT_ENABLED=false
+    restart: always

@@ -1,0 +1,14 @@
+AutoID	numeric
+FormatID	varchar
+FieldName	varchar
+FormName	varchar
+CaptionVN	nvarchar
+CaptionEN	nvarchar
+IsRequired	bit
+FormPosition	varchar
+ShowInForm	bit
+OrderNo	int
+DataSource	nvarchar
+ValidateRule	nvarchar
+DependsOn	varchar
+VisibleRule	nvarchar
