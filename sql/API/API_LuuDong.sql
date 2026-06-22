@@ -36,6 +36,34 @@ BEGIN
         RETURN;
     END
 
+    -- Tự động tạo cột khóa chính (UserAutoID) nếu chưa tồn tại trong bảng vật lý
+    IF @PrimaryKey IS NOT NULL AND @PrimaryKey <> ''
+       AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(@TableName) AND LOWER(name) = LOWER(@PrimaryKey))
+    BEGIN
+        IF LOWER(@PrimaryKey) = 'userautoid'
+        BEGIN
+            BEGIN TRY
+                DECLARE @AlterSql NVARCHAR(MAX);
+                -- 1. Thêm cột
+                SET @AlterSql = N'ALTER TABLE ' + QUOTENAME(@TableName) + N' ADD ' + QUOTENAME(@PrimaryKey) + N' VARCHAR(50) NULL;';
+                EXEC sp_executesql @AlterSql;
+
+                -- 2. Tạo default constraint
+                DECLARE @ConstraintName VARCHAR(150) = 'DF_' + REPLACE(REPLACE(REPLACE(@TableName, '.', '_'), '[', ''), ']', '') + '_' + @PrimaryKey;
+                SET @AlterSql = N'ALTER TABLE ' + QUOTENAME(@TableName) + N' ADD CONSTRAINT ' + QUOTENAME(@ConstraintName) + N' DEFAULT (REPLACE(CONVERT(VARCHAR(50), NEWID()), ''-'', '''')) FOR ' + QUOTENAME(@PrimaryKey) + N';';
+                EXEC sp_executesql @AlterSql;
+
+                -- 3. Cập nhật dữ liệu cũ
+                SET @AlterSql = N'UPDATE ' + QUOTENAME(@TableName) + N' SET ' + QUOTENAME(@PrimaryKey) + N' = REPLACE(CONVERT(VARCHAR(50), NEWID()), ''-'', '''') WHERE ' + QUOTENAME(@PrimaryKey) + N' IS NULL;';
+                EXEC sp_executesql @AlterSql;
+            END TRY
+            BEGIN CATCH
+                -- Ghi nhận lỗi nhưng không chặn luồng chạy chính
+                PRINT 'Loi tu dong them UserAutoID: ' + ERROR_MESSAGE();
+            END CATCH
+        END
+    END
+
     -- Chuẩn hóa casing của Khóa chính theo bảng vật lý (tránh lỗi Case-Sensitive)
     DECLARE @ExactPK VARCHAR(100);
     SELECT TOP 1 @ExactPK = name 
@@ -58,7 +86,7 @@ BEGIN
             jd.[type] AS JsonType
         INTO #JsonDataRaw
         FROM OPENJSON(@Data) jd
-        JOIN sys.columns c ON c.object_id = OBJECT_ID(@TableName) AND LOWER(c.name) = LOWER(jd.[key])
+        JOIN sys.columns c ON c.object_id = OBJECT_ID(@TableName) AND LOWER(c.name) = LOWER(jd.[key]) COLLATE DATABASE_DEFAULT
         WHERE jd.[key] COLLATE DATABASE_DEFAULT NOT LIKE '\_%' ESCAPE '\'; -- Bỏ qua các key hệ thống bắt đầu bằng _ (VD: _SortColumn)
 
         -- 2. Kết hợp với kiểu dữ liệu của cột để tự động định dạng / chuyển đổi thông minh
@@ -98,6 +126,30 @@ BEGIN
         -- 3. Thêm thông tin Audit nếu cột có trong bảng vật lý
         IF @IsEdit = 0 -- THÊM MỚI (INSERT)
         BEGIN
+            -- Tự động sinh khóa chính nếu là kiểu chuỗi, không tự tăng (IsIdentity = 0) và chưa có giá trị hợp lệ
+            IF @PrimaryKey IS NOT NULL AND @PrimaryKey <> ''
+               AND COLUMNPROPERTY(OBJECT_ID(@TableName), @PrimaryKey, 'IsIdentity') = 0
+            BEGIN
+                DECLARE @PKType VARCHAR(50);
+                SELECT TOP 1 @PKType = t.name 
+                FROM sys.columns c
+                JOIN sys.types t ON c.user_type_id = t.user_type_id
+                WHERE c.object_id = OBJECT_ID(@TableName) AND c.name = @PrimaryKey;
+
+                IF @PKType IN ('varchar', 'nvarchar', 'char', 'nchar', 'uniqueidentifier')
+                BEGIN
+                    -- Nếu chưa có hoặc giá trị bị trống/NULL
+                    IF NOT EXISTS (SELECT 1 FROM #JsonData WHERE ColumnName = @PrimaryKey AND ColumnValue IS NOT NULL AND LTRIM(RTRIM(ColumnValue)) <> '')
+                    BEGIN
+                        DELETE FROM #JsonData WHERE ColumnName = @PrimaryKey;
+                        
+                        -- Sinh GUID không có dấu gạch ngang (để khớp độ dài varchar)
+                        INSERT INTO #JsonData (ColumnName, ColumnValue, JsonType, DataType)
+                        VALUES (@PrimaryKey, REPLACE(CAST(NEWID() AS VARCHAR(50)), '-', ''), 1, @PKType);
+                    END
+                END
+            END
+
             -- UserCreate / DateCreate
             IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(@TableName) AND name = 'UserCreate')
                AND NOT EXISTS (SELECT 1 FROM #JsonData WHERE ColumnName = 'UserCreate')
@@ -174,7 +226,7 @@ BEGIN
             
             IF @PKValue IS NULL OR @PKValue = ''
             BEGIN
-                SELECT -1 AS code, N'Không tìm thấy giá trị Khóa chính (' + @PrimaryKey + ') để cập nhật' AS msg;
+                SELECT -1 AS code, N'Không tìm thấy giá trị Khóa chính (' + @PrimaryKey + N') để cập nhật. Dữ liệu: ' + ISNULL(@Data, 'NULL') AS msg;
                 RETURN;
             END
 

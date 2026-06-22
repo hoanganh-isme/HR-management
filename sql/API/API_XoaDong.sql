@@ -58,7 +58,7 @@ BEGIN
     BEGIN
         SELECT @Ids = CAST([value] AS NVARCHAR(MAX))
         FROM OPENJSON(@Data)
-        WHERE LOWER([key]) = LOWER(@PrimaryKey);
+        WHERE LOWER([key]) COLLATE DATABASE_DEFAULT = LOWER(@PrimaryKey) COLLATE DATABASE_DEFAULT;
     END
 
     IF @Ids IS NULL OR @Ids = ''

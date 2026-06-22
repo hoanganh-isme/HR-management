@@ -868,18 +868,7 @@ window.DynamicFormEngine = (function () {
           return item;
         });
 
-        // Tự động đồng bộ Kỳ (PeriodID) từ dữ liệu tải về nếu người dùng chưa chọn kỳ nào
-        if (gridData.length > 0 && gridData[0].PeriodID) {
-          if (!window.currentFilters || window.currentFilters['PeriodID'] === undefined) {
-            if (!window.currentFilters) window.currentFilters = {};
-            window.currentFilters['PeriodID'] = gridData[0].PeriodID;
-            // Cập nhật giá trị hiển thị trên select element trong bộ lọc
-            var selectPeriod = document.getElementById('PeriodID');
-            if (selectPeriod) {
-              selectPeriod.value = gridData[0].PeriodID;
-            }
-          }
-        }
+        // Bỏ đồng bộ Kỳ (PeriodID) tự động để tránh tự động lọc ngoài ý muốn khi lưu/cập nhật dữ liệu
 
         _renderTable();
       }).catch(function (err) {

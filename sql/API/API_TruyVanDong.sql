@@ -62,7 +62,7 @@ BEGIN
                 SELECT TOP 1 name 
                 FROM sys.columns 
                 WHERE object_id = OBJECT_ID(@TableName) 
-                  AND LOWER(name) = LOWER(jd.[key])
+                  AND LOWER(name) = LOWER(jd.[key]) COLLATE DATABASE_DEFAULT
             ) c
             WHERE jd.[value] IS NOT NULL AND CAST(jd.[value] AS NVARCHAR(MAX)) <> ''
               AND jd.[key] COLLATE DATABASE_DEFAULT <> 'Keyword'

@@ -30,8 +30,14 @@ GO
 -- =========================================================================
 -- 3. KHAI BÁO CẤU HÌNH ĐỊNH TUYẾN WEB (WA_API)
 -- =========================================================================
+DELETE FROM dbo.WA_API WHERE list = 'WA_LuongKhoanFrm';
+GO
+
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES ('WA_LuongKhoanFrm', 'View', 'API_LuongKhoan', '@Keyword=N''{Keyword}''');
+VALUES 
+('WA_LuongKhoanFrm', 'View', 'API_LuongKhoan', '@Keyword=N''{Keyword}'''),
+('WA_LuongKhoanFrm', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('WA_LuongKhoanFrm', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 GO
 
 -- =========================================================================

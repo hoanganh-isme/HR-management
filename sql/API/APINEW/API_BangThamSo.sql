@@ -18,6 +18,9 @@ BEGIN
         BHTNNLD,
         BHTNCTY
     FROM dbo.HR_BangThamSoTbl
+    WHERE @Keyword = ''
+       OR PeriodID LIKE '%' + @Keyword + '%'
+       OR LoaiBaoHiem LIKE '%' + @Keyword + '%'
     ORDER BY PeriodID DESC, LoaiBaoHiem ASC;
 END
 GO
