@@ -394,6 +394,7 @@ document.addEventListener('DOMContentLoaded', function () {
         label: 'Nhân viên hưởng phụ cấp',
         api: 'API_BangPhuCap_Detail',
         filterField: 'MaPhuCap',
+        editable: true,
         fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'GhiChu', 'NoiDungPhuCap'],
         headers: {
           PersonID: 'Mã nhân viên',

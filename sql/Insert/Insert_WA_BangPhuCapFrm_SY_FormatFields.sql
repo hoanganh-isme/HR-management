@@ -83,7 +83,7 @@ SET CaptionVN = CASE FieldName
     END,
     ShowInAdd = CASE WHEN FieldName IN ('UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate') THEN 0 ELSE 1 END,
     ShowInEdit = CASE WHEN FieldName IN ('UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate') THEN 0 ELSE 1 END,
-    IsRequired = CASE WHEN FieldName IN ('MaPhuCap', 'TenPhuCap') THEN 1 ELSE 0 END,
+    IsRequired = CASE WHEN FieldName IN ('MaPhuCap') THEN 1 ELSE 0 END,
     ShowInFilter = 0, -- Dùng ô search chung
     OrderNo = CASE FieldName
         WHEN 'MaPhuCap' THEN 1

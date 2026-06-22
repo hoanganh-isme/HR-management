@@ -87,7 +87,8 @@ BEGIN
         INTO #JsonDataRaw
         FROM OPENJSON(@Data) jd
         JOIN sys.columns c ON c.object_id = OBJECT_ID(@TableName) AND LOWER(c.name) = LOWER(jd.[key]) COLLATE DATABASE_DEFAULT
-        WHERE jd.[key] COLLATE DATABASE_DEFAULT NOT LIKE '\_%' ESCAPE '\'; -- Bỏ qua các key hệ thống bắt đầu bằng _ (VD: _SortColumn)
+        WHERE jd.[key] COLLATE DATABASE_DEFAULT NOT LIKE '\_%' ESCAPE '\'  -- Bỏ qua các key hệ thống bắt đầu bằng _
+          AND LOWER(jd.[key]) COLLATE DATABASE_DEFAULT NOT IN ('isedit', 'username'); -- Bỏ qua flag hệ thống FE gửi xuống
 
         -- 2. Kết hợp với kiểu dữ liệu của cột để tự động định dạng / chuyển đổi thông minh
         SELECT 
@@ -107,6 +108,13 @@ BEGIN
         WHERE LTRIM(RTRIM(ISNULL(ColumnValue, ''))) = ''
           AND DataType IN ('int', 'bigint', 'smallint', 'tinyint', 'decimal', 'numeric', 'float', 'real', 'money', 'smallmoney', 
                            'date', 'datetime', 'datetime2', 'smalldatetime', 'time', 'datetimeoffset');
+
+        -- 2.1b. Với cột tinyint (0-255): nếu giá trị âm (như -1) thì chuyển thành NULL để tránh arithmetic overflow
+        UPDATE #JsonData
+        SET JsonType = 0, ColumnValue = NULL
+        WHERE DataType = 'tinyint'
+          AND ISNUMERIC(ColumnValue) = 1
+          AND TRY_CAST(ColumnValue AS FLOAT) < 0;
 
         -- 2.2. Đối với các cột kiểu TIME/DATETIME, nếu người dùng chỉ gõ số giờ (ví dụ: '12' hoặc '8'), 
         -- tự động format về dạng giờ chuẩn '12:00' hoặc '08:00' để SQL Server không bị lỗi cast.
