@@ -83,7 +83,7 @@ BEGIN
         SELECT 
             c.name AS ColumnName, 
             jd.[value] AS ColumnValue,
-            jd.[type] AS JsonType
+            CAST(jd.[type] AS INT) AS JsonType
         INTO #JsonDataRaw
         FROM OPENJSON(@Data) jd
         JOIN sys.columns c ON c.object_id = OBJECT_ID(@TableName) AND LOWER(c.name) = LOWER(jd.[key]) COLLATE DATABASE_DEFAULT

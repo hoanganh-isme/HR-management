@@ -7,7 +7,7 @@
 
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
-    API_BASE: 'http://nhansu.bms7.net', // Domain backend thực tế
+    API_BASE: 'http://nhansu2.bms7.com', // Domain backend thực tế
     DOC_NODE_IP: '103.190.38.46',      // Server Node.js (OnlyOffice & Documents)
 };
 

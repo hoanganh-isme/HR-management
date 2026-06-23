@@ -2828,6 +2828,33 @@ window.DynamicFormEngine = (function () {
                   });
                 },
                 onSelect: function (selectedData) {
+                  var selectedPersonID = selectedData[0];
+                  
+                  // Kiểm tra trùng lặp trong panel._currentRows
+                  var isDuplicate = panel._currentRows.some(function (row, index) {
+                    return index !== rIdx && row['PersonID'] === selectedPersonID;
+                  });
+
+                  if (isDuplicate) {
+                    if (typeof Alert !== 'undefined') {
+                      Alert.warning('Trùng lặp', 'Nhân viên này đã được chọn trong danh sách!');
+                    } else if (typeof UIToast !== 'undefined') {
+                      UIToast.show('Nhân viên này đã được chọn!', 'warning');
+                    } else {
+                      alert('Nhân viên này đã được chọn!');
+                    }
+                    // Reset giá trị
+                    if (displayInp) displayInp.value = '';
+                    currRow['PersonID']   = '';
+                    currRow['PersonName'] = '';
+                    currRow['PhongBan']   = '';
+                    currRow['TitleName']  = '';
+                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
+                    if (cellMap['PhongBan'])   cellMap['PhongBan'].textContent   = '';
+                    if (cellMap['TitleName'])  cellMap['TitleName'].textContent  = '';
+                    return;
+                  }
+
                   // Cập nhật dữ liệu hàng
                   currRow['PersonID']   = selectedData[0];
                   currRow['PersonName'] = selectedData[1];
@@ -3149,6 +3176,66 @@ window.DynamicFormEngine = (function () {
     if (!endpoint) {
       Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertApiMissing);
       return;
+    }
+
+    // 1.4 Kiểm tra các trường bắt buộc trong lưới chi tiết (Detail Tabs) trước khi lưu
+    if (body._detailPanels) {
+      var isDetailInvalid = false;
+      for (var p = 0; p < body._detailPanels.length; p++) {
+        var panel = body._detailPanels[p];
+        if (panel._tabDef && panel._tabDef.editable && panel._currentRows) {
+          var tabDef = panel._tabDef;
+          var keyField = tabDef.fields[0]; // Cột đầu tiên mặc định là cột định danh
+          if (tabDef.fields.indexOf('PersonID') !== -1) {
+            keyField = 'PersonID';
+          }
+          for (var r = 0; r < panel._currentRows.length; r++) {
+            var val = panel._currentRows[r][keyField];
+            if (val === undefined || val === null || String(val).trim() === '') {
+              var label = tabDef.label || 'Danh sách chi tiết';
+              var headerLabel = (tabDef.headers && tabDef.headers[keyField]) || keyField;
+              if (typeof Alert !== 'undefined') {
+                Alert.warning('Thiếu thông tin', 'Vui lòng chọn/nhập đầy đủ "' + headerLabel + '" cho tất cả các dòng ở tab "' + label + '"!');
+              } else {
+                alert('Vui lòng chọn/nhập đầy đủ "' + headerLabel + '" cho tất cả các dòng ở tab "' + label + '"!');
+              }
+              isDetailInvalid = true;
+              break;
+            }
+          }
+        }
+        if (isDetailInvalid) break;
+      }
+      if (isDetailInvalid) return;
+    }
+
+    // 1.5 Kiểm tra trùng lặp trong lưới chi tiết trước khi tiến hành lưu
+    if (body._detailPanels) {
+      var hasDuplicate = false;
+      for (var p = 0; p < body._detailPanels.length; p++) {
+        var panel = body._detailPanels[p];
+        if (panel._tabDef && panel._tabDef.editable && panel._currentRows) {
+          var seen = {};
+          for (var r = 0; r < panel._currentRows.length; r++) {
+            var pid = panel._currentRows[r]['PersonID'];
+            if (pid && pid.trim() !== '') {
+              if (seen[pid]) {
+                var label = panel._tabDef.label || 'Danh sách chi tiết';
+                if (typeof Alert !== 'undefined') {
+                  Alert.warning('Trùng lặp dữ liệu', 'Có nhân viên bị chọn trùng lặp trong tab "' + label + '"!');
+                } else {
+                  alert('Có nhân viên bị chọn trùng lặp trong tab "' + label + '"!');
+                }
+                hasDuplicate = true;
+                break;
+              }
+              seen[pid] = true;
+            }
+          }
+        }
+        if (hasDuplicate) break;
+      }
+      if (hasDuplicate) return;
     }
 
     // 1. Quét Form: Thu thập các giá trị người dùng vừa gõ vào, loại bỏ các input thuộc lưới chi tiết
