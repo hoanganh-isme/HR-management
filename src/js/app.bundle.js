@@ -4326,8 +4326,8 @@ var Navbar = (function () {
 
         <!-- Brand / Logo -->
         <div class="navbar-brand" onclick="window.location.hash='#/'" style="display:flex; align-items:center;">
-          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; margin-left: 16px;">
-          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
         </div>
 
         <!-- Desktop Menu with scroll arrows -->
@@ -4391,8 +4391,8 @@ var Navbar = (function () {
       <div class="mobile-drawer" id="mobile-drawer">
         <div class="mobile-drawer-header">
           <div class="mobile-drawer-brand" style="display:flex; align-items:center; justify-content:center; width:100%; margin: 12px 0;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; border-radius: 6px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Tiệc Cưới Logo" style="width: 150px; height: auto;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
           </div>
           <button class="mobile-drawer-close" id="mobile-drawer-close">
             <span class="material-symbols-outlined">arrow_back</span>
@@ -4420,8 +4420,8 @@ var Navbar = (function () {
         <aside class="app-sidebar" id="app-sidebar">
           <div class="sidebar-header">
             <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; border-radius: 6px;">
-              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Tiệc Cưới Logo" style="width: 150px; height: auto;">
+              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
+              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
             </div>
             <button class="btn-close-sidebar" id="btn-close-sidebar">
               <span class="material-symbols-outlined">arrow_back</span>
@@ -4509,7 +4509,7 @@ var Navbar = (function () {
 
     // Check version server trước — nếu khác cache thì tự clear (bắt được thay đổi từ máy Admin)
     if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
-      SystemDataService.getMenuSyncVersion().then(function(serverVer) {
+      SystemDataService.getMenuSyncVersion().then(function (serverVer) {
         try {
           var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
           var cacheVer = cached && cached.syncVer ? cached.syncVer : null;
@@ -4528,7 +4528,7 @@ var Navbar = (function () {
           }
         } catch (e) { }
         _fetchAndRender(container, groupId, serverVer);
-      }).catch(function() {
+      }).catch(function () {
         // Lỗi API → dùng cache nếu có, không thì fetch nav
         _fetchAndRender(container, groupId, null);
       });
@@ -4610,13 +4610,13 @@ var Navbar = (function () {
 
     // Fetch and update Com1 setup value for user roles (outer nav only)
     if (window.SystemDataService && window.SystemDataService.getSetupValue) {
-      SystemDataService.getSetupValue('Com1').then(function(val) {
+      SystemDataService.getSetupValue('Com1').then(function (val) {
         if (val) {
-          document.querySelectorAll('.user-role-nav').forEach(function(el) {
+          document.querySelectorAll('.user-role-nav').forEach(function (el) {
             el.innerText = val;
           });
         }
-      }).catch(function(err) {
+      }).catch(function (err) {
         console.error('[Navbar] Lỗi tải SetupValue Com1:', err);
       });
     }
@@ -4748,11 +4748,11 @@ var Navbar = (function () {
     }
 
     if ($menu && $scrollLeft && $scrollRight) {
-      $scrollLeft.addEventListener('click', function(e) {
+      $scrollLeft.addEventListener('click', function (e) {
         e.stopPropagation();
         $menu.scrollBy({ left: -200, behavior: 'smooth' });
       });
-      $scrollRight.addEventListener('click', function(e) {
+      $scrollRight.addEventListener('click', function (e) {
         e.stopPropagation();
         $menu.scrollBy({ left: 200, behavior: 'smooth' });
       });
@@ -6710,8 +6710,10 @@ var UIButton = (function () {
    * @param {Array} buttonsConfig - Mảng config của các nút
    */
   function createBar(buttonsConfig) {
+    // ===== DESKTOP BUTTON BAR =====
     var bar = document.createElement('div');
-    bar.className = 'button-bar';
+    // btn-bar-desktop: bi class CSS ẩn trên mobile
+    bar.className = 'button-bar btn-bar-desktop';
 
     buttonsConfig.forEach(function(cfg) {
       if (cfg === '|') {
@@ -6723,7 +6725,107 @@ var UIButton = (function () {
       }
     });
 
-    return bar;
+    // ===== MOBILE ACTION SHEET =====
+    // Panel & Overlay được gắn vào body để tránh bị nhốt bởi overflow/transform của các thần chứa
+    var panel = document.createElement('div');
+    panel.className = 'mobile-action-panel';
+
+    buttonsConfig.forEach(function(cfg) {
+      if (cfg === '|' || !cfg.text) return;
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'mobile-action-item' + (cfg.disabled ? ' is-disabled' : '');
+      if (cfg.disabled) item.disabled = true;
+      item.innerHTML =
+        (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
+        '<span>' + cfg.text + '</span>';
+      item.addEventListener('click', function(e) {
+        closePanel();
+        if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
+      });
+      panel.appendChild(item);
+    });
+
+    var overlay = document.createElement('div');
+    overlay.className = 'mobile-action-overlay';
+
+    // Gắn panel + overlay vào body ngay khi DOM sẵn sàng
+    function mountToBody() {
+      if (document.body) {
+        document.body.appendChild(overlay);
+        document.body.appendChild(panel);
+      } else {
+        document.addEventListener('DOMContentLoaded', function() {
+          document.body.appendChild(overlay);
+          document.body.appendChild(panel);
+        });
+      }
+    }
+    mountToBody();
+
+    function openPanel() {
+      panel.classList.add('open');
+      overlay.classList.add('open');
+      trigger.classList.add('active');
+    }
+    function closePanel() {
+      panel.classList.remove('open');
+      overlay.classList.remove('open');
+      trigger.classList.remove('active');
+    }
+
+    overlay.addEventListener('click', closePanel);
+
+    // Nút trigger chỉ hiện trên mobile
+    var trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'btn mobile-action-trigger';
+    trigger.innerHTML =
+      '<span class="material-symbols-outlined">tune</span>' +
+      '<span>Thao tác</span>' +
+      '<span class="material-symbols-outlined mobile-action-chevron">expand_more</span>';
+    trigger.addEventListener('click', function(e) {
+      e.stopPropagation();
+      panel.classList.contains('open') ? closePanel() : openPanel();
+    });
+
+    // Wrapper đơn giản
+    var wrapper = document.createElement('div');
+    wrapper.className = 'mobile-action-wrapper';
+    wrapper.appendChild(bar);
+    wrapper.appendChild(trigger);
+
+    // API công khai: cho phép thêm button config vào action sheet sau khi tạo
+    wrapper.addToMobilePanel = function(cfg, insertFirst) {
+      // Thêm vào desktop bar
+      var btn = create(cfg);
+      if (insertFirst) {
+        bar.insertBefore(btn, bar.firstChild);
+      } else {
+        bar.appendChild(btn);
+      }
+
+      // Thêm vào mobile panel
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'mobile-action-item' + (cfg.disabled ? ' is-disabled' : '');
+      if (cfg.disabled) item.disabled = true;
+      item.innerHTML =
+        (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
+        '<span>' + cfg.text + '</span>';
+      item.addEventListener('click', function(e) {
+        closePanel();
+        if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
+      });
+      if (insertFirst) {
+        panel.insertBefore(item, panel.firstChild);
+      } else {
+        panel.appendChild(item);
+      }
+    };
+
+    return wrapper;
+
   }
 
   /**
@@ -6938,6 +7040,8 @@ var UITable = (function () {
    * @param {Object} config - { headers (Array), data (Array), columns (Array of mappings), className }
    */
   function create(config) {
+    var isMobile = window.innerWidth <= 768;
+
     var wrapper = document.createElement('div');
     wrapper.className = 'table-wrapper ' + (config.className || '');
     // Bỏ viền 2 bên
@@ -6946,19 +7050,31 @@ var UITable = (function () {
     wrapper.style.borderBottom = '1px solid var(--color-border, #e2e8f0)';
     wrapper.style.borderLeft = 'none';
     wrapper.style.borderRight = 'none';
-    wrapper.style.overflow = 'auto'; // Cho phép scroll ngang nếu bị tràn
+    // Mobile: ẩn scroll ngang để tránh lệch viewport; Desktop: cho phép scroll trong wrapper
+    wrapper.style.overflowX = isMobile ? 'hidden' : 'auto';
+    wrapper.style.overflowY = 'auto';
 
     var table = document.createElement('table');
     table.className = 'data-table';
-    table.style.width = 'max-content'; // Chống kéo giãn, các cột sẽ nằm gần nhau
-    table.style.whiteSpace = 'nowrap'; // Đảm bảo nội dung không bị rớt dòng làm cột bị giãn
-    table.style.tableLayout = 'auto';
+    // Mobile: để bảng co lại trong viewport; Desktop: bảng rộng theo nội dung
+    table.style.width = isMobile ? '100%' : 'max-content';
+    table.style.whiteSpace = isMobile ? 'normal' : 'nowrap';
+    table.style.tableLayout = isMobile ? 'fixed' : 'auto';
 
     // Tbody & Thead
     var thead = document.createElement('thead');
     var tbody = document.createElement('tbody');
     table.appendChild(thead);
     table.appendChild(tbody);
+
+    // Cập nhật lại style khi resize cửa sổ (responsive)
+    window.addEventListener('resize', function () {
+      var nowMobile = window.innerWidth <= 768;
+      wrapper.style.overflowX = nowMobile ? 'hidden' : 'auto';
+      table.style.width = nowMobile ? '100%' : 'max-content';
+      table.style.whiteSpace = nowMobile ? 'normal' : 'nowrap';
+      table.style.tableLayout = nowMobile ? 'fixed' : 'auto';
+    });
 
     // Ép style thu gọn khoảng cách (Compact Density)
     var styleDensity = document.createElement('style');
@@ -6970,10 +7086,18 @@ var UITable = (function () {
          font-size: 13px !important;
       }
       @media (max-width: 768px) {
+        .table-wrapper .data-table th,
+        .table-wrapper .data-table td {
+          white-space: normal !important;
+          word-break: break-word !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
         .dynamic-grid-card .table-wrapper {
           margin-left: 0 !important;
           margin-right: 0 !important;
           width: 100% !important;
+          overflow-x: hidden !important;
         }
         .table-wrapper .data-table th:first-child,
         .table-wrapper .data-table td:first-child {
@@ -7098,11 +7222,7 @@ var UITable = (function () {
           });
 
           var spanTxt = document.createElement('span');
-          var labelText = h.label || h;
-          if (typeof labelText === 'string') {
-            labelText = labelText.replace(/\s*:\s*$/, '');
-          }
-          spanTxt.innerText = labelText;
+          spanTxt.innerText = h.label || h;
           spanTxt.style.pointerEvents = 'none'; // Prevent child interference
           th.appendChild(spanTxt);
 
@@ -7113,7 +7233,7 @@ var UITable = (function () {
           if (h.align) th.style.textAlign = h.align;
 
           // --- COLUMN RESIZING LOGIC ---
-          th.style.position = 'relative'; // Cần thiết để neo resizer
+          th.style.position = 'sticky'; // Cần thiết cho sticky header & neo resizer
 
           var resizer = document.createElement('div');
           resizer.className = 'col-resizer';
@@ -7315,19 +7435,23 @@ var UITable = (function () {
     var dynamicHeaders = [];
     var dynamicColumns = [];
 
-    // Lấy keys từ data hoặc orderedFields, nếu data rỗng thì lấy từ dictionary
+    // Lấy keys: ưu tiên lọc theo dictionary nếu dictionary không rỗng để chỉ hiện các cột được cấu hình.
+    // Nếu dictionary rỗng hoặc không khớp khóa nào, ta mới lấy toàn bộ keys từ data.
     var keys = [];
-    if (options.orderedFields && options.orderedFields.length > 0) {
-      var rowKeys = data && data.length > 0 ? Object.keys(data[0]) : [];
-      keys = options.orderedFields.filter(function (k) {
-        return rowKeys.indexOf(k) >= 0 || (dictionary && dictionary[k] !== undefined);
+    var hasDictionary = dictionary && Object.keys(dictionary).length > 0;
+    if (hasDictionary) {
+      var dataKeys = (data && data.length > 0) ? Object.keys(data[0]) : [];
+      Object.keys(dictionary).forEach(function (key) {
+        if (dataKeys.length === 0 || dataKeys.indexOf(key) >= 0) {
+          keys.push(key);
+        }
       });
+      if (keys.length === 0) {
+        keys = dataKeys;
+      }
     } else if (data && data.length > 0) {
       keys = Object.keys(data[0]);
-    } else if (dictionary && Object.keys(dictionary).length > 0) {
-      keys = Object.keys(dictionary);
     }
-
 
     if (keys.length > 0) {
       keys.forEach(function (key) {
@@ -7338,9 +7462,92 @@ var UITable = (function () {
         var header = { label: headerLabel, sortable: true, field: key };
         var col = { field: key };
 
-        // Default render: Tooltip
+        // Default render: JSON-aware or Tooltip
         col.render = function (v) {
           if (v == null || v === '') return '';
+          var str = String(v).trim();
+          if ((str.startsWith('[') && str.endsWith(']')) || (str.startsWith('{') && str.endsWith('}'))) {
+            try {
+              var parsed = JSON.parse(str);
+              if (parsed && typeof parsed === 'object') {
+                return (function renderParsedJson(parsed) {
+                  if (Array.isArray(parsed)) {
+                    if (parsed.length === 0) return '<span style="color: var(--color-text-muted, #94a3b8); font-style: italic;">Trống</span>';
+
+                    // Check if it's a schedule (BatDau/KetThuc/NoiDung/Sanh)
+                    var isSchedule = parsed.some(function (item) {
+                      return item && (item.BatDau !== undefined || item.KetThuc !== undefined || item.Sanh !== undefined || item.NoiDung !== undefined);
+                    });
+
+                    // Check if it's payment (STT/SoTien/Ngay/NoiDung)
+                    var isPayment = parsed.some(function (item) {
+                      return item && (item.STT !== undefined || item.SoTien !== undefined || item.Ngay !== undefined || item.NoiDung !== undefined);
+                    });
+
+                    if (isSchedule) {
+                      var html = '<div class="json-schedule-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; padding: 2px 0;">';
+                      parsed.forEach(function (item) {
+                        var timeStr = (item.BatDau || '') + (item.KetThuc ? ' - ' + item.KetThuc : '');
+                        var hallStr = item.Sanh ? '<span style="background: rgba(59, 130, 246, 0.18); color: var(--color-primary, #4361ee); border-radius: 4px; padding: 1px 4px; font-weight: 600; margin-right: 4px;">' + item.Sanh + '</span>' : '';
+                        var timeBadge = timeStr ? '<span style="background: rgba(16, 185, 129, 0.18); color: var(--color-success, #10b981); border-radius: 4px; padding: 1px 4px; font-weight: 600; margin-right: 4px; white-space: nowrap;">' + timeStr + '</span>' : '';
+                        var contentStr = item.NoiDung ? '<span style="color: var(--color-text, inherit); font-weight: 500;">' + item.NoiDung + '</span>' : '';
+                        html += '<div class="schedule-row" style="display: flex; align-items: center; flex-wrap: wrap; gap: 2px;">' + timeBadge + hallStr + contentStr + '</div>';
+                      });
+                      html += '</div>';
+                      return html;
+                    }
+
+                    if (isPayment) {
+                      var html = '<div class="json-payment-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; padding: 2px 0;">';
+                      parsed.forEach(function (item) {
+                        var sttStr = item.STT ? '<span style="background: rgba(124, 58, 237, 0.18); color: var(--color-secondary, #7c3aed); border-radius: 4px; padding: 1px 4px; font-weight: 600; margin-right: 4px;">Đợt ' + item.STT + '</span>' : '';
+                        var moneyStr = item.SoTien ? '<span style="color: var(--color-danger, #ef4444); font-weight: 600; margin-right: 4px;">' + item.SoTien + '</span>' : '';
+                        var dateStr = item.Ngay ? '<span style="color: var(--color-text-secondary); margin-right: 4px;">(' + item.Ngay + ')</span>' : '';
+                        var contentStr = item.NoiDung ? '<span style="color: var(--color-text, inherit); font-style: italic;">' + item.NoiDung + '</span>' : '';
+                        html += '<div class="payment-row" style="display: flex; align-items: center; flex-wrap: wrap; gap: 2px;">' + sttStr + moneyStr + dateStr + contentStr + '</div>';
+                      });
+                      html += '</div>';
+                      return html;
+                    }
+
+                    // Generic simple array
+                    var isSimpleArray = parsed.every(function (item) {
+                      return typeof item !== 'object';
+                    });
+                    if (isSimpleArray) {
+                      return parsed.join(', ');
+                    }
+
+                    // Generic complex array
+                    var html = '<div class="json-generic-table" style="font-size: 11px; display: flex; flex-direction: column; gap: 2px; color: var(--color-text, inherit);">';
+                    parsed.forEach(function (item) {
+                      var itemHtml = [];
+                      for (var k in item) {
+                        if (item.hasOwnProperty(k)) {
+                          itemHtml.push('<strong>' + k + ':</strong> ' + item[k]);
+                        }
+                      }
+                      html += '<div style="border-bottom: 1px dashed var(--color-border); padding-bottom: 2px;">' + itemHtml.join(' | ') + '</div>';
+                    });
+                    html += '</div>';
+                    return html;
+                  } else {
+                    // Single object
+                    var html = '<div class="json-generic-object" style="font-size: 11px; display: flex; flex-direction: column; gap: 2px;">';
+                    for (var k in parsed) {
+                      if (parsed.hasOwnProperty(k)) {
+                        html += '<div><strong>' + k + ':</strong> ' + parsed[k] + '</div>';
+                      }
+                    }
+                    html += '</div>';
+                    return html;
+                  }
+                })(parsed);
+              }
+            } catch (e) {
+              // Ignore and fallback
+            }
+          }
           var safeVal = String(v).replace(/"/g, '&quot;');
           return '<span title="' + safeVal + '">' + safeVal + '</span>';
         };
@@ -7360,16 +7567,10 @@ var UITable = (function () {
         }
 
         // Heuristic Format
-        if (keyLower.indexOf('date') >= 0 || keyLower.indexOf('ngày') >= 0) {
+        if ((keyLower.indexOf('date') >= 0 || keyLower.indexOf('ngày') >= 0 || keyLower.indexOf('ngay') >= 0) && keyLower.indexOf('songay') === -1 && keyLower.indexOf('so_ngay') === -1) {
           header.align = 'center';
           col.align = 'center';
           col.render = function (v) { return typeof FormatUtils !== 'undefined' ? FormatUtils.date(v) : v; };
-        } else if (keyLower.startsWith('is') || keyLower.indexOf('trangthai') >= 0 || keyLower.indexOf('trạng thái') >= 0) {
-          header.align = 'center';
-          col.align = 'center';
-        } else if (keyLower.indexOf('tien') >= 0 || keyLower.indexOf('tiền') >= 0 || keyLower.indexOf('luong') >= 0 || keyLower.indexOf('lương') >= 0 || keyLower.indexOf('mucdong') >= 0 || keyLower.indexOf('mức đóng') >= 0 || keyLower.indexOf('sotien') >= 0) {
-          header.align = 'right';
-          col.align = 'right';
         }
 
         // Custom renderer (nếu truyền vào)
@@ -7663,7 +7864,6 @@ var UITable = (function () {
     createDynamic: createDynamic
   };
 })();
-
 
 /* --- Tabs.js --- */
 /**
@@ -9919,7 +10119,7 @@ var Sidebar = (function () {
         _doRender(container);
         return;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Nếu không có cache, gọi API fetch
     _fetchAndRender(container, groupId);
@@ -9973,8 +10173,8 @@ var Sidebar = (function () {
       <aside class="app-sidebar" id="app-sidebar">
         <div class="sidebar-header">
           <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Tiệc Cưới Logo" style="width: 150px; height: auto;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Tiệc Cưới Logo" style="width: 150px; height: auto;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
           </div>
           <!-- Nút đóng Sidebar trên Mobile -->
           <button class="btn-close-sidebar" id="btn-close-sidebar">

@@ -391,7 +391,7 @@ window.DynamicFormEngine = (function () {
         var detailWidth = MODULE_CONFIG.SplitLayoutDetailWidth || '450px';
         $container.innerHTML = `
           <div id="dynamic-btn-container" style="display:none;"></div>
-          <div class="card dynamic-grid-card" style="border: none; box-shadow: none; margin-bottom: 0; border-radius: var(--radius-sm); background: var(--color-surface); overflow: hidden;">
+          <div class="card dynamic-grid-card" style="border: none; box-shadow: none; margin-bottom: 0; border-radius: var(--radius-sm); background: var(--color-surface); overflow: visible;">
             <div class="card-body" style="padding: 0;">
               <div id="dynamic-filter-container" style="margin-bottom:16px;"></div>
               <div class="split-master-detail-container" style="display: flex; gap: 16px; align-items: stretch;">
@@ -423,7 +423,7 @@ window.DynamicFormEngine = (function () {
       } else {
         $container.innerHTML = `
           <div id="dynamic-btn-container" style="display:none;"></div>
-          <div class="card dynamic-grid-card" style="border: none; box-shadow: none; margin-bottom: 0; border-radius: var(--radius-sm); background: var(--color-surface); overflow: hidden;">
+          <div class="card dynamic-grid-card" style="border: none; box-shadow: none; margin-bottom: 0; border-radius: var(--radius-sm); background: var(--color-surface); overflow: visible;">
             <div class="card-body" style="padding: 0;">
               <div id="dynamic-filter-container" style="margin-bottom:16px;"></div>
               <div id="dynamic-grid-container"></div>
@@ -454,9 +454,13 @@ window.DynamicFormEngine = (function () {
           });
         }
 
+        var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
+        var isReport = formNameLower.endsWith('report');
+        var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
+
         var toolbar = UIActionToolbar.create({
-          onAdd: MODULE_CONFIG.HideAddBtn ? false : (_hasPermission('ADD') ? _openAddForm : 'DISABLED'),
-          onEdit: MODULE_CONFIG.HideEditBtn ? false : (_hasPermission('EDIT') ? function () {
+          onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
+          onEdit: (isFrm && !MODULE_CONFIG.HideEditBtn) ? (_hasPermission('EDIT') ? function () {
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectEdit);
 
             // CHẶN CHỈNH SỬA NẾU HỢP ĐỒNG ĐÃ CHỐT
@@ -473,8 +477,8 @@ window.DynamicFormEngine = (function () {
             } else {
               _openEditForm(selectedRows[0]);
             }
-          } : 'DISABLED'),
-          onDelete: MODULE_CONFIG.HideDeleteBtn ? false : _hasPermission('DELETE') ? function () {
+          } : 'DISABLED') : false,
+          onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
 
             // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
@@ -544,7 +548,7 @@ window.DynamicFormEngine = (function () {
                 });
               }
             }
-          } : false,
+          } : false) : false,
           onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
             var filterContainer = $container.querySelector('#dynamic-filter-container');
             if (filterContainer) {
@@ -557,7 +561,11 @@ window.DynamicFormEngine = (function () {
               }
             }
           },
-          onPrint: false,
+          onPrint: function () {
+            if (typeof Alert !== 'undefined') {
+              Alert.info('In dữ liệu', 'Đang chuẩn bị kết xuất dữ liệu ' + (MODULE_CONFIG.PageTitle || '...') + '...');
+            }
+          },
           onClose: false,
           extras: extraBtns
         });
@@ -566,8 +574,8 @@ window.DynamicFormEngine = (function () {
 
         // Custom Buttons
         var hasAdd = _hasPermission('ADD');
-        if (!MODULE_CONFIG.HideAddBtn) {
-          var btnBulkAdd = UIButton.create({
+        if (isFrm && !MODULE_CONFIG.HideAddBtn) {
+          var bulkAddConfig = {
             text: 'Thêm nhiều',
             icon: 'post_add',
             type: 'tool',
@@ -578,12 +586,13 @@ window.DynamicFormEngine = (function () {
               for (var i = 0; i < 3; i++) emptyRows.push({});
               _openBulkGridEditForm(emptyRows, true);
             }
-          });
-          // Chèn sau nút Thêm
-          var btnAddOriginal = toolbar.querySelector('.btn-primary, [title*="Thêm bản ghi mới"]');
-          if (btnAddOriginal) {
-            btnAddOriginal.parentNode.insertBefore(btnBulkAdd, btnAddOriginal.nextSibling);
+          };
+          // Dùng API addToMobilePanel để thêm vào cả desktop bar lẫn mobile action sheet
+          if (typeof toolbar.addToMobilePanel === 'function') {
+            toolbar.addToMobilePanel(bulkAddConfig, true); // insertFirst = true
           } else {
+            // Fallback: chèn trực tiếp vào bar (trường hợp không dùng mobile wrapper)
+            var btnBulkAdd = UIButton.create(bulkAddConfig);
             toolbar.insertBefore(btnBulkAdd, toolbar.firstChild);
           }
         }
@@ -1344,6 +1353,7 @@ window.DynamicFormEngine = (function () {
         var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm';
         var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
         if (isPersonForm || isCandidateForm) {
+          console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
           photoBox.className = 'photo-box-wrapper';
           photoBox.style.cssText = 'width: 160px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid var(--color-border); border-radius: 8px; padding: 10px; background: var(--color-surface);';
@@ -1355,14 +1365,62 @@ window.DynamicFormEngine = (function () {
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
 
           var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
+          var base64Val = '';
+          var fileNameVal = '';
+          if (row) {
+            for (var key in row) {
+              var keyLower = key.toLowerCase();
+              if (keyLower === 'base64content' || keyLower === 'base64') {
+                base64Val = row[key];
+              } else if (keyLower === 'filename') {
+                fileNameVal = row[key];
+              }
+            }
+          }
+
+          if (base64Val && typeof base64Val === 'string') {
+            base64Val = base64Val.replace(/\s/g, '');
+          }
+
+          var base64Src = '';
+          if (base64Val) {
+            if (base64Val.indexOf('data:image/') === 0) {
+              base64Src = base64Val;
+            } else {
+              var mimeType = 'image/jpeg';
+              if (fileNameVal) {
+                var ext = fileNameVal.split('.').pop().toLowerCase();
+                if (ext === 'png') mimeType = 'image/png';
+                else if (ext === 'gif') mimeType = 'image/gif';
+                else if (ext === 'svg') mimeType = 'image/svg+xml';
+                else if (ext === 'webp') mimeType = 'image/webp';
+              }
+              base64Src = 'data:' + mimeType + ';base64,' + base64Val;
+            }
+          }
+
           var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
-          if (imgIdVal) {
+          var isLoadingBase64 = false;
+
+          if (base64Src) {
+            img.src = base64Src;
+            isLoadingBase64 = true;
+          } else if (imgIdVal) {
             var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
             img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
           } else {
             img.src = defaultPhoto;
           }
+
           img.onerror = function () {
+            if (isLoadingBase64) {
+              isLoadingBase64 = false;
+              if (imgIdVal) {
+                var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
+                img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
+                return;
+              }
+            }
             if (img.src !== defaultPhoto) {
               img.src = defaultPhoto;
             }
@@ -2125,6 +2183,7 @@ window.DynamicFormEngine = (function () {
     var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm';
     var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
     if (isPersonForm || isCandidateForm) {
+      console.log('[PHOTO DEBUG] Edit Modal - row:', row);
       var photoBox = document.createElement('div');
       photoBox.className = 'photo-box-wrapper';
       photoBox.style.width = '200px';
@@ -2154,15 +2213,61 @@ window.DynamicFormEngine = (function () {
       img.style.height = '100%';
       img.style.objectFit = 'cover';
 
-      var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='176' height='220' viewBox='0 0 176 220' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='88' cy='90' r='40' fill='%23cbd5e1'/><path d='M38 180 C38 140, 138 140, 138 180 Z' fill='%23cbd5e1'/><text x='88' y='210' font-family='sans-serif' font-size='12' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
+      var base64Val = '';
+      var fileNameVal = '';
+      if (row) {
+        for (var key in row) {
+          var keyLower = key.toLowerCase();
+          if (keyLower === 'base64content' || keyLower === 'base64') {
+            base64Val = row[key];
+          } else if (keyLower === 'filename') {
+            fileNameVal = row[key];
+          }
+        }
+      }
+
+      if (base64Val && typeof base64Val === 'string') {
+        base64Val = base64Val.replace(/\s/g, '');
+      }
+
+      var base64Src = '';
+      if (base64Val) {
+        if (base64Val.indexOf('data:image/') === 0) {
+          base64Src = base64Val;
+        } else {
+          var mimeType = 'image/jpeg';
+          if (fileNameVal) {
+            var ext = fileNameVal.split('.').pop().toLowerCase();
+            if (ext === 'png') mimeType = 'image/png';
+            else if (ext === 'gif') mimeType = 'image/gif';
+            else if (ext === 'svg') mimeType = 'image/svg+xml';
+            else if (ext === 'webp') mimeType = 'image/webp';
+          }
+          base64Src = 'data:' + mimeType + ';base64,' + base64Val;
+        }
+      }
+
       var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
-      if (imgIdVal) {
+      var isLoadingBase64 = false;
+
+      if (base64Src) {
+        img.src = base64Src;
+        isLoadingBase64 = true;
+      } else if (imgIdVal) {
         var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
         img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
       } else {
         img.src = defaultPhoto;
       }
       img.onerror = function () {
+        if (isLoadingBase64) {
+          isLoadingBase64 = false;
+          if (imgIdVal) {
+            var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
+            img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
+            return;
+          }
+        }
         if (img.src !== defaultPhoto) {
           img.src = defaultPhoto;
         }

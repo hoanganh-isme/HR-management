@@ -1,4 +1,4 @@
-[ignoring loop detection]
+
 USE [X26DIMTUTAC]
 GO
 
@@ -98,13 +98,13 @@ GO
 -- =========================================================================
 INSERT INTO dbo.WA_Menu (MenuID, Parent, VN, EN, FormName, FormKey, URLPara, IconClass, isDisable)
 VALUES (
-    '2028',
-    '202',
+    '2040',
+    '20',
     N'Quản lý nghỉ lễ',
     'Holiday Management',
     'WA_QuanLyNghiLeFrm',
     '',
-    '#/2028',
+    '#/2040',
     'calendar_today',
     0
 );

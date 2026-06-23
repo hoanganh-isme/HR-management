@@ -2,29 +2,49 @@ USE [X26DIMTUTAC]
 GO
 
 -- =========================================================================
--- 1. CẬP NHẬT ĐỊNH TUYẾN GATEWAY (WA_API) CHO WA_TimeSheetDayFrm
+-- 1. DỌN DẸP CẤU HÌNH CŨ
 -- =========================================================================
-IF EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = 'WA_TimeSheetDayFrm' AND func = 'View')
-BEGIN
-    UPDATE dbo.WA_API
-    SET [SQL] = 'API_XuLyChamCongHangNgay',
-        Para = '@Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''
-    WHERE list = 'WA_TimeSheetDayFrm' AND func = 'View';
-END
-ELSE
-BEGIN
-    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-    VALUES (
-        'WA_TimeSheetDayFrm',
-        'View',
-        'API_XuLyChamCongHangNgay',
-        '@Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''
-    );
-END
+DELETE FROM dbo.SY_FrmCfg WHERE FID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmDrdwTbl WHERE FormID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmExpTbl WHERE FormID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmFltTbl WHERE FormID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmGrdActTbl WHERE FormID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmMstActTbl WHERE FormID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmOptBtnTbl WHERE FormID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmCtrTbl WHERE FormID IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDayEditFrm');
+DELETE FROM dbo.SY_FrmLstTbl WHERE FormID = 'WA_TimeSheetDayFrm';
+DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetDayFrm';
+DELETE FROM dbo.WA_API WHERE list IN ('WA_TimeSheetDayFrm', 'WA_TimeSheetDay_Process_Stp', 'WA_DanhSachLoaiHD');
+DELETE FROM dbo.WA_Menu WHERE FormName = 'WA_TimeSheetDayFrm' OR MenuID IN ('2106');
 GO
 
 -- =========================================================================
--- 2. ĐỒNG BỘ CỘT GIAO DIỆN TỪ STORED PROCEDURE MỚI
+-- 2. ĐĂNG KÝ FORM CHÍNH (SY_FrmLstTbl)
+-- =========================================================================
+INSERT INTO dbo.SY_FrmLstTbl 
+    ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey], [CaptionCH])  
+VALUES 
+    (N'WA_TimeSheetDayFrm', N'EDIT', N'Xử lý chấm công hàng ngày', N'Daily Timesheet Processing', N'HR_TimeSheetDayTbl', N'UserAutoID', N'每日报时');
+GO
+
+-- =========================================================================
+-- 3. KHAI BÁO CẤU HÌNH ĐỊNH TUYẾN WEB (WA_API)
+-- =========================================================================
+-- API danh sách chấm công hàng ngày
+INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+VALUES ('WA_TimeSheetDayFrm', 'View', 'API_XuLyChamCongHangNgay', '@Keyword=N''{Keyword}'', @Data=N''{Data}''');
+
+-- API chạy xử lý chấm công hàng ngày
+INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+VALUES ('WA_TimeSheetDay_Process_Stp', 'View', 'WA_TimeSheetDay_Process_Stp', '@PeriodID=N''{PeriodID}'', @BranchID=N''{BranchID}''');
+
+-- API danh sách loại hợp đồng phục vụ bộ lọc
+INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+VALUES ('WA_DanhSachLoaiHD', 'View', 'API_DanhSachLoaiHD', '@Keyword=N''{Keyword}''');
+GO
+
+-- =========================================================================
+-- 4. ĐỒNG BỘ CỘT GIAO DIỆN TỪ STORED PROCEDURE (API_XuLyChamCongHangNgay)
 -- =========================================================================
 EXEC [dbo].[API_DongBoTruongGiaoDien]
     @FormName = 'WA_TimeSheetDayFrm',
@@ -32,46 +52,110 @@ EXEC [dbo].[API_DongBoTruongGiaoDien]
 GO
 
 -- =========================================================================
--- 3. THIẾT LẬP NHÃN TIẾNG VIỆT/TIẾNG ANH & THỨ TỰ CỘT (SY_FormatFields)
--- =========================================================================
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'UserAutoID', CaptionEN = 'UserAutoID', OrderNo = 1, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'UserAutoID';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã nhân viên', CaptionEN = 'Employee ID', OrderNo = 2, ShowInFilter = 1 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'PersonID';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Họ Tên', CaptionEN = 'Employee Name', OrderNo = 3, ShowInFilter = 1 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'PersonName';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Bộ phận', CaptionEN = 'Department', OrderNo = 4, ShowInFilter = 1 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'PhongBan';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Chi nhánh', CaptionEN = 'Branch', OrderNo = 5, ShowInFilter = 1 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'BranchID';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Kỳ', CaptionEN = 'Period', OrderNo = 6, ShowInFilter = 1 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'PeriodID';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày', CaptionEN = 'Date', OrderNo = 7, ShowInFilter = 1 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'Ngay';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Thời gian vào', CaptionEN = 'Check In Time', OrderNo = 8, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'ThoiGianVao';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Thời gian ra', CaptionEN = 'Check Out Time', OrderNo = 9, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'ThoiGianRa';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ vào', CaptionEN = 'Time In', OrderNo = 10, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'GioVao';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ ra', CaptionEN = 'Time Out', OrderNo = 11, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'GioRa';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số giờ', CaptionEN = 'Hours', OrderNo = 12, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'SoGio';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số phút', CaptionEN = 'Minutes', OrderNo = 13, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'SoPhut';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số công', CaptionEN = 'Workday Units', OrderNo = 14, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'SoCong';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Notes', OrderNo = 15, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'GhiChu';
-UPDATE dbo.SY_FormatFields SET CaptionVN = N'Lý do', CaptionEN = 'Reason', OrderNo = 16, ShowInFilter = 0 WHERE FormName = 'WA_TimeSheetDayFrm' AND FieldName = 'LyDo';
-GO
-
--- =========================================================================
--- 4. KÍCH HOẠT BỘ LỌC ĐỘNG (DROPDOWN) CHO CÁC TRƯỜNG LỌC TRÊN WEB
+-- 5. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields)
 -- =========================================================================
 UPDATE dbo.SY_FormatFields 
-SET FormatID = CASE 
+SET CaptionVN = CASE FieldName
+        WHEN 'PersonID' THEN N'Mã nhân viên'
+        WHEN 'PersonName' THEN N'Họ Tên'
+        WHEN 'PhongBan' THEN N'Bộ phận'
+        WHEN 'BranchID' THEN N'Chi nhánh'
+        WHEN 'LoaiHD' THEN N'Loại HD'
+        WHEN 'PeriodID' THEN N'Kỳ'
+        WHEN 'Ngay' THEN N'Ngày'
+        WHEN 'ThoiGianVao' THEN N'Thời gian vào'
+        WHEN 'ThoiGianRa' THEN N'Thời gian ra'
+        WHEN 'GioVao' THEN N'Giờ vào'
+        WHEN 'GioRa' THEN N'Giờ ra'
+        WHEN 'SoGio' THEN N'Số giờ'
+        WHEN 'SoPhut' THEN N'Số phút'
+        WHEN 'SoCong' THEN N'Số công'
+        WHEN 'GhiChu' THEN N'Ghi chú'
+        WHEN 'LyDo' THEN N'Lý do'
+    END,
+    CaptionEN = CASE FieldName
+        WHEN 'PersonID' THEN 'Employee ID'
+        WHEN 'PersonName' THEN 'Employee Name'
+        WHEN 'PhongBan' THEN 'Department'
+        WHEN 'BranchID' THEN 'Branch'
+        WHEN 'PeriodID' THEN 'Period'
+        WHEN 'Ngay' THEN 'Date'
+        WHEN 'ThoiGianVao' THEN 'Time In'
+        WHEN 'ThoiGianRa' THEN 'Time Out'
+        WHEN 'GioVao' THEN 'Hour In'
+        WHEN 'GioRa' THEN 'Hour Out'
+        WHEN 'SoGio' THEN 'Hours'
+        WHEN 'SoPhut' THEN 'Minutes'
+        WHEN 'SoCong' THEN 'Workday Units'
+        WHEN 'GhiChu' THEN 'Notes'
+        WHEN 'LyDo' THEN 'Reason'
+    END,
+    FormatID = CASE 
+        WHEN FieldName IN ('ThoiGianVao', 'ThoiGianRa') THEN 'dt'
+        WHEN FieldName = 'Ngay' THEN 'd'
+        WHEN FieldName IN ('SoGio', 'SoPhut', 'SoCong') THEN 'n'
+        ELSE 't'
+    END,
+    FormPosition = 'grid',
+    OrderNo = CASE FieldName
+        WHEN 'PersonID' THEN 1
+        WHEN 'PersonName' THEN 2
+        WHEN 'PeriodID' THEN 3
+        WHEN 'Ngay' THEN 4
+        WHEN 'ThoiGianVao' THEN 5
+        WHEN 'ThoiGianRa' THEN 6
+        WHEN 'GioVao' THEN 7
+        WHEN 'GioRa' THEN 8
+        WHEN 'SoGio' THEN 9
+        WHEN 'SoPhut' THEN 10
+        WHEN 'SoCong' THEN 11
+        WHEN 'GhiChu' THEN 12
+        WHEN 'LyDo' THEN 13
+        WHEN 'PhongBan' THEN 14
+        WHEN 'BranchID' THEN 15
+        ELSE 99
+    END,
+    ShowInAdd = 0,
+    ShowInEdit = 0,
+    IsReadOnlyAdd = 1,
+    IsReadOnlyEdit = 1
+WHERE FormName = 'WA_TimeSheetDayFrm';
+GO
+
+-- Kích hoạt bộ lọc nhanh cho các cột trên Giao diện Web (chỉ để Chọn tháng và Chi nhánh như desktop app)
+UPDATE dbo.SY_FormatFields 
+SET ShowInFilter = CASE WHEN FieldName IN ('PeriodID', 'BranchID', 'LoaiHD') THEN 1 ELSE 0 END,
+    FormatID = CASE 
         WHEN FieldName = 'PeriodID' THEN 'sl' 
         WHEN FieldName = 'BranchID' THEN 'sl' 
-        WHEN FieldName = 'PhongBan' THEN 'sl'
-        WHEN FieldName = 'Ngay' THEN 'dt'
+        WHEN FieldName = 'LoaiHD' THEN 'sl' 
         ELSE FormatID 
     END,
     DataSource = CASE 
         WHEN FieldName = 'PeriodID' THEN 'SY_Period' 
-        WHEN FieldName = 'BranchID' THEN 'CF_BranchListFrm' 
-        WHEN FieldName = 'PhongBan' THEN 'Select Distinct PhongBan from HR_PersonTbl where ISNULL(PhongBan,'''') <> '''''
+        WHEN FieldName = 'BranchID' THEN 'API_DanhSachChiNhanh' 
+        WHEN FieldName = 'LoaiHD' THEN 'WA_DanhSachLoaiHD' 
         ELSE DataSource 
     END
-WHERE FormName = 'WA_TimeSheetDayFrm' 
-  AND FieldName IN ('PeriodID', 'BranchID', 'PhongBan', 'Ngay');
+WHERE FormName = 'WA_TimeSheetDayFrm';
 GO
 
-PRINT 'Da thiet lap cau hinh va vietnamese captions cho WA_TimeSheetDayFrm thanh cong!';
+-- =========================================================================
+-- 6. THÊM MENU TRÊN WEB (WA_Menu)
+-- =========================================================================
+INSERT INTO dbo.WA_Menu (MenuID, Parent, VN, EN, FormName, FormKey, URLPara, IconClass, isDisable)
+VALUES (
+    '2106',
+    '21',
+    N'Xử lý chấm công hàng ngày',
+    'Daily Timesheet Processing',
+    'WA_TimeSheetDayFrm',
+    '',
+    '#/2101',
+    'today',
+    0
+);
+GO
+
+PRINT 'Da thiet la' + 'p WA_TimeSheetDayFrm (Cham cong hang ngay) thanh cong!';
 GO

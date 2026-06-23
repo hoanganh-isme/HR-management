@@ -68,8 +68,11 @@ BEGIN
         P.Nationality,
         P.JobName,
         P.CareerName,
-        P.HospitalName
+        P.HospitalName,
+        PA.FileName,
+        PA.Base64Content
     FROM dbo.HR_PersonTbl P
+    LEFT Join HR_PersonAttachTbl PA on P.PersonID = PA.PersonID
     WHERE 
         -- Bộ lọc từ khoá (Keyword)
         (@Keyword IS NULL OR @Keyword = ''

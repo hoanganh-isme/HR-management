@@ -61,8 +61,10 @@ var UIButton = (function () {
    * @param {Array} buttonsConfig - Mảng config của các nút
    */
   function createBar(buttonsConfig) {
+    // ===== DESKTOP BUTTON BAR =====
     var bar = document.createElement('div');
-    bar.className = 'button-bar';
+    // btn-bar-desktop: bi class CSS ẩn trên mobile
+    bar.className = 'button-bar btn-bar-desktop';
 
     buttonsConfig.forEach(function(cfg) {
       if (cfg === '|') {
@@ -74,7 +76,107 @@ var UIButton = (function () {
       }
     });
 
-    return bar;
+    // ===== MOBILE ACTION SHEET =====
+    // Panel & Overlay được gắn vào body để tránh bị nhốt bởi overflow/transform của các thần chứa
+    var panel = document.createElement('div');
+    panel.className = 'mobile-action-panel';
+
+    buttonsConfig.forEach(function(cfg) {
+      if (cfg === '|' || !cfg.text) return;
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'mobile-action-item' + (cfg.disabled ? ' is-disabled' : '');
+      if (cfg.disabled) item.disabled = true;
+      item.innerHTML =
+        (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
+        '<span>' + cfg.text + '</span>';
+      item.addEventListener('click', function(e) {
+        closePanel();
+        if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
+      });
+      panel.appendChild(item);
+    });
+
+    var overlay = document.createElement('div');
+    overlay.className = 'mobile-action-overlay';
+
+    // Gắn panel + overlay vào body ngay khi DOM sẵn sàng
+    function mountToBody() {
+      if (document.body) {
+        document.body.appendChild(overlay);
+        document.body.appendChild(panel);
+      } else {
+        document.addEventListener('DOMContentLoaded', function() {
+          document.body.appendChild(overlay);
+          document.body.appendChild(panel);
+        });
+      }
+    }
+    mountToBody();
+
+    function openPanel() {
+      panel.classList.add('open');
+      overlay.classList.add('open');
+      trigger.classList.add('active');
+    }
+    function closePanel() {
+      panel.classList.remove('open');
+      overlay.classList.remove('open');
+      trigger.classList.remove('active');
+    }
+
+    overlay.addEventListener('click', closePanel);
+
+    // Nút trigger chỉ hiện trên mobile
+    var trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'btn mobile-action-trigger';
+    trigger.innerHTML =
+      '<span class="material-symbols-outlined">tune</span>' +
+      '<span>Thao tác</span>' +
+      '<span class="material-symbols-outlined mobile-action-chevron">expand_more</span>';
+    trigger.addEventListener('click', function(e) {
+      e.stopPropagation();
+      panel.classList.contains('open') ? closePanel() : openPanel();
+    });
+
+    // Wrapper đơn giản
+    var wrapper = document.createElement('div');
+    wrapper.className = 'mobile-action-wrapper';
+    wrapper.appendChild(bar);
+    wrapper.appendChild(trigger);
+
+    // API công khai: cho phép thêm button config vào action sheet sau khi tạo
+    wrapper.addToMobilePanel = function(cfg, insertFirst) {
+      // Thêm vào desktop bar
+      var btn = create(cfg);
+      if (insertFirst) {
+        bar.insertBefore(btn, bar.firstChild);
+      } else {
+        bar.appendChild(btn);
+      }
+
+      // Thêm vào mobile panel
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'mobile-action-item' + (cfg.disabled ? ' is-disabled' : '');
+      if (cfg.disabled) item.disabled = true;
+      item.innerHTML =
+        (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
+        '<span>' + cfg.text + '</span>';
+      item.addEventListener('click', function(e) {
+        closePanel();
+        if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
+      });
+      if (insertFirst) {
+        panel.insertBefore(item, panel.firstChild);
+      } else {
+        panel.appendChild(item);
+      }
+    };
+
+    return wrapper;
+
   }
 
   /**

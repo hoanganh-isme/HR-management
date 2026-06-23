@@ -25,6 +25,7 @@ BEGIN
     DECLARE @BranchID NVARCHAR(50) = NULL;
     DECLARE @PhongBan NVARCHAR(50) = NULL;
     DECLARE @NgayLoc VARCHAR(50) = NULL;
+    DECLARE @LoaiHD NVARCHAR(50) = NULL;
 
     IF ISNULL(@Data, '') <> '' AND ISJSON(@Data) > 0
     BEGIN
@@ -32,6 +33,7 @@ BEGIN
         SET @BranchID = JSON_VALUE(@Data, '$.BranchID');
         SET @PhongBan = JSON_VALUE(@Data, '$.PhongBan');
         SET @NgayLoc = JSON_VALUE(@Data, '$.Ngay');
+        SET @LoaiHD = JSON_VALUE(@Data, '$.LoaiHD');
     END
 
     -- Nếu lọc Kỳ trống, tự động lấy Kỳ mới nhất để tránh trống dữ liệu lúc load trang
@@ -53,10 +55,12 @@ BEGIN
     -- Truy vấn kết hợp dữ liệu bảng chấm công chi tiết và thông tin nhân viên
     -- Lưu ý: Cần chọn cột UserAutoID làm khoá chính để thực hiện chức năng Thêm/Sửa/Xoá trên Grid
     SELECT 
+        T.UserAutoID,
         T.PersonID,
         P.PersonName,
         P.PhongBan,
         P.BranchID,
+        P.LoaiHD,
         T.PeriodID,
         T.Ngay,
         T.ThoiGianVao,
@@ -69,7 +73,7 @@ BEGIN
         T.GhiChu,
         T.LyDo
     FROM dbo.HR_TimeSheetDayTbl T
-    LEFT JOIN dbo.HR_PersonTbl P ON T.PersonID = P.PersonID
+    LEFT JOIN dbo.HR_PersonView P ON T.PersonID = P.PersonID
     WHERE 
         -- Bộ lọc Kỳ lương (PeriodID)
         (@PeriodID IS NULL OR @PeriodID = '' OR T.PeriodID = @PeriodID)
@@ -83,6 +87,8 @@ BEGIN
             OR @NgayLoc = '1900-01-01'
             OR CAST(T.Ngay AS DATE) = CAST(@NgayLoc AS DATE)
         )
+        -- Bộ lọc Loại hợp đồng (LoaiHD)
+        AND (@LoaiHD IS NULL OR @LoaiHD = '' OR P.LoaiHD = @LoaiHD)
         -- Tìm kiếm chung theo Keyword (Mã NV hoặc Tên NV)
         AND (
             @Keyword = ''

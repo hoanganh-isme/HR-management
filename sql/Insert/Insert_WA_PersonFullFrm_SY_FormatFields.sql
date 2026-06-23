@@ -132,6 +132,8 @@ SET CaptionVN = CASE FieldName
         WHEN 'NguoiLienHe'               THEN N'Người liên hệ khẩn cấp'
         WHEN 'MoiQuanHe'                 THEN N'Mối quan hệ người LH'
         WHEN 'NguoiLienHeSoDT'           THEN N'Số ĐT người liên hệ'
+        WHEN 'FileName'                  THEN N'Tên file ảnh'
+        WHEN 'Base64Content'             THEN N'Ảnh 3x4'
         ELSE FieldName
     END,
     CaptionEN = CASE FieldName
@@ -173,6 +175,8 @@ SET CaptionVN = CASE FieldName
         WHEN 'NguoiLienHe'               THEN 'Emergency Contact'
         WHEN 'MoiQuanHe'                 THEN 'Relationship'
         WHEN 'NguoiLienHeSoDT'           THEN 'Contact Phone'
+        WHEN 'FileName'                  THEN 'File Name'
+        WHEN 'Base64Content'             THEN '3x4 Photo'
         ELSE FieldName
     END,
     FormatID = CASE
@@ -236,6 +240,8 @@ SET CaptionVN = CASE FieldName
         WHEN 'NguoiLienHe'               THEN 36
         WHEN 'MoiQuanHe'                 THEN 37
         WHEN 'NguoiLienHeSoDT'           THEN 38
+        WHEN 'FileName'                  THEN 39
+        WHEN 'Base64Content'             THEN 40
         ELSE 99
     END
 WHERE FormName = 'WA_PersonFullFrm';

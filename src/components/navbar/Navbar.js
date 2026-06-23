@@ -179,8 +179,8 @@ var Navbar = (function () {
 
         <!-- Brand / Logo -->
         <div class="navbar-brand" onclick="window.location.hash='#/'" style="display:flex; align-items:center;">
-          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; margin-left: 16px;">
-          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
         </div>
 
         <!-- Desktop Menu with scroll arrows -->
@@ -244,8 +244,8 @@ var Navbar = (function () {
       <div class="mobile-drawer" id="mobile-drawer">
         <div class="mobile-drawer-header">
           <div class="mobile-drawer-brand" style="display:flex; align-items:center; justify-content:center; width:100%; margin: 12px 0;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; border-radius: 6px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Tiệc Cưới Logo" style="width: 150px; height: auto;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
           </div>
           <button class="mobile-drawer-close" id="mobile-drawer-close">
             <span class="material-symbols-outlined">arrow_back</span>
@@ -273,8 +273,8 @@ var Navbar = (function () {
         <aside class="app-sidebar" id="app-sidebar">
           <div class="sidebar-header">
             <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Tiệc Cưới Logo" style="width: 150px; height: auto; border-radius: 6px;">
-              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Tiệc Cưới Logo" style="width: 150px; height: auto;">
+              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
+              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
             </div>
             <button class="btn-close-sidebar" id="btn-close-sidebar">
               <span class="material-symbols-outlined">arrow_back</span>
@@ -362,7 +362,7 @@ var Navbar = (function () {
 
     // Check version server trước — nếu khác cache thì tự clear (bắt được thay đổi từ máy Admin)
     if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
-      SystemDataService.getMenuSyncVersion().then(function(serverVer) {
+      SystemDataService.getMenuSyncVersion().then(function (serverVer) {
         try {
           var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
           var cacheVer = cached && cached.syncVer ? cached.syncVer : null;
@@ -381,7 +381,7 @@ var Navbar = (function () {
           }
         } catch (e) { }
         _fetchAndRender(container, groupId, serverVer);
-      }).catch(function() {
+      }).catch(function () {
         // Lỗi API → dùng cache nếu có, không thì fetch nav
         _fetchAndRender(container, groupId, null);
       });
@@ -463,13 +463,13 @@ var Navbar = (function () {
 
     // Fetch and update Com1 setup value for user roles (outer nav only)
     if (window.SystemDataService && window.SystemDataService.getSetupValue) {
-      SystemDataService.getSetupValue('Com1').then(function(val) {
+      SystemDataService.getSetupValue('Com1').then(function (val) {
         if (val) {
-          document.querySelectorAll('.user-role-nav').forEach(function(el) {
+          document.querySelectorAll('.user-role-nav').forEach(function (el) {
             el.innerText = val;
           });
         }
-      }).catch(function(err) {
+      }).catch(function (err) {
         console.error('[Navbar] Lỗi tải SetupValue Com1:', err);
       });
     }
@@ -601,11 +601,11 @@ var Navbar = (function () {
     }
 
     if ($menu && $scrollLeft && $scrollRight) {
-      $scrollLeft.addEventListener('click', function(e) {
+      $scrollLeft.addEventListener('click', function (e) {
         e.stopPropagation();
         $menu.scrollBy({ left: -200, behavior: 'smooth' });
       });
-      $scrollRight.addEventListener('click', function(e) {
+      $scrollRight.addEventListener('click', function (e) {
         e.stopPropagation();
         $menu.scrollBy({ left: 200, behavior: 'smooth' });
       });

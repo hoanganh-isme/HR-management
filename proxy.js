@@ -6,9 +6,9 @@
 
 const http = require('http');
 
-const LISTEN_PORT = 8085;
-const BACKEND_HOST = 'nhansu2.bms79.com';
-const BACKEND_PORT = 80; // Sửa cổng này tương ứng với cổng API Backend của bạn (VD: 5000 của .NET hoặc FastAPI v.v)
+const LISTEN_PORT = 8081;
+const BACKEND_HOST = '127.0.0.1';
+const BACKEND_PORT = 8081; // Sửa cổng này tương ứng với cổng API Backend của bạn (VD: 5000 của .NET hoặc FastAPI v.v)
 
 console.log('=======================================================');
 console.log('       CORS PROXY - WEDDING BANQUET MANAGEMENT         ');
@@ -42,10 +42,10 @@ const server = http.createServer((req, res) => {
                 if (data.status === 2 || data.status === 3) {
                     const downloadUri = data.url; // URL chứa file Word mới nhất do ONLYOFFICE nhả ra
                     const docId = new URL(req.url, `http://${req.headers.host}`).searchParams.get('docId');
-                    
+
                     console.log(`[ONLYOFFICE] Đã nhận sự kiện Lưu file cho DocID: ${docId}`);
                     console.log(`[ONLYOFFICE] Link tải file gốc mới nhất: ${downloadUri}`);
-                    
+
                     // TODO: Tại đây anh có thể dùng thư viện 'http' để tải cái downloadUri kia về 
                     // đè lên thư mục /src/uploads/ của anh.
                 }
@@ -80,7 +80,7 @@ const server = http.createServer((req, res) => {
         // G\u1ed9p header c\u1ee7a Backend r\u1ed3i th\u00eam CORS
         const responseHeaders = { ...proxyRes.headers };
         responseHeaders['Access-Control-Allow-Origin'] = '*';
-        
+
         res.writeHead(proxyRes.statusCode, responseHeaders);
         proxyRes.pipe(res, { end: true });
     });
@@ -88,9 +88,9 @@ const server = http.createServer((req, res) => {
     proxyReq.on('error', (err) => {
         console.error(`[Proxy Error] ${err.message}`);
         res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-            error: true, 
-             message: `L\u1ed7i Proxy: Kh\u00f4ng th\u1ec3 k\u1ebft n\u1ed1i t\u1edbi Backend \u1edf ${BACKEND_HOST}:${BACKEND_PORT}. Backend của bạn \u0111\u00e3 kh\u1edfi \u0111\u1ed9ng chưa?` 
+        res.end(JSON.stringify({
+            error: true,
+            message: `L\u1ed7i Proxy: Kh\u00f4ng th\u1ec3 k\u1ebft n\u1ed1i t\u1edbi Backend \u1edf ${BACKEND_HOST}:${BACKEND_PORT}. Backend của bạn \u0111\u00e3 kh\u1edfi \u0111\u1ed9ng chưa?`
         }));
     });
 
