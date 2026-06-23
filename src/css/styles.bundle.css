@@ -5374,8 +5374,8 @@ body.dark-theme .data-table tbody tr:hover {
 /* ════ HIGHLY OPTIMIZED STICKY SCROLLBAR & SPLIT LAYOUT FOR ENTERPRISE GRIDS ════ */
 @media (min-width: 1025px) {
 
-  /* Prevent double scrollbar by freezing the main viewport scrolling on split layout pages */
-  body:has(.split-master-detail-container) #app-content {
+  /* Prevent double scrollbar by freezing the main viewport scrolling on grid pages */
+  body:has(.dynamic-grid-card) #app-content {
     display: flex;
     flex-direction: column;
     height: 100% !important;
@@ -5384,14 +5384,14 @@ body.dark-theme .data-table tbody tr:hover {
     padding-bottom: 16px !important;
   }
 
-  body:has(.split-master-detail-container) .page-wrapper {
+  body:has(.dynamic-grid-card) .page-wrapper {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
   }
 
-  body:has(.split-master-detail-container) .dynamic-grid-card {
+  body:has(.dynamic-grid-card) .dynamic-grid-card {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -5399,7 +5399,7 @@ body.dark-theme .data-table tbody tr:hover {
     margin-bottom: 0 !important;
   }
 
-  body:has(.split-master-detail-container) .dynamic-grid-card>.card-body {
+  body:has(.dynamic-grid-card) .dynamic-grid-card > .card-body {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -5407,14 +5407,7 @@ body.dark-theme .data-table tbody tr:hover {
     padding: 0 !important;
   }
 
-  body:has(.split-master-detail-container) .split-master-detail-container {
-    flex: 1;
-    display: flex;
-    min-height: 0;
-    align-items: stretch;
-  }
-
-  body:has(.split-master-detail-container) #dynamic-grid-container {
+  body:has(.dynamic-grid-card) #dynamic-grid-container {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -5422,14 +5415,21 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   /* Make table wrapper fit the master container height & auto-scroll */
-  body:has(.split-master-detail-container) #dynamic-grid-container .table-wrapper {
+  body:has(.dynamic-grid-card) #dynamic-grid-container .table-wrapper {
     flex: 1;
     overflow-y: auto;
     overflow-x: auto;
     min-height: 0;
   }
 
-  /* Make the detail container fit exactly and scroll internally */
+  /* Specific styles for Split Master-Detail layout */
+  body:has(.split-master-detail-container) .split-master-detail-container {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    align-items: stretch;
+  }
+
   body:has(.split-master-detail-container) #dynamic-detail-container {
     height: 100%;
     min-height: 0;
@@ -5443,6 +5443,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
 }
+
 
 /* Global sticky headers for all tables inside table-wrapper */
 .table-wrapper .data-table thead th {
