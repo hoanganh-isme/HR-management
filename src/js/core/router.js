@@ -1,5 +1,5 @@
 /**
- * Router — Hash-based SPA routing cho Quản lý Tiệc Cưới
+ * Router — Hash-based SPA routing cho Quản lý Nhân sự
  * ─────────────────────────────────────────────────────
  * Kiến trúc: Mảng ROUTES cấu hình → Dynamic script loading → pageFn.render()
  * Template do Page Module tự fetch (Router cung cấp cache layer)
@@ -265,7 +265,7 @@ var Router = (function () {
       // 404
       if (!route) {
         if ($pageTitle) $pageTitle.innerText = '404 — Không tìm thấy';
-        document.title = '404 | Quản lý Tiệc Cưới';
+        document.title = '404 | Quản lý Nhân sự';
         _render404($content, rawHash);
         return;
       }
@@ -280,7 +280,7 @@ var Router = (function () {
 
       // Cập nhật title
       if ($pageTitle) $pageTitle.innerText = route.title;
-      document.title = route.title + ' | Quản lý Tiệc Cưới';
+      document.title = route.title + ' | Quản lý Nhân sự';
       document.body.setAttribute('data-page', pathOnly.replace('/', ''));
 
       // ── Trường hợp 1: Có script → load script → pageFn.render() ──

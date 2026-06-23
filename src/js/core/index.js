@@ -110,6 +110,11 @@ document.addEventListener('DOMContentLoaded', function () {
     SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
     SplitLayoutDetailWidth: '950px',
     ModalWidth: '960px',
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    AllowDblClickToView: true,
+    HideDetailTabsInModal: true,
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã, tên nhân viên hoặc số điện thoại...',
     DetailFormFields: [
@@ -322,6 +327,32 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     ]
   };
+
+  window.APP_MODULES['WA_PERSONINFRM'] = Object.assign({}, window.APP_MODULES['WA_PERSONFULLFRM'], {
+    FormName: 'WA_PersonInFrm',
+    HideAddBtn: false,
+    HideEditBtn: false,
+    HideDeleteBtn: false,
+    AllowDblClickToView: false,
+    HideDetailTabsInModal: false
+  });
+
+  window.APP_MODULES['WA_PERSONQUITFRM'] = Object.assign({}, window.APP_MODULES['WA_PERSONFULLFRM'], {
+    FormName: 'WA_PersonQuitFrm',
+    HideAddBtn: false,
+    HideEditBtn: false,
+    HideDeleteBtn: false,
+    AllowDblClickToView: false,
+    HideDetailTabsInModal: false,
+    SplitLayoutSelectText: 'Vui lòng chọn nhân viên đã nghỉ việc để xem chi tiết',
+    SplitLayoutEmptyText: 'Không có chi tiết hồ sơ',
+    DetailTabs: [
+      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[0],
+      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[1],
+      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[3],
+      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[4]
+    ]
+  });
 
   window.APP_MODULES['WA_DANHSACHUNGVIENFRM'] = {
     FormName: 'WA_DanhSachUngVienFrm',

@@ -264,5 +264,8 @@ VALUES (
 );
 GO
 
+EXEC dbo.API_DongBoQuyenTruyCap;
+GO
+
 PRINT 'Da thiet lap WA_PersonFullFrm (Ho so nhan vien tong hop) voi MenuID 2010 thanh cong!';
 GO

@@ -27,6 +27,8 @@ window.DynamicFormEngine = (function () {
   var globalFormSchema = [];
   var globalRenderers = {};
 
+  var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
+
   // Khôi phục moduleStates từ sessionStorage nếu có (để giữ filter khi F5)
   try {
     var cachedStates = sessionStorage.getItem('DynamicFormEngine_States');
@@ -1044,7 +1046,7 @@ window.DynamicFormEngine = (function () {
             return;
           }
 
-          if (MODULE_CONFIG.HideEditBtn) return;
+          if (MODULE_CONFIG.HideEditBtn && !MODULE_CONFIG.AllowDblClickToView) return;
 
           // Nếu đang chọn nhiều dòng (và dòng được double click nằm trong số đó) thì mở sửa hàng loạt
           if (selectedRows.length > 1 && selectedRows.find(function (sr) { return sr.id === rData.id; })) {
@@ -1236,8 +1238,8 @@ window.DynamicFormEngine = (function () {
             valSpan.style.fontWeight = '600';
           } else if (f.format === 'boolean') {
             var isTrue = (rawVal === true || rawVal === 1 || String(rawVal) === '1' || String(rawVal).toLowerCase() === 'true');
-            valFormatted = isTrue 
-              ? `<span style="color:var(--color-success); display:inline-flex; align-items:center; gap:4px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:18px;">check_box</span>Có</span>` 
+            valFormatted = isTrue
+              ? `<span style="color:var(--color-success); display:inline-flex; align-items:center; gap:4px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:18px;">check_box</span>Có</span>`
               : `<span style="color:var(--color-text-secondary); display:inline-flex; align-items:center; gap:4px;"><span class="material-symbols-outlined" style="font-size:18px;">check_box_outline_blank</span>Không</span>`;
           } else {
             valFormatted = rawVal;
@@ -1350,7 +1352,7 @@ window.DynamicFormEngine = (function () {
 
         formWrap.appendChild(fieldsGrid);
 
-        var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm';
+        var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personinfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personquitfrm';
         var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
         if (isPersonForm || isCandidateForm) {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
@@ -1365,51 +1367,59 @@ window.DynamicFormEngine = (function () {
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
 
           var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
-          var base64Val = '';
+          var rawContent = '';
           var fileNameVal = '';
           if (row) {
             for (var key in row) {
               var keyLower = key.toLowerCase();
-              if (keyLower === 'base64content' || keyLower === 'base64') {
-                base64Val = row[key];
+              if (keyLower === 'content') {
+                rawContent = row[key];
               } else if (keyLower === 'filename') {
                 fileNameVal = row[key];
               }
             }
           }
 
-          if (base64Val && typeof base64Val === 'string') {
-            base64Val = base64Val.replace(/\s/g, '');
-          }
+          var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
+          var isLoadingHex = false;
 
-          var base64Src = '';
-          if (base64Val) {
-            if (base64Val.indexOf('data:image/') === 0) {
-              base64Src = base64Val;
-            } else {
-              var mimeType = 'image/jpeg';
-              if (fileNameVal) {
-                var ext = fileNameVal.split('.').pop().toLowerCase();
-                if (ext === 'png') mimeType = 'image/png';
-                else if (ext === 'gif') mimeType = 'image/gif';
-                else if (ext === 'svg') mimeType = 'image/svg+xml';
-                else if (ext === 'webp') mimeType = 'image/webp';
+          if (rawContent && typeof rawContent === 'string' && rawContent.length > 2) {
+            var mimeType = 'image/jpeg';
+            if (fileNameVal) {
+              var ext = fileNameVal.split('.').pop().toLowerCase();
+              if (ext === 'png') mimeType = 'image/png';
+              else if (ext === 'gif') mimeType = 'image/gif';
+              else if (ext === 'webp') mimeType = 'image/webp';
+            }
+            try {
+              if (/^0x/i.test(rawContent)) {
+                // Chuỗi hex dạng 0xFFD8FF...
+                var hexStr = rawContent.replace(/^0x/i, '').replace(/\s/g, '');
+                var bytes = new Uint8Array(hexStr.length / 2);
+                for (var bi = 0; bi < bytes.length; bi++) {
+                  bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
+                }
+                var blob = new Blob([bytes], { type: mimeType });
+                img.src = URL.createObjectURL(blob);
+              } else {
+                // API SQL Server serialize varbinary thành base64 — dùng trực tiếp
+                img.src = 'data:' + mimeType + ';base64,' + rawContent;
               }
-              base64Src = 'data:' + mimeType + ';base64,' + base64Val;
+              isLoadingHex = true;
+            } catch (err) {
+              console.warn('[PHOTO] Lỗi xử lý ảnh:', err);
             }
           }
 
-          var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
-          var isLoadingBase64 = false;
+          var isLoadingBase64 = isLoadingHex; // alias cho onerror logic bên dưới
 
-          if (base64Src) {
-            img.src = base64Src;
-            isLoadingBase64 = true;
-          } else if (imgIdVal) {
-            var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
-            img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
-          } else {
-            img.src = defaultPhoto;
+          if (!isLoadingHex) {
+            if (imgIdVal) {
+              var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
+              img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
+            } else {
+              img.src = defaultPhoto;
+            }
           }
 
           img.onerror = function () {
@@ -1440,8 +1450,8 @@ window.DynamicFormEngine = (function () {
         var filterKV = {};
         filterKV[tabDef.filterField || pkFieldKV] = pkValKV;
         var payloadKV = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterKV) };
-        var MONEY_KV = ['MucLuong','LuongBaoHiem','PCCongTac','PCTrachNhiem','PCKhac','LuongCoBan','MucDong'];
-        var DATE_KV  = ['NgaySinh','NgayVaoLam','NgayHopDong','NgayHetHopDong','NgayThuViec','SocialDate','NgayKetThucBH','ThoiGianHuongBHYT','NgayKyHopDong','NgayCoHieuLuc','NgayHetHieuLuc','NgayThayDoi','NgayCapNhat','FromDate','ToDate','LogDate','GiamTruTuThang','GiamTruDenThang'];
+        var MONEY_KV = ['MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'LuongCoBan', 'MucDong'];
+        var DATE_KV = ['NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayHetHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'NgayThayDoi', 'NgayCapNhat', 'FromDate', 'ToDate', 'LogDate', 'GiamTruTuThang', 'GiamTruDenThang'];
 
         ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payloadKV).then(function (resKV) {
           var dataKV = resKV.list || resKV.records || [];
@@ -1453,7 +1463,7 @@ window.DynamicFormEngine = (function () {
             tabContentContainer.appendChild(emptyKV);
             return;
           }
-          var fieldsKV = tabDef.fields || Object.keys(dataKV[0]).filter(function(k){ return !k.startsWith('_') && k !== 'UserAutoID' && k !== 'PersonID'; });
+          var fieldsKV = tabDef.fields || Object.keys(dataKV[0]).filter(function (k) { return !k.startsWith('_') && k !== 'UserAutoID' && k !== 'PersonID'; });
           dataKV.forEach(function (rec, idx) {
             var card = document.createElement('div');
             card.style.cssText = 'background:var(--color-background,#f8fafc);border:1px solid var(--color-border);border-radius:8px;padding:14px 16px;margin-bottom:12px;';
@@ -1480,7 +1490,7 @@ window.DynamicFormEngine = (function () {
                 displayV = '—';
                 val.style.color = 'var(--color-text-secondary)';
               } else if (DATE_KV.indexOf(fk) >= 0) {
-                try { var dkv = new Date(rawV); displayV = !isNaN(dkv.getTime()) ? dkv.toLocaleDateString('vi-VN') : rawV; } catch(e) { displayV = rawV; }
+                try { var dkv = new Date(rawV); displayV = !isNaN(dkv.getTime()) ? dkv.toLocaleDateString('vi-VN') : rawV; } catch (e) { displayV = rawV; }
                 val.style.color = 'var(--color-text)';
               } else if (MONEY_KV.indexOf(fk) >= 0) {
                 var nkv = parseFloat(rawV);
@@ -1517,7 +1527,7 @@ window.DynamicFormEngine = (function () {
           // Lọc bỏ hàng trống: nếu tất cả field hiển thị đều là null/''/'0'/0 thì bỏ qua
           if (tabDef.fields && tabDef.fields.length > 0) {
             var SKIP_KEYS = ['UserAutoID', 'PersonID', 'SapCaID', 'MaHopDong', 'RelationID', 'MaPhuCap'];
-            var displayKeys = tabDef.fields.filter(function(k){ return SKIP_KEYS.indexOf(k) < 0; });
+            var displayKeys = tabDef.fields.filter(function (k) { return SKIP_KEYS.indexOf(k) < 0; });
             data = data.filter(function (r) {
               return displayKeys.some(function (k) {
                 var v = r[k];
@@ -1541,10 +1551,10 @@ window.DynamicFormEngine = (function () {
           var keys = tabDef.fields ? tabDef.fields : Object.keys(data[0]).filter(function (k) { return !k.startsWith('_'); });
 
           // Xác định kiểu cột 1 lần duy nhất để căn chỉnh đồng nhất header & cell
-          var MONEY_FIELDS = ['MucLuong','LuongBaoHiem','PCCongTac','PCTrachNhiem','PCKhac','LuongCoBan','MucDong'];
-          var DATE_FIELDS  = ['NgaySinh','NgayVaoLam','NgayHopDong','NgayHetHopDong','NgayThuViec','SocialDate','NgayKetThucBH','ThoiGianHuongBHYT','NgayKyHopDong','NgayCoHieuLuc','NgayHetHieuLuc','NgayThayDoi','NgayCapNhat','FromDate','ToDate','TuNgay','DenNgay','LogDate','GiamTruTuThang','GiamTruDenThang'];
-          var NUMBER_FIELDS = ['SoNgay','SoNgayDaSuDung','SoNgayConLai','PhepThamNien','PhepTonNamTruoc','SoNgayPhepTet','SoNgayPhepOm','Nam','SoLuong','SoNgayNghi'];
-          var TEXT_WRAP_FIELDS = ['NoiDung','GhiChu','NoiDungKTKL','NoiDungPhuCap','Notes'];
+          var MONEY_FIELDS = ['MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'LuongCoBan', 'MucDong'];
+          var DATE_FIELDS = ['NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayHetHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'NgayThayDoi', 'NgayCapNhat', 'FromDate', 'ToDate', 'TuNgay', 'DenNgay', 'LogDate', 'GiamTruTuThang', 'GiamTruDenThang'];
+          var NUMBER_FIELDS = ['SoNgay', 'SoNgayDaSuDung', 'SoNgayConLai', 'PhepThamNien', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'Nam', 'SoLuong', 'SoNgayNghi'];
+          var TEXT_WRAP_FIELDS = ['NoiDung', 'GhiChu', 'NoiDungKTKL', 'NoiDungPhuCap', 'Notes'];
           var colType = {};
           keys.forEach(function (k) {
             if (NUMBER_FIELDS.indexOf(k) >= 0) { colType[k] = 'number'; }
@@ -1593,7 +1603,7 @@ window.DynamicFormEngine = (function () {
               var val = r[k];
               var ct = colType[k];
               if (ct === 'date' && val) {
-                try { var dv = new Date(val); if (!isNaN(dv.getTime())) { val = dv.toLocaleDateString('vi-VN'); } } catch(e) {}
+                try { var dv = new Date(val); if (!isNaN(dv.getTime())) { val = dv.toLocaleDateString('vi-VN'); } } catch (e) { }
                 td.style.cssText = 'padding:8px 10px;white-space:nowrap;text-align:left;color:var(--color-text);';
               } else if (ct === 'money') {
                 var n = parseFloat(val);
@@ -2180,7 +2190,7 @@ window.DynamicFormEngine = (function () {
     grid.style.flex = '1';
     masterWrapper.appendChild(grid);
 
-    var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm';
+    var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personinfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personquitfrm';
     var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
     if (isPersonForm || isCandidateForm) {
       console.log('[PHOTO DEBUG] Edit Modal - row:', row);
@@ -2213,51 +2223,59 @@ window.DynamicFormEngine = (function () {
       img.style.height = '100%';
       img.style.objectFit = 'cover';
 
-      var base64Val = '';
+      var rawContent = '';
       var fileNameVal = '';
       if (row) {
         for (var key in row) {
           var keyLower = key.toLowerCase();
-          if (keyLower === 'base64content' || keyLower === 'base64') {
-            base64Val = row[key];
+          if (keyLower === 'content') {
+            rawContent = row[key];
           } else if (keyLower === 'filename') {
             fileNameVal = row[key];
           }
         }
       }
 
-      if (base64Val && typeof base64Val === 'string') {
-        base64Val = base64Val.replace(/\s/g, '');
-      }
+      var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
+      var isLoadingHex = false;
 
-      var base64Src = '';
-      if (base64Val) {
-        if (base64Val.indexOf('data:image/') === 0) {
-          base64Src = base64Val;
-        } else {
-          var mimeType = 'image/jpeg';
-          if (fileNameVal) {
-            var ext = fileNameVal.split('.').pop().toLowerCase();
-            if (ext === 'png') mimeType = 'image/png';
-            else if (ext === 'gif') mimeType = 'image/gif';
-            else if (ext === 'svg') mimeType = 'image/svg+xml';
-            else if (ext === 'webp') mimeType = 'image/webp';
+      if (rawContent && typeof rawContent === 'string' && rawContent.length > 2) {
+        var mimeType = 'image/jpeg';
+        if (fileNameVal) {
+          var ext = fileNameVal.split('.').pop().toLowerCase();
+          if (ext === 'png') mimeType = 'image/png';
+          else if (ext === 'gif') mimeType = 'image/gif';
+          else if (ext === 'webp') mimeType = 'image/webp';
+        }
+        try {
+          if (/^0x/i.test(rawContent)) {
+            // Chuỗi hex dạng 0xFFD8FF...
+            var hexStr = rawContent.replace(/^0x/i, '').replace(/\s/g, '');
+            var bytes = new Uint8Array(hexStr.length / 2);
+            for (var bi = 0; bi < bytes.length; bi++) {
+              bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
+            }
+            var blob = new Blob([bytes], { type: mimeType });
+            img.src = URL.createObjectURL(blob);
+          } else {
+            // API SQL Server serialize varbinary thành base64 — dùng trực tiếp
+            img.src = 'data:' + mimeType + ';base64,' + rawContent;
           }
-          base64Src = 'data:' + mimeType + ';base64,' + base64Val;
+          isLoadingHex = true;
+        } catch (err) {
+          console.warn('[PHOTO] Lỗi xử lý ảnh:', err);
         }
       }
 
-      var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
-      var isLoadingBase64 = false;
+      var isLoadingBase64 = isLoadingHex; // alias cho onerror logic bên dưới
 
-      if (base64Src) {
-        img.src = base64Src;
-        isLoadingBase64 = true;
-      } else if (imgIdVal) {
-        var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
-        img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
-      } else {
-        img.src = defaultPhoto;
+      if (!isLoadingHex) {
+        if (imgIdVal) {
+          var subFolder = isPersonForm ? 'NhanVien' : 'UngVien';
+          img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + imgIdVal + '.jpg';
+        } else {
+          img.src = defaultPhoto;
+        }
       }
       img.onerror = function () {
         if (isLoadingBase64) {
@@ -2799,7 +2817,7 @@ window.DynamicFormEngine = (function () {
     // ── DETAIL TABS (Master-Detail panel) ──────────────────────────────────
     // Khi MODULE_CONFIG.DetailTabs được cấu hình, tự động vẽ thêm tab chi tiết bên dưới form master
     var hasEditableTab = MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.some(function (t) { return t.editable; });
-    if (row && MODULE_CONFIG.FormName !== 'WA_QuanLyNghiPhepNamFrm' && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 && (isEdit || hasEditableTab)) {
+    if (row && MODULE_CONFIG.FormName !== 'WA_QuanLyNghiPhepNamFrm' && !MODULE_CONFIG.HideDetailTabsInModal && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 && (isEdit || hasEditableTab)) {
       var tabsContainer = document.createElement('div');
       tabsContainer.className = 'detail-tabs-container';
       tabsContainer.style.marginTop = '16px';
@@ -2890,7 +2908,7 @@ window.DynamicFormEngine = (function () {
         t.appendChild(thead);
 
         var tbody = document.createElement('tbody');
-        
+
         panel._currentRows.forEach(function (currRow, rIdx) {
           var tr = document.createElement('tr');
           tr.style.cssText = 'border-bottom: 1px solid var(--color-border); transition: background-color 0.2s;';
@@ -2932,7 +2950,7 @@ window.DynamicFormEngine = (function () {
                 },
                 onSelect: function (selectedData) {
                   var selectedPersonID = selectedData[0];
-                  
+
                   // Kiểm tra trùng lặp trong panel._currentRows
                   var isDuplicate = panel._currentRows.some(function (row, index) {
                     return index !== rIdx && row['PersonID'] === selectedPersonID;
@@ -2948,25 +2966,25 @@ window.DynamicFormEngine = (function () {
                     }
                     // Reset giá trị
                     if (displayInp) displayInp.value = '';
-                    currRow['PersonID']   = '';
+                    currRow['PersonID'] = '';
                     currRow['PersonName'] = '';
-                    currRow['PhongBan']   = '';
-                    currRow['TitleName']  = '';
+                    currRow['PhongBan'] = '';
+                    currRow['TitleName'] = '';
                     if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
-                    if (cellMap['PhongBan'])   cellMap['PhongBan'].textContent   = '';
-                    if (cellMap['TitleName'])  cellMap['TitleName'].textContent  = '';
+                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = '';
+                    if (cellMap['TitleName']) cellMap['TitleName'].textContent = '';
                     return;
                   }
 
                   // Cập nhật dữ liệu hàng
-                  currRow['PersonID']   = selectedData[0];
+                  currRow['PersonID'] = selectedData[0];
                   currRow['PersonName'] = selectedData[1];
-                  currRow['PhongBan']   = selectedData[2];
-                  currRow['TitleName']  = selectedData[3];
+                  currRow['PhongBan'] = selectedData[2];
+                  currRow['TitleName'] = selectedData[3];
                   // Cập nhật trực tiếp qua cellMap — không cần querySelector
                   if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
-                  if (cellMap['PhongBan'])   cellMap['PhongBan'].textContent   = selectedData[2] || '';
-                  if (cellMap['TitleName'])  cellMap['TitleName'].textContent  = selectedData[3] || '';
+                  if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
+                  if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
                 }
               });
 
@@ -3471,15 +3489,15 @@ window.DynamicFormEngine = (function () {
         if (res && res.code === 0) {
           // Master save succeeded! Now save/delete details.
           var detailPromises = [];
-          
+
           if (body._detailPanels) {
             body._detailPanels.forEach(function (panel) {
               if (panel._tabDef && panel._tabDef.editable) {
                 var tabDef = panel._tabDef;
-                
+
                 // Get the master key value to use as the foreign key
                 var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
-                
+
                 // 1. Process deleted rows
                 if (panel._deletedRows && panel._deletedRows.length > 0) {
                   panel._deletedRows.forEach(function (delRow) {
@@ -3501,34 +3519,34 @@ window.DynamicFormEngine = (function () {
                     detailPromises.push(ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', delPayload));
                   });
                 }
-                
+
                 // 2. Process current (added/modified) rows
                 if (panel._currentRows && panel._currentRows.length > 0) {
                   panel._currentRows.forEach(function (currRow) {
                     // Sync foreign key
                     currRow[tabDef.filterField] = masterKeyVal;
-                    
+
                     var isRowEdit = !!currRow.UserAutoID;
-                    
+
                     var rowPayload = Object.assign({}, currRow);
                     rowPayload.UserName = _currentUser();
                     rowPayload.UserCreate = _currentUser();
                     rowPayload.IsEdit = isRowEdit ? 1 : 0;
-                    
+
                     var savePayload = {
                       List: tabDef.api,
                       Func: 'Save',
                       JsonData: JSON.stringify(rowPayload),
                       UserName: _currentUser()
                     };
-                    
+
                     detailPromises.push(ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', savePayload));
                   });
                 }
               }
             });
           }
-          
+
           if (detailPromises.length > 0) {
             Promise.all(detailPromises).then(function (detailResults) {
               var allOk = detailResults.every(function (dr) { return dr && dr.code === 0; });

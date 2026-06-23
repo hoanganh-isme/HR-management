@@ -70,9 +70,14 @@ BEGIN
         P.CareerName,
         P.HospitalName,
         PA.FileName,
-        PA.Base64Content
+        PA.Content
     FROM dbo.HR_PersonTbl P
-    LEFT Join HR_PersonAttachTbl PA on P.PersonID = PA.PersonID
+    OUTER APPLY (
+        SELECT TOP 1 FileName, Content
+        FROM dbo.HR_PersonAttachTbl
+        WHERE PersonID = P.PersonID
+        ORDER BY UserAutoID DESC
+    ) PA
     WHERE 
         -- Bộ lọc từ khoá (Keyword)
         (@Keyword IS NULL OR @Keyword = ''
