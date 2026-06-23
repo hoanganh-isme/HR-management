@@ -7,7 +7,7 @@
 const http = require('http');
 
 const LISTEN_PORT = 8085;
-const BACKEND_HOST = 'nhansu2.bms7.com';
+const BACKEND_HOST = 'nhansu2.bms79.com';
 const BACKEND_PORT = 80; // Sửa cổng này tương ứng với cổng API Backend của bạn (VD: 5000 của .NET hoặc FastAPI v.v)
 
 console.log('=======================================================');

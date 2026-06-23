@@ -7,7 +7,7 @@
 
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
-    API_BASE: 'http://nhansu2.bms7.com', // Domain backend thực tế
+    API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
     DOC_NODE_IP: '103.190.38.46',      // Server Node.js (OnlyOffice & Documents)
 };
 
@@ -18,7 +18,7 @@ window.API_CONFIG = {
     ENDPOINTS: {
         ROUTER: '/api/API_Gateway_Router',
         AUTH: {
-            LOGIN: '/api/login',
+            LOGIN: '/Login',
             LOGOUT: '/logout',
             USER_INFO: '/api/API_UserInfo',
         },
