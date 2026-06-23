@@ -454,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.FormActionPlugins = window.FormActionPlugins.filter(function (p) { return p.id !== 'payroll_plugin'; });
   window.FormActionPlugins.push({
     id: 'payroll_plugin',
-    getExtraButtons: function (formName, getSelected, onReload) {
+    getExtraButtons: function (formName, getSelected, config, onReload) {
       if (formName !== 'WA_PayrollFrm') return [];
       return [
         {

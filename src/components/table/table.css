@@ -4,9 +4,11 @@
 
 .table-wrapper {
   overflow-x: auto;
-  overflow-y: auto; /* Enable vertical scroll if content overflows max-height */
+  overflow-y: auto;
+  /* Enable vertical scroll if content overflows max-height */
   border-radius: var(--radius-sm);
-  max-height: var(--table-max-height, calc(100vh - 250px)); /* Cap height globally to keep scrollbar in viewport */
+  max-height: var(--table-max-height, calc(100vh - 250px));
+  /* Cap height globally to keep scrollbar in viewport */
 }
 
 .data-table {
@@ -46,7 +48,7 @@
 
 .data-table tbody tr {
   cursor: pointer;
-  transition: 
+  transition:
     background 0.2s ease,
     box-shadow 0.2s ease;
 }
@@ -61,7 +63,7 @@
 }
 
 .data-table tbody tr td {
-  transition: 
+  transition:
     color 0.2s ease,
     font-weight 0.2s ease;
 }
@@ -75,28 +77,34 @@
 body.dark-theme .data-table {
   background-color: var(--color-surface);
 }
+
 body.dark-theme .data-table th {
   background-color: var(--color-surface);
   border-bottom-color: var(--color-border);
   color: var(--color-text-secondary);
 }
+
 body.dark-theme .data-table td {
   border-bottom-color: var(--color-border);
   color: var(--color-text);
 }
+
 body.dark-theme .data-table tbody tr:hover {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
 /* --- RESPONSIVE TABLE (Card View on Mobile) --- */
 @media (max-width: 768px) {
+
   .data-table:not(.no-mobile-stack),
   .data-table:not(.no-mobile-stack) tbody {
     display: block;
     width: 100%;
   }
+
   .data-table:not(.no-mobile-stack) thead {
-    display: none; /* Ẩn tiêu đề ngang trên mobile */
+    display: none;
+    /* Ẩn tiêu đề ngang trên mobile */
   }
 
   .data-table:not(.no-mobile-stack) tbody tr {
@@ -112,10 +120,11 @@ body.dark-theme .data-table tbody tr:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     padding: 12px 12px;
     text-align: right !important;
-    white-space: normal; word-break: break-word;
+    white-space: normal;
+    word-break: break-word;
     max-width: 100%;
   }
 
@@ -138,6 +147,7 @@ body.dark-theme .data-table tbody tr:hover {
 
 /* ════ HIGHLY OPTIMIZED STICKY SCROLLBAR & SPLIT LAYOUT FOR ENTERPRISE GRIDS ════ */
 @media (min-width: 1025px) {
+
   /* Prevent double scrollbar by freezing the main viewport scrolling on split layout pages */
   body:has(.split-master-detail-container) #app-content {
     display: flex;
@@ -163,7 +173,7 @@ body.dark-theme .data-table tbody tr:hover {
     margin-bottom: 0 !important;
   }
 
-  body:has(.split-master-detail-container) .dynamic-grid-card > .card-body {
+  body:has(.split-master-detail-container) .dynamic-grid-card>.card-body {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -217,12 +227,30 @@ body.dark-theme .data-table tbody tr:hover {
   box-shadow: 0 1px 0 var(--color-border);
 }
 
-/* Responsive override to disable table height capping on mobile */
+/* Responsive override to disable table height capping on mobile & stick pagination to viewport bottom */
 @media (max-width: 768px) {
   .table-wrapper {
     max-height: none !important;
   }
+
+  /* Reset overflow on card containers to allow sticky positioning to bubble up to .app-content */
+  .dynamic-grid-card,
+  .dynamic-grid-card .card-body,
+  #dynamic-grid-container {
+    overflow: visible !important;
+  }
+
+  .datagrid-pager {
+    position: sticky !important;
+    bottom: -16px !important;
+    /* Offset the 16px mobile padding of .app-content */
+    z-index: 100 !important;
+    background-color: var(--color-surface) !important;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08) !important;
+    border-top: 1px solid var(--color-border) !important;
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    padding: 10px 16px !important;
+    width: calc(100% + 32px) !important;
+  }
 }
-
-
-

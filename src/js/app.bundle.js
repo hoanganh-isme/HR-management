@@ -6659,6 +6659,7 @@ var UIButton = (function () {
    */
   function create(config) {
     var btn = document.createElement('button');
+    btn.type = 'button'; // Prevent form submission
     
     // Base class
     var typeClass = config.type ? 'btn-' + config.type : 'btn-primary';
@@ -6756,7 +6757,7 @@ var UIButton = (function () {
       innerHTML += config.icon ? ` <span${textStyle}>${config.text}</span>` : `<span${textStyle}>${config.text}</span>`;
     }
 
-    return `<button class="${className}"${idAttr}${disabledAttr}${titleAttr}${onClickAttr}${styleAttr}${dataAttrs}>${innerHTML}</button>`;
+    return `<button type="button" class="${className}"${idAttr}${disabledAttr}${titleAttr}${onClickAttr}${styleAttr}${dataAttrs}>${innerHTML}</button>`;
   }
 
   return {

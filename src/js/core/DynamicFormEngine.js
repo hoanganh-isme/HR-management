@@ -446,9 +446,7 @@ window.DynamicFormEngine = (function () {
             if (typeof plugin.getExtraButtons === 'function') {
               var getSelected = function () { return selectedRows; };
               var onReload = function () {
-                window._uiConfigCache = {};
-                $container.innerHTML = '';
-                render($container, MODULE_CONFIG);
+                _loadData();
               };
               var btns = plugin.getExtraButtons(MODULE_CONFIG.FormName, getSelected, MODULE_CONFIG, onReload);
               if (btns && btns.length > 0) extraBtns = extraBtns.concat(btns);

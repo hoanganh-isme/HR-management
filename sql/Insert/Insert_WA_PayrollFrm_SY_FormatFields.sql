@@ -41,9 +41,12 @@ VALUES ('API_Payroll_Detail', 'View', 'API_Payroll_Detail', '@DocumentID=N''{Doc
 GO
 
 -- Đăng ký API cho xử lý tạo bảng lương tháng
+DELETE FROM dbo.WA_API WHERE list = 'HR_PayRoll_Process_Stp';
 DELETE FROM dbo.WA_API WHERE list = 'WA_PayRoll_Process_Stp';
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES ('WA_PayRoll_Process_Stp', 'View', 'WA_PayRoll_Process_Stp', '@PeriodID=N''{PeriodID}''');
+VALUES 
+('HR_PayRoll_Process_Stp', 'View', 'HR_PayRoll_Process_Stp', '@PeriodID=N''{PeriodID}'''),
+('WA_PayRoll_Process_Stp', 'View', 'WA_PayRoll_Process_Stp', '@PeriodID=N''{PeriodID}''');
 GO
 
 -- Đăng ký API danh sách bộ phận phục vụ bộ lọc
