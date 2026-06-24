@@ -159,10 +159,10 @@ document.addEventListener('DOMContentLoaded', function () {
         label: 'Sơ yếu lý lịch',
         type: 'form',
         fields: [
-          'PersonID', 'NewPersonID', 'CardNo', 'PersonName', 'GioiTinh', 'HonNhan', 
-          'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'PeoplesName', 
-          'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 
-          'DiaChiHienNay', 'EducationName', 'JobName', 'CareerName', 'HospitalName', 
+          'PersonID', 'NewPersonID', 'CardNo', 'PersonName', 'GioiTinh', 'HonNhan',
+          'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'PeoplesName',
+          'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru',
+          'DiaChiHienNay', 'EducationName', 'JobName', 'CareerName', 'HospitalName',
           'NgayVaoLam', 'BranchID'
         ],
         headers: {
@@ -447,6 +447,57 @@ document.addEventListener('DOMContentLoaded', function () {
     ]
   };
 
+  window.APP_MODULES['WA_BAOHIEMFRM'] = {
+    FormName: 'WA_BaoHiemFrm',
+    PrimaryKey: 'DocumentID',
+    UseSplitLayout: true,
+    SplitLayoutSelectText: 'Vui lòng chọn chứng từ đóng bảo hiểm để xem chi tiết',
+    SplitLayoutEmptyText: 'Không có chi tiết bảo hiểm nào cho chứng từ này',
+    SplitLayoutDetailWidth: '960px',
+    ModalWidth: '1020px',
+    FilterKeywordLabel: 'Tìm nhanh',
+    SearchPlaceholder: 'Nhập số chứng từ hoặc ghi chú...',
+    RowNameField: 'DocumentID',
+    Filters: [
+      {
+        id: 'BranchID',
+        label: 'Chi nhánh',
+        type: 'select',
+        dataSource: 'CF_BranchListFrm'
+      }
+    ],
+    LocalFormSchema: [
+      { name: 'DocumentID', label: 'Số chứng từ', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true, position: 'grid', orderNo: 1 },
+      { name: 'DocumentDate', label: 'Ngày lập', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 2, renderRule: 'dt' },
+      { name: 'BranchID', label: 'Chi nhánh', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 3, renderRule: 'sl', dataSource: 'CF_BranchListFrm' },
+      { name: 'PeriodKeyID', label: 'Kỳ đóng bảo hiểm', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 4, renderRule: 'sl', dataSource: 'HR_BangThamSoTbl' },
+      { name: 'Notes', label: 'Ghi chú', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 5 }
+    ],
+    DetailTabs: [
+      {
+        label: 'Chi tiết đóng bảo hiểm',
+        api: 'API_BaoHiem_Detail',
+        filterField: 'DocumentID',
+        editable: true,
+        fields: ['PersonID', 'PersonName', 'ChucDanhChuyenMon', 'PhongBan', 'MucDong', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD', 'GhiChu'],
+        headers: {
+          PersonID: 'Mã nhân viên',
+          PersonName: 'Họ Tên',
+          ChucDanhChuyenMon: 'Chuyên môn',
+          PhongBan: 'Bộ phận',
+          MucDong: 'Mức đóng',
+          MucDongBHXHNLD: 'BHXH Người LD',
+          MucDongBHXHNSDLD: 'BHXH Công Ty',
+          MucDongBHYTNLD: 'BHYT Người LD',
+          MucDongBHYTNSDLD: 'BHYT Công Ty',
+          MucDongBHTNNLD: 'BHTN Người LD',
+          MucDongBHTNNSDLD: 'BHTN Công Ty',
+          GhiChu: 'Ghi chú'
+        }
+      }
+    ]
+  };
+
   window.APP_MODULES['WA_PAYROLLFRM'] = {
     FormName: 'WA_PayrollFrm',
     PrimaryKey: 'DocumentID',
@@ -488,6 +539,147 @@ document.addEventListener('DOMContentLoaded', function () {
     ]
   };
 
+  window.APP_MODULES['WA_HOPDONGLAODONGFRM'] = {
+    FormName: 'WA_HopDongLaoDongFrm',
+    PrimaryKey: 'MaHopDong',
+    UseSplitLayout: true,
+    SplitLayoutSelectText: 'Vui lòng chọn hợp đồng lao động để xem chi tiết',
+    SplitLayoutEmptyText: 'Không có phụ cấp nào trong hợp đồng này',
+    SplitLayoutDetailWidth: '960px',
+    ModalWidth: '1020px',
+    FilterKeywordLabel: 'Tìm nhanh',
+    SearchPlaceholder: 'Nhập mã hợp đồng hoặc tên nhân viên...',
+    AllowDblClickToView: true,
+    HideDetailTabsInModal: false,
+    HideBulkAddBtn: true,
+    RowNameField: 'MaHopDong',
+
+    // ── Bộ lọc thanh toolbar ─────────────────────────────────
+    Filters: [
+      {
+        id: 'NamLap',
+        label: 'Năm lập',
+        type: 'select',
+        dataSource: 'API_HopDongLaoDong_NamLap'
+      },
+      {
+        id: 'BranchID',
+        label: 'Chi nhánh',
+        type: 'select',
+        dataSource: 'CF_BranchListFrm'
+      },
+      {
+        id: 'LoaiHD',
+        label: 'Loại HD',
+        type: 'select',
+        dataSource: 'API_HopDongLaoDong_LoaiHD'
+      }
+    ],
+
+    // ── Schema cục bộ (fallback khi backend chưa config UI dictionary) ───
+    // Format field: { name, label, required, showInAdd, showInEdit, isReadOnlyEdit, position, orderNo, renderRule, dataSource }
+    LocalFormSchema: [
+      // --- Thông tin tiêu đề (Hiển thị trong list) ---
+      { name: 'MaHopDong', label: 'Mã hợp đồng', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true, position: 'grid', orderNo: 1 },
+      { name: 'NamLap', label: 'Năm lập', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 2 },
+      { name: 'PersonID', label: 'Mã nhân viên', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true, position: 'grid', orderNo: 3, renderRule: 'sl', dataSource: 'HR_PersonTbl' },
+      { name: 'PersonName', label: 'Họ tên', required: false, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, position: 'grid', orderNo: 4 },
+      { name: 'LoaiHopDong', label: 'Loại hợp đồng', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 5, renderRule: 'sl', dataSource: 'STATIC:Không thời hạn|Không thời hạn,Có thời hạn|Có thời hạn' },
+      { name: 'LoaiHD', label: 'Loại HD', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 6 },
+      { name: 'NgayKyHopDong', label: 'Ngày ký HĐ', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 7, renderRule: 'dt' },
+      { name: 'NgayCoHieuLuc', label: 'Ngày có hiệu lực', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 8, renderRule: 'dt' },
+      { name: 'NgayHetHieuLuc', label: 'Ngày hết hiệu lực', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 9, renderRule: 'dt' },
+      // --- Thông tin chi tiết HĐ ---
+      { name: 'ThoiGianLamViec', label: 'Thời gian làm việc', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 10 },
+      { name: 'ThoiGianThuViec', label: 'Thử việc (tháng)', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 11 },
+      { name: 'NguoiKy', label: 'Người ký', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 12 },
+      { name: 'ChucVuNguoiKy', label: 'Chức vụ người ký', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 13 },
+      { name: 'ChucDanhChuyenMonHD', label: 'Chức danh chuyên môn', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 14 },
+      // --- Lương & Phụ cấp ---
+      { name: 'LuongCoBan', label: 'Lương cơ bản', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 15, renderRule: 'n' },
+      { name: 'MucDong', label: 'Mức đóng BH', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 16, renderRule: 'n' },
+      { name: 'LoaiTien', label: 'Loại tiền', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 17 },
+      { name: 'HinhThucTraLuong', label: 'Hình thức trả lương', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 18 },
+      // --- Điều kiện làm việc ---
+      { name: 'DiaDiemLamViec', label: 'Địa điểm làm việc', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 19 },
+      { name: 'PhuongTien', label: 'Phương tiện đi làm', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 20 },
+      { name: 'PersonStatus', label: 'Trạng thái nhân viên', required: false, showInAdd: false, showInEdit: true, isReadOnlyEdit: true, position: 'form', orderNo: 21 },
+      // --- CCCD / Địa chỉ ---
+      { name: 'CMND', label: 'Số CCCD/CMND', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 22 },
+      { name: 'CMNDNgayCap', label: 'Ngày cấp CCCD', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 23, renderRule: 'dt' },
+      { name: 'CMNDNoiCap', label: 'Nơi cấp CCCD', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 24 },
+      { name: 'DiaChiThuongTru', label: 'Địa chỉ thường trú', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 25 },
+      // --- Nội dung ---
+      { name: 'NoiDung', label: 'Nội dung hợp đồng', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 26 },
+      // --- Audit fields (chỉ grid, ẩn form) ---
+      { name: 'UserCreate', label: 'Người tạo', required: false, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, position: 'grid', orderNo: 27 },
+      { name: 'DateCreate', label: 'Ngày tạo', required: false, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, position: 'grid', orderNo: 28, renderRule: 'dt' }
+    ],
+
+    // ── DetailFormFields: hiển thị trong panel split-detail bên phải ─────
+    DetailFormFields: [
+      { name: 'MaHopDong', label: 'Mã hợp đồng' },
+      { name: 'NamLap', label: 'Năm lập' },
+      { name: 'PersonID', label: 'Mã nhân viên' },
+      { name: 'PersonName', label: 'Họ tên' },
+      { name: 'LoaiHopDong', label: 'Loại hợp đồng' },
+      { name: 'LoaiHD', label: 'Loại HD' },
+      { name: 'NgayKyHopDong', label: 'Ngày ký HĐ', format: 'date' },
+      { name: 'NgayCoHieuLuc', label: 'Ngày có hiệu lực', format: 'date' },
+      { name: 'NgayHetHieuLuc', label: 'Ngày hết hiệu lực', format: 'date' },
+      { name: 'ThoiGianLamViec', label: 'Thời gian làm việc' },
+      { name: 'ThoiGianThuViec', label: 'Thử việc (tháng)' },
+      { name: 'NguoiKy', label: 'Người ký' },
+      { name: 'ChucVuNguoiKy', label: 'Chức vụ người ký' },
+      { name: 'ChucDanhChuyenMonHD', label: 'Chức danh chuyên môn' },
+      { name: 'LuongCoBan', label: 'Lương cơ bản', format: 'money' },
+      { name: 'MucDong', label: 'Mức đóng BH', format: 'money' },
+      { name: 'LoaiTien', label: 'Loại tiền' },
+      { name: 'HinhThucTraLuong', label: 'Hình thức trả lương' },
+      { name: 'DiaDiemLamViec', label: 'Địa điểm làm việc' },
+      { name: 'PhuongTien', label: 'Phương tiện đi làm' },
+      { name: 'PersonStatus', label: 'Trạng thái NV' },
+      { name: 'CMND', label: 'Số CCCD/CMND' },
+      { name: 'CMNDNgayCap', label: 'Ngày cấp CCCD', format: 'date' },
+      { name: 'CMNDNoiCap', label: 'Nơi cấp CCCD' },
+      { name: 'DiaChiThuongTru', label: 'Địa chỉ thường trú' },
+      { name: 'NoiDung', label: 'Nội dung hợp đồng' }
+    ],
+
+    // ── Tab chi tiết phụ cấp trong hợp đồng ─────────────────────────────
+    DetailTabs: [
+      {
+        label: 'Phụ cấp trong hợp đồng',
+        api: 'API_HopDongLaoDong_ChiTiet',
+        filterField: 'MaHopDong',
+        editable: true,
+        fields: ['MaPhuCap', 'TenPhuCap', 'TienPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'GhiChu'],
+        headers: {
+          MaPhuCap: 'Mã phụ cấp',
+          TenPhuCap: 'Tên phụ cấp',
+          TienPhuCap: 'Tiền phụ cấp',
+          TienPhuCapNgay: 'PC theo ngày',
+          TienPhuCapThang: 'PC theo tháng',
+          GhiChu: 'Ghi chú'
+        }
+      },
+      {
+        label: 'Tài liệu đính kèm',
+        type: 'attachments',
+        api: 'API_HopDongLaoDong_Attach',
+        filterField: 'MaHopDong',
+        fields: ['FileName', 'FileType', 'STT', 'FileSize', 'Content'],
+        headers: {
+          FileName: 'Tên tệp',
+          FileType: 'Loại tệp',
+          STT: 'Số thứ tự',
+          FileSize: 'Kích thước'
+        }
+      }
+    ]
+  };
+
+
   // Cấu hình Plugin Button "Tạo bảng lương tháng"
   if (!window.FormActionPlugins) window.FormActionPlugins = [];
   window.FormActionPlugins = window.FormActionPlugins.filter(function (p) { return p.id !== 'payroll_plugin'; });
@@ -502,39 +694,39 @@ document.addEventListener('DOMContentLoaded', function () {
           type: 'primary',
           onClick: function () {
             if (typeof ApiClient === 'undefined') return;
-            
+
             var loadingToast = typeof UIToast !== 'undefined' ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
-            
+
             ApiClient.post('/api/API_Gateway_Router', {
               List: 'SY_Period',
               Func: 'View',
               Limit: 1000
             }).then(function (res) {
               if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
-              
+
               var records = res.records || (Array.isArray(res) ? res : []);
               if (records.length === 0) {
                 if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Không tìm thấy kỳ lương nào trong hệ thống!');
                 return;
               }
-              
+
               // Sắp xếp kỳ giảm dần
               records.sort(function (a, b) {
                 return String(b.PeriodID).localeCompare(String(a.PeriodID));
               });
-              
+
               var selectOptions = records.map(function (p) {
                 return '<option value="' + p.PeriodID + '">' + p.PeriodID + ' (' + (p.PeriodName || p.PeriodID) + ')</option>';
               }).join('');
-              
-              var selectHtml = 
+
+              var selectHtml =
                 '<div style="text-align: left; margin-top: 10px;">' +
                 '  <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn kỳ lương cần tính toán:</label>' +
                 '  <select id="payroll-process-period" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
-                     selectOptions +
+                selectOptions +
                 '  </select>' +
                 '</div>';
-                
+
               if (typeof ConfirmModal !== 'undefined') {
                 ConfirmModal.show({
                   title: 'Tạo Bảng Lương Tháng',
@@ -544,20 +736,20 @@ document.addEventListener('DOMContentLoaded', function () {
                   onConfirm: function () {
                     var selectedPeriod = document.getElementById('payroll-process-period').value;
                     if (!selectedPeriod) return;
-                    
+
                     if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.show(true, 'Đang tính toán bảng lương kỳ ' + selectedPeriod + '...');
-                    
+
                     ApiClient.post('/api/API_Gateway_Router', {
                       List: 'WA_PayRoll_Process_Stp',
                       Func: 'View',
                       JsonData: JSON.stringify({ PeriodID: selectedPeriod })
                     }).then(function (result) {
                       if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
-                      
+
                       var resData = Array.isArray(result) ? result[0] : (result.records && result.records[0] ? result.records[0] : result);
                       var code = resData.code !== undefined ? resData.code : (resData.Code !== undefined ? resData.Code : 0);
                       var msg = resData.msg || resData.Msg || resData.message || 'Thành công';
-                      
+
                       if (code == 0) {
                         if (typeof Alert !== 'undefined') Alert.success('Thành công', msg);
                         if (window.currentFilters) {
@@ -602,31 +794,31 @@ document.addEventListener('DOMContentLoaded', function () {
           type: 'primary',
           onClick: function () {
             if (typeof ApiClient === 'undefined') return;
-            
+
             var loadingToast = typeof UIToast !== 'undefined' ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
-            
+
             ApiClient.post('/api/API_Gateway_Router', {
               List: 'SY_Period',
               Func: 'View',
               Limit: 1000
             }).then(function (res) {
               if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
-              
+
               var records = res.records || (Array.isArray(res) ? res : []);
               if (records.length === 0) {
                 if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Không tìm thấy kỳ chấm công nào trong hệ thống!');
                 return;
               }
-              
+
               // Sắp xếp kỳ giảm dần
               records.sort(function (a, b) {
                 return String(b.PeriodID).localeCompare(String(a.PeriodID));
               });
-              
+
               var selectOptions = records.map(function (p) {
                 return '<option value="' + p.PeriodID + '">' + p.PeriodID + ' (' + (p.PeriodName || p.PeriodID) + ')</option>';
               }).join('');
-              
+
               // Tải thêm danh sách chi nhánh phục vụ việc chọn chi nhánh khi tạo
               ApiClient.post('/api/API_Gateway_Router', {
                 List: 'API_DanhSachChiNhanh',
@@ -640,23 +832,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     return '<option value="' + b.BranchID + '">' + (b.BranchName || b.BranchID) + '</option>';
                   }).join('');
                 }
-                
-                var selectHtml = 
+
+                var selectHtml =
                   '<div style="text-align: left; margin-top: 10px;">' +
                   '  <div class="mb-3">' +
                   '    <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn kỳ chấm công:</label>' +
                   '    <select id="timesheet-process-period" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
-                         selectOptions +
+                  selectOptions +
                   '    </select>' +
                   '  </div>' +
                   '  <div class="mb-2">' +
                   '    <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn chi nhánh:</label>' +
                   '    <select id="timesheet-process-branch" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
-                         branchOptions +
+                  branchOptions +
                   '    </select>' +
                   '  </div>' +
                   '</div>';
-                  
+
                 if (typeof ConfirmModal !== 'undefined') {
                   ConfirmModal.show({
                     title: 'Tạo Bảng Chấm Công Hàng Ngày',
@@ -667,20 +859,20 @@ document.addEventListener('DOMContentLoaded', function () {
                       var selectedPeriod = document.getElementById('timesheet-process-period').value;
                       var selectedBranch = document.getElementById('timesheet-process-branch').value;
                       if (!selectedPeriod) return;
-                      
+
                       if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.show(true, 'Đang tạo bảng chấm công kỳ ' + selectedPeriod + '...');
-                      
+
                       ApiClient.post('/api/API_Gateway_Router', {
                         List: 'WA_TimeSheetDay_Process_Stp',
                         Func: 'View',
                         JsonData: JSON.stringify({ PeriodID: selectedPeriod, BranchID: selectedBranch })
                       }).then(function (result) {
                         if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
-                        
+
                         var resData = Array.isArray(result) ? result[0] : (result.records && result.records[0] ? result.records[0] : result);
                         var code = resData.code !== undefined ? resData.code : (resData.Code !== undefined ? resData.Code : 0);
                         var msg = resData.msg || resData.Msg || resData.message || 'Thành công';
-                        
+
                         if (code == 0) {
                           if (typeof Alert !== 'undefined') Alert.success('Thành công', msg);
                           if (window.currentFilters) {

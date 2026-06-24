@@ -72,7 +72,7 @@ BEGIN
     FROM dbo.HR_TimeSheetDayTbl T
     LEFT JOIN dbo.HR_PersonTbl P ON T.PersonID = P.PersonID
     OUTER APPLY (
-        SELECT TOP 1 HD_Sub.ChucDanhChuyenMon AS ChucDanh
+        SELECT TOP 1 HD_Sub.ChucDanhChuyenMonHD AS ChucDanh
         FROM dbo.HR_HopDongTbl HD_Sub
         WHERE HD_Sub.PersonID = P.PersonID
         ORDER BY HD_Sub.NgayKyHopDong DESC

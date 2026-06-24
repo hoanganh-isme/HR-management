@@ -350,7 +350,7 @@ BEGIN
         TS.PersonID, 
         P.PersonName AS PersonName, 
         P.PhongBan, 
-        HD.ChucDanhChuyenMon AS ChucDanh, 
+        HD.ChucDanhChuyenMonHD AS ChucDanh, 
         @ThangTitle AS ThangTitle, 
         TS.DocumentDate, 
 
@@ -459,7 +459,7 @@ BEGIN
 
     OUTER APPLY 
     (
-        SELECT TOP 1 HD.ChucDanhChuyenMon 
+        SELECT TOP 1 HD.ChucDanhChuyenMonHD 
         FROM dbo.HR_HopDongTbl HD 
         WHERE HD.PersonID = TS.PersonID 
         ORDER BY HD.NgayKyHopDong DESC
@@ -504,7 +504,7 @@ BEGIN
         TS.PersonID, 
         P.PersonName, 
         P.PhongBan, 
-        HD.ChucDanhChuyenMon, 
+        HD.ChucDanhChuyenMonHD, 
         TS.DocumentDate, 
         TS.SoNgayThang,
         TS.SoNgayLe,

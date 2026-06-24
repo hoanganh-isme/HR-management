@@ -19,8 +19,8 @@ var UITable = (function () {
     wrapper.style.borderBottom = '1px solid var(--color-border, #e2e8f0)';
     wrapper.style.borderLeft = 'none';
     wrapper.style.borderRight = 'none';
-    // Mobile: ẩn scroll ngang để tránh lệch viewport; Desktop: cho phép scroll trong wrapper
-    wrapper.style.overflowX = isMobile ? 'hidden' : 'auto';
+    // Hỗ trợ scroll ngang trên cả mobile và desktop để xem toàn bộ cột
+    wrapper.style.overflowX = 'auto';
     wrapper.style.overflowY = 'auto';
 
     var table = document.createElement('table');
@@ -39,7 +39,7 @@ var UITable = (function () {
     // Cập nhật lại style khi resize cửa sổ (responsive)
     window.addEventListener('resize', function () {
       var nowMobile = window.innerWidth <= 768;
-      wrapper.style.overflowX = nowMobile ? 'hidden' : 'auto';
+      wrapper.style.overflowX = 'auto';
       table.style.width = nowMobile ? '100%' : 'max-content';
       table.style.whiteSpace = nowMobile ? 'normal' : 'nowrap';
       table.style.tableLayout = nowMobile ? 'fixed' : 'auto';
@@ -54,6 +54,11 @@ var UITable = (function () {
          height: 36px !important;
          font-size: 13px !important;
       }
+      .table-wrapper .data-table.no-mobile-stack {
+        width: max-content !important;
+        white-space: nowrap !important;
+        table-layout: auto !important;
+      }
       @media (max-width: 768px) {
         .table-wrapper .data-table th,
         .table-wrapper .data-table td {
@@ -62,11 +67,23 @@ var UITable = (function () {
           overflow: hidden !important;
           text-overflow: ellipsis !important;
         }
+        .table-wrapper .data-table.no-mobile-stack th,
+        .table-wrapper .data-table.no-mobile-stack td {
+          white-space: nowrap !important;
+          word-break: normal !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+        }
         .dynamic-grid-card .table-wrapper {
           margin-left: 0 !important;
           margin-right: 0 !important;
           width: 100% !important;
-          overflow-x: hidden !important;
+          overflow-x: auto !important;
+        }
+        .dynamic-grid-card .datagrid-pager {
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+          width: 100% !important;
         }
         .table-wrapper .data-table th:first-child,
         .table-wrapper .data-table td:first-child {
@@ -727,6 +744,8 @@ var UITable = (function () {
     }
 
     document.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'touch') return; // Không vuốt chọn bằng cảm ứng để nhường cho cuộn tự nhiên trên mobile
+
       var tr = e.target.closest('tr');
       var table = e.target.closest('table');
 

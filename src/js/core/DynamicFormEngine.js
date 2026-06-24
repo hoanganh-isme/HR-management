@@ -140,6 +140,370 @@ window.DynamicFormEngine = (function () {
   }
 
   /**
+   * Phóng to hình ảnh trong một lightbox overlay đẹp mắt
+   * @param {string} imgSrc - URL hoặc Base64 của ảnh
+   */
+  function _showImageZoom(imgSrc) {
+    if (!imgSrc || imgSrc.indexOf('data:image/svg+xml') === 0) return;
+
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:99999;cursor:zoom-out;opacity:0;transition:opacity 0.2s ease-out;';
+
+    var zoomImg = document.createElement('img');
+    zoomImg.src = imgSrc;
+    zoomImg.style.cssText = 'max-width:88vw;max-height:88vh;object-fit:contain;border-radius:10px;box-shadow:0 16px 56px rgba(0,0,0,0.7);transform:scale(0.88);transition:transform 0.25s cubic-bezier(0.16,1,0.3,1);';
+
+    overlay.appendChild(zoomImg);
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(function () {
+      overlay.style.opacity = '1';
+      zoomImg.style.transform = 'scale(1)';
+    });
+
+    overlay.onclick = function () {
+      overlay.style.opacity = '0';
+      zoomImg.style.transform = 'scale(0.88)';
+      setTimeout(function () { overlay.remove(); }, 220);
+    };
+  }
+
+  function _renderAttachmentsTab(tabDef, container, isEditable, row) {
+    container.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải tệp đính kèm...</div>';
+    var pkField = MODULE_CONFIG.PrimaryKey || 'PersonID';
+    var pkVal = row[pkField] || '';
+    var filterData = {};
+    filterData[tabDef.filterField || pkField] = pkVal;
+
+    function _getContentAsBlobUrl(fileItem) {
+      var content = fileItem.Content || fileItem.content || fileItem.Base64Content || fileItem.base64Content || '';
+      if (!content) return '';
+      
+      var ext = (fileItem.FileName || '').split('.').pop().toLowerCase();
+      var mime = 'application/octet-stream';
+      if (ext === 'pdf') mime = 'application/pdf';
+      else if (ext === 'png') mime = 'image/png';
+      else if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
+      else if (ext === 'gif') mime = 'image/gif';
+      else if (ext === 'webp') mime = 'image/webp';
+
+      try {
+        if (/^0x/i.test(content)) {
+          var hexStr = content.replace(/^0x/i, '').replace(/\s/g, '');
+          var bytes = new Uint8Array(hexStr.length / 2);
+          for (var bi = 0; bi < bytes.length; bi++) {
+            bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
+          }
+          var blob = new Blob([bytes], { type: mime });
+          return URL.createObjectURL(blob);
+        } else {
+          var cleanBase64 = content.trim();
+          if (cleanBase64.indexOf(';base64,') > -1) {
+            cleanBase64 = cleanBase64.split(';base64,')[1];
+          }
+          var binaryStr = window.atob(cleanBase64);
+          var bytes = new Uint8Array(binaryStr.length);
+          for (var i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          var blob = new Blob([bytes], { type: mime });
+          return URL.createObjectURL(blob);
+        }
+      } catch (e) {
+        console.error('[ATTACHMENT ERROR] Failed to convert content to blob url:', e);
+        return '';
+      }
+    }
+
+    function _loadAttachments() {
+      var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
+      ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payload).then(function (res) {
+        var data = res.list || res.records || [];
+        container.innerHTML = '';
+
+        // 1. Container cho danh sách tệp đính kèm
+        var listWrap = document.createElement('div');
+        listWrap.className = 'attachments-list';
+        listWrap.style.cssText = 'display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; max-height: 300px; overflow-y: auto;';
+
+        if (data.length === 0) {
+          var empty = document.createElement('div');
+          empty.style.cssText = 'color: var(--color-text-secondary); text-align: center; padding: 20px; font-size: 13px; border: 1px dashed var(--color-border); border-radius: 8px;';
+          empty.textContent = 'Chưa có tệp hay ảnh đính kèm nào cho hợp đồng này.';
+          listWrap.appendChild(empty);
+        } else {
+          data.forEach(function (fileItem) {
+            var card = document.createElement('div');
+            card.style.cssText = 'display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px; background: var(--color-surface);';
+
+            // Left: Icon/Thumbnail + Info
+            var leftArea = document.createElement('div');
+            leftArea.style.cssText = 'display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;';
+
+            var iconWrap = document.createElement('div');
+            iconWrap.style.cssText = 'width: 40px; height: 40px; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--color-background, #f1f5f9); flex-shrink: 0;';
+
+            var blobUrl = _getContentAsBlobUrl(fileItem);
+            var isImage = parseInt(fileItem.FileType) === 1 || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileItem.FileName);
+            if (isImage && blobUrl) {
+              // Hiển thị ảnh thumbnail thực tế từ Blob URL
+              var thumb = document.createElement('img');
+              thumb.src = blobUrl;
+              thumb.style.cssText = 'width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;';
+              thumb.addEventListener('click', function () { _showImageZoom(blobUrl); });
+              iconWrap.appendChild(thumb);
+            } else {
+              var icon = document.createElement('span');
+              icon.className = 'material-symbols-outlined';
+              icon.style.fontSize = '24px';
+              icon.style.color = isImage ? 'var(--color-success)' : 'var(--color-primary)';
+              icon.innerText = isImage ? 'image' : (/\.(pdf)$/i.test(fileItem.FileName) ? 'picture_as_pdf' : 'description');
+              iconWrap.appendChild(icon);
+            }
+
+            var infoArea = document.createElement('div');
+            infoArea.style.cssText = 'display: flex; flex-direction: column; gap: 2px; min-width: 0;';
+
+            var nameSpan = document.createElement('span');
+            nameSpan.textContent = fileItem.FileName || 'Chưa đặt tên';
+            nameSpan.style.cssText = 'font-size: 13px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+
+            var metaSpan = document.createElement('span');
+            var kbSize = fileItem.FileSize ? (parseFloat(fileItem.FileSize) / 1024).toFixed(1) + ' KB' : '—';
+            metaSpan.textContent = kbSize + ' | STT: ' + (fileItem.STT || '—');
+            metaSpan.style.cssText = 'font-size: 11px; color: var(--color-text-secondary);';
+
+            infoArea.appendChild(nameSpan);
+            infoArea.appendChild(metaSpan);
+
+            leftArea.appendChild(iconWrap);
+            leftArea.appendChild(infoArea);
+
+            // Right: Actions (Download & Preview & Delete)
+            var actions = document.createElement('div');
+            actions.style.cssText = 'display: flex; gap: 4px;';
+
+            if (blobUrl) {
+              // Icon mắt (Xem trước/Preview) cho Ảnh hoặc PDF
+              var ext = (fileItem.FileName || '').split('.').pop().toLowerCase();
+              var isPdf = ext === 'pdf';
+              if (isImage || isPdf) {
+                var btnPreview = document.createElement('button');
+                btnPreview.type = 'button';
+                btnPreview.className = 'btn btn-icon';
+                btnPreview.style.cssText = 'padding: 4px; border: none; background: none; cursor: pointer; color: var(--color-success); display: flex; align-items: center;';
+                btnPreview.title = 'Xem trực tiếp';
+                btnPreview.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>';
+                btnPreview.onclick = function () {
+                  if (isImage) {
+                    _showImageZoom(blobUrl);
+                  } else if (isPdf) {
+                    window.open(blobUrl, '_blank');
+                  }
+                };
+                actions.appendChild(btnPreview);
+              }
+
+              var btnDownload = document.createElement('button');
+              btnDownload.type = 'button';
+              btnDownload.className = 'btn btn-icon';
+              btnDownload.style.cssText = 'padding: 4px; border: none; background: none; cursor: pointer; color: var(--color-primary); display: flex; align-items: center;';
+              btnDownload.title = 'Tải xuống';
+              btnDownload.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">download</span>';
+              btnDownload.onclick = function () {
+                var a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = fileItem.FileName || 'download';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              };
+              actions.appendChild(btnDownload);
+            }
+
+            // CHỈ HIỂN THỊ NÚT XÓA KHI ĐƯỢC PHÉP CHỈNH SỬA
+            if (isEditable) {
+              var btnDelete = document.createElement('button');
+              btnDelete.type = 'button';
+              btnDelete.className = 'btn btn-icon';
+              btnDelete.style.cssText = 'padding: 4px; border: none; background: none; cursor: pointer; color: var(--color-danger); display: flex; align-items: center;';
+              btnDelete.title = 'Xóa tệp';
+              btnDelete.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">delete</span>';
+              btnDelete.onclick = function () {
+                if (typeof ConfirmModal !== 'undefined') {
+                  ConfirmModal.show({
+                    title: 'Xóa tệp đính kèm',
+                    message: 'Bạn có chắc chắn muốn xóa tệp "' + fileItem.FileName + '" không?',
+                    onConfirm: function () {
+                      var delPayload = {
+                        List: tabDef.api,
+                        Func: 'Delete',
+                        Ids: fileItem.UserAutoID,
+                        JsonData: JSON.stringify({ UserAutoID: fileItem.UserAutoID })
+                      };
+                      ApiClient.post('/api/API_Gateway_Router', delPayload).then(function (delRes) {
+                        if (delRes.code === 0 || delRes.code === '0') {
+                          UIToast.show('Xóa tệp thành công!', 'success');
+                          _loadAttachments();
+                        } else {
+                          Alert.error('Lỗi', delRes.msg || 'Không thể xóa tệp');
+                        }
+                      }).catch(function (err) {
+                        Alert.error('Lỗi', 'Không thể kết nối máy chủ');
+                      });
+                    }
+                  });
+                }
+              };
+              actions.appendChild(btnDelete);
+            }
+
+            card.appendChild(leftArea);
+            card.appendChild(actions);
+            listWrap.appendChild(card);
+          });
+        }
+        container.appendChild(listWrap);
+
+        // CHỈ HIỂN THỊ VÙNG TẢI LÊN KHI ĐƯỢC PHÉP CHỈNH SỬA
+        if (isEditable) {
+          var uploadZoneWrap = document.createElement('div');
+          uploadZoneWrap.style.cssText = 'border: 1px dashed var(--color-border-strong); border-radius: 8px; padding: 16px; background: var(--color-surface); display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center;';
+
+          if (typeof UIFileUpload !== 'undefined') {
+            var fileUploadEl = UIFileUpload.create({
+              id: 'attach-upload-input',
+              text: 'Kéo thả tệp/ảnh hoặc click để tải lên',
+              hint: 'Hỗ trợ: PDF, JPG, PNG... Tối đa 10MB',
+              onChange: function (file) {
+                _uploadFileToServer(file);
+              }
+            });
+            uploadZoneWrap.appendChild(fileUploadEl);
+          }
+          container.appendChild(uploadZoneWrap);
+        }
+      }).catch(function (err) {
+        container.innerHTML = '<div style="color:var(--color-danger);padding:12px;text-align:center;">Lỗi tải danh sách tệp đính kèm</div>';
+      });
+    }
+
+    function _uploadFileToServer(file) {
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        Alert.error('Tệp quá lớn', 'Hệ thống chỉ hỗ trợ tệp tối đa 10MB.');
+        return;
+      }
+
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var arrayBuffer = e.target.result;
+        var bytes = new Uint8Array(arrayBuffer);
+        var hexArray = [];
+        for (var i = 0; i < bytes.length; i++) {
+          var hexVal = bytes[i].toString(16);
+          if (hexVal.length < 2) hexVal = '0' + hexVal;
+          hexArray.push(hexVal);
+        }
+        var hexStr = '0x' + hexArray.join('');
+
+        var base64Reader = new FileReader();
+        base64Reader.onload = function (bEvent) {
+          var dataUrl = bEvent.target.result;
+          var base64Content = dataUrl.split(',')[1] || dataUrl;
+
+          var ext = file.name.split('.').pop().toLowerCase();
+          var isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp'].indexOf(ext) >= 0;
+          var fileTypeNum = isImg ? 1 : 0;
+
+          var previewHtml = '';
+          if (isImg) {
+            previewHtml = `
+              <div style="margin: 12px 0; text-align: center;">
+                <img src="${dataUrl}" style="max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 6px; border: 1px solid var(--color-border); box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
+              </div>
+            `;
+          } else {
+            var iconName = ext === 'pdf' ? 'picture_as_pdf' : 'description';
+            var iconColor = ext === 'pdf' ? 'var(--color-danger)' : 'var(--color-primary)';
+            previewHtml = `
+              <div style="margin: 12px 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: var(--color-background, #f8fafc); border-radius: 6px; border: 1px solid var(--color-border);">
+                <span class="material-symbols-outlined" style="font-size: 32px; color: ${iconColor};">${iconName}</span>
+                <span style="font-weight: 500; font-size: 13px; color: var(--color-text); word-break: break-all;"> Định dạng: ${ext.toUpperCase()} </span>
+              </div>
+            `;
+          }
+
+          var kbSize = (file.size / 1024).toFixed(1) + ' KB';
+          var confirmMessage = `
+            <div style="font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; text-align: left;">
+              Bạn có chắc chắn muốn tải tệp này lên không?
+              <div style="margin-top: 10px; padding: 10px; background: var(--color-background, #f1f5f9); border-radius: 6px; border: 1px solid var(--color-border); font-family: monospace; font-size: 12px; color: var(--color-text); word-break: break-all;">
+                <strong>Tên file:</strong> ${file.name}<br/>
+                <strong>Dung lượng:</strong> ${kbSize}
+              </div>
+              ${previewHtml}
+            </div>
+          `;
+
+          ConfirmModal.show({
+            title: 'Xác nhận tải tệp lên',
+            message: confirmMessage,
+            confirmText: 'Tải lên',
+            confirmClass: 'btn-primary',
+            onConfirm: function () {
+              _executeUpload(file, hexStr, base64Content, fileTypeNum);
+            }
+          });
+        };
+        base64Reader.readAsDataURL(file);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function _executeUpload(file, hexStr, base64Content, fileTypeNum) {
+      var payloadCount = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
+      ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payloadCount).then(function (cntRes) {
+        var currentItems = cntRes.list || cntRes.records || [];
+        var nextSTT = currentItems.length + 1;
+
+        var savePayload = {
+          List: tabDef.api,
+          Func: 'Save',
+          JsonData: JSON.stringify({
+            IsEdit: 0,
+            MaHopDong: pkVal,
+            FileName: file.name,
+            FileType: fileTypeNum,
+            STT: nextSTT,
+            FileSize: file.size,
+            Base64Content: base64Content,
+            Content: hexStr
+          })
+        };
+
+        container.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang lưu tài liệu lên máy chủ...</div>';
+        ApiClient.post('/api/API_Gateway_Router', savePayload).then(function (saveRes) {
+          if (saveRes.code === 0 || saveRes.code === '0') {
+            UIToast.show('Tải tệp đính kèm lên thành công!', 'success');
+            _loadAttachments();
+          } else {
+            Alert.error('Lỗi lưu tệp', saveRes.msg || 'Không thể lưu tệp lên CSDL.');
+            _loadAttachments();
+          }
+        }).catch(function (err) {
+          Alert.error('Lỗi', 'Không thể kết nối đến máy chủ.');
+          _loadAttachments();
+        });
+      }).catch(function () {
+        _loadAttachments();
+      });
+    }
+
+    _loadAttachments();
+  }
+
+  /**
    * Khởi tạo payload chuẩn cho API: clone base, áp user + isEdit flag
    * @param {Object}  base   - Dữ liệu gốc (formInputData hoặc targetRow)
    * @param {boolean} isEdit - true = edit, false = add
@@ -1513,6 +1877,8 @@ window.DynamicFormEngine = (function () {
         }).catch(function () {
           tabContentContainer.innerHTML = '<div style="color:var(--color-danger);padding:12px;text-align:center;">Lỗi tải dữ liệu</div>';
         });
+      } else if (tabDef.type === 'attachments') {
+        _renderAttachmentsTab(tabDef, tabContentContainer, false, row);
       } else {
         // Table tab
         tabContentContainer.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải chi tiết...</div>';
@@ -2500,10 +2866,19 @@ window.DynamicFormEngine = (function () {
               var dynamicFilters = {};
 
               if (typeof currentModalFormState !== 'undefined') {
+                var activeFilters = {};
+                if (field.dependsOn) {
+                  var parents = field.dependsOn.split(',').map(function (p) { return p.trim(); });
+                  parents.forEach(function (p) {
+                    if (currentModalFormState[p] !== undefined && currentModalFormState[p] !== null) {
+                      activeFilters[p] = currentModalFormState[p];
+                    }
+                  });
+                }
                 if (isGateway) {
-                  dynamicFilters = Object.assign({}, currentModalFormState);
+                  dynamicFilters = Object.assign({}, activeFilters);
                 } else {
-                  payload = Object.assign(payload, currentModalFormState);
+                  payload = Object.assign(payload, activeFilters);
                 }
               }
 
@@ -2933,23 +3308,39 @@ window.DynamicFormEngine = (function () {
               // ComboBox chọn nhân viên
               var combo = UIControls.createDataComboBox({
                 placeholder: 'Chọn nhân viên...',
-                headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
-                colFilterIndex: 0,
+                headers: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
+                  ? ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo']
+                  : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                colFilterIndex: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 1 : 0,
                 onSearch: function (q) {
-                  return ApiClient.post('/api/API_Gateway_Router', {
-                    List: 'HR_PersonTbl',
+                  var lookupPayload = {
+                    List: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 'WA_BaoHiemFrm_PersonID' : 'HR_PersonTbl',
                     Func: 'View',
                     Keyword: q
-                  }).then(function (res) {
+                  };
+                  if (MODULE_CONFIG.FormName === 'WA_BaoHiemFrm') {
+                    lookupPayload.BranchID = row.BranchID || '';
+                    lookupPayload.LoaiBaoHiem = row.LoaiBaoHiem || '';
+                  }
+                  return ApiClient.post('/api/API_Gateway_Router', lookupPayload).then(function (res) {
                     var list = res.list || res.records || [];
                     var dataList = list.map(function (d) {
-                      return [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+                      return MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
+                        ? [String(d.STT || ''), d.PersonID || '', d.PersonName || '', d.PhongBan || '', String(d.MucDong || 0), d.CanhBao || '']
+                        : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
                     });
-                    return { headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'], data: dataList, colFilterIndex: 0 };
+                    return {
+                      headers: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
+                        ? ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo']
+                        : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                      data: dataList,
+                      colFilterIndex: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 1 : 0
+                    };
                   });
                 },
                 onSelect: function (selectedData) {
-                  var selectedPersonID = selectedData[0];
+                  var isBH = MODULE_CONFIG.FormName === 'WA_BaoHiemFrm';
+                  var selectedPersonID = isBH ? selectedData[1] : selectedData[0];
 
                   // Kiểm tra trùng lặp trong panel._currentRows
                   var isDuplicate = panel._currentRows.some(function (row, index) {
@@ -2964,12 +3355,19 @@ window.DynamicFormEngine = (function () {
                     } else {
                       alert('Nhân viên này đã được chọn!');
                     }
-                    // Reset giá trị
                     if (displayInp) displayInp.value = '';
                     currRow['PersonID'] = '';
                     currRow['PersonName'] = '';
                     currRow['PhongBan'] = '';
-                    currRow['TitleName'] = '';
+                    if (isBH) {
+                      currRow['MucDong'] = '';
+                      if (cellMap['MucDong']) {
+                        var mInp = cellMap['MucDong'].querySelector('input');
+                        if (mInp) mInp.value = '';
+                      }
+                    } else {
+                      currRow['TitleName'] = '';
+                    }
                     if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
                     if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = '';
                     if (cellMap['TitleName']) cellMap['TitleName'].textContent = '';
@@ -2977,14 +3375,31 @@ window.DynamicFormEngine = (function () {
                   }
 
                   // Cập nhật dữ liệu hàng
-                  currRow['PersonID'] = selectedData[0];
-                  currRow['PersonName'] = selectedData[1];
-                  currRow['PhongBan'] = selectedData[2];
-                  currRow['TitleName'] = selectedData[3];
-                  // Cập nhật trực tiếp qua cellMap — không cần querySelector
-                  if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
-                  if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
-                  if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
+                  if (isBH) {
+                    currRow['PersonID'] = selectedData[1];
+                    currRow['PersonName'] = selectedData[2];
+                    currRow['PhongBan'] = selectedData[3];
+                    currRow['MucDong'] = parseFloat(selectedData[4]) || 0;
+                    
+                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[2] || '';
+                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[3] || '';
+                    if (cellMap['MucDong']) {
+                      var mInp = cellMap['MucDong'].querySelector('input');
+                      if (mInp) {
+                        mInp.value = selectedData[4] || '0';
+                        // Tự động kích hoạt tính toán bảo hiểm
+                        mInp.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
+                    }
+                  } else {
+                    currRow['PersonID'] = selectedData[0];
+                    currRow['PersonName'] = selectedData[1];
+                    currRow['PhongBan'] = selectedData[2];
+                    currRow['TitleName'] = selectedData[3];
+                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
+                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
+                    if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
+                  }
                 }
               });
 
@@ -2996,7 +3411,7 @@ window.DynamicFormEngine = (function () {
               combo.style.width = '160px';
               td.appendChild(combo);
 
-            } else if (['PersonName', 'PhongBan', 'TitleName'].includes(fName)) {
+            } else if (['PersonName', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon'].includes(fName)) {
               // Chỉ đọc — không cho chỉnh sửa, tự động điền khi chọn nhân viên
               td.textContent = currRow[fName] != null ? currRow[fName] : '';
               td.style.cssText += 'color: var(--color-text-secondary); font-style: italic;';
@@ -3011,6 +3426,41 @@ window.DynamicFormEngine = (function () {
               inp.addEventListener('input', function () {
                 currRow[fName] = this.value;
               });
+
+              // Hỗ trợ tính toán bảo hiểm khi MucDong thay đổi
+              if (MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' && fName === 'MucDong') {
+                inp.addEventListener('change', function () {
+                  var val = parseFloat(this.value) || 0;
+                  currRow['MucDong'] = val;
+                  var payload = {
+                    List: 'WA_BaoHiemFrm_Calculate',
+                    Func: 'View',
+                    JsonData: JSON.stringify({
+                      PeriodID: row.PeriodID || '',
+                      LoaiBaoHiem: row.LoaiBaoHiem || '',
+                      MucDong: val
+                    })
+                  };
+                  ApiClient.post('/api/API_Gateway_Router', payload).then(function (res) {
+                    var data = res.list || res.records || [];
+                    if (data && data.length > 0) {
+                      var resRow = data[0];
+                      var cols = ['MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD'];
+                      cols.forEach(function (col) {
+                        currRow[col] = resRow[col] !== undefined ? resRow[col] : 0;
+                        var colTd = tr.querySelector('td[data-field="' + col + '"]');
+                        if (colTd) {
+                          var colInp = colTd.querySelector('input');
+                          if (colInp) colInp.value = currRow[col];
+                        }
+                      });
+                    }
+                  }).catch(function (e) {
+                    console.error('[BAOHIEM CALC ERROR]', e);
+                  });
+                });
+              }
+
               td.appendChild(inp);
             }
           });
@@ -3059,6 +3509,10 @@ window.DynamicFormEngine = (function () {
 
       // Load data function for each tab
       function _loadTabData(tabDef, panel) {
+        if (tabDef.type === 'attachments') {
+          _renderAttachmentsTab(tabDef, panel, true, row);
+          return;
+        }
         if (tabDef.editable) {
           panel._tabDef = tabDef;
           panel._initialRows = [];

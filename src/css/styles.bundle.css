@@ -5654,6 +5654,12 @@ body.dark-theme .data-table tbody tr:hover {
     padding: 10px 16px !important;
     width: calc(100% + 32px) !important;
   }
+
+  .dynamic-grid-card .datagrid-pager {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+  }
 }
 
 /* --- tabs.css --- */

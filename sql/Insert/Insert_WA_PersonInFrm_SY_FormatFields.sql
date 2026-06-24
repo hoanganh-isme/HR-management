@@ -280,7 +280,7 @@ INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES
 ('WA_PersonInFrm', 'View',   'API_HoSoNhanVienIn', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @NamLap=N''{NamLap}'', @LoaiHD=N''{LoaiHD}'''),
 ('WA_PersonInFrm', 'Save',   'API_LuuDong',         '@List=N''WA_PersonInFrm'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('WA_PersonInFrm', 'Delete', 'API_XoaDong',          '@List=N''WA_PersonInFrm'', @Ids=N''{Ids}'',      @UserName=N''{User}''');
+('WA_PersonInFrm', 'Delete', 'API_XoaDong',          '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 GO
 
 EXEC dbo.API_DongBoQuyenTruyCap;

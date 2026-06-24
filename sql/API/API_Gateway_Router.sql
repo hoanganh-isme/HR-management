@@ -1,5 +1,3 @@
-USE [QLTiec]
-GO
 
 SET ANSI_NULLS ON
 GO
@@ -56,6 +54,19 @@ BEGIN
             @EmployeeID = EmployeeID
         FROM SY_User 
         WHERE UserName = @UserName;
+    END
+
+    -- Nếu là Admin hoặc tài khoản không bị giới hạn Chi nhánh (BranchID rỗng trong CSDL)
+    -- Và trên UI có chọn bộ lọc Chi nhánh (JsonData chứa key BranchID), thì cho phép lấy giá trị này.
+    IF (ISNULL(@BranchID, '') = '' OR @UserGroup = 'Admin') 
+       AND ISNULL(@JsonData, '') <> '' AND ISJSON(@JsonData) = 1
+    BEGIN
+        DECLARE @UI_BranchID VARCHAR(50);
+        SELECT @UI_BranchID = CAST(JSON_VALUE(@JsonData, '$.BranchID') AS VARCHAR(50));
+        IF @UI_BranchID IS NOT NULL
+        BEGIN
+            SET @BranchID = @UI_BranchID;
+        END
     END
 
     -- 3. Xử lý Đắp tham số (Replace Placeholders)

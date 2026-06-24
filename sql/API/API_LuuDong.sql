@@ -190,6 +190,9 @@ BEGIN
         END
         ELSE -- CẬP NHẬT (UPDATE)
         BEGIN
+            -- Không bao giờ cập nhật UserCreate và DateCreate khi sửa dòng
+            DELETE FROM #JsonData WHERE ColumnName IN ('UserCreate', 'DateCreate');
+
             -- UserUpdate / DateUpdate (ghi đè an toàn từ hệ thống)
             IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(@TableName) AND name = 'UserUpdate')
             BEGIN
@@ -217,6 +220,10 @@ BEGIN
                         CASE 
                             WHEN JsonType = 0 THEN 'NULL'
                             WHEN JsonType = -1 THEN ColumnValue
+                            WHEN DataType IN ('varbinary', 'image', 'binary') THEN 
+                                'CONVERT(VARBINARY(MAX), ''' + 
+                                CASE WHEN ColumnValue LIKE '0x%' THEN '' ELSE '0x' END + 
+                                REPLACE(ColumnValue, '''', '''''') + ''', 1)'
                             ELSE 'N''' + REPLACE(ColumnValue, '''', '''''') + '''' 
                         END
             FROM #JsonData
@@ -244,6 +251,10 @@ BEGIN
                              CASE 
                                  WHEN JsonType = 0 THEN 'NULL'
                                  WHEN JsonType = -1 THEN ColumnValue
+                                 WHEN DataType IN ('varbinary', 'image', 'binary') THEN 
+                                     'CONVERT(VARBINARY(MAX), ''' + 
+                                     CASE WHEN ColumnValue LIKE '0x%' THEN '' ELSE '0x' END + 
+                                     REPLACE(ColumnValue, '''', '''''') + ''', 1)'
                                  ELSE 'N''' + REPLACE(ColumnValue, '''', '''''') + '''' 
                              END
             FROM #JsonData
