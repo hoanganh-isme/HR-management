@@ -62,32 +62,37 @@ window.API_CONFIG = {
             NODE_IP: ENV_VARS.BACKEND_HOST,
             get BASE_API() {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
                 return isHttps 
-                    ? '/docserver/api/documents'
+                    ? origin + '/docserver/api/documents'
                     : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/api/documents';
             },
             get ONLYOFFICE_API() {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
                 return isHttps
-                    ? '/onlyoffice/web-apps/apps/api/documents/api.js'
+                    ? origin + '/onlyoffice/web-apps/apps/api/documents/api.js'
                     : 'http://' + ENV_VARS.ONLYOFFICE_HOST + '/web-apps/apps/api/documents/api.js';
             },
             get UPLOADS_URL() {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
                 return isHttps
-                    ? '/docserver/uploads/'
+                    ? origin + '/docserver/uploads/'
                     : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/uploads/';
             },
             get SAMPLES_URL() {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
                 return isHttps
-                    ? '/docserver/samples/'
+                    ? origin + '/docserver/samples/'
                     : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/samples/';
             },
             get UPLOAD_LOGO_API() {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
                 return isHttps
-                    ? '/docserver/api/upload-logo'
+                    ? origin + '/docserver/api/upload-logo'
                     : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/api/upload-logo';
             }
         },
