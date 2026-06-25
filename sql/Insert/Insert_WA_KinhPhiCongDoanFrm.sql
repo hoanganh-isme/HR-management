@@ -8,8 +8,7 @@ DELETE FROM dbo.SY_FrmOptBtnTbl WHERE FormID IN ('WA_KinhPhiCongDoanFrm');
 DELETE FROM dbo.SY_FrmCtrTbl WHERE FormID IN ('WA_KinhPhiCongDoanFrm');
 DELETE FROM dbo.SY_FrmLstTbl WHERE FormID = 'WA_KinhPhiCongDoanFrm';
 DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_KinhPhiCongDoanFrm';
-DELETE FROM dbo.WA_API WHERE list = 'WA_KinhPhiCongDoanFrm';
-DELETE FROM dbo.WA_Menu WHERE FormName = 'WA_KinhPhiCongDoanFrm';
+DELETE FROM dbo.WA_API WHERE list IN ('WA_KinhPhiCongDoanFrm', 'API_KinhPhiCongDoan_PersonList');
 GO
 
 -- =========================================================================
@@ -44,7 +43,11 @@ GO
 -- 4. KHAI BÁO CẤU HÌNH ĐỊNH TUYẾN WEB (WA_API)
 -- =========================================================================
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES ('WA_KinhPhiCongDoanFrm', 'View', 'API_KinhPhiCongDoan', '@Keyword=N''{Keyword}'',@BranchID=N''{BranchID}'',@PhongBan=N''{PhongBan}'',@User=N''{User}''');
+VALUES 
+('WA_KinhPhiCongDoanFrm', 'View',   'API_KinhPhiCongDoan', '@Keyword=N''{Keyword}'',@BranchID=N''{BranchID}'',@User=N''{User}'''),
+('WA_KinhPhiCongDoanFrm', 'Save',   'API_LuuDong',         '@List=N''WA_KinhPhiCongDoanFrm'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('WA_KinhPhiCongDoanFrm', 'Delete', 'API_XoaDong',          '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_KinhPhiCongDoan_PersonList', 'View', 'API_KinhPhiCongDoan_PersonList', '@Keyword=N''{Keyword}''');
 GO
 
 -- =========================================================================
@@ -68,7 +71,6 @@ SET CaptionVN = CASE FieldName
         WHEN 'KinhPhiNopCongDoanVN' THEN N'Kinh phí nộp CĐ VN (2%)'
         WHEN 'CongDoanVN' THEN N'Công đoàn VN giữ (25%)'
         WHEN 'CongDoanCTY' THEN N'Công đoàn CTY giữ (75%)'
-        WHEN 'PhongBan' THEN N'Phòng ban'
         WHEN 'BranchID' THEN N'Mã chi nhánh'
         ELSE FieldName
     END,
@@ -81,7 +83,6 @@ SET CaptionVN = CASE FieldName
         WHEN 'KinhPhiNopCongDoanVN' THEN 'Union Fee Total (2%)'
         WHEN 'CongDoanVN' THEN 'Union VN Retained (25%)'
         WHEN 'CongDoanCTY' THEN 'Union Company Retained (75%)'
-        WHEN 'PhongBan' THEN 'Department'
         WHEN 'BranchID' THEN 'Branch ID'
         ELSE FieldName
     END,
@@ -91,8 +92,7 @@ SET CaptionVN = CASE FieldName
         ELSE 't' -- Định dạng Text
     END,
     DataSource = CASE
-        -- Cấu hình để khi thêm mới trên Web, ô PersonID sẽ tự động biến thành ô tìm kiếm nhân viên nhanh kèm dữ liệu đi kèm
-        WHEN FieldName = 'PersonID' THEN N'SQL:Select PV.PersonID, PV.PersonName, BHCT.MucDong, HD.ChucDanhChuyenMon from HR_PersonView PV Left join HR_BaoHiemChiTietTbl BHCT on PV.PersonID = BHCT.PersonID Left join HR_HopDongTbl HD on PV.PersonID = HD.PersonID|PersonID|PersonName;MucDong;ChucDanhChuyenMon'
+        WHEN FieldName = 'PersonID' THEN N'API_KinhPhiCongDoan_PersonList'
         ELSE NULL
     END,
     FormPosition = CASE 
@@ -100,12 +100,18 @@ SET CaptionVN = CASE FieldName
         WHEN FieldName IN ('PersonID', 'PersonName', 'ChucDanhChuyenMon', 'MucDong', 'KinhPhiNopCongDoanVN', 'CongDoanVN', 'CongDoanCTY') THEN 'grid'
         ELSE '6'
     END,
-    ShowInAdd = CASE WHEN FieldName IN ('UserAutoID', 'KinhPhiNopCongDoanVN', 'CongDoanVN', 'CongDoanCTY') THEN 0 ELSE 1 END,
-    ShowInEdit = CASE WHEN FieldName IN ('UserAutoID', 'PersonID', 'KinhPhiNopCongDoanVN', 'CongDoanVN', 'CongDoanCTY') THEN 0 ELSE 1 END,
-    IsReadOnlyAdd = 0,
-    IsReadOnlyEdit = 0,
-    IsRequired = CASE WHEN FieldName IN ('PersonID', 'MucDong') THEN 1 ELSE 0 END,
-    ShowInFilter = CASE WHEN FieldName IN ('PersonID', 'PersonName', 'BranchID', 'PhongBan') THEN 1 ELSE 0 END,
+    ValidateRule = CASE FieldName
+        WHEN 'KinhPhiNopCongDoanVN' THEN N'formula:{MucDong}*0.02'
+        WHEN 'CongDoanVN' THEN N'formula:{KinhPhiNopCongDoanVN}*0.25'
+        WHEN 'CongDoanCTY' THEN N'formula:{KinhPhiNopCongDoanVN}*0.75'
+        ELSE NULL
+    END,
+    ShowInAdd = CASE WHEN FieldName IN ('UserAutoID') THEN 0 ELSE 1 END,
+    ShowInEdit = CASE WHEN FieldName IN ('UserAutoID', 'PersonID') THEN 0 ELSE 1 END,
+    IsReadOnlyAdd = CASE WHEN FieldName IN ('KinhPhiNopCongDoanVN', 'CongDoanVN', 'CongDoanCTY') THEN 1 ELSE 0 END,
+    IsReadOnlyEdit = CASE WHEN FieldName IN ('KinhPhiNopCongDoanVN', 'CongDoanVN', 'CongDoanCTY') THEN 1 ELSE 0 END,
+    IsRequired = CASE WHEN FieldName IN ('PersonID') THEN 1 ELSE 0 END,
+    ShowInFilter = CASE WHEN FieldName IN ('PersonID', 'PersonName', 'BranchID') THEN 1 ELSE 0 END,
     OrderNo = CASE FieldName
         WHEN 'PersonID' THEN 1
         WHEN 'PersonName' THEN 2
@@ -118,10 +124,6 @@ SET CaptionVN = CASE FieldName
     END
 WHERE FormName = 'WA_KinhPhiCongDoanFrm';
 GO
-
--- =========================================================================
--- 7. ĐĂNG KÝ VÀO MENU WEB (WA_Menu)
--- =========================================================================
 
 PRINT 'Da thiet lap cau hinh WEB cho WA_KinhPhiCongDoanFrm thanh cong!';
 GO

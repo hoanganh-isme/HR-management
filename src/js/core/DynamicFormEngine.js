@@ -723,15 +723,23 @@ window.DynamicFormEngine = (function () {
           var formulaMatch = rawValidate.match(/formula:([^|]+)/i) || rawVisible.match(/formula:([^|]+)/i);
           var triggerMatch = rawValidate.match(/trigger:([^|]+)/i) || rawVisible.match(/trigger:([^|]+)/i);
 
+          var fieldName = item.name || item.FieldName;
+          var isReadOnlyEditVal = _bool(item.isReadOnlyEdit, item.IsReadOnlyEdit);
+          var isReadOnlyAddVal = _bool(item.isReadOnlyAdd, item.IsReadOnlyAdd);
+          if (MODULE_CONFIG.FormName === 'WA_KinhPhiCongDoanFrm' && ['PersonName', 'ChucDanhChuyenMon', 'BranchID'].includes(fieldName)) {
+            isReadOnlyEditVal = true;
+            isReadOnlyAddVal = true;
+          }
+
           globalFormSchema.push({
-            name: item.name || item.FieldName,
+            name: fieldName,
             label: item.label || item.CaptionVN,
             required: _bool(item.required, item.IsRequired),
             showInAdd: _bool(item.showInAdd, item.ShowInAdd),
             showInEdit: _bool(item.showInEdit, item.ShowInEdit),
             showInFilter: _bool(item.showInFilter, item.ShowInFilter),
-            isReadOnlyEdit: _bool(item.isReadOnlyEdit, item.IsReadOnlyEdit),
-            isReadOnlyAdd: _bool(item.isReadOnlyAdd, item.IsReadOnlyAdd),
+            isReadOnlyEdit: isReadOnlyEditVal,
+            isReadOnlyAdd: isReadOnlyAddVal,
             position: item.FormPosition || item.formPosition || item.position || 'grid',
             orderNo: item.OrderNo || item.orderNo || 0,
             renderRule: (item.renderRule || '').toLowerCase().trim(),
@@ -2547,6 +2555,7 @@ window.DynamicFormEngine = (function () {
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = keys.find(function (k) { return labelRegex.test(k); });
                     colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+                    if (field.name === 'PersonID') colFilterIndex = 0;
                     dataList.forEach(function (d) {
                       var rd = [];
                       keys.forEach(function (k) { rd.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
@@ -3068,6 +3077,7 @@ window.DynamicFormEngine = (function () {
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
                     colFilterIndex = displayKey ? displayKeys.indexOf(displayKey) : (displayKeys.length > 1 ? 1 : 0);
+                    if (field.name === 'PersonID') colFilterIndex = 0;
                     dataList.forEach(function (d) {
                       var rowData = [];
                       keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
@@ -3129,7 +3139,7 @@ window.DynamicFormEngine = (function () {
               searchApiCall('', 1).then(function (res) {
                 var displayInput = lazyCombo.querySelector('input.ui-input');
                 var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
-                if (matched && displayInput) displayInput.value = matched[res.colFilterIndex || 1];
+                if (matched && displayInput) displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
               }).catch(function (err) {
                 console.error('[DynamicFormEngine] DataComboBox initial fetch error:', err);
                 var displayInput = lazyCombo.querySelector('input.ui-input');
@@ -3145,7 +3155,7 @@ window.DynamicFormEngine = (function () {
                 searchApiCall('', 1).then(function (res) {
                   var displayInp = lazyCombo.querySelector('input.ui-input');
                   var matched = res.data.find(function (r) { return String(r[0]) === String(hiddenInput.value); });
-                  if (matched && displayInp) displayInp.value = matched[res.colFilterIndex || 1];
+                  if (matched && displayInp) displayInp.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
                   else if (displayInp) displayInp.value = hiddenInput.value; // Fallback
                 });
               } else {

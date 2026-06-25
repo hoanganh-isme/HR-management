@@ -216,31 +216,105 @@ var DocumentManagerPage = (function () {
       '</button>' +
       '</div>' +
       '</div>' +
-      // Container cho Iframe (srcdoc sẽ được inject bằng fetch bên dưới)
-      '<iframe id="docmgr-iframe" ' +
-      'style="flex:1;width:100%;border:none;background:#fff;" ' +
-      'sandbox="allow-same-origin">' +
-      '</iframe>' +
+      // Container render
+      '<div id="docmgr-render-container" style="flex:1;width:100%;background:#fff;overflow:auto;position:relative;">' +
+      '<style>' +
+      '  /* Sửa lỗi docx-preview tự xoay dọc chữ hoặc bóp méo bảng */' +
+      '  #docmgr-docx-view .docx-wrapper section.docx {' +
+      '    writing-mode: horizontal-tb !important;' +
+      '    transform: none !important;' +
+      '  }' +
+      '  #docmgr-docx-view .docx-wrapper section.docx * {' +
+      '    writing-mode: horizontal-tb !important;' +
+      '  }' +
+      '</style>' +
+      '<iframe id="docmgr-iframe" style="width:100%;height:100%;border:none;display:none;" sandbox="allow-same-origin"></iframe>' +
+      '<div id="docmgr-docx-view" style="width:100%;min-height:100%;display:none;padding:20px;box-sizing:border-box;"></div>' +
+      '<div id="docmgr-loading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);">Đang tải tài liệu...</div>' +
+      '</div>' +
       '</div>';
 
-    // Fetch file content (HTML) và render vào iframe
-    // Tránh việc browser tự động download file .doc
-    fetch(fileUrl)
-      .then(function (res) {
-        if (!res.ok) throw new Error('Network response was not ok');
-        return res.text();
-      })
-      .then(function (htmlText) {
-        var iframe = _qs('#docmgr-iframe');
-        if (iframe) iframe.srcdoc = htmlText;
-      })
-      .catch(function (err) {
-        console.error('Error fetching document content:', err);
-        var iframe = _qs('#docmgr-iframe');
-        if (iframe) {
-          iframe.outerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#ef4444;">⚠️ Không thể hiển thị nội dung tài liệu.</div>';
+    var isDocx = fileName.toLowerCase().endsWith('.docx');
+
+    if (isDocx) {
+      // ── Render DOCX bằng thư viện docx-preview ──
+      function renderDocx() {
+        fetch(fileUrl)
+          .then(function(res) {
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.blob();
+          })
+          .then(function(blob) {
+            var loading = _qs('#docmgr-loading');
+            var container = _qs('#docmgr-docx-view');
+            if (loading) loading.style.display = 'none';
+            if (container) {
+              container.style.display = 'block';
+              
+              var options = {
+                  inWrapper: true,
+                  ignoreWidth: false,
+                  ignoreHeight: false,
+                  ignoreFonts: false,
+                  breakPages: true,
+                  experimental: false // Tắt tính năng thử nghiệm dễ gây lỗi layout
+              };
+
+              docx.renderAsync(blob, container, null, options).catch(function(err) {
+                console.error(err);
+                container.innerHTML = '<div style="color:#ef4444;text-align:center;">⚠️ Trình duyệt không hỗ trợ xem trước định dạng này, vui lòng Tải về để xem.</div>';
+              });
+            }
+          })
+          .catch(function(err) {
+            var loading = _qs('#docmgr-loading');
+            if (loading) loading.innerHTML = '<span style="color:#ef4444;">⚠️ Lỗi tải tài liệu.</span>';
+          });
+      }
+
+      function loadDocxPreview() {
+        if (typeof docx !== 'undefined') {
+          renderDocx();
+        } else {
+          // Load JSZip first
+          var scriptZip = document.createElement('script');
+          scriptZip.src = 'https://unpkg.com/jszip/dist/jszip.min.js';
+          scriptZip.onload = function() {
+            // Then load docx-preview
+            var scriptDocx = document.createElement('script');
+            scriptDocx.src = 'https://unpkg.com/docx-preview/dist/docx-preview.min.js';
+            scriptDocx.onload = renderDocx;
+            document.head.appendChild(scriptDocx);
+          };
+          document.head.appendChild(scriptZip);
         }
-      });
+      }
+
+      loadDocxPreview();
+    } else {
+      // ── Render file .doc HTML cũ bằng Iframe ──
+      var iframe = _qs('#docmgr-iframe');
+      if (iframe) iframe.style.display = 'block';
+      
+      fetch(fileUrl)
+        .then(function (res) {
+          if (!res.ok) throw new Error('Network response was not ok');
+          return res.text();
+        })
+        .then(function (htmlText) {
+          var loading = _qs('#docmgr-loading');
+          if (loading) loading.style.display = 'none';
+          if (iframe) iframe.srcdoc = htmlText;
+        })
+        .catch(function (err) {
+          console.error('Error fetching document content:', err);
+          var loading = _qs('#docmgr-loading');
+          if (loading) loading.style.display = 'none';
+          if (iframe) {
+            iframe.outerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#ef4444;">⚠️ Không thể hiển thị nội dung tài liệu.</div>';
+          }
+        });
+    }
 
     // Gắn sự kiện cho nút Chỉnh sửa Template
     var btnEditTpl = _qs('#docmgr-btn-edit-tpl');
