@@ -347,7 +347,7 @@ app.post('/api/documents/generate', async (req, res) => {
             const docXmlFile = zip.file("word/document.xml");
             if (docXmlFile) {
                 let xmlContent = docXmlFile.asText();
-                xmlContent = xmlContent.replace(/\{[^{}]*?<[^>]+>[^{}]*?\}/g, (match) => {
+                xmlContent = xmlContent.replace(/\{[^{}]*?\}/g, (match) => {
                     return match.replace(/<[^>]+>/g, "");
                 });
                 zip.file("word/document.xml", xmlContent);
