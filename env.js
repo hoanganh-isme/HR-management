@@ -16,10 +16,11 @@ const ENV_VARS = {
             if (window.location.protocol === 'https:') return '103.190.38.46';
             
             var hostname = window.location.hostname;
-            // Kiểm tra xem có phải chạy local hay không (localhost, 127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+            // Kiểm tra xem có phải chạy local hay không (localhost, 127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x, hoặc mở trực tiếp file://)
             var isLocal = hostname === 'localhost' || 
                           hostname === '127.0.0.1' || 
                           hostname === '::1' || 
+                          hostname === '' || 
                           hostname.startsWith('192.168.') || 
                           hostname.startsWith('10.');
             if (hostname.startsWith('172.')) {
@@ -31,11 +32,11 @@ const ENV_VARS = {
                     }
                 }
             }
-            // Nếu không phải chạy local (ví dụ chạy qua domain net), dùng IP máy chủ thực tế
+            // Nếu không phải chạy local (ví dụ chạy qua domain kyhoa.bms7.net), dùng IP máy chủ thực tế
             if (!isLocal) {
                 return '103.190.38.46';
             }
-            return hostname;
+            return hostname || '192.168.68.118';
         }
         return '103.190.38.46';
     },
@@ -69,7 +70,7 @@ window.API_CONFIG = {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
                 return isHttps
                     ? ENV_VARS.API_BASE + '/onlyoffice/web-apps/apps/api/documents/api.js'
-                    : 'http://' + ENV_VARS.ONLYOFFICE_HOST + ':8082/web-apps/apps/api/documents/api.js';
+                    : 'http://' + ENV_VARS.ONLYOFFICE_HOST + '/web-apps/apps/api/documents/api.js';
             },
             get UPLOADS_URL() {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
