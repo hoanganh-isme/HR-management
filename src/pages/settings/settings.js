@@ -38,7 +38,7 @@ var SettingsPage = (function () {
         var reader = new FileReader();
         reader.onload = function(e) {
           var base64Data = e.target.result;
-          fetch('http://103.190.38.46:8081/api/upload-logo', {
+          fetch(API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER.UPLOAD_LOGO_API, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fileName: 'logo.jpg', base64: base64Data })
