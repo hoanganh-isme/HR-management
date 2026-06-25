@@ -14,9 +14,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 8081;
 
-// ==========================================
-// THIẾT LẬP THƯ MỤC
-// ==========================================
+// Setup directories
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const SAMPLES_DIR = path.join(__dirname, 'samples');
 
@@ -24,10 +22,6 @@ const SAMPLES_DIR = path.join(__dirname, 'samples');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// ==========================================
-// MIDDLEWARE
-// ==========================================
-// Sử dụng cors middleware của Express để luôn tự động thêm headers CORS đầy đủ
 app.use(cors({ origin: '*' }));
 
 app.use('/uploads', function (req, res, next) {
@@ -52,13 +46,10 @@ app.use((err, req, res, next) => {
     next();
 });
 
-// ==========================================
-// API GATEWAY CHÍNH (SQL Server)
-// ==========================================
 let SQL_API_BASE;
 const SQL_API_USER = 'admin';
 
-// Tự động tải API_BASE từ env.js (Bắt buộc)
+// Load env.js config
 try {
     const possiblePaths = [
         path.join(__dirname, '../env.js'),
@@ -88,7 +79,6 @@ try {
     process.exit(1);
 }
 
-/** Giải mã username từ token hoặc fallback */
 function extractUserName(req) {
     const authHeader = req.headers.authorization;
     if (authHeader) {
@@ -107,12 +97,10 @@ function extractUserName(req) {
     return req.body?.UserName || req.query?.UserName || req.headers?.username || 'system';
 }
 
-// Cache thông tin nhà hàng (tránh gọi API nhiều lần)
 let _setupCache = null;
 let _setupCacheTime = 0;
-const SETUP_CACHE_TTL = 5 * 60 * 1000; // 5 phút
+const SETUP_CACHE_TTL = 5 * 60 * 1000;
 
-/** Helper function to execute axios requests with retries */
 async function axiosGetWithRetry(url, config = {}, retries = 3, delay = 1000) {
     for (let i = 0; i < retries; i++) {
         try {
@@ -125,7 +113,6 @@ async function axiosGetWithRetry(url, config = {}, retries = 3, delay = 1000) {
     }
 }
 
-/** Lấy thông tin nhà hàng từ API_LayGiaTriSetup (có cache) */
 async function fetchSetupInfo(authToken) {
     const now = Date.now();
     if (_setupCache && (now - _setupCacheTime) < SETUP_CACHE_TTL) return _setupCache;
@@ -135,18 +122,16 @@ async function fetchSetupInfo(authToken) {
         if (authToken) headers['Authorization'] = authToken;
         const resp = await axiosGetWithRetry(url, { headers, timeout: 8000 }, 3, 1000);
         const json = resp.data;
-        // API_LayGiaTriSetup trả về rows có CodeID + CodeValue (xem SQL)
         const rows = json.records || (Array.isArray(json) ? json : []);
         const setup = {};
         rows.forEach(r => {
-            // Field name thực tế theo SQL: CodeID, CodeValue
             const key = r.CodeID || r.codeID || r.codeid || r.MaSetup;
             const val = r.CodeValue || r.codeValue || r.GiaTri || r.Value || '';
             if (key) setup[key] = val;
         });
         _setupCache = setup;
         _setupCacheTime = now;
-        console.log('[SETUP] Keys:', Object.keys(setup).join(', '), '| Raw setup:', JSON.stringify(setup));
+        console.log('[SETUP] Keys:', Object.keys(setup).join(', '));
         return setup;
     } catch (err) {
         console.error('[SETUP] Lỗi gọi API_LayGiaTriSetup:', err.message);
@@ -154,7 +139,6 @@ async function fetchSetupInfo(authToken) {
     }
 }
 
-/** Gọi API Gateway để lấy record theo List + Keyword */
 async function fetchFromSQLAPI(listName, keyword, authToken) {
     const payload = {
         List: listName, Func: 'View', UserName: SQL_API_USER,
@@ -176,13 +160,6 @@ async function fetchFromSQLAPI(listName, keyword, authToken) {
     return null;
 }
 
-// ==========================================
-// API: QUẢN LÝ TÀI LIỆU
-// ==========================================
-
-/**
- * 1. Lấy danh sách tài liệu
- */
 app.get('/api/documents', (req, res) => {
     try {
         const files = fs.readdirSync(UPLOADS_DIR);
@@ -204,9 +181,6 @@ app.get('/api/documents', (req, res) => {
     }
 });
 
-/**
- * Lấy danh sách Mẫu gốc (Templates)
- */
 app.get('/api/documents/templates', (req, res) => {
     try {
         let results = [];
@@ -219,7 +193,6 @@ app.get('/api/documents/templates', (req, res) => {
                 if (stat.isDirectory()) {
                     scanDir(fullPath);
                 } else if (file.endsWith('.docx') || file.endsWith('.html')) {
-                    // Trả về tên file và đường dẫn tương đối để dễ hiển thị
                     results.push({
                         fileName: file,
                         relPath: path.relative(SAMPLES_DIR, fullPath).replace(/\\/g, '/'),
@@ -237,17 +210,12 @@ app.get('/api/documents/templates', (req, res) => {
     }
 });
 
-/**
- * 1.5 Lấy danh sách các biến dữ liệu cho một loại mẫu
- */
 app.get('/api/documents/fields/:listName', async (req, res) => {
     try {
         const listName = req.params.listName;
-
-        // Dynamic lookup FormName via HR_HopDongAddfile_GetForm routing
-        let sqlListName = 'WA_HopDongLaoDongFrm'; // Default fallback
+        let sqlListName = null;
         try {
-            const formResult = await fetchFromSQLAPI('HR_HopDongAddfile_GetForm', listName, req.headers.authorization);
+            const formResult = await fetchFromSQLAPI('HR_GetForm', listName, req.headers.authorization);
             if (formResult && (formResult.FormName || formResult.formname)) {
                 sqlListName = formResult.FormName || formResult.formname;
             }
@@ -255,48 +223,43 @@ app.get('/api/documents/fields/:listName', async (req, res) => {
             console.log(`[FIELDS] Không lấy được FormName từ CSDL cho '${listName}':`, e.message);
         }
 
+        if (!sqlListName) {
+            return res.status(404).json({
+                success: false,
+                message: `Không tìm thấy biểu mẫu (FormName) tương ứng với mẫu in '${listName}' trong CSDL.`
+            });
+        }
+
         console.log(`[FIELDS] Ánh xạ file mẫu '${listName}' -> Bảng CSDL '${sqlListName}'`);
 
-        // 1. Lấy danh sách các trường được cấu hình trong SY_FormatFields cho form này
         let formFields = [];
         try {
             const fieldsUrl = `${SQL_API_BASE}/api/API_DanhSachTruongGiaoDien`;
-            const payload = {
-                FormName: sqlListName,
-                Username: 'admin',
-                Limit: 1000
-            };
+            const payload = { FormName: sqlListName, Username: 'admin', Limit: 1000 };
             const headers = {};
             if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
             const fieldsResp = await axios.post(fieldsUrl, payload, { headers, timeout: 5000 });
             if (fieldsResp.data && fieldsResp.data.records) {
                 formFields = fieldsResp.data.records.map(r => r.FieldName || r.fieldName || r.fieldname).filter(Boolean);
-                console.log(`[FIELDS] Lấy thành công ${formFields.length} trường từ SY_FormatFields cho ${sqlListName}`);
             }
         } catch (fieldsErr) {
             console.warn(`[FIELDS] Lỗi lấy trường từ API_DanhSachTruongGiaoDien cho '${sqlListName}':`, fieldsErr.message);
         }
 
-        // 2. Lấy 1 dòng dữ liệu mẫu từ SQL API làm dự phòng (fallback) để quét thêm cột nếu có
         let sampleRow = {};
         try {
             const sqlRow = await fetchFromSQLAPI(sqlListName, '', req.headers.authorization);
             if (sqlRow) sampleRow = sqlRow;
-        } catch (e) {
-            console.log(`[FIELDS] Không lấy được data mẫu từ DB cho '${sqlListName}', dùng object rỗng:`, e.message);
-        }
+        } catch (e) {}
 
-        // 3. Lấy thông tin cấu hình nhà hàng (setup)
         const setup = await fetchSetupInfo(req.headers.authorization).catch(() => ({}));
 
-        // Gộp tất cả các trường từ 3 nguồn và loại bỏ trùng lặp
         const allFieldsSet = new Set([
             ...Object.keys(setup),
             ...formFields,
             ...Object.keys(sampleRow)
         ]);
 
-        // Loại bỏ các trường hệ thống dư thừa không dùng trong biểu mẫu .docx
         const excludeFields = [
             'id', 'code', 'msg', 'records', 'autoid', 'formname', 'fieldname',
             'status', 'createdby', 'createdat', 'updatedby', 'updatedat'
@@ -317,13 +280,9 @@ app.post('/api/documents/generate', async (req, res) => {
         if (!templateType) return res.status(400).json({ success: false, message: 'Thiếu templateType.' });
         if (!sqlListName) return res.status(400).json({ success: false, message: 'Thiếu sqlListName để truy vấn.' });
         if (!outputFileName) outputFileName = 'Generated_' + templateType;
-        // Lọc bỏ tất cả ký tự đặc biệt, dấu ngoặc, dấu cộng để ONLYOFFICE không bị lỗi 400 Bad Request
         outputFileName = outputFileName.replace(/[\/\\:*?"<>|()+]/g, '_').replace(/\s+/g, '_');
 
-        // ── 1. Lấy thông tin nhà hàng từ Setup API ──────────────────────────
         const setup = await fetchSetupInfo(req.headers.authorization).catch(() => ({}));
-
-        // ── 2. Map data từ rowData (frontend) hoặc SQL API ─────────
         let dataMap = { ...setup };
 
         let dbRow = null;
@@ -336,7 +295,6 @@ app.post('/api/documents/generate', async (req, res) => {
             }
         }
 
-        // Merge dữ liệu: setup -> rowData từ frontend -> dbRow từ SQL API (ưu tiên cao nhất)
         if (rowData && typeof rowData === 'object') {
             dataMap = { ...dataMap, ...rowData };
         }
@@ -344,12 +302,11 @@ app.post('/api/documents/generate', async (req, res) => {
             dataMap = { ...dataMap, ...dbRow };
         }
 
-        // Tự động parse JSON từ CSDL (kể cả JSON lồng nhau)
+        // Tự động parse JSON từ CSDL
         dataMap = deepParseJsonStrings(dataMap);
 
         console.log('[GENERATE] dataMap:', JSON.stringify(dataMap));
 
-        // ── 3. Đọc template DOCX (Tìm kiếm đệ quy) ───────────────────────────
         const docxTemplatePath = findTemplatePath(SAMPLES_DIR, templateType);
         if (!docxTemplatePath) {
             return res.status(404).json({
@@ -366,11 +323,9 @@ app.post('/api/documents/generate', async (req, res) => {
         }
 
         const content = fs.readFileSync(docxTemplatePath, "binary");
-
-        // ── 4. Khởi tạo docxtemplater và bơm dữ liệu ─────────────────────────
         const zip = new PizZip(content);
 
-        // --- CHUẨN HÓA ĐƯỜNG DẪN ZIP (HỖ TRỢ ĐƯỜNG DẪN WINDOWS) ---
+        // Chuẩn hóa đường dẫn ZIP
         try {
             const fileNames = Object.keys(zip.files);
             for (const name of fileNames) {
@@ -387,7 +342,7 @@ app.post('/api/documents/generate', async (req, res) => {
             console.warn('[GENERATE] ⚠️ Không thể chuẩn hóa đường dẫn trong ZIP:', normErr.message);
         }
 
-        // --- TỰ ĐỘNG LÀM SẠCH TAG TRONG WORD (XML CLEANER) ---
+        // Tự động làm sạch tag trong Word (XML CLEANER)
         try {
             const docXmlFile = zip.file("word/document.xml");
             if (docXmlFile) {
@@ -435,7 +390,6 @@ app.post('/api/documents/generate', async (req, res) => {
             }
         });
 
-        // Đổ toàn bộ dataMap vào template Word
         try {
             doc.render(dataMap);
             console.log('[GENERATE] ✅ Render dữ liệu vào template thành công');
@@ -462,12 +416,11 @@ app.post('/api/documents/generate', async (req, res) => {
             throw genErr;
         }
 
-        // ── 5. Lưu file .docx đã sinh ra ──────────────
         const finalFileName = `${outputFileName}_${Date.now()}.docx`;
         const outputPath = path.join(UPLOADS_DIR, finalFileName);
         fs.writeFileSync(outputPath, buf);
 
-        // ── 6. Ghi Log vào HR_Documents (Sổ lưu trữ tài liệu) ───────────────────────
+        // Ghi Log vào HR_Documents
         try {
             const fileHash = crypto.createHash('sha256').update(buf).digest('hex');
             const refId = dataMap.MaHopDong || dataMap.maHopDong || customerId || '';
@@ -503,7 +456,6 @@ app.post('/api/documents/generate', async (req, res) => {
     } catch (error) {
         console.error('[API] Lỗi generate:', error);
         if (error.properties && error.properties.errors) {
-            console.error('[API] Chi tiết lỗi docxtemplater:', JSON.stringify(error.properties.errors));
             const details = error.properties.errors.map(e => e.message + (e.properties && e.properties.explanation ? ': ' + e.properties.explanation : '')).join('; ');
             return res.status(500).json({ success: false, message: 'Lỗi Docxtemplater: ' + details });
         }
@@ -511,20 +463,13 @@ app.post('/api/documents/generate', async (req, res) => {
     }
 });
 
-/**
- * 3. Xóa tài liệu
- */
 app.delete('/api/documents/:fileName', async (req, res) => {
     try {
         const fileName = req.params.fileName;
         const filePath = path.join(UPLOADS_DIR, fileName);
         if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath); // Xóa file vật lý (Hard delete)
-
-            // Cập nhật Bia mộ (Soft Delete) trong CSDL
+            fs.unlinkSync(filePath);
             try {
-                // Thử phân tách tên file để lấy RefID và DocType phòng khi file chưa có trong CSDL
-                // Định dạng chuẩn: {DocType}_{RefID}_{Timestamp}.docx
                 let parsedRefID = 'UNKNOWN';
                 let parsedDocType = 'UNKNOWN';
 
@@ -541,10 +486,10 @@ app.delete('/api/documents/:fileName', async (req, res) => {
                 const userName = extractUserName(req);
                 const payload = {
                     List: 'HR_Documents',
-                    Func: 'Edit', // Cập nhật lại Status
+                    Func: 'Edit',
                     UserName: userName,
                     JsonData: JSON.stringify({
-                        FilePath: fileName, // Dùng FilePath làm khóa tìm kiếm
+                        FilePath: fileName,
                         RefID: parsedRefID,
                         DocType: parsedDocType,
                         Status: 'DELETED',
@@ -557,7 +502,6 @@ app.delete('/api/documents/:fileName', async (req, res) => {
             } catch (err) {
                 console.error(`[AUDIT] ❌ Lỗi cập nhật bia mộ:`, err.message);
             }
-
             res.json({ success: true, message: 'Xóa thành công!' });
         } else {
             res.status(404).json({ success: false, message: 'Không tìm thấy file để xóa!' });
@@ -568,15 +512,11 @@ app.delete('/api/documents/:fileName', async (req, res) => {
     }
 });
 
-/**
- * 4. Upload Logo
- */
 app.post('/api/upload-logo', (req, res) => {
     try {
         const { base64, fileName } = req.body;
         if (!base64) return res.status(400).json({ success: false, message: 'Thiếu dữ liệu base64' });
 
-        // base64 có dạng: "data:image/jpeg;base64,/9j/4AA..."
         const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         let imageBuffer = null;
         if (matches && matches.length === 3) {
@@ -585,7 +525,6 @@ app.post('/api/upload-logo', (req, res) => {
             imageBuffer = Buffer.from(base64, 'base64');
         }
 
-        // Mô phỏng lưu vào thư mục Qplaza\Logo theo yêu cầu TODO.md
         const logoDir = path.join(__dirname, '..', 'Qplaza', 'Logo');
         if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir, { recursive: true });
 
@@ -600,9 +539,6 @@ app.post('/api/upload-logo', (req, res) => {
     }
 });
 
-// ==========================================
-// API: ONLYOFFICE CALLBACK
-// ==========================================
 app.post('/api/documents/callback', async (req, res) => {
     const respondSuccess = () => res.json({ error: 0 });
     try {
@@ -618,7 +554,7 @@ app.post('/api/documents/callback', async (req, res) => {
 
         if (status === 2 || status === 6) {
             const downloadUri = data.url;
-            if (!downloadUri) { console.warn('[ONLYOFFICE] Không có URL tải file!'); return respondSuccess(); }
+            if (!downloadUri) return respondSuccess();
 
             console.log(`[ONLYOFFICE] Đang lưu file... (${status === 2 ? 'Save' : 'Forcesave'})`);
             const filePath = path.join(targetDir, fileName);
@@ -635,7 +571,6 @@ app.post('/api/documents/callback', async (req, res) => {
     }
 });
 
-/** Parse đệ quy mọi chuỗi JSON trong object/array (không hardcode field menu/dịch vụ). */
 function deepParseJsonStrings(value) {
     if (typeof value === 'string') {
         const val = value.trim();
@@ -682,9 +617,6 @@ function findTemplatePath(baseDir, templateName) {
     return findRecursive(baseDir);
 }
 
-// ==========================================
-// ROOT
-// ==========================================
 app.get('/', (req, res) => {
     res.json({
         service: 'HR Document API',
@@ -698,9 +630,6 @@ app.get('/', (req, res) => {
     });
 });
 
-// ==========================================
-// KHỞI ĐỘNG SERVER
-// ==========================================
 app.listen(PORT, '0.0.0.0', () => {
     console.log('=======================================================');
     console.log('       ✨ BACKEND SERVER - HR DOCUMENT MANAGEMENT     ');

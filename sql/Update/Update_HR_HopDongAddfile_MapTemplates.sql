@@ -39,14 +39,34 @@ GO
 
 PRINT '>> Da nap thanh cong du lieu mapping file mau cho WA_HopDongLaoDongFrm!';
 GO
+-- =========================================================================
+-- TẠO STORED PROCEDURE HỖ TRỢ TRUY VẤN
+-- =========================================================================
+IF OBJECT_ID('[dbo].[API_HR_GetForm]', 'P') IS NOT NULL
+    DROP PROCEDURE [dbo].[API_HR_GetForm];
+GO
 
-DELETE FROM dbo.WA_API WHERE list IN ('HR_HopDongAddfile', 'HR_HopDongAddfile_GetForm', 'HR_Documents');
+CREATE PROCEDURE [dbo].[API_HR_GetForm]
+    @Keyword NVARCHAR(250) = N''
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT TOP 1 FormName 
+    FROM dbo.HR_HopDongAddfile 
+    WHERE TemplateFile LIKE '%' + @Keyword + '%';
+END
+GO
+
+PRINT '>> Da tao Stored Procedure API_HR_GetForm thanh cong!';
+GO
+
+DELETE FROM dbo.WA_API WHERE list IN ('HR_HopDongAddfile', 'HR_GetForm', 'HR_Documents');
 GO
 
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
-('HR_HopDongAddfile', 'View', 'SELECT FormName, LoaiHD, TemplateFile, GhiChu FROM dbo.HR_HopDongAddfile WHERE FormName = N''{Keyword}'' OR ISNULL(N''{Keyword}'', '''') = ''''', ''),
-('HR_HopDongAddfile_GetForm', 'View', 'SELECT TOP 1 FormName FROM dbo.HR_HopDongAddfile WHERE TemplateFile LIKE ''%'' + N''{Keyword}'' + ''%''', ''),
+('HR_HopDongAddfile', 'View', 'API_TruyVanDong', '@List=N''HR_HopDongAddfile'', @Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''),
+('HR_GetForm', 'View', 'API_HR_GetForm', '@Keyword=N''{Keyword}'''),
 ('HR_Documents', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('HR_Documents', 'Edit', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('HR_Documents', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
