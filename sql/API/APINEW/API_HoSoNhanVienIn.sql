@@ -35,7 +35,10 @@ BEGIN
         P.NationName,
         P.SoHopDong,
         P.DienThoai,
-        P.PersonStatus,
+        
+        -- === THAY ĐỔI Ở ĐÂY: Lấy tên trạng thái thay vì mã số ===
+        ISNULL(S.PersonStatusName, N'Chưa xác định') AS PersonStatus,
+        
         P.NewPersonID,
         P.CardNo,
         P.ProvineName,
@@ -75,6 +78,11 @@ BEGIN
         PA.FileName,
         PA.Content
     FROM dbo.HR_PersonTbl P
+    
+    -- === THAY ĐỔI Ở ĐÂY: LEFT JOIN với bảng trạng thái ===
+    LEFT JOIN dbo.HR_PersonStatusTbl S 
+        ON P.PersonStatus = S.PersonStatus
+        
     OUTER APPLY (
         SELECT TOP 1 FileName, Content
         FROM dbo.HR_PersonAttachTbl
@@ -82,7 +90,7 @@ BEGIN
         ORDER BY UserAutoID DESC
     ) PA
     WHERE 
-        -- Chỉ lấy nhân viên đang làm việc (1: Chính thức, 4: Thử việc)
+        -- Chỉ lấy nhân viên đang làm việc (1 và 4)
         P.PersonStatus IN (1, 4)
 
         -- Bộ lọc từ khoá (Keyword)

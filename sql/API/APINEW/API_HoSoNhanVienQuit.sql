@@ -35,7 +35,7 @@ BEGIN
         P.NationName,
         P.SoHopDong,
         P.DienThoai,
-        P.PersonStatus,
+        ISNULL(S.PersonStatusName, N'Chưa xác định') AS PersonStatus,
         P.NewPersonID,
         P.CardNo,
         P.ProvineName,
@@ -75,6 +75,8 @@ BEGIN
         PA.FileName,
         PA.Content
     FROM dbo.HR_PersonTbl P
+    LEFT JOIN dbo.HR_PersonStatusTbl S 
+        ON P.PersonStatus = S.PersonStatus
     OUTER APPLY (
         SELECT TOP 1 FileName, Content
         FROM dbo.HR_PersonAttachTbl

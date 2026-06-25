@@ -5660,6 +5660,198 @@ body.dark-theme .data-table tbody tr:hover {
     margin-right: 0 !important;
     width: 100% !important;
   }
+
+  /* --- Premium Mobile Card Grid View for Master-Detail --- */
+  .split-master-detail-container .data-table,
+  .split-master-detail-container .data-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .split-master-detail-container .data-table thead {
+    display: none !important;
+  }
+
+  .split-master-detail-container .data-table tbody tr {
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 4px 12px;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 10px !important;
+    margin-bottom: 8px !important;
+    padding: 10px 32px 10px 12px !important;
+    background: var(--color-surface) !important;
+    position: relative !important;
+    transition: all 0.2s ease !important;
+    box-shadow: var(--shadow-xs) !important;
+    align-items: center;
+  }
+
+  .split-master-detail-container .data-table tbody tr:hover,
+  .split-master-detail-container .data-table tbody tr.active {
+    border-color: var(--color-primary) !important;
+    background: var(--color-surface-elevated) !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
+
+  /* Chevron right icon indicating clickable row */
+  .split-master-detail-container .data-table tbody tr::after {
+    content: 'chevron_right';
+    font-family: 'Material Symbols Outlined';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 18px;
+    color: var(--color-text-secondary);
+    pointer-events: none;
+    transition: color 0.2s ease;
+  }
+
+  .split-master-detail-container .data-table tbody tr.active::after {
+    color: var(--color-primary);
+  }
+
+  /* Hide all non-essential columns on mobile */
+  .split-master-detail-container .data-table tbody tr td {
+    display: none !important;
+  }
+
+  /* Show and style checkboxes if present */
+  .split-master-detail-container .data-table tbody tr td:has(.form-check-input) {
+    display: block !important;
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .split-master-detail-container .data-table tbody tr:has(.form-check-input) {
+    padding-left: 36px !important;
+  }
+
+  /* Show only key fields */
+  .split-master-detail-container .data-table tbody tr td[data-label="Mã nhân viên"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Mã NV"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Họ tên"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Họ Tên"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Bộ phận"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Chức danh"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Chức vụ"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Mã hợp đồng"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Loại hợp đồng"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Số chứng từ"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Kỳ"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Tổng Lương"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Tổng lương"] {
+    display: block !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    text-align: left !important;
+    color: var(--color-text) !important;
+    font-weight: 500;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
+  /* Card Title / Main Headline */
+  .split-master-detail-container .data-table tbody tr td[data-label="Họ tên"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Họ Tên"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Số chứng từ"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Mã hợp đồng"] {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: var(--color-text) !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Badge Code */
+  .split-master-detail-container .data-table tbody tr td[data-label="Mã nhân viên"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Mã NV"] {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: var(--color-primary) !important;
+    background: var(--color-primary-light) !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    margin-right: 0 !important;
+  }
+
+  /* Position / Date Info */
+  .split-master-detail-container .data-table tbody tr td[data-label="Chức danh"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Chức vụ"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Loại hợp đồng"] {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    font-size: 11px !important;
+    color: var(--color-text-secondary) !important;
+    font-weight: 500 !important;
+  }
+
+  /* Department with building icon */
+  .split-master-detail-container .data-table tbody tr td[data-label="Bộ phận"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Kỳ"] {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 11px !important;
+    color: var(--color-text-secondary) !important;
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+    margin-top: 0 !important;
+  }
+
+  .split-master-detail-container .data-table tbody tr td[data-label="Bộ phận"]::before {
+    content: 'domain';
+    font-family: 'Material Symbols Outlined';
+    font-size: 13px;
+    color: var(--color-text-secondary);
+  }
+
+  /* Money / Status highlight */
+  .split-master-detail-container .data-table tbody tr td[data-label="Tổng Lương"],
+  .split-master-detail-container .data-table tbody tr td[data-label="Tổng lương"] {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    color: var(--color-danger) !important;
+    margin-top: 0 !important;
+  }
+
+  /* Reset negative margins for table-wrapper in split layout to avoid card edge clipping */
+  .split-master-detail-container .table-wrapper {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Hide overlapping/non-essential details on mobile employee list cards to prevent overlapping */
+  .form-WA_PersonFullFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
+  .form-WA_PersonFullFrm .data-table tbody tr td[data-label="Chức danh"],
+  .form-WA_PersonInFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
+  .form-WA_PersonInFrm .data-table tbody tr td[data-label="Chức danh"],
+  .form-WA_PersonQuitFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
+  .form-WA_PersonQuitFrm .data-table tbody tr td[data-label="Chức danh"] {
+    display: none !important;
+  }
 }
 
 /* --- tabs.css --- */

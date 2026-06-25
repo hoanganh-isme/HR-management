@@ -760,9 +760,13 @@ window.DynamicFormEngine = (function () {
           <div class="card dynamic-grid-card" style="border: none; box-shadow: none; margin-bottom: 0; border-radius: var(--radius-sm); background: var(--color-surface); overflow: visible;">
             <div class="card-body" style="padding: 0;">
               <div id="dynamic-filter-container" style="margin-bottom:16px;"></div>
-              <div class="split-master-detail-container" style="display: flex; gap: 16px; align-items: stretch;">
-                <div id="dynamic-grid-container" style="flex: 1; min-width: 0;"></div>
+              <div class="split-master-detail-container form-${MODULE_CONFIG.FormName}">
+                <div id="dynamic-grid-container"></div>
                 <div id="dynamic-detail-container" style="width: ${detailWidth}; flex-shrink: 0; border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; background: var(--color-surface);">
+                  <button type="button" class="detail-back-btn" style="display: none; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-primary); font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 14px; align-self: flex-start; transition: all 0.2s ease;">
+                    <span class="material-symbols-outlined" style="font-size: 18px; font-weight: 600;">arrow_back</span>
+                    <span>Quay lại danh sách</span>
+                  </button>
                   <div class="detail-header" style="margin-bottom: 12px; font-weight: 600; font-size: 15px; color: var(--color-primary); border-bottom: 2px solid var(--color-primary-light); padding-bottom: 8px;">
                     ${defaultDetailTitle}
                   </div>
@@ -774,14 +778,93 @@ window.DynamicFormEngine = (function () {
             </div>
           </div>
           <style>
-            @media (max-width: 1024px) {
+            /* Desktop / Tablet defaults */
+            .split-master-detail-container {
+              display: flex;
+              gap: 16px;
+              align-items: stretch;
+            }
+            #dynamic-grid-container {
+              flex: 1;
+              min-width: 0;
+            }
+            .detail-back-btn {
+              display: none !important;
+            }
+            .detail-tabs-mobile-select-wrapper {
+              display: none !important;
+            }
+
+            /* Responsive styles (Mobile < 768px) */
+            @media (max-width: 768px) {
               .split-master-detail-container {
                 flex-direction: column !important;
+                gap: 0 !important;
               }
-              #dynamic-detail-container {
+              
+              /* Hide detail container by default on mobile */
+              .split-master-detail-container #dynamic-detail-container {
+                display: none !important;
+              }
+              .split-master-detail-container #dynamic-grid-container {
+                display: block !important;
+              }
+
+              /* When a row is selected and we show detail */
+              .split-master-detail-container.show-detail #dynamic-detail-container {
+                display: flex !important;
                 width: 100% !important;
-                border-left: none !important;
-                padding-top: 16px;
+                border: none !important;
+                padding: 12px 16px !important;
+                box-sizing: border-box !important;
+              }
+              .split-master-detail-container.show-detail #dynamic-grid-container {
+                display: none !important;
+              }
+
+              /* Show back button when detail is shown on mobile */
+              .split-master-detail-container.show-detail .detail-back-btn {
+                display: inline-flex !important;
+              }
+
+              /* Hide desktop tabs and show mobile select menu */
+              .split-master-detail-container .detail-tabs-bar {
+                display: none !important;
+              }
+              .split-master-detail-container .detail-tabs-mobile-select-wrapper {
+                display: block !important;
+              }
+              .split-master-detail-container .detail-tabs-mobile-select {
+                appearance: none !important;
+                -webkit-appearance: none !important;
+                background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+                background-repeat: no-repeat !important;
+                background-position: right 14px center !important;
+                background-size: 16px !important;
+                padding-right: 40px !important;
+                border: 1px solid var(--color-border) !important;
+                background-color: var(--color-surface) !important;
+                color: var(--color-text) !important;
+                font-family: inherit !important;
+              }
+
+              /* Single column layout for detail fields */
+              .split-master-detail-container .detail-fields-grid {
+                grid-template-columns: 1fr !important;
+                gap: 12px !important;
+              }
+
+              /* Put photo box on top of form columns */
+              .split-master-detail-container .detail-form-wrap {
+                flex-direction: column-reverse !important;
+                align-items: center !important;
+                gap: 16px !important;
+              }
+              .split-master-detail-container .detail-form-wrap .photo-box-wrapper {
+                width: 100% !important;
+                max-width: 180px !important;
+                margin-bottom: 12px !important;
+                align-self: center !important;
               }
             }
           </style>
@@ -1426,6 +1509,21 @@ window.DynamicFormEngine = (function () {
     }
   }
 
+  function _clearSelection() {
+    selectedRows = [];
+    _updateSelectionCounter();
+    var checkboxes = $container.querySelectorAll('tbody .form-check-input');
+    if (checkboxes) checkboxes.forEach(function (cb) { cb.checked = false; });
+    var checkAll = $container.querySelector('thead .form-check-input');
+    if (checkAll) checkAll.checked = false;
+    var allTrs = $container.querySelectorAll('tbody tr');
+    if (allTrs) allTrs.forEach(function (tr) { tr.classList.remove('active', 'selected', 'table-active', 'table-primary'); });
+    var splitContainer = $container.querySelector('.split-master-detail-container');
+    if (splitContainer) {
+      splitContainer.classList.remove('show-detail');
+    }
+  }
+
   function _updateSelectionCounter() {
     _saveSelectedRows();
 
@@ -1521,18 +1619,7 @@ window.DynamicFormEngine = (function () {
       if (btnClear) {
         btnClear.onmouseover = function () { this.style.backgroundColor = 'rgba(0,0,0,0.05)'; };
         btnClear.onmouseout = function () { this.style.backgroundColor = 'transparent'; };
-        btnClear.onclick = function () {
-          selectedRows = [];
-          _updateSelectionCounter();
-          // Bỏ check tất cả checkbox trên giao diện
-          var checkboxes = $container.querySelectorAll('tbody .form-check-input');
-          if (checkboxes) checkboxes.forEach(function (cb) { cb.checked = false; });
-          var checkAll = $container.querySelector('thead .form-check-input');
-          if (checkAll) checkAll.checked = false;
-          // Bỏ bôi đen (highlight) tất cả các dòng
-          var allTrs = $container.querySelectorAll('tbody tr');
-          if (allTrs) allTrs.forEach(function (tr) { tr.classList.remove('active', 'selected', 'table-active', 'table-primary'); });
-        };
+        btnClear.onclick = _clearSelection;
       }
     } else {
       counter.style.display = 'none';
@@ -1548,7 +1635,12 @@ window.DynamicFormEngine = (function () {
     var detailContent = $container.querySelector('#dynamic-detail-content');
     if (!detailContent) return;
 
+    var splitContainer = $container.querySelector('.split-master-detail-container');
+
     if (!selectedRows || selectedRows.length === 0) {
+      if (splitContainer) {
+        splitContainer.classList.remove('show-detail');
+      }
       var selectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
       detailContent.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">' + selectText + '</div>';
       var detailHeader = $container.querySelector('.detail-header');
@@ -1556,6 +1648,16 @@ window.DynamicFormEngine = (function () {
         detailHeader.textContent = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
       }
       return;
+    }
+
+    if (splitContainer) {
+      splitContainer.classList.add('show-detail');
+    }
+
+    // Set up mobile back button click handler
+    var backBtn = $container.querySelector('.detail-back-btn');
+    if (backBtn) {
+      backBtn.onclick = _clearSelection;
     }
 
     var row = selectedRows[0];
@@ -1571,7 +1673,7 @@ window.DynamicFormEngine = (function () {
     if (MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
       // 1. Render master fields card if DetailFormFields is defined
       var masterGrid = null;
-      if (MODULE_CONFIG.DetailFormFields) {
+      if (MODULE_CONFIG.DetailFormFields && (!MODULE_CONFIG.DetailTabs || MODULE_CONFIG.DetailTabs.length === 0)) {
         masterGrid = document.createElement('div');
         masterGrid.className = 'detail-master-grid';
         masterGrid.style.cssText = 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px; margin-bottom: 20px; padding: 14px; background: var(--color-background, #f8fafc); border-radius: 8px; border: 1px solid var(--color-border, #e2e8f0);';
@@ -1628,7 +1730,7 @@ window.DynamicFormEngine = (function () {
       if (MODULE_CONFIG.DetailTabs.length > 1) {
         var tabsBar = document.createElement('div');
         tabsBar.className = 'detail-tabs-bar';
-        tabsBar.style.cssText = 'display: flex; gap: 4px; border-bottom: 1px solid var(--color-border); margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin;';
+        tabsBar.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; padding: 6px; background: var(--color-surface-elevated); border-radius: var(--radius-md, 12px); border: 1px solid var(--color-border);';
 
         if (typeof activeDetailTabIdx === 'undefined' || activeDetailTabIdx >= MODULE_CONFIG.DetailTabs.length) {
           activeDetailTabIdx = 0;
@@ -1639,10 +1741,32 @@ window.DynamicFormEngine = (function () {
           tabBtn.type = 'button';
           tabBtn.textContent = tab.label;
           var isActive = (idx === activeDetailTabIdx);
-          tabBtn.style.cssText = 'padding: 6px 12px; font-size: 13px; font-weight: 500; border: none; background: none; border-bottom: 2px solid ' + (isActive ? 'var(--color-primary)' : 'transparent') + '; color: ' + (isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)') + '; cursor: pointer; white-space: nowrap; transition: all 0.2s; font-family: inherit;';
+          
+          tabBtn.style.cssText = 'padding: 8px 16px; font-size: 13px; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; font-family: inherit;';
+          
           if (isActive) {
+            tabBtn.style.backgroundColor = 'var(--color-primary)';
+            tabBtn.style.color = '#ffffff';
             tabBtn.style.fontWeight = '600';
+            tabBtn.style.boxShadow = 'var(--shadow-sm)';
+          } else {
+            tabBtn.style.backgroundColor = 'transparent';
+            tabBtn.style.color = 'var(--color-text-secondary)';
+            
+            tabBtn.onmouseover = function() {
+              if (idx !== activeDetailTabIdx) {
+                this.style.backgroundColor = 'var(--color-surface)';
+                this.style.color = 'var(--color-text)';
+              }
+            };
+            tabBtn.onmouseout = function() {
+              if (idx !== activeDetailTabIdx) {
+                this.style.backgroundColor = 'transparent';
+                this.style.color = 'var(--color-text-secondary)';
+              }
+            };
           }
+          
           tabBtn.onclick = function () {
             activeDetailTabIdx = idx;
             _updateDetailView();
@@ -1650,6 +1774,33 @@ window.DynamicFormEngine = (function () {
           tabsBar.appendChild(tabBtn);
         });
         detailContent.appendChild(tabsBar);
+
+        // --- Mobile Dropdown Select ---
+        var selectWrapper = document.createElement('div');
+        selectWrapper.className = 'detail-tabs-mobile-select-wrapper';
+        selectWrapper.style.cssText = 'margin-bottom: 16px; width: 100%; position: relative;';
+
+        var selectEl = document.createElement('select');
+        selectEl.className = 'detail-tabs-mobile-select ui-input';
+        selectEl.style.cssText = 'width: 100%; padding: 10px 14px; font-size: 14px; font-weight: 600; border: 1px solid var(--color-border); border-radius: 8px; background-color: var(--color-surface); color: var(--color-text); cursor: pointer; height: 42px;';
+
+        MODULE_CONFIG.DetailTabs.forEach(function (tab, idx) {
+          var opt = document.createElement('option');
+          opt.value = idx;
+          opt.textContent = tab.label;
+          if (idx === activeDetailTabIdx) {
+            opt.selected = true;
+          }
+          selectEl.appendChild(opt);
+        });
+
+        selectEl.onchange = function () {
+          activeDetailTabIdx = parseInt(this.value);
+          _updateDetailView();
+        };
+
+        selectWrapper.appendChild(selectEl);
+        detailContent.appendChild(selectWrapper);
       }
 
       // 3. Render active tab content
@@ -1663,9 +1814,11 @@ window.DynamicFormEngine = (function () {
       if (tabDef.type === 'form') {
         // Form-type tab (personal details form next to employee photo box)
         var formWrap = document.createElement('div');
+        formWrap.className = 'detail-form-wrap';
         formWrap.style.cssText = 'display: flex; gap: 16px; align-items: flex-start;';
 
         var fieldsGrid = document.createElement('div');
+        fieldsGrid.className = 'detail-fields-grid';
         fieldsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 14px; flex: 1;';
 
         var fieldsToRender = tabDef.fields || [];
@@ -1699,6 +1852,13 @@ window.DynamicFormEngine = (function () {
               } catch (e) {
                 valFormatted = rawVal;
               }
+            } else if (fName === 'PersonStatus') {
+              var statusMap = {
+                '1': 'Thử việc',
+                '4': 'Chính thức',
+                '8': 'Nghỉ việc'
+              };
+              valFormatted = statusMap[String(rawVal)] || rawVal;
             } else {
               valFormatted = rawVal;
             }
@@ -3201,10 +3361,7 @@ window.DynamicFormEngine = (function () {
 
       // Tab nav bar
       var tabNav = document.createElement('div');
-      tabNav.style.display = 'flex';
-      tabNav.style.gap = '4px';
-      tabNav.style.marginBottom = '10px';
-      tabNav.style.borderBottom = '2px solid var(--color-border)';
+      tabNav.style.cssText = 'display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; padding: 6px; background: var(--color-surface-elevated); border-radius: var(--radius-md, 12px); border: 1px solid var(--color-border);';
 
       // Tab content panels
       var tabPanels = [];
@@ -3213,14 +3370,31 @@ window.DynamicFormEngine = (function () {
       MODULE_CONFIG.DetailTabs.forEach(function (tab, idx) {
         // Tab button
         var tabBtn = document.createElement('button');
-        tabBtn.className = 'btn btn-sm';
+        tabBtn.type = 'button';
         tabBtn.textContent = tab.label;
-        tabBtn.style.borderRadius = '6px 6px 0 0';
-        tabBtn.style.borderBottom = 'none';
-        tabBtn.style.padding = '6px 16px';
-        tabBtn.style.fontSize = '13px';
-        tabBtn.style.cursor = 'pointer';
-        tabBtn.style.transition = 'all 0.15s';
+        tabBtn.style.cssText = 'padding: 6px 16px; font-size: 13px; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; transition: all 0.15s ease; font-family: inherit;';
+
+        var isActive = (idx === 0);
+        if (isActive) {
+          tabBtn.style.backgroundColor = 'var(--color-primary)';
+          tabBtn.style.color = '#ffffff';
+          tabBtn.style.fontWeight = '600';
+          tabBtn.style.boxShadow = 'var(--shadow-sm)';
+        } else {
+          tabBtn.style.backgroundColor = 'transparent';
+          tabBtn.style.color = 'var(--color-text-secondary)';
+          
+          tabBtn.onmouseover = function() {
+            if (panel.style.display !== 'none') return; // active
+            this.style.backgroundColor = 'var(--color-surface)';
+            this.style.color = 'var(--color-text)';
+          };
+          tabBtn.onmouseout = function() {
+            if (panel.style.display !== 'none') return; // active
+            this.style.backgroundColor = 'transparent';
+            this.style.color = 'var(--color-text-secondary)';
+          };
+        }
 
         // Tab panel
         var panel = document.createElement('div');
@@ -3234,15 +3408,21 @@ window.DynamicFormEngine = (function () {
 
         tabBtn.onclick = function () {
           tabPanels.forEach(function (t, i) {
-            t.panel.style.display = i === idx ? 'block' : 'none';
-            t.btn.classList.toggle('btn-primary', i === idx);
-            t.btn.classList.toggle('btn-outline', i !== idx);
+            var isNowActive = (i === idx);
+            t.panel.style.display = isNowActive ? 'block' : 'none';
+            if (isNowActive) {
+              t.btn.style.backgroundColor = 'var(--color-primary)';
+              t.btn.style.color = '#ffffff';
+              t.btn.style.fontWeight = '600';
+              t.btn.style.boxShadow = 'var(--shadow-sm)';
+            } else {
+              t.btn.style.backgroundColor = 'transparent';
+              t.btn.style.color = 'var(--color-text-secondary)';
+              t.btn.style.fontWeight = '500';
+              t.btn.style.boxShadow = 'none';
+            }
           });
         };
-
-        // Activate first tab style
-        if (idx === 0) tabBtn.classList.add('btn-primary');
-        else tabBtn.classList.add('btn-outline');
 
         tabNav.appendChild(tabBtn);
         tabPanels[tabPanels.length - 1]._loaded = false;
