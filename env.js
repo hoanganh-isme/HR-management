@@ -72,7 +72,7 @@ window.API_CONFIG = {
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
                 return isHttps
                     ? origin + '/onlyoffice/web-apps/apps/api/documents/api.js'
-                    : 'http://' + ENV_VARS.ONLYOFFICE_HOST + '/web-apps/apps/api/documents/api.js';
+                    : 'https://qlt.bms79.com/onlyoffice/web-apps/apps/api/documents/api.js';
             },
             get UPLOADS_URL() {
                 var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';

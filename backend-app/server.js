@@ -250,7 +250,7 @@ app.get('/api/documents/fields/:listName', async (req, res) => {
         try {
             const sqlRow = await fetchFromSQLAPI(sqlListName, '', req.headers.authorization);
             if (sqlRow) sampleRow = sqlRow;
-        } catch (e) {}
+        } catch (e) { }
 
         const setup = await fetchSetupInfo(req.headers.authorization).catch(() => ({}));
 
