@@ -329,34 +329,22 @@ var Permission = (function () {
 
 /* --- DocumentExportPlugin.js --- */
 /**
- * DocumentExportPlugin
+ * DocumentExportPlugin (HR-management Version)
  * ─────────────────────────────────────────────────────────────────────
- * Plugin cấu hình nút "Xuất tài liệu" cho các form:
- *   frmHopDong   → Hợp đồng tiệc     (PK: Sohopdong)
- *   frmBiennhancoccho    → Biên nhận đặt cọc (PK: MaChungTu)
- *   frmQuyetToan → Quyết toán        (PK: Sohopdong)
+ * Plugin cấu hình nút "Xuất tài liệu" cho các form quản lý nhân sự:
+ *   WA_HopDongLaoDongFrm → Hợp đồng lao động & Thử việc (PK: MaHopDong)
  */
 var DocumentExportPlugin = (function () {
   var DOC_API_BASE = window.API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER.BASE_API;
 
   var FORM_CONFIG = {
-    'frmHopDong': {
-      docType: 'hop_dong',
-      label: 'Xuất Hợp Đồng',
+    'WA_HopDongLaoDongFrm': {
+      docType: 'HR_HopDongLaoDongReport',
+      label: 'Xuất HĐLĐ Mẫu 1',
       icon: 'description',
-      altKeys: ['Sohopdong', 'sohopdong', 'SoHopDong']
-    },
-    'frmBiennhancoccho': {
-      docType: 'dat_coc',
-      label: 'Xuất Biên Nhận Cọc',
-      icon: 'receipt_long',
-      altKeys: ['MaChungTu', 'maChungTu', 'DocumentID', 'SoPhieu']
-    },
-    'frmQuyetToan': {
-      docType: 'quyet_toan',
-      label: 'Xuất Quyết Toán',
-      icon: 'receipt',
-      altKeys: ['Sohopdong', 'sohopdong', 'SoHopDong']
+      altKeys: ['MaHopDong', 'maHopDong'],
+      sqlListName: 'WA_HopDongLaoDongFrm',
+      convertFields: []
     }
   };
 
@@ -380,6 +368,14 @@ var DocumentExportPlugin = (function () {
       return;
     }
 
+    // Đọc tên file mẫu từ DB (được cấu hình trong bảng tbmk_LoaitiecAddfile qua View)
+    var actualDocType = config.docType;
+    if (row.TemplateFile && !config.ignoreTemplateFile) {
+      actualDocType = row.TemplateFile;
+    } else if (typeof config.getDocType === 'function') {
+      actualDocType = config.getDocType(row);
+    }
+
     var btn = document.getElementById('btn-export-doc-' + config.docType);
     var originalHTML = btn ? btn.innerHTML : '';
     if (btn) {
@@ -394,14 +390,28 @@ var DocumentExportPlugin = (function () {
       document.head.appendChild(ks);
     }
 
+    var headers = { 'Content-Type': 'application/json' };
+    var token = '';
+    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') {
+      token = ApiClient.getCookie('auth_token');
+    } else {
+      var match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
+      if (match) token = decodeURIComponent(match[1]);
+    }
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+
     fetch(DOC_API_BASE + '/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
-        templateType: config.docType,
+        templateType: actualDocType,
         customerId: docId,
-        outputFileName: config.docType + '_' + docId,
-        rowData: row
+        outputFileName: actualDocType + '_' + docId,
+        rowData: row,
+        sqlListName: config.sqlListName,
+        convertFields: config.convertFields || []
       })
     })
       .then(function (res) { return res.json(); })
@@ -436,7 +446,7 @@ var DocumentExportPlugin = (function () {
     var config = FORM_CONFIG[formName];
     if (!config) return [];
 
-    return [{
+    var buttons = [{
       id: 'btn-export-doc-' + config.docType,
       text: config.label,
       icon: config.icon,
@@ -453,19 +463,56 @@ var DocumentExportPlugin = (function () {
         }
 
         var row = selectedRows[0];
-        var st = (row.Status || row.TrangThai || '').toString().toLowerCase();
-        if (st.includes('đã ký')) {
-          if (typeof Alert !== 'undefined') {
-            Alert.warning('Bị khóa', 'Không thể xuất lại file cho Hợp đồng/Phiếu đã chốt (Đã ký).');
-          } else {
-            alert('Không thể xuất lại file cho Hợp đồng/Phiếu đã chốt (Đã ký).');
-          }
-          return;
-        }
-
         _generateDocument(row, config);
       }
     }];
+
+    if (formName === 'WA_HopDongLaoDongFrm') {
+      buttons.push({
+        id: 'btn-export-hdld-2',
+        text: 'Xuất HĐLĐ Mẫu 2',
+        icon: 'description',
+        type: 'tool',
+        onClick: function () {
+          var selectedRows = getSelectedRows();
+          if (!selectedRows || selectedRows.length !== 1) {
+            if (typeof Alert !== 'undefined') Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng dữ liệu duy nhất.');
+            else alert('Vui lòng chọn 1 dòng dữ liệu!');
+            return;
+          }
+          _generateDocument(selectedRows[0], {
+            docType: 'HR_HopDongLaoDong2Report',
+            altKeys: ['MaHopDong', 'maHopDong'],
+            sqlListName: 'WA_HopDongLaoDongFrm',
+            ignoreTemplateFile: true,
+            convertFields: []
+          });
+        }
+      });
+      buttons.push({
+        id: 'btn-export-hdtv',
+        text: 'Xuất HĐ Thử Việc',
+        icon: 'description',
+        type: 'tool',
+        onClick: function () {
+          var selectedRows = getSelectedRows();
+          if (!selectedRows || selectedRows.length !== 1) {
+            if (typeof Alert !== 'undefined') Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng dữ liệu duy nhất.');
+            else alert('Vui lòng chọn 1 dòng dữ liệu!');
+            return;
+          }
+          _generateDocument(selectedRows[0], {
+            docType: 'HR_HopDongLaoDong3Report',
+            altKeys: ['MaHopDong', 'maHopDong'],
+            sqlListName: 'WA_HopDongLaoDongFrm',
+            ignoreTemplateFile: true,
+            convertFields: []
+          });
+        }
+      });
+    }
+
+    return buttons;
   }
 
   // Đăng ký Plugin vào hệ thống

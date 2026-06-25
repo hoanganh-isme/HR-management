@@ -1,6 +1,6 @@
 /**
  * ============================================================
- *  WEDDING BANQUET MANAGEMENT — CẤU HÌNH HỆ THỐNG
+ *  HR MANAGEMENT — CẤU HÌNH HỆ THỐNG
  *  File này là nơi định nghĩa toàn bộ cấu hình API của hệ thống
  * ============================================================
  */
@@ -8,7 +8,41 @@
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
     API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
-    DOC_NODE_IP: '103.190.38.46',      // Server Node.js (OnlyOffice & Documents)
+
+    // Tự động phát hiện HOST chạy (Local dev vs Production)
+    get BACKEND_HOST() {
+        if (typeof window !== 'undefined' && window.location) {
+            // Nếu chạy trên HTTPS (production), dùng IP máy chủ
+            if (window.location.protocol === 'https:') return '103.190.38.46';
+            
+            var hostname = window.location.hostname;
+            // Kiểm tra xem có phải chạy local hay không (localhost, 127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+            var isLocal = hostname === 'localhost' || 
+                          hostname === '127.0.0.1' || 
+                          hostname === '::1' || 
+                          hostname.startsWith('192.168.') || 
+                          hostname.startsWith('10.');
+            if (hostname.startsWith('172.')) {
+                var parts = hostname.split('.');
+                if (parts.length >= 2) {
+                    var sec = parseInt(parts[1], 10);
+                    if (sec >= 16 && sec <= 31) {
+                        isLocal = true;
+                    }
+                }
+            }
+            // Nếu không phải chạy local (ví dụ chạy qua domain net), dùng IP máy chủ thực tế
+            if (!isLocal) {
+                return '103.190.38.46';
+            }
+            return hostname;
+        }
+        return '103.190.38.46';
+    },
+
+    get ONLYOFFICE_HOST() {
+        return this.BACKEND_HOST;
+    }
 };
 
 // 2. Cấu hình API chi tiết
@@ -24,11 +58,37 @@ window.API_CONFIG = {
         },
 
         DOCUMENT_MANAGER: {
-            NODE_IP: ENV_VARS.DOC_NODE_IP,
-            BASE_API: 'http://' + ENV_VARS.DOC_NODE_IP + ':8081/api/documents',
-            ONLYOFFICE_API: 'http://' + ENV_VARS.DOC_NODE_IP + ':8082/web-apps/apps/api/documents/api.js',
-            UPLOADS_URL: 'http://' + ENV_VARS.DOC_NODE_IP + ':8081/uploads/',
-            SAMPLES_URL: 'http://' + ENV_VARS.DOC_NODE_IP + ':8081/samples/'
+            NODE_IP: ENV_VARS.BACKEND_HOST,
+            get BASE_API() {
+                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                return isHttps 
+                    ? ENV_VARS.API_BASE + '/docserver/api/documents'
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/api/documents';
+            },
+            get ONLYOFFICE_API() {
+                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                return isHttps
+                    ? ENV_VARS.API_BASE + '/onlyoffice/web-apps/apps/api/documents/api.js'
+                    : 'http://' + ENV_VARS.ONLYOFFICE_HOST + ':8082/web-apps/apps/api/documents/api.js';
+            },
+            get UPLOADS_URL() {
+                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                return isHttps
+                    ? ENV_VARS.API_BASE + '/docserver/uploads/'
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/uploads/';
+            },
+            get SAMPLES_URL() {
+                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                return isHttps
+                    ? ENV_VARS.API_BASE + '/docserver/samples/'
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/samples/';
+            },
+            get UPLOAD_LOGO_API() {
+                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                return isHttps
+                    ? ENV_VARS.API_BASE + '/docserver/api/upload-logo'
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/api/upload-logo';
+            }
         },
 
         PERMISSIONS: {

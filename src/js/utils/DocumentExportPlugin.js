@@ -1,32 +1,20 @@
 /**
- * DocumentExportPlugin
+ * DocumentExportPlugin (HR-management Version)
  * ─────────────────────────────────────────────────────────────────────
- * Plugin cấu hình nút "Xuất tài liệu" cho các form:
- *   frmHopDong   → Hợp đồng tiệc     (PK: Sohopdong)
- *   frmBiennhancoccho    → Biên nhận đặt cọc (PK: MaChungTu)
- *   frmQuyetToan → Quyết toán        (PK: Sohopdong)
+ * Plugin cấu hình nút "Xuất tài liệu" cho các form quản lý nhân sự:
+ *   WA_HopDongLaoDongFrm → Hợp đồng lao động & Thử việc (PK: MaHopDong)
  */
 var DocumentExportPlugin = (function () {
   var DOC_API_BASE = window.API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER.BASE_API;
 
   var FORM_CONFIG = {
-    'frmHopDong': {
-      docType: 'hop_dong',
+    'WA_HopDongLaoDongFrm': {
+      docType: 'HR_HopDongLaoDongReport',
       label: 'Xuất Hợp Đồng',
       icon: 'description',
-      altKeys: ['Sohopdong', 'sohopdong', 'SoHopDong']
-    },
-    'frmBiennhancoccho': {
-      docType: 'dat_coc',
-      label: 'Xuất Biên Nhận Cọc',
-      icon: 'receipt_long',
-      altKeys: ['MaChungTu', 'maChungTu', 'DocumentID', 'SoPhieu']
-    },
-    'frmQuyetToan': {
-      docType: 'quyet_toan',
-      label: 'Xuất Quyết Toán',
-      icon: 'receipt',
-      altKeys: ['Sohopdong', 'sohopdong', 'SoHopDong']
+      altKeys: ['MaHopDong', 'maHopDong'],
+      sqlListName: 'WA_HopDongLaoDongFrm',
+      convertFields: []
     }
   };
 
@@ -39,6 +27,310 @@ var DocumentExportPlugin = (function () {
     return null;
   }
 
+  function _showTemplateSelectModal(row, config, onConfirm) {
+    // Gọi API Gateway để lấy danh sách file mẫu cấu hình dưới CSDL
+    var endpoint = (window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER)
+      ? window.API_CONFIG.ENDPOINTS.ROUTER
+      : '/api/API_Gateway_Router';
+
+    var payload = {
+      List: 'HR_HopDongAddfile',
+      Func: 'View',
+      Keyword: config.sqlListName || 'WA_HopDongLaoDongFrm'
+    };
+
+    // Tạo overlay nền mờ chờ tải dữ liệu (loading overlay)
+    var overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(15, 23, 42, 0.45)';
+    overlay.style.backdropFilter = 'blur(4px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '999999';
+
+    var loadingText = document.createElement('div');
+    loadingText.style.color = '#ffffff';
+    loadingText.style.fontSize = '16px';
+    loadingText.style.fontWeight = '600';
+    loadingText.innerText = 'Đang tải danh sách mẫu...';
+    overlay.appendChild(loadingText);
+    document.body.appendChild(overlay);
+
+    // Dùng ApiClient hoặc Fetch để lấy data
+    var headers = { 'Content-Type': 'application/json' };
+    var token = '';
+    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') {
+      token = ApiClient.getCookie('auth_token');
+    } else {
+      var match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
+      if (match) token = decodeURIComponent(match[1]);
+    }
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+
+    var fetchUrl = endpoint.startsWith('http') ? endpoint : (window.API_CONFIG.BASE_URL + endpoint);
+
+    fetch(fetchUrl, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (res) {
+        // Gỡ loading text
+        overlay.removeChild(loadingText);
+
+        var records = [];
+        if (res && res.records) records = res.records;
+        else if (res && res.data) records = res.data;
+        else if (Array.isArray(res)) records = res;
+
+        var templates = [];
+        if (records.length > 0) {
+          templates = records.map(function (r) {
+            return {
+              id: r.TemplateFile,
+              name: r.GhiChu || r.TemplateFile,
+              loaiHD: r.LoaiHD
+            };
+          });
+        } else {
+          // Không có mẫu cấu hình dưới CSDL, hiển thị thông báo lỗi
+          var errBox = document.createElement('div');
+          errBox.style.backgroundColor = '#ffffff';
+          errBox.style.padding = '24px';
+          errBox.style.borderRadius = '12px';
+          errBox.style.textAlign = 'center';
+          errBox.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1)';
+          errBox.style.fontFamily = '"Inter", system-ui, -apple-system, sans-serif';
+          
+          var errMsg = document.createElement('p');
+          errMsg.innerText = 'Không tìm thấy mẫu hợp đồng nào được cấu hình trong CSDL (bảng HR_HopDongAddfile).';
+          errMsg.style.color = '#ef4444';
+          errMsg.style.fontSize = '14px';
+          errMsg.style.fontWeight = '500';
+          errMsg.style.margin = '0 0 16px 0';
+          errBox.appendChild(errMsg);
+          
+          var btnClose = document.createElement('button');
+          btnClose.innerText = 'Đóng';
+          btnClose.style.padding = '8px 18px';
+          btnClose.style.borderRadius = '8px';
+          btnClose.style.border = 'none';
+          btnClose.style.backgroundColor = '#64748b';
+          btnClose.style.color = '#ffffff';
+          btnClose.style.fontSize = '14px';
+          btnClose.style.fontWeight = '600';
+          btnClose.style.cursor = 'pointer';
+          btnClose.addEventListener('click', function () {
+            document.body.removeChild(overlay);
+          });
+          errBox.appendChild(btnClose);
+          overlay.appendChild(errBox);
+          return;
+        }
+
+        // --- XÂY DỰNG MODAL GIAO DIỆN CHỌN MẪU ---
+        var container = document.createElement('div');
+        container.style.backgroundColor = '#ffffff';
+        container.style.padding = '28px';
+        container.style.borderRadius = '12px';
+        container.style.width = '460px';
+        container.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)';
+        container.style.fontFamily = '"Inter", system-ui, -apple-system, sans-serif';
+
+        var title = document.createElement('h3');
+        title.innerText = 'Chọn mẫu in Hợp đồng';
+        title.style.margin = '0 0 8px 0';
+        title.style.fontSize = '18px';
+        title.style.fontWeight = '600';
+        title.style.color = '#0f172a';
+        container.appendChild(title);
+
+        var desc = document.createElement('p');
+        desc.innerText = 'Chọn một trong các mẫu hợp đồng dưới đây để xuất file:';
+        desc.style.margin = '0 0 20px 0';
+        desc.style.fontSize = '14px';
+        desc.style.color = '#64748b';
+        container.appendChild(desc);
+
+        var radioGroup = document.createElement('div');
+        radioGroup.style.display = 'flex';
+        radioGroup.style.flexDirection = 'column';
+        radioGroup.style.gap = '10px';
+        radioGroup.style.margin = '0 0 24px 0';
+
+        // Xác định mẫu được đề xuất dựa trên LoaiHD / LoaiHopDong từ dòng dữ liệu
+        var rowLoaiHD = (row.LoaiHD || row.LoaiHopDong || '').toString().toLowerCase();
+
+        var selectedId = templates[0].id;
+        var matched = null;
+
+        // Ưu tiên khớp chính xác theo LoaiHD/LoaiHopDong cấu hình CSDL
+        for (var i = 0; i < templates.length; i++) {
+          var tLoai = (templates[i].loaiHD || '').toLowerCase();
+          if (tLoai && (rowLoaiHD.includes(tLoai) || tLoai.includes(rowLoaiHD))) {
+            matched = templates[i];
+            break;
+          }
+        }
+
+        if (matched) {
+          selectedId = matched.id;
+        }
+
+        templates.forEach(function (tpl) {
+          var label = document.createElement('label');
+          label.style.display = 'flex';
+          label.style.alignItems = 'center';
+          label.style.gap = '12px';
+          label.style.cursor = 'pointer';
+          label.style.fontSize = '14px';
+          label.style.color = '#334155';
+          label.style.padding = '12px 14px';
+          label.style.borderRadius = '8px';
+          label.style.border = '1px solid #e2e8f0';
+          label.style.transition = 'all 0.15s ease';
+          
+          var radio = document.createElement('input');
+          radio.type = 'radio';
+          radio.name = 'tplSelect';
+          radio.value = tpl.id;
+          radio.style.cursor = 'pointer';
+          radio.style.margin = '0';
+          
+          var textSpan = document.createElement('span');
+          textSpan.innerText = tpl.name;
+          textSpan.style.fontWeight = '500';
+
+          if (tpl.id === selectedId) {
+            radio.checked = true;
+            label.style.borderColor = '#3b82f6';
+            label.style.backgroundColor = '#eff6ff';
+            textSpan.style.color = '#1d4ed8';
+            
+            var badge = document.createElement('span');
+            badge.innerText = 'Đề xuất';
+            badge.style.marginLeft = 'auto';
+            badge.style.fontSize = '11px';
+            badge.style.backgroundColor = '#dbeafe';
+            badge.style.color = '#1e40af';
+            badge.style.padding = '2px 8px';
+            badge.style.borderRadius = '9999px';
+            badge.style.fontWeight = '600';
+            
+            label.appendChild(radio);
+            label.appendChild(textSpan);
+            label.appendChild(badge);
+          } else {
+            label.appendChild(radio);
+            label.appendChild(textSpan);
+          }
+
+          radio.addEventListener('change', function () {
+            var labels = radioGroup.querySelectorAll('label');
+            labels.forEach(function (l) {
+              l.style.borderColor = '#e2e8f0';
+              l.style.backgroundColor = 'transparent';
+              var span = l.querySelector('span:not([style*="margin-left"])');
+              if (span) span.style.color = '#334155';
+              var bg = l.querySelector('span[style*="margin-left"]');
+              if (bg) l.removeChild(bg);
+            });
+
+            if (radio.checked) {
+              label.style.borderColor = '#3b82f6';
+              label.style.backgroundColor = '#eff6ff';
+              textSpan.style.color = '#1d4ed8';
+            }
+          });
+
+          radioGroup.appendChild(label);
+        });
+        container.appendChild(radioGroup);
+
+        var actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.justifyContent = 'flex-end';
+        actions.style.gap = '12px';
+
+        var btnCancel = document.createElement('button');
+        btnCancel.innerText = 'Hủy';
+        btnCancel.style.padding = '10px 18px';
+        btnCancel.style.borderRadius = '8px';
+        btnCancel.style.border = '1px solid #cbd5e1';
+        btnCancel.style.backgroundColor = '#ffffff';
+        btnCancel.style.cursor = 'pointer';
+        btnCancel.style.fontSize = '14px';
+        btnCancel.style.fontWeight = '600';
+        btnCancel.style.color = '#475569';
+        btnCancel.addEventListener('click', function () {
+          document.body.removeChild(overlay);
+        });
+
+        var btnConfirm = document.createElement('button');
+        btnConfirm.innerText = 'Xuất Hợp Đồng';
+        btnConfirm.style.padding = '10px 18px';
+        btnConfirm.style.borderRadius = '8px';
+        btnConfirm.style.border = 'none';
+        btnConfirm.style.backgroundColor = '#3b82f6';
+        btnConfirm.style.cursor = 'pointer';
+        btnConfirm.style.fontSize = '14px';
+        btnConfirm.style.fontWeight = '600';
+        btnConfirm.style.color = '#ffffff';
+        btnConfirm.addEventListener('click', function () {
+          var selectedRadio = radioGroup.querySelector('input[name="tplSelect"]:checked');
+          if (selectedRadio) {
+            onConfirm(selectedRadio.value);
+          }
+          document.body.removeChild(overlay);
+        });
+
+        actions.appendChild(btnCancel);
+        actions.appendChild(btnConfirm);
+        container.appendChild(actions);
+
+        overlay.appendChild(container);
+      })
+      .catch(function (err) {
+        console.error('[DocumentExportPlugin] Lỗi tải mẫu CSDL:', err);
+        overlay.removeChild(loadingText);
+        
+        // Hiện thông báo lỗi và tự động gỡ overlay
+        var errBox = document.createElement('div');
+        errBox.style.backgroundColor = '#ffffff';
+        errBox.style.padding = '24px';
+        errBox.style.borderRadius = '8px';
+        errBox.style.textAlign = 'center';
+        
+        var errMsg = document.createElement('p');
+        errMsg.innerText = 'Không thể kết nối đến máy chủ hoặc tải danh sách mẫu từ CSDL.';
+        errMsg.style.color = '#ef4444';
+        errMsg.style.margin = '0 0 16px 0';
+        errBox.appendChild(errMsg);
+        
+        var btnClose = document.createElement('button');
+        btnClose.innerText = 'Đóng';
+        btnClose.style.padding = '8px 16px';
+        btnClose.style.borderRadius = '6px';
+        btnClose.style.border = 'none';
+        btnClose.style.backgroundColor = '#6b7280';
+        btnClose.style.color = '#ffffff';
+        btnClose.style.cursor = 'pointer';
+        btnClose.addEventListener('click', function () {
+          document.body.removeChild(overlay);
+        });
+        errBox.appendChild(btnClose);
+        overlay.appendChild(errBox);
+      });
+  }
+
   function _generateDocument(row, config) {
     var docId = _getPrimaryKey(row, config);
     if (!docId) {
@@ -48,6 +340,14 @@ var DocumentExportPlugin = (function () {
         alert('Không tìm thấy ID của dòng này!');
       }
       return;
+    }
+
+    // Đọc tên file mẫu từ dữ liệu dòng hoặc cấu hình
+    var actualDocType = config.docType;
+    if (row.TemplateFile && !config.ignoreTemplateFile) {
+      actualDocType = row.TemplateFile;
+    } else if (typeof config.getDocType === 'function') {
+      actualDocType = config.getDocType(row);
     }
 
     var btn = document.getElementById('btn-export-doc-' + config.docType);
@@ -64,14 +364,28 @@ var DocumentExportPlugin = (function () {
       document.head.appendChild(ks);
     }
 
+    var headers = { 'Content-Type': 'application/json' };
+    var token = '';
+    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') {
+      token = ApiClient.getCookie('auth_token');
+    } else {
+      var match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
+      if (match) token = decodeURIComponent(match[1]);
+    }
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+
     fetch(DOC_API_BASE + '/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify({
-        templateType: config.docType,
+        templateType: actualDocType,
         customerId: docId,
-        outputFileName: config.docType + '_' + docId,
-        rowData: row
+        outputFileName: actualDocType + '_' + docId,
+        rowData: row,
+        sqlListName: config.sqlListName,
+        convertFields: config.convertFields || []
       })
     })
       .then(function (res) { return res.json(); })
@@ -106,7 +420,7 @@ var DocumentExportPlugin = (function () {
     var config = FORM_CONFIG[formName];
     if (!config) return [];
 
-    return [{
+    var buttons = [{
       id: 'btn-export-doc-' + config.docType,
       text: config.label,
       icon: config.icon,
@@ -123,19 +437,17 @@ var DocumentExportPlugin = (function () {
         }
 
         var row = selectedRows[0];
-        var st = (row.Status || row.TrangThai || '').toString().toLowerCase();
-        if (st.includes('đã ký')) {
-          if (typeof Alert !== 'undefined') {
-            Alert.warning('Bị khóa', 'Không thể xuất lại file cho Hợp đồng/Phiếu đã chốt (Đã ký).');
-          } else {
-            alert('Không thể xuất lại file cho Hợp đồng/Phiếu đã chốt (Đã ký).');
-          }
-          return;
-        }
-
-        _generateDocument(row, config);
+        _showTemplateSelectModal(row, config, function (selectedTemplate) {
+          var customConfig = Object.assign({}, config, {
+            docType: selectedTemplate,
+            ignoreTemplateFile: true
+          });
+          _generateDocument(row, customConfig);
+        });
       }
     }];
+
+    return buttons;
   }
 
   // Đăng ký Plugin vào hệ thống
