@@ -178,7 +178,7 @@ window.DynamicFormEngine = (function () {
     function _getContentAsBlobUrl(fileItem) {
       var content = fileItem.Content || fileItem.content || fileItem.Base64Content || fileItem.base64Content || '';
       if (!content) return '';
-      
+
       var ext = (fileItem.FileName || '').split('.').pop().toLowerCase();
       var mime = 'application/octet-stream';
       if (ext === 'pdf') mime = 'application/pdf';
@@ -1749,9 +1749,9 @@ window.DynamicFormEngine = (function () {
           tabBtn.type = 'button';
           tabBtn.textContent = tab.label;
           var isActive = (idx === activeDetailTabIdx);
-          
+
           tabBtn.style.cssText = 'padding: 8px 16px; font-size: 13px; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; font-family: inherit;';
-          
+
           if (isActive) {
             tabBtn.style.backgroundColor = 'var(--color-primary)';
             tabBtn.style.color = '#ffffff';
@@ -1760,21 +1760,21 @@ window.DynamicFormEngine = (function () {
           } else {
             tabBtn.style.backgroundColor = 'transparent';
             tabBtn.style.color = 'var(--color-text-secondary)';
-            
-            tabBtn.onmouseover = function() {
+
+            tabBtn.onmouseover = function () {
               if (idx !== activeDetailTabIdx) {
                 this.style.backgroundColor = 'var(--color-surface)';
                 this.style.color = 'var(--color-text)';
               }
             };
-            tabBtn.onmouseout = function() {
+            tabBtn.onmouseout = function () {
               if (idx !== activeDetailTabIdx) {
                 this.style.backgroundColor = 'transparent';
                 this.style.color = 'var(--color-text-secondary)';
               }
             };
           }
-          
+
           tabBtn.onclick = function () {
             activeDetailTabIdx = idx;
             _updateDetailView();
@@ -2354,7 +2354,18 @@ window.DynamicFormEngine = (function () {
   }
 
   function _openAddForm() {
-    _openModal(false, null);
+    // Neu co WizardSteps -> dung Wizard multi-step, nguoc lai dung modal thuong
+    if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
+      WizardForm.open({
+        steps: MODULE_CONFIG.WizardSteps,
+        formSchema: globalFormSchema,
+        moduleConfig: MODULE_CONFIG,
+        currentUser: _currentUser(),
+        saveData: _saveData
+      });
+    } else {
+      _openModal(false, null);
+    }
   }
 
 
@@ -3393,13 +3404,13 @@ window.DynamicFormEngine = (function () {
         } else {
           tabBtn.style.backgroundColor = 'transparent';
           tabBtn.style.color = 'var(--color-text-secondary)';
-          
-          tabBtn.onmouseover = function() {
+
+          tabBtn.onmouseover = function () {
             if (panel.style.display !== 'none') return; // active
             this.style.backgroundColor = 'var(--color-surface)';
             this.style.color = 'var(--color-text)';
           };
-          tabBtn.onmouseout = function() {
+          tabBtn.onmouseout = function () {
             if (panel.style.display !== 'none') return; // active
             this.style.backgroundColor = 'transparent';
             this.style.color = 'var(--color-text-secondary)';
@@ -3570,7 +3581,7 @@ window.DynamicFormEngine = (function () {
                     currRow['PersonName'] = selectedData[2];
                     currRow['PhongBan'] = selectedData[3];
                     currRow['MucDong'] = parseFloat(selectedData[4]) || 0;
-                    
+
                     if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[2] || '';
                     if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[3] || '';
                     if (cellMap['MucDong']) {

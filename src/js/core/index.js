@@ -117,6 +117,13 @@ document.addEventListener('DOMContentLoaded', function () {
     HideDetailTabsInModal: true,
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã, tên nhân viên hoặc số điện thoại...',
+    WizardSteps: [
+      { label: 'Cơ bản', icon: 'person', description: 'Thông tin cơ bản', fields: ['PersonName', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam'] },
+      { label: 'Cá nhân', icon: 'badge', description: 'Thông tin cá nhân', fields: ['NgaySinh', 'GioiTinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'DienThoai', 'Email', 'DiaChiThuongTru'] },
+      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['LoaiHopDong', 'SoHopDong', 'SocialID', 'SoTheBHYT'] },
+      { label: 'Xác nhận', icon: 'fact_check', description: 'Kiểm tra thông tin trước khi lưu', fields: [] }
+    ],
+
     DetailTabs: [
       {
         label: 'Sơ yếu lý lịch',
