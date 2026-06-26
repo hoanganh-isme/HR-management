@@ -118,9 +118,9 @@ document.addEventListener('DOMContentLoaded', function () {
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã, tên nhân viên hoặc số điện thoại...',
     WizardSteps: [
-      { label: 'Cơ bản', icon: 'person', description: 'Thông tin cơ bản', fields: ['PersonName', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam'] },
-      { label: 'Cá nhân', icon: 'badge', description: 'Thông tin cá nhân', fields: ['NgaySinh', 'GioiTinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'DienThoai', 'Email', 'DiaChiThuongTru'] },
-      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['LoaiHopDong', 'SoHopDong', 'SocialID', 'SoTheBHYT'] },
+      { label: 'Cơ bản', icon: 'person', description: 'Thông tin công việc', fields: ['PersonID', 'NewPersonID', 'PersonName', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 'PersonStatus', 'ShiftID'] },
+      { label: 'Cá nhân', icon: 'badge', description: 'Thông tin cá nhân', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'PeoplesName', 'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'EducationName', 'CareerName'] },
+      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['BankHolder', 'BankAccountNo', 'BankName', 'BankLocation', 'SocialID', 'SocialDate', 'NgayKetThucBH', 'SoTheBHYT', 'ThoiGianHuongBHYT', 'SoHopDong', 'LoaiHopDong'] },
       { label: 'Xác nhận', icon: 'fact_check', description: 'Kiểm tra thông tin trước khi lưu', fields: [] }
     ],
 
@@ -190,19 +190,6 @@ document.addEventListener('DOMContentLoaded', function () {
           PCCongTac: 'PC Công tác',
           PCTrachNhiem: 'PC Trách nhiệm',
           PCKhac: 'Phụ cấp khác',
-          GhiChu: 'Ghi chú'
-        }
-      },
-      {
-        label: 'Lương & Phụ cấp',
-        api: 'API_PersonFull_T2_Allowance',
-        filterField: 'PersonID',
-        fields: ['MaPhuCap', 'NoiDungPhuCap', 'FromDate', 'ToDate', 'GhiChu'],
-        headers: {
-          MaPhuCap: 'Mã phụ cấp',
-          NoiDungPhuCap: 'Nội dung',
-          FromDate: 'Từ ngày',
-          ToDate: 'Đến ngày',
           GhiChu: 'Ghi chú'
         }
       },
@@ -567,7 +554,7 @@ document.addEventListener('DOMContentLoaded', function () {
       { name: 'MaHopDong', label: 'Mã hợp đồng', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true, position: 'grid', orderNo: 1 },
       { name: 'NamLap', label: 'Năm lập', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 2 },
       { name: 'PersonID', label: 'Mã nhân viên', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true, position: 'grid', orderNo: 3, renderRule: 'sl', dataSource: 'HR_PersonTbl' },
-      { name: 'PersonName', label: 'Họ tên', required: false, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, position: 'grid', orderNo: 4 },
+      { name: 'PersonName', label: 'Họ tên', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 4 },
       { name: 'LoaiHopDong', label: 'Loại hợp đồng', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 5, renderRule: 'sl', dataSource: 'STATIC:Không thời hạn|Không thời hạn,Có thời hạn|Có thời hạn' },
       { name: 'LoaiHD', label: 'Loại HD', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 6 },
       { name: 'NgayKyHopDong', label: 'Ngày ký HĐ', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 7, renderRule: 'dt' },
@@ -587,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // --- Điều kiện làm việc ---
       { name: 'DiaDiemLamViec', label: 'Địa điểm làm việc', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 19 },
       { name: 'PhuongTien', label: 'Phương tiện đi làm', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 20 },
-      { name: 'PersonStatus', label: 'Trạng thái nhân viên', required: false, showInAdd: false, showInEdit: true, isReadOnlyEdit: true, position: 'form', orderNo: 21 },
+      { name: 'PersonStatus', label: 'Trạng thái nhân viên', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 21, renderRule: 'sl', dataSource: 'API_ComboPersonStatus' },
       // --- CCCD / Địa chỉ ---
       { name: 'CMND', label: 'Số CCCD/CMND', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 22 },
       { name: 'CMNDNgayCap', label: 'Ngày cấp CCCD', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'form', orderNo: 23, renderRule: 'dt' },

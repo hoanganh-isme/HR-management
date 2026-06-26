@@ -126,7 +126,11 @@ $jsFiles = @(
   "components\search-dropdown\SearchDropdown.js",
   "components\side-panel\SidePanel.js",
   "components\screen-capture\ScreenCapture.js",
-  "components\rule-builder\RuleBuilderDialog.js"
+  "components\rule-builder\RuleBuilderDialog.js",
+  "js\core\WizardForm.js",
+  "js\core\DynamicFormEngine.js",
+  "js\core\index.js",
+  "js\core\router.js"
 )
 
 # --- Build CSS ---

@@ -207,7 +207,7 @@ SET CaptionVN = CASE FieldName
     IsReadOnlyAdd  = CASE WHEN FieldName = 'PersonID' THEN 1 ELSE 0 END,
     IsReadOnlyEdit = CASE WHEN FieldName = 'PersonID' THEN 1 ELSE 0 END,
     IsRequired     = 0,
-    ShowInFilter   = CASE WHEN FieldName IN ('BranchID', 'PhongBan', 'PersonName') THEN 1 ELSE 0 END,
+    ShowInFilter   = 0,
     OrderNo = CASE FieldName
         WHEN 'PersonID'           THEN 1
         WHEN 'PersonName'         THEN 2

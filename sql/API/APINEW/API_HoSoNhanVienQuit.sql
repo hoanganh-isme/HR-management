@@ -11,7 +11,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVienQuit
 (
     @Keyword   NVARCHAR(200) = '',
-    @BranchID  NVARCHAR(50)  = '',
+    @BranchID  NVARCHAR(MAX)  = '',
     @PhongBan  NVARCHAR(50)  = '',
     @NamLap    INT           = NULL,
     @LoaiHD    NVARCHAR(50)  = ''
@@ -83,6 +83,12 @@ BEGIN
         WHERE PersonID = P.PersonID
         ORDER BY UserAutoID DESC
     ) PA
+    OUTER APPLY (
+        SELECT TOP 1 LoaiHD
+        FROM dbo.HR_HopDongTbl
+        WHERE PersonID = P.PersonID
+        ORDER BY NgayKyHopDong DESC
+    ) HD
     WHERE 
         -- Chỉ lấy nhân viên đã nghỉ việc (8: Đã nghỉ việc)
         P.PersonStatus = 8
@@ -94,7 +100,7 @@ BEGIN
          OR P.DienThoai  LIKE N'%' + @Keyword + '%')
          
         -- Bộ lọc chi nhánh (BranchID)
-        AND (@BranchID = '' OR P.BranchID = @BranchID)
+       AND (@BranchID = '' OR LTRIM(RTRIM(P.BranchID)) IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
          
         -- Bộ lọc bộ phận (PhongBan)
         AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
@@ -103,7 +109,7 @@ BEGIN
         AND (@NamLap IS NULL OR YEAR(ISNULL(P.NgaySinh, '1900-01-01')) = @NamLap OR YEAR(ISNULL(P.NgayVaoLam, '1900-01-01')) = @NamLap)
          
         -- Bộ lọc loại hợp đồng
-        AND (@LoaiHD = '' OR P.SoHopDong LIKE N'%' + @LoaiHD + '%')
+        AND (@LoaiHD = '' OR HD.LoaiHD LIKE N'%' + @LoaiHD + '%')
     ORDER BY P.PersonID DESC;
 END
 GO

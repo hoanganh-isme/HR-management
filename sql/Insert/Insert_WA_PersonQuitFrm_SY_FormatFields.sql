@@ -177,7 +177,7 @@ SET CaptionVN = CASE FieldName
     IsReadOnlyAdd  = CASE WHEN FieldName = 'PersonID' THEN 1 ELSE 0 END,
     IsReadOnlyEdit = CASE WHEN FieldName = 'PersonID' THEN 1 ELSE 0 END,
     IsRequired     = 0,
-    ShowInFilter   = CASE WHEN FieldName IN ('BranchID', 'PhongBan', 'PersonName') THEN 1 ELSE 0 END,
+    ShowInFilter   = 0,
     OrderNo = CASE FieldName
         WHEN 'PersonID'           THEN 1
         WHEN 'PersonName'         THEN 2
@@ -256,3 +256,25 @@ GO
 
 PRINT 'Da thiet lap WA_PersonQuitFrm (Ho so nhan vien da nghi viec) voi MenuID 2012 thanh cong!';
 GO
+
+-- Thêm các cột ảo dùng cho bộ lọc
+IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonQuitFrm' AND FieldName = 'LoaiHD')
+BEGIN
+    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
+    VALUES ('WA_PersonQuitFrm', 'LoaiHD', N'Loại HĐ', 'Contract Type', 'sl', 0, 'grid', 0, 0, 0, 0, 100, 1, 'API_ComboHopDongLoai')
+END
+ELSE BEGIN
+    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_ComboHopDongLoai' WHERE FormName = 'WA_PersonQuitFrm' AND FieldName = 'LoaiHD'
+END
+
+IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonQuitFrm' AND FieldName = 'NamLap')
+BEGIN
+    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
+    VALUES ('WA_PersonQuitFrm', 'NamLap', N'Năm Lập', 'Year', 'sl', 0, 'grid', 0, 0, 0, 0, 101, 1, 'API_HopDongLaoDong_NamLap')
+END
+ELSE BEGIN
+    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_HopDongLaoDong_NamLap' WHERE FormName = 'WA_PersonQuitFrm' AND FieldName = 'NamLap'
+END
+
+-- Đảm bảo Chi nhánh hiện bộ lọc
+UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'CF_BranchListFrm' WHERE FormName = 'WA_PersonQuitFrm' AND FieldName = 'BranchID'

@@ -55,6 +55,62 @@ window.DynamicFormEngine = (function () {
   }
 
   /**
+   * Lấy danh sách chi nhánh được gán cho user hiện tại.
+   * Đọc từ pmql_user.BranchID (lưu trong bảng SY_User).
+   * BranchID có thể là 1 giá trị hoặc comma-separated: "COBI, DONGDU, ESTELLA".
+   * Nếu BranchID = NULL/rỗng và user là admin → trả về toàn bộ chi nhánh.
+   * Trả về Array<{ id: string, name: string }>
+   */
+  function _getUserBranches() {
+    // Bảng tên hiển thị — sync với SP [HR_MaNVTuTangTheoBranch]
+    var BRANCH_DISPLAY = {
+      'COBI':        'COBI',
+      'DONGDU':      'Đông Du',
+      'ESTELLA':     'Estella',
+      'HOANGHAI':    'Hoàng Hải',
+      'HUNGVUONG':   'Hùng Vương',
+      'NAMVINH':     'Nam Vinh',
+      'SGCENTER':    'SG Center',
+      'THANHDA':     'Thành Đa',
+      'TRANHUNGDAO': 'Trần Hưng Đạo',
+      'VANPHONG':    'Văn Phòng',
+      // ── Thêm chi nhánh mới vào đây khi DB được cập nhật ─────────
+    };
+
+    var ALL_BRANCHES = Object.keys(BRANCH_DISPLAY).map(function (k) {
+      return { id: k, name: BRANCH_DISPLAY[k] };
+    });
+
+    try {
+      var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+      // Xử lý các trường hợp key API trả về chữ hoa/chữ thường khác nhau
+      var branchRaw = (u.BranchID || u.branchID || u.branchId || u.Branch || '').toString().trim();
+      var userGrp = (u.UserGroupID || u.userGroupID || u.userGroupId || u.Group || u.NhomQuyen || _currentGroup() || '').toString().toLowerCase();
+
+      var isAdmin = (userGrp === 'admin');
+
+      // Nếu là Admin, trả về toàn bộ chi nhánh.
+      if (isAdmin) return ALL_BRANCHES;
+
+      // NẾU TÀI KHOẢN KHÔNG PHẢI ADMIN MÀ BRANCH BỊ RỖNG:
+      // Tức là API chưa trả về hoặc DB chưa gán. Không được phép trả về ALL_BRANCHES!
+      if (!branchRaw) return [];
+
+      // Parse BranchID: "COBI, DONGDU, ESTELLA" → [{ id, name }, ...]
+      return branchRaw
+        .split(',')
+        .map(function (s) { return s.trim().toUpperCase(); })
+        .filter(function (s) { return !!s; })
+        .map(function (id) {
+          return { id: id, name: BRANCH_DISPLAY[id] || id };
+        });
+    } catch (e) {
+      return [];
+    }
+  }
+
+
+  /**
    * Đọc giá trị boolean từ API field có thể trả về camelCase hoặc PascalCase
    * và có thể là '1'/true/1 hoặc '0'/false/0
    * @param {*} camel  - item.showInAdd, item.required ...
@@ -730,6 +786,17 @@ window.DynamicFormEngine = (function () {
             isReadOnlyEditVal = true;
             isReadOnlyAddVal = true;
           }
+          
+          if (['WA_PersonFullFrm', 'WA_PersonInFrm'].includes(MODULE_CONFIG.FormName)) {
+            if (['PersonID', 'NewPersonID'].includes(fieldName)) {
+              isReadOnlyEditVal = true;
+              isReadOnlyAddVal = true; // Không cho sửa mã vì đã gen
+            }
+            if (['PersonName', 'PersonStatus'].includes(fieldName)) {
+              item.required = true;
+              item.IsRequired = true;
+            }
+          }
 
           globalFormSchema.push({
             name: fieldName,
@@ -1302,6 +1369,11 @@ window.DynamicFormEngine = (function () {
         }
       }
 
+      // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
+      var _sessionUser = {};
+      try { _sessionUser = JSON.parse(localStorage.getItem('pmql_user') || '{}'); } catch(e) {}
+      var _branchID = (_sessionUser.BranchID || '').toString().trim();
+
       var query = {
         List: MODULE_CONFIG.FormName,
         Func: 'View',
@@ -1314,9 +1386,18 @@ window.DynamicFormEngine = (function () {
         Keyword: currentKeyword || ''
       };
 
+      // Gửi BranchID vào JsonData để backend API Gateway mapping thành tham số SP
+      if (_branchID) {
+        // Chỉ thêm nếu user chưa chủ động filter chi nhánh
+        if (!activeFilters.BranchID && !activeFilters.ChiNhanhID) {
+          activeFilters.BranchID = _branchID;
+        }
+      }
+
       if (Object.keys(activeFilters).length > 0) {
         query.JsonData = JSON.stringify(activeFilters);
       }
+
       console.log('[DynamicFormEngine] Sending query to ApiSearch:', query);
       ApiClient.post(MODULE_CONFIG.ApiSearch, query).then(function (result) {
         // Trả lại quyền sinh sát (tính phân trang) cho C# Backend
@@ -2357,11 +2438,12 @@ window.DynamicFormEngine = (function () {
     // Neu co WizardSteps -> dung Wizard multi-step, nguoc lai dung modal thuong
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
-        steps: MODULE_CONFIG.WizardSteps,
-        formSchema: globalFormSchema,
+        steps:        MODULE_CONFIG.WizardSteps,
+        formSchema:   globalFormSchema,
         moduleConfig: MODULE_CONFIG,
-        currentUser: _currentUser(),
-        saveData: _saveData
+        currentUser:  _currentUser(),
+        userBranches: _getUserBranches(),   // Danh sách chi nhánh của user
+        saveData:     _saveData
       });
     } else {
       _openModal(false, null);
@@ -2371,7 +2453,20 @@ window.DynamicFormEngine = (function () {
 
 
   function _openEditForm(row) {
-    _openModal(true, row);
+    if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
+      WizardForm.open({
+        isEdit:       true,
+        rowData:      row,
+        steps:        MODULE_CONFIG.WizardSteps,
+        formSchema:   globalFormSchema,
+        moduleConfig: MODULE_CONFIG,
+        currentUser:  _currentUser(),
+        userBranches: _getUserBranches(),
+        saveData:     _saveData
+      });
+    } else {
+      _openModal(true, row);
+    }
   }
 
   function _openBulkEditForm() {

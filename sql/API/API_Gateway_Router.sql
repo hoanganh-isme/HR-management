@@ -40,7 +40,7 @@ BEGIN
 
     -- 2. Lấy Context của hệ thống dựa theo UserName (Phục vụ Phân quyền RLS)
     DECLARE @UserGroup VARCHAR(50) = '';
-    DECLARE @BranchID VARCHAR(50) = '';
+    DECLARE @BranchID NVARCHAR(MAX) = ''; -- Tăng kích thước để chứa nhiều chi nhánh
     DECLARE @ManagerID VARCHAR(50) = '';
     DECLARE @EmployeeID VARCHAR(50) = '';
     
@@ -61,8 +61,8 @@ BEGIN
     IF (ISNULL(@BranchID, '') = '' OR @UserGroup = 'Admin') 
        AND ISNULL(@JsonData, '') <> '' AND ISJSON(@JsonData) = 1
     BEGIN
-        DECLARE @UI_BranchID VARCHAR(50);
-        SELECT @UI_BranchID = CAST(JSON_VALUE(@JsonData, '$.BranchID') AS VARCHAR(50));
+        DECLARE @UI_BranchID NVARCHAR(MAX);
+        SELECT @UI_BranchID = CAST(JSON_VALUE(@JsonData, '$.BranchID') AS NVARCHAR(MAX));
         IF @UI_BranchID IS NOT NULL
         BEGIN
             SET @BranchID = @UI_BranchID;

@@ -8,7 +8,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVien
 (
     @Keyword   NVARCHAR(200) = '',
-    @BranchID  NVARCHAR(50)  = '',
+    @BranchID  NVARCHAR(MAX)  = '',
     @PhongBan  NVARCHAR(50)  = '',
     @NamLap    INT           = NULL,
     @LoaiHD    NVARCHAR(50)  = ''
@@ -80,6 +80,12 @@ BEGIN
         WHERE PersonID = P.PersonID
         ORDER BY UserAutoID DESC
     ) PA
+    OUTER APPLY (
+        SELECT TOP 1 LoaiHD
+        FROM dbo.HR_HopDongTbl
+        WHERE PersonID = P.PersonID
+        ORDER BY NgayKyHopDong DESC
+    ) HD
     WHERE 
         -- Bộ lọc từ khoá (Keyword)
         (@Keyword IS NULL OR @Keyword = ''
@@ -88,7 +94,8 @@ BEGIN
          OR P.DienThoai  LIKE N'%' + @Keyword + '%')
         
         -- Bộ lọc chi nhánh (BranchID)
-        AND (@BranchID = '' OR P.BranchID = @BranchID)
+        AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
+
         
         -- Bộ lọc bộ phận (PhongBan)
         AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
@@ -96,8 +103,8 @@ BEGIN
         -- Bộ lọc năm lập (NamLap - lọc theo năm sinh của nhân viên hoặc năm vào làm nếu không có cột NamLap)
         AND (@NamLap IS NULL OR YEAR(ISNULL(P.NgaySinh, '1900-01-01')) = @NamLap OR YEAR(ISNULL(P.NgayVaoLam, '1900-01-01')) = @NamLap)
         
-        -- Bộ lọc loại hợp đồng (LoaiHopDong / LoaiHD)
-        AND (@LoaiHD = '' OR P.SoHopDong LIKE N'%' + @LoaiHD + '%')
+        -- Bộ lọc loại hợp đồng (LoaiHD từ HR_HopDongTbl)
+        AND (@LoaiHD = '' OR HD.LoaiHD LIKE N'%' + @LoaiHD + '%')
     ORDER BY P.PersonID DESC;
 END
 GO
@@ -116,29 +123,6 @@ BEGIN
        *
     FROM dbo.HR_PersonSalaryTbl
     WHERE PersonID = @PersonID
-END
-GO
-
--- =========================================================================
--- 3. Detail API Tab 2: Lương & Phụ cấp (HR_PersonAllowanceTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T2_Allowance
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        UserAutoID,
-        MaPhuCap,
-        PersonID,
-        FromDate,
-        ToDate,
-        NoiDungPhuCap,
-        GhiChu
-    FROM dbo.HR_PersonAllowanceTbl
-    WHERE PersonID = @PersonID;
 END
 GO
 

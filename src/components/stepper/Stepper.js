@@ -25,12 +25,24 @@ var UIStepper = (function () {
         stepDiv.classList.add('active');
       }
 
+      // Allow clicking if callback is provided
+      if (step.onClick) {
+        stepDiv.style.cursor = 'pointer';
+        stepDiv.addEventListener('click', function() {
+          step.onClick(index);
+        });
+      }
+
       var circle = document.createElement('div');
       circle.className = 'ui-step-circle';
       if (index < currentStepIndex) {
         circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">check</span>';
       } else {
-        circle.innerText = (index + 1);
+        if (step.icon) {
+            circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;">' + step.icon + '</span>';
+        } else {
+            circle.innerText = (index + 1);
+        }
       }
 
       var label = document.createElement('div');
