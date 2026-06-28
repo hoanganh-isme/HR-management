@@ -3051,6 +3051,14 @@ window.DynamicFormEngine = (function () {
         formGroupWrapper.appendChild(hiddenInput);
 
         if (field.dataSource) {
+          if (field.name === 'BranchID') {
+            var userBranches = _getUserBranches() || [];
+            if (userBranches.length > 0) {
+              field.dataSource = 'STATIC:' + userBranches.map(function (b) {
+                return b.id + '|' + (b.name || b.id);
+              }).join(',');
+            }
+          }
           if (String(field.dataSource).toUpperCase().startsWith('STATIC:')) {
             var staticStr = field.dataSource.substring(7);
             var staticData = staticStr.split(',').map(function (s) {

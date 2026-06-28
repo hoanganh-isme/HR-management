@@ -1,4 +1,4 @@
-﻿/* --- mockData.js --- */
+/* --- mockData.js --- */
 /**
  * Mock Data
  * Dữ liệu mẫu dùng chung cho toàn bộ hệ thống trong lúc chờ tích hợp API thật
@@ -12433,6 +12433,8 @@ var WizardForm = (function () {
     var rowData = config.rowData || {};
     var saveData = config.saveData;
     var moduleConfig = config.moduleConfig || {};
+    var currentUser = config.currentUser || '';
+    var userBranches = config.userBranches || [];
 
     var formState = Object.assign({}, rowData);
 
@@ -12685,22 +12687,96 @@ var WizardForm = (function () {
         fgw.appendChild(hiddenIn);
 
         var ds = field.dataSource || '';
+        if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
+            ds = 'STATIC:' + userBranches.map(function (b) {
+                return b.id + '|' + (b.name || b.id);
+            }).join(',');
+        }
         if (ds.toUpperCase().startsWith('STATIC:')) {
             var staticData = ds.substring(7).split(',').map(function (s) {
-                var p = s.split('|'); return { id: p[0], text: p[1] || p[0] };
+                var p = s.split('|'); return [p[0], p[1] || p[0]];
             });
-            var opts = { data: staticData, value: field.value, onChange: function(v) { hiddenIn.value = v; } };
-            if (field.readOnly) opts.disabled = true;
-            if (typeof DataComboBox !== 'undefined') fgw.appendChild(DataComboBox.create(opts));
-        } else {
-            var apiUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
             var opts = {
-                apiUrl: apiUrl, apiList: ds, value: field.value,
-                valueField: field.valueMember || 'ID', displayField: field.displayMember || 'Name',
-                onChange: function(v) { hiddenIn.value = v; }
+                placeholder: '-- Vui lòng chọn --',
+                headers: ['Mã', 'Tên'],
+                disabled: field.readOnly,
+                onSearch: function (q) {
+                    return Promise.resolve({
+                        headers: ['Mã', 'Tên'],
+                        data: q ? staticData.filter(function (r) { return r[1].toLowerCase().indexOf(q.toLowerCase()) > -1; }) : staticData,
+                        colFilterIndex: 1
+                    });
+                },
+                onSelect: function (row) {
+                    hiddenIn.value = row[0];
+                    formState[field.name] = row[0];
+                    hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
+                }
             };
-            if (field.readOnly) opts.disabled = true;
-            if (typeof DataComboBox !== 'undefined') fgw.appendChild(DataComboBox.create(opts));
+            var combo = UIControls.createDataComboBox(opts);
+            var matched = staticData.find(function (r) { return r[0] == field.value; });
+            var dIn = combo.querySelector('input.ui-input');
+            if (matched && dIn) dIn.value = matched[1];
+            fgw.appendChild(combo);
+        } else if (ds) {
+            var endpointRaw = ds.indexOf('|') > -1 ? ds.split('|')[0] : ds;
+            var baseUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '');
+            var finalUrl = baseUrl + '/api/API_Gateway_Router';
+            var fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View', UserName: currentUser };
+            
+            var searchApiCall = function (q) {
+                var pl = Object.assign({}, fetchPayload);
+                if (q) pl.Keyword = q;
+                return ApiClient.post(finalUrl, pl).then(function (res) {
+                    var list = res.list || res.records || [];
+                    if (!list.length) return { headers: ['Mã', 'Tên'], data: [], colFilterIndex: 1 };
+                    var keys = Object.keys(list[0]);
+                    
+                    var comboData = [];
+                    list.forEach(function (d) {
+                        var rowData = [];
+                        keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                        comboData.push(rowData);
+                    });
+                    
+                    var labelRegex = /name|tên|ten|label|desc|title/i;
+                    var displayKey = keys.find(function (k) { return labelRegex.test(k); });
+                    var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+                    
+                    return {
+                        headers: keys,
+                        data: comboData,
+                        colFilterIndex: colFilterIndex
+                    };
+                });
+            };
+            
+            var lazyCombo = UIControls.createDataComboBox({
+                placeholder: '-- Vui lòng chọn --',
+                headers: ['Mã', 'Tên'],
+                disabled: field.readOnly,
+                onSearch: searchApiCall,
+                onSelect: function (row) {
+                    hiddenIn.value = row[0];
+                    formState[field.name] = row[0];
+                    hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+            
+            if (field.value) {
+                searchApiCall('').then(function (res) {
+                    var displayInput = lazyCombo.querySelector('input.ui-input');
+                    var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
+                    if (matched && displayInput) {
+                        displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
+                    }
+                }).catch(function (err) {
+                    console.error('[WizardForm] DataComboBox initial fetch error:', err);
+                    var displayInput = lazyCombo.querySelector('input.ui-input');
+                    if (displayInput) displayInput.placeholder = 'Lỗi tải dữ liệu';
+                });
+            }
+            fgw.appendChild(lazyCombo);
         }
         return fgw;
     }
@@ -15764,6 +15840,14 @@ window.DynamicFormEngine = (function () {
         formGroupWrapper.appendChild(hiddenInput);
 
         if (field.dataSource) {
+          if (field.name === 'BranchID') {
+            var userBranches = _getUserBranches() || [];
+            if (userBranches.length > 0) {
+              field.dataSource = 'STATIC:' + userBranches.map(function (b) {
+                return b.id + '|' + (b.name || b.id);
+              }).join(',');
+            }
+          }
           if (String(field.dataSource).toUpperCase().startsWith('STATIC:')) {
             var staticStr = field.dataSource.substring(7);
             var staticData = staticStr.split(',').map(function (s) {
