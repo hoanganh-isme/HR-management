@@ -3454,42 +3454,33 @@ body.dark-theme .section-panel .card-header {
   display: none;
 }
 
-/* Panel & Overlay được mount vào body qua JS — luôn ẩn mặc định */
 .mobile-action-panel {
-  display: none;
+  visibility: hidden;
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
   z-index: 9999;
   background: var(--color-surface);
-  border-radius: 20px 20px 0 0;
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.2);
-  padding: 0 0 env(safe-area-inset-bottom, 16px);
-  transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.mobile-action-panel::before {
-  content: '';
-  display: block;
-  width: 40px;
-  height: 4px;
-  background: var(--color-border);
-  border-radius: 2px;
-  margin: 12px auto 8px;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 200px;
+  transform: scale(0.95);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
 }
 
 .mobile-action-panel.open {
-  display: block;
-  transform: translateY(0);
+  visibility: visible;
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
 }
 
 .mobile-action-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: transparent;
   z-index: 9998;
 }
 
@@ -3513,7 +3504,11 @@ body.dark-theme .section-panel .card-header {
   /* Wrapper chiếm đủ chiều ngang */
   .mobile-action-wrapper {
     display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
     width: 100%;
+    gap: 12px;
+    overflow-x: auto; /* Cho phép cuộn ngang nếu màn hình quá hẹp */
   }
 
   /* Nút "⚙ Thao tác" */
@@ -3532,7 +3527,7 @@ body.dark-theme .section-panel .card-header {
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
     transition: background 0.2s ease, color 0.2s ease;
     white-space: nowrap;
-    margin-left: auto; /* Sát góc phải */
+    flex-shrink: 0;
   }
 
   .mobile-action-trigger .material-symbols-outlined {
@@ -3558,14 +3553,13 @@ body.dark-theme .section-panel .card-header {
   .mobile-action-item {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     width: 100%;
-    padding: 16px 24px;
+    padding: 10px 16px;
     background: transparent;
     border: none;
-    border-top: 1px solid var(--color-border);
     color: var(--color-text);
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 500;
     font-family: inherit;
     cursor: pointer;
@@ -3573,19 +3567,18 @@ body.dark-theme .section-panel .card-header {
     transition: background 0.15s ease;
   }
 
-  .mobile-action-item:first-child {
-    border-top: none;
-    margin-top: 4px;
+  .mobile-action-item:hover {
+    background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
   }
 
   .mobile-action-item:active {
-    background: rgba(79, 70, 229, 0.06);
+    background: rgba(79, 70, 229, 0.08);
   }
 
   .mobile-action-item .material-symbols-outlined {
-    font-size: 22px;
-    color: var(--color-primary);
-    width: 28px;
+    font-size: 20px;
+    color: inherit;
+    width: 24px;
     flex-shrink: 0;
   }
 
@@ -4639,6 +4632,32 @@ body.dark-theme .calendar-days-header {
   border-radius: var(--radius-md);
   border: 1px dashed var(--color-border);
   margin-bottom: 16px;
+}
+
+/* ═══════════════════════════════════════════
+   FILTER POPUP (OVERLAY PANEL)
+   ═══════════════════════════════════════════ */
+
+.filter-grid {
+  grid-template-columns: 1fr;
+}
+.filter-grid.multi-col {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 768px) {
+  .filter-grid.multi-col {
+    grid-template-columns: 1fr; /* Thu về 1 cột trên mobile */
+  }
+
+  /* Đưa popup ra giữa màn hình thay vì gắn sát nút bấm */
+  .filter-overlay-panel {
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 320px;
+    max-width: 90vw;
+  }
 }
 
 
@@ -5777,13 +5796,16 @@ body.dark-theme .data-table tbody tr:hover {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
-    font-size: 10px !important;
+    align-self: center; /* Ngăn chặn badge bị kéo giãn dọc */
+    font-size: 11px !important;
     font-weight: 700 !important;
     color: var(--color-primary) !important;
-    background: var(--color-primary-light) !important;
-    padding: 2px 6px !important;
-    border-radius: 4px !important;
+    background: var(--color-primary-light, rgba(99, 102, 241, 0.1)) !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
     margin-right: 0 !important;
+    line-height: 1 !important;
+    width: max-content !important;
   }
 
   /* Position / Date Info */
@@ -5793,7 +5815,8 @@ body.dark-theme .data-table tbody tr:hover {
     grid-column: 2;
     grid-row: 2;
     justify-self: end;
-    font-size: 11px !important;
+    align-self: start;
+    font-size: 12px !important;
     color: var(--color-text-secondary) !important;
     font-weight: 500 !important;
   }

@@ -115,9 +115,37 @@ var UIButton = (function () {
     mountToBody();
 
     function openPanel() {
+      // Show first to get dimensions if needed
       panel.classList.add('open');
       overlay.classList.add('open');
       trigger.classList.add('active');
+      
+      var rect = trigger.getBoundingClientRect();
+      var panelRect = panel.getBoundingClientRect();
+      
+      var top = rect.bottom + 4;
+      if (top + panelRect.height > window.innerHeight && rect.top > panelRect.height) {
+        top = rect.top - panelRect.height - 4; // pop upwards
+        panel.style.transformOrigin = 'bottom left';
+      } else {
+        panel.style.transformOrigin = 'top left';
+      }
+      
+      panel.style.top = top + 'px';
+      
+      // Smart positioning for left/right
+      if (rect.left < window.innerWidth / 2) {
+        // Button is on the left, anchor to the left
+        panel.style.left = rect.left + 'px';
+        panel.style.right = 'auto';
+        panel.style.transformOrigin = panel.style.transformOrigin.replace('right', 'left');
+      } else {
+        // Button is on the right, anchor to the right
+        var rightSpace = window.innerWidth - rect.right;
+        panel.style.right = rightSpace + 'px';
+        panel.style.left = 'auto';
+        panel.style.transformOrigin = panel.style.transformOrigin.replace('left', 'right');
+      }
     }
     function closePanel() {
       panel.classList.remove('open');
@@ -132,7 +160,7 @@ var UIButton = (function () {
     trigger.type = 'button';
     trigger.className = 'btn mobile-action-trigger';
     trigger.innerHTML =
-      '<span class="material-symbols-outlined">tune</span>' +
+      '<span class="material-symbols-outlined">settings</span>' +
       '<span>Thao tác</span>' +
       '<span class="material-symbols-outlined mobile-action-chevron">expand_more</span>';
     trigger.addEventListener('click', function(e) {

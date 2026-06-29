@@ -388,13 +388,16 @@ body.dark-theme .data-table tbody tr:hover {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
-    font-size: 10px !important;
+    align-self: center; /* Ngăn chặn badge bị kéo giãn dọc */
+    font-size: 11px !important;
     font-weight: 700 !important;
     color: var(--color-primary) !important;
-    background: var(--color-primary-light) !important;
-    padding: 2px 6px !important;
-    border-radius: 4px !important;
+    background: var(--color-primary-light, rgba(99, 102, 241, 0.1)) !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
     margin-right: 0 !important;
+    line-height: 1 !important;
+    width: max-content !important;
   }
 
   /* Position / Date Info */
@@ -404,7 +407,8 @@ body.dark-theme .data-table tbody tr:hover {
     grid-column: 2;
     grid-row: 2;
     justify-self: end;
-    font-size: 11px !important;
+    align-self: start;
+    font-size: 12px !important;
     color: var(--color-text-secondary) !important;
     font-weight: 500 !important;
   }

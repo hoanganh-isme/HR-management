@@ -11,6 +11,15 @@ var FilterComponent = (function () {
     document.querySelectorAll('.filter-overlay-panel').forEach(function (el) {
       el.remove();
     });
+    document.querySelectorAll('.filter-backdrop').forEach(function (el) {
+      el.remove();
+    });
+
+    var backdrop = document.createElement('div');
+    backdrop.className = 'filter-backdrop';
+    backdrop.style.cssText = 'position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 999998; display: none; opacity: 0; transition: opacity 0.2s ease; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);';
+    document.body.appendChild(backdrop);
+
 
     // 1. Tạo Panel thực sự và gắn thẳng vào body (Tránh bị cắt bởi thẻ cha có overflow: hidden hoặc transform)
     var wrapper = document.createElement('div');
@@ -27,9 +36,9 @@ var FilterComponent = (function () {
 
     // Grid Container cho Filters
     var gridContainer = document.createElement('div');
-    // Nếu có nhiều hơn 2 filter thì dùng 2 cột, ngược lại 1 cột
-    var cols = filters.length > 2 ? 2 : 1;
-    gridContainer.style.cssText = 'display: grid; grid-template-columns: repeat(' + cols + ', 1fr); gap: 16px;';
+    // Dùng CSS class để tự động responsive (1 cột trên mobile, 2 cột trên desktop)
+    gridContainer.className = 'filter-grid' + (filters.length > 2 ? ' multi-col' : '');
+    gridContainer.style.cssText = 'display: grid; gap: 16px;';
     wrapper.appendChild(gridContainer);
 
     var inputs = {};
@@ -350,8 +359,10 @@ var FilterComponent = (function () {
 
         var observer = new MutationObserver(function () {
           if (parent.style.display !== 'none') {
+            backdrop.style.display = 'block';
             wrapper.style.display = 'flex';
             setTimeout(function() {
+              backdrop.style.opacity = '1';
               wrapper.style.opacity = '1';
               wrapper.style.transform = 'translateY(0)';
             }, 10);
@@ -361,10 +372,12 @@ var FilterComponent = (function () {
             var firstInput = wrapper.querySelector('input');
             if (firstInput) firstInput.focus();
           } else {
+            backdrop.style.opacity = '0';
             wrapper.style.opacity = '0';
             wrapper.style.transform = 'translateY(-10px)';
             setTimeout(function() {
               if (parent.style.display === 'none') {
+                backdrop.style.display = 'none';
                 wrapper.style.display = 'none';
               }
             }, 200);
@@ -384,14 +397,11 @@ var FilterComponent = (function () {
       if (wrapper.style.display !== 'none') {
         var isInsidePanel = wrapper.contains(e.target);
         var isDropdownClick = e.target.closest('.data-dropdown-menu'); // allow clicking combobox dropdown
-        var btnLoc = null;
-        var btns = document.querySelectorAll('button');
-        for (var i = 0; i < btns.length; i++) {
-          if (btns[i].innerHTML.indexOf('filter_alt') !== -1 || btns[i].innerText === 'Lọc' || btns[i].getAttribute('data-tooltip') === 'Lọc / Tìm kiếm dữ liệu') {
-            btnLoc = btns[i]; break;
-          }
+        var isClickOnButton = false;
+        var clickedBtn = e.target.closest('button');
+        if (clickedBtn && (clickedBtn.innerHTML.indexOf('filter_alt') !== -1 || clickedBtn.innerText.trim() === 'Lọc' || clickedBtn.getAttribute('data-tooltip') === 'Lọc / Tìm kiếm dữ liệu')) {
+          isClickOnButton = true;
         }
-        var isClickOnButton = btnLoc && btnLoc.contains(e.target);
 
         if (!isInsidePanel && !isClickOnButton && !isDropdownClick && dummyContainer.parentElement) {
           dummyContainer.parentElement.style.display = 'none'; // Ẩn cha đi thì Observer sẽ ẩn Panel

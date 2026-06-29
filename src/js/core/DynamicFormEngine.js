@@ -1081,7 +1081,7 @@ window.DynamicFormEngine = (function () {
           onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
             var filterContainer = $container.querySelector('#dynamic-filter-container');
             if (filterContainer) {
-              if (filterContainer.style.display === 'none') {
+              if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
                 filterContainer.style.display = 'flex';
                 var inputKeyword = filterContainer.querySelector('#keyword');
                 if (inputKeyword) inputKeyword.focus();
@@ -1688,11 +1688,10 @@ window.DynamicFormEngine = (function () {
               width: 100%;
             }
             #selection-counter {
-              margin-left: 0;
-              margin-top: 4px;
-              width: 100%;
-              flex: 1 1 100%;
-              justify-content: center;
+              margin-left: auto;
+              margin-top: 0;
+              width: auto;
+              flex: 0 0 auto;
             }
           }
         `;
@@ -1869,31 +1868,101 @@ window.DynamicFormEngine = (function () {
         });
         detailContent.appendChild(tabsBar);
 
-        // --- Mobile Dropdown Select ---
+        // --- Custom Mobile Dropdown ---
         var selectWrapper = document.createElement('div');
-        selectWrapper.className = 'detail-tabs-mobile-select-wrapper';
+        selectWrapper.className = 'detail-tabs-mobile-select-wrapper custom-dropdown-wrapper';
         selectWrapper.style.cssText = 'margin-bottom: 16px; width: 100%; position: relative;';
 
-        var selectEl = document.createElement('select');
-        selectEl.className = 'detail-tabs-mobile-select ui-input';
-        selectEl.style.cssText = 'width: 100%; padding: 10px 14px; font-size: 14px; font-weight: 600; border: 1px solid var(--color-border); border-radius: 8px; background-color: var(--color-surface); color: var(--color-text); cursor: pointer; height: 42px;';
+        var triggerBtn = document.createElement('button');
+        triggerBtn.type = 'button';
+        triggerBtn.className = 'custom-dropdown-trigger';
+        triggerBtn.innerHTML = '<span>' + (MODULE_CONFIG.DetailTabs[activeDetailTabIdx] ? MODULE_CONFIG.DetailTabs[activeDetailTabIdx].label : 'Select Tab') + '</span><span class="material-symbols-outlined" style="font-size: 20px; color: var(--color-text-secondary); transition: transform 0.25s ease;">expand_more</span>';
+        triggerBtn.style.cssText = 'display:flex; justify-content:space-between; align-items:center; width: 100%; padding: 10px 14px; font-size: 14px; font-weight: 600; border: 1px solid var(--color-border); border-radius: 8px; background-color: var(--color-surface); color: var(--color-text); cursor: pointer; height: 44px; transition: all 0.2s ease; outline: none;';
+
+        var dropdownPanel = document.createElement('div');
+        dropdownPanel.className = 'custom-dropdown-panel';
+        dropdownPanel.style.cssText = 'position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--color-surface); border-radius: var(--radius-md, 8px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); z-index: 100; max-height: 280px; overflow-y: auto; display: none; flex-direction: column; padding: 8px 0; border: 1px solid var(--color-border);';
 
         MODULE_CONFIG.DetailTabs.forEach(function (tab, idx) {
-          var opt = document.createElement('option');
-          opt.value = idx;
-          opt.textContent = tab.label;
-          if (idx === activeDetailTabIdx) {
-            opt.selected = true;
-          }
-          selectEl.appendChild(opt);
+          var optBtn = document.createElement('button');
+          optBtn.type = 'button';
+          optBtn.textContent = tab.label;
+          var isSelected = idx === activeDetailTabIdx;
+          
+          optBtn.style.cssText = 'width: 100%; display: flex; align-items: center; padding: 10px 16px; font-size: 14px; text-align: left; border: none; background: ' + (isSelected ? 'rgba(var(--color-primary-rgb, 60,80,224), 0.08)' : 'transparent') + '; color: ' + (isSelected ? 'var(--color-primary)' : 'var(--color-text)') + '; font-weight: ' + (isSelected ? '600' : '500') + '; cursor: pointer; transition: background 0.15s ease; font-family: inherit;';
+          
+          optBtn.onmouseover = function() {
+            if (!isSelected) this.style.background = 'var(--color-surface-hover, rgba(0, 0, 0, 0.04))';
+          };
+          optBtn.onmouseout = function() {
+            if (!isSelected) this.style.background = 'transparent';
+          };
+          
+          optBtn.onclick = function(e) {
+            e.stopPropagation();
+            activeDetailTabIdx = idx;
+            _updateDetailView();
+          };
+          dropdownPanel.appendChild(optBtn);
         });
 
-        selectEl.onchange = function () {
-          activeDetailTabIdx = parseInt(this.value);
-          _updateDetailView();
+        triggerBtn.onclick = function(e) {
+          e.stopPropagation();
+          var isOpen = dropdownPanel.style.display === 'flex';
+          dropdownPanel.style.display = isOpen ? 'none' : 'flex';
+          
+          if (!isOpen) {
+            triggerBtn.style.background = 'var(--color-primary)';
+            triggerBtn.style.color = '#fff';
+            triggerBtn.style.borderColor = 'var(--color-primary)';
+            var icon = triggerBtn.querySelector('.material-symbols-outlined');
+            if (icon) {
+              icon.style.color = '#fff';
+              icon.style.transform = 'rotate(180deg)';
+            }
+          } else {
+            triggerBtn.style.background = 'var(--color-surface)';
+            triggerBtn.style.color = 'var(--color-text)';
+            triggerBtn.style.borderColor = 'var(--color-border)';
+            var icon = triggerBtn.querySelector('.material-symbols-outlined');
+            if (icon) {
+              icon.style.color = 'var(--color-text-secondary)';
+              icon.style.transform = 'rotate(0deg)';
+            }
+          }
         };
 
-        selectWrapper.appendChild(selectEl);
+        // Click outside to close
+        var clickOutsideHandler = function(e) {
+          if (!selectWrapper.contains(e.target)) {
+            dropdownPanel.style.display = 'none';
+            triggerBtn.style.background = 'var(--color-surface)';
+            triggerBtn.style.color = 'var(--color-text)';
+            triggerBtn.style.borderColor = 'var(--color-border)';
+            var icon = triggerBtn.querySelector('.material-symbols-outlined');
+            if (icon) {
+              icon.style.color = 'var(--color-text-secondary)';
+              icon.style.transform = 'rotate(0deg)';
+            }
+          }
+        };
+        document.addEventListener('click', clickOutsideHandler);
+        
+        // Clean up event listener when element is removed
+        var observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            Array.from(mutation.removedNodes).forEach(function(node) {
+              if (node === selectWrapper || node.contains(selectWrapper)) {
+                document.removeEventListener('click', clickOutsideHandler);
+                observer.disconnect();
+              }
+            });
+          });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        selectWrapper.appendChild(triggerBtn);
+        selectWrapper.appendChild(dropdownPanel);
         detailContent.appendChild(selectWrapper);
       }
 

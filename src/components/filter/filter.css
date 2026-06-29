@@ -41,3 +41,29 @@
   border: 1px dashed var(--color-border);
   margin-bottom: 16px;
 }
+
+/* ═══════════════════════════════════════════
+   FILTER POPUP (OVERLAY PANEL)
+   ═══════════════════════════════════════════ */
+
+.filter-grid {
+  grid-template-columns: 1fr;
+}
+.filter-grid.multi-col {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (max-width: 768px) {
+  .filter-grid.multi-col {
+    grid-template-columns: 1fr; /* Thu về 1 cột trên mobile */
+  }
+
+  /* Đưa popup ra giữa màn hình thay vì gắn sát nút bấm */
+  .filter-overlay-panel {
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 320px;
+    max-width: 90vw;
+  }
+}
