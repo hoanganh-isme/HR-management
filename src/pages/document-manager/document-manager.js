@@ -17,6 +17,8 @@ var DocumentManagerPage = (function () {
   var _container = null;   // page-wrapper div từ Router
   var _currentFile = null;   // tên file đang mở
   var _docEditor = null;   // DocsAPI instance
+  var _allDocuments = [];  // lưu tất cả data để filter
+  var _currentBranchFilter = 'ALL';
 
   // ── Helpers ───────────────────────────────────────────────────────────
   function _qs(sel) { return _container ? _container.querySelector(sel) : null; }
@@ -79,7 +81,19 @@ var DocumentManagerPage = (function () {
         '.docmgr-empty-icon{width:90px;height:90px;background:rgba(99,102,241,.06);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;}',
         '.docmgr-empty h2{color:var(--color-text,#f8fafc);font-weight:500;margin-bottom:.4rem;font-size:1.3rem;}',
         '#docmgr-editor-area{flex:1;width:100%;height:100%;}',
-        '.docmgr-onerror{display:flex;align-items:center;justify-content:center;height:100%;font-size:1rem;color:#ef4444;padding:2rem;text-align:center;}'
+        '.docmgr-onerror{display:flex;align-items:center;justify-content:center;height:100%;font-size:1rem;color:#ef4444;padding:2rem;text-align:center;}',
+        '.custom-dropdown{position:relative;margin-top:1.25rem;width:100%;}',
+        '.custom-dropdown-btn{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;border:1px solid var(--color-border,#cbd5e1);background:var(--color-surface,#fff);font-size:0.9rem;font-weight:500;color:var(--color-text,#334155);cursor:pointer;transition:all 0.2s;box-shadow:0 1px 2px rgba(0,0,0,0.05);user-select:none;}',
+        '.custom-dropdown-btn:hover{border-color:#94a3b8;}',
+        '.custom-dropdown.open .custom-dropdown-btn{border-color:#4f46e5;box-shadow:0 0 0 3px rgba(79,70,229,0.1);}',
+        '.custom-dropdown.open .custom-dropdown-btn .icon{transform:rotate(180deg);}',
+        '.custom-dropdown-btn .icon{color:#94a3b8;font-size:20px;transition:transform 0.2s;}',
+        '.custom-dropdown-menu{position:absolute;top:100%;left:0;right:0;margin-top:6px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -2px rgba(0,0,0,0.05);z-index:50;overflow:hidden;display:flex;flex-direction:column;animation:dropdown-fade-in 0.15s ease-out;}',
+        '@keyframes dropdown-fade-in{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:translateY(0);}}',
+        '.custom-dropdown-item{padding:10px 14px;font-size:0.9rem;color:#475569;cursor:pointer;transition:all 0.15s ease;}',
+        '.custom-dropdown-item:hover{background:#f1f5f9;color:#0f172a;}',
+        '.custom-dropdown-item.active{background:#eff6ff;color:#2563eb;font-weight:500;}',
+        '.docmgr-branch-badge{display:inline-block;padding:2px 6px;border-radius:4px;background:#e0e7ff;color:#4338ca;font-size:10px;font-weight:600;margin-right:4px;vertical-align:middle;}'
       ].join('');
       document.head.appendChild(style);
     }
@@ -93,6 +107,15 @@ var DocumentManagerPage = (function () {
       '<div class="docmgr-brand">',
       '<span class="material-symbols-outlined">folder_open</span>',
       'Workspace Tài Liệu',
+      '</div>',
+      '<div class="custom-dropdown" id="docmgr-branch-filter-dropdown">',
+      '<div class="custom-dropdown-btn" id="docmgr-branch-filter-btn">',
+      '<span class="custom-dropdown-text">Tất cả chi nhánh</span>',
+      '<span class="material-symbols-outlined icon">expand_more</span>',
+      '</div>',
+      '<div class="custom-dropdown-menu" id="docmgr-branch-filter-menu" style="display:none;">',
+      '<div class="custom-dropdown-item active" data-value="ALL">Tất cả chi nhánh</div>',
+      '</div>',
       '</div>',
       '</div>',
       '<div class="docmgr-list" id="docmgr-list">',
@@ -127,44 +150,13 @@ var DocumentManagerPage = (function () {
     fetch(API_BASE)
       .then(function (res) { return res.json(); })
       .then(function (json) {
-        var list = _qs('#docmgr-list');
-        if (!list) return;
-        if (!json.data || json.data.length === 0) {
-          list.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;">Chưa có tài liệu nào</div>';
-          return;
+        if (json.data) {
+          _allDocuments = json.data;
+          _renderList();
+        } else {
+          var list = _qs('#docmgr-list');
+          if (list) list.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;">Chưa có tài liệu nào</div>';
         }
-        list.innerHTML = '';
-        json.data.forEach(function (doc) {
-          var dateStr = new Date(doc.updatedAt).toLocaleDateString('vi-VN');
-          var div = document.createElement('div');
-          div.className = 'docmgr-item' + (_currentFile === doc.fileName ? ' active' : '');
-          div.innerHTML =
-            '<div class="docmgr-item-title" title="' + _escHtml(doc.fileName) + '">' +
-            '<span class="material-symbols-outlined" style="font-size:16px;color:#818cf8;flex-shrink:0;margin-top:2px;">description</span>' +
-            '<span style="word-break:break-all;">' + _escHtml(doc.fileName) + '</span>' +
-            '</div>' +
-            '<div class="docmgr-item-meta">' +
-            '<span>' + _escHtml(doc.size || '') + '</span>' +
-            '<span>' + dateStr + '</span>' +
-            '</div>' +
-            '<div class="docmgr-item-actions">' +
-            '<a class="docmgr-download" href="' + DOC_CONFIG.UPLOADS_URL + encodeURIComponent(doc.fileName) + '" download="' + _escHtml(doc.fileName) + '" title="Tải xuống" onclick="event.stopPropagation()">' +
-            '<span class="material-symbols-outlined" style="font-size:16px;">download</span>' +
-            '</a>' +
-            '<button class="docmgr-del" title="Xóa tài liệu">' +
-            '<span class="material-symbols-outlined" style="font-size:16px;">delete</span>' +
-            '</button>' +
-            '</div>';
-
-          div.addEventListener('click', function () { _openEditor(doc.fileName); });
-          var delBtn = div.querySelector('.docmgr-del');
-          if (delBtn) delBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            _deleteDocument(doc.fileName);
-          });
-
-          list.appendChild(div);
-        });
       })
       .catch(function (err) {
         console.error('[DocumentManager]', err);
@@ -173,10 +165,129 @@ var DocumentManagerPage = (function () {
       });
   }
 
-  // ── Xem tài liệu (iframe — file .doc là HTML) ─────────────────────────
+  function _renderList() {
+    var list = _qs('#docmgr-list');
+    var filterBtn = _qs('#docmgr-branch-filter-btn');
+    var menu = _qs('#docmgr-branch-filter-menu');
+    if (!list) return;
+
+    // Setup dropdown toggle
+    if (filterBtn && menu && !filterBtn.dataset.bound) {
+      filterBtn.dataset.bound = 'true';
+      filterBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        menu.parentElement.classList.toggle('open');
+        menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+      });
+      document.addEventListener('click', function(e) {
+        if (menu.parentElement && !menu.parentElement.contains(e.target)) {
+          menu.parentElement.classList.remove('open');
+          menu.style.display = 'none';
+        }
+      });
+    }
+
+    // Build filter options if not yet built or if documents changed
+    if (menu) {
+      var branches = {};
+      _allDocuments.forEach(function (doc) {
+        if (doc.branch) branches[doc.branch] = true;
+      });
+      var branchKeys = Object.keys(branches).sort();
+      
+      // Check if we need to rebuild
+      var currentOpts = Array.from(menu.querySelectorAll('.custom-dropdown-item')).map(function(el) { return el.dataset.value; });
+      var newOpts = ['ALL'].concat(branchKeys);
+      
+      var needsRebuild = currentOpts.length !== newOpts.length || !currentOpts.every(function(val, index) { return val === newOpts[index]; });
+      
+      if (needsRebuild) {
+        // Clear old options except ALL
+        menu.innerHTML = '<div class="custom-dropdown-item' + (_currentBranchFilter === 'ALL' ? ' active' : '') + '" data-value="ALL">Tất cả chi nhánh</div>';
+        
+        branchKeys.forEach(function (b) {
+          var opt = document.createElement('div');
+          opt.className = 'custom-dropdown-item' + (_currentBranchFilter === b ? ' active' : '');
+          opt.dataset.value = b;
+          opt.textContent = b === '_unassigned' ? 'Chưa phân loại' : (b === '_admin' ? 'Hệ thống' : b);
+          menu.appendChild(opt);
+        });
+      }
+    }
+    
+    // Bind event once
+    if (menu && !menu.dataset.boundClick) {
+      menu.dataset.boundClick = 'true';
+      menu.addEventListener('click', function (e) {
+        if (e.target.classList.contains('custom-dropdown-item')) {
+          _currentBranchFilter = e.target.dataset.value;
+          _qs('#docmgr-branch-filter-btn .custom-dropdown-text').textContent = e.target.textContent;
+          var items = menu.querySelectorAll('.custom-dropdown-item');
+          for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+          e.target.classList.add('active');
+          menu.parentElement.classList.remove('open');
+          menu.style.display = 'none';
+          _renderList();
+        }
+      });
+    }
+
+    var filtered = _allDocuments.filter(function (doc) {
+      if (_currentBranchFilter === 'ALL') return true;
+      return doc.branch === _currentBranchFilter;
+    });
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<div style="text-align:center;padding:2rem;color:#94a3b8;">Không có tài liệu nào phù hợp</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    filtered.forEach(function (doc) {
+      var dateStr = new Date(doc.updatedAt).toLocaleDateString('vi-VN');
+      var div = document.createElement('div');
+      
+      // Xử lý hiển thị tên file (bỏ prefix branch)
+      var displayBranch = doc.branch || '';
+      var displayFileName = doc.fileName;
+      if (displayBranch && displayFileName.indexOf(displayBranch + '/') === 0) {
+        displayFileName = displayFileName.substring(displayBranch.length + 1);
+      }
+      
+      var badgeHtml = displayBranch ? '<span class="docmgr-branch-badge">' + (displayBranch === '_unassigned' ? '?' : (displayBranch === '_admin' ? 'SYS' : displayBranch)) + '</span>' : '';
+
+      div.className = 'docmgr-item' + (_currentFile === doc.fileName ? ' active' : '');
+      div.innerHTML =
+        '<div class="docmgr-item-title" title="' + _escHtml(displayFileName) + '">' +
+        badgeHtml +
+        '<span style="word-break:break-all;">' + _escHtml(displayFileName) + '</span>' +
+        '</div>' +
+        '<div class="docmgr-item-meta">' +
+        '<span>' + _escHtml(doc.size || '') + '</span>' +
+        '<span>' + dateStr + '</span>' +
+        '</div>' +
+        '<div class="docmgr-item-actions">' +
+        '<a class="docmgr-download" href="' + DOC_CONFIG.UPLOADS_URL + encodeURIComponent(doc.fileName) + '" download="' + _escHtml(displayFileName) + '" title="Tải xuống" onclick="event.stopPropagation()">' +
+        '<span class="material-symbols-outlined" style="font-size:16px;">download</span>' +
+        '</a>' +
+        '<button class="docmgr-del" title="Xóa tài liệu">' +
+        '<span class="material-symbols-outlined" style="font-size:16px;">delete</span>' +
+        '</button>' +
+        '</div>';
+
+      div.addEventListener('click', function () { _openEditor(doc.fileName); });
+      var delBtn = div.querySelector('.docmgr-del');
+      if (delBtn) delBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        _deleteDocument(doc.fileName);
+      });
+
+      list.appendChild(div);
+    });
+  }
   function _openEditor(fileName) {
     _currentFile = fileName;
-    _loadDocuments(); // Re-render list để cập nhật class .active
+    _renderList(); // Re-render list để cập nhật class .active
 
     var empty = _qs('#docmgr-empty');
     if (empty) empty.style.display = 'none';

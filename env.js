@@ -14,15 +14,15 @@ const ENV_VARS = {
         if (typeof window !== 'undefined' && window.location) {
             // Nếu chạy trên HTTPS (production), dùng IP máy chủ
             if (window.location.protocol === 'https:') return '103.232.122.205';
-            
+
             var hostname = window.location.hostname;
             // Kiểm tra xem có phải chạy local hay không (localhost, 127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x, hoặc mở trực tiếp file://)
-            var isLocal = hostname === 'localhost' || 
-                          hostname === '127.0.0.1' || 
-                          hostname === '::1' || 
-                          hostname === '' || 
-                          hostname.startsWith('192.168.') || 
-                          hostname.startsWith('10.');
+            var isLocal = hostname === 'localhost' ||
+                hostname === '127.0.0.1' ||
+                hostname === '::1' ||
+                hostname === '' ||
+                hostname.startsWith('192.168.') ||
+                hostname.startsWith('10.');
             if (hostname.startsWith('172.')) {
                 var parts = hostname.split('.');
                 if (parts.length >= 2) {
@@ -63,7 +63,7 @@ window.API_CONFIG = {
             get BASE_API() {
                 var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy 
+                return useProxy
                     ? origin + '/docserver/api/documents'
                     : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/documents';
             },

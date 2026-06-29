@@ -22,6 +22,24 @@ const SAMPLES_DIR = path.join(__dirname, 'samples');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// ── Auto-migrate: file cũ (flat) trong uploads/ → uploads/_unassigned/ ──────
+try {
+    const entries = fs.readdirSync(UPLOADS_DIR, { withFileTypes: true });
+    const oldFiles = entries.filter(e => e.isFile() && (e.name.endsWith('.docx') || e.name.endsWith('.doc') || e.name.endsWith('.xlsx')));
+    if (oldFiles.length > 0) {
+        const unassignedDir = path.join(UPLOADS_DIR, '_unassigned');
+        if (!fs.existsSync(unassignedDir)) fs.mkdirSync(unassignedDir, { recursive: true });
+        oldFiles.forEach(f => {
+            const src = path.join(UPLOADS_DIR, f.name);
+            const dst = path.join(unassignedDir, f.name);
+            if (!fs.existsSync(dst)) fs.renameSync(src, dst);
+        });
+        console.log(`[MIGRATE] ✅ Đã di chuyển ${oldFiles.length} file cũ vào uploads/_unassigned/`);
+    }
+} catch (migrateErr) {
+    console.warn('[MIGRATE] ⚠️ Lỗi migrate file cũ:', migrateErr.message);
+}
+
 app.use(cors({ origin: '*' }));
 
 app.use('/uploads', function (req, res, next) {
@@ -97,6 +115,69 @@ function extractUserName(req) {
     return req.body?.UserName || req.query?.UserName || req.headers?.username || 'system';
 }
 
+// ── Branch cache: Map<UserName, { branches: string[]|null, expiry: number }> ─
+const _userBranchCache = new Map();
+const BRANCH_CACHE_TTL = 5 * 60 * 1000; // 5 phút
+
+/**
+ * Lấy danh sách BranchID của user từ SY_User.
+ * - Trả về null  → user không bị giới hạn (BranchID=NULL trong DB, tức là xem tất cả)
+ * - Trả về []    → user bị disable hoặc không tồn tại (chặn)
+ * - Trả về ['CN001','CN002'] → chỉ được xem các branch này
+ */
+async function getUserBranchesFromDB(req) {
+    const userName = extractUserName(req);
+    const now = Date.now();
+    const cached = _userBranchCache.get(userName);
+    if (cached && now < cached.expiry) return cached.branches;
+
+    try {
+        const payload = {
+            List: 'SY_User', Func: 'View', UserName: SQL_API_USER,
+            Keyword: userName, Page: 1, Limit: 1
+        };
+        const qs = encodeURIComponent(JSON.stringify(payload));
+        const url = `${SQL_API_BASE}/api/API_Gateway_Router?q=${qs}`;
+        const headers = {};
+        if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
+        const resp = await axios.get(url, { headers, timeout: 5000 });
+        const json = resp.data;
+        const rows = json.records || (Array.isArray(json) ? json : []);
+        const user = rows.find(r => {
+            const uname = r.UserName || r.username || r.USERNAME || '';
+            return uname.toLowerCase() === userName.toLowerCase();
+        }) || rows[0];
+
+        let branches = null; // null = xem tất cả (admin)
+        if (user) {
+            const rawBranch = user.BranchID || user.branchId || user.branchid || null;
+            // Kiểm tra admin: sync với logic frontend _getUserBranches()
+            // UserGroupID = 'admin' (case-insensitive) → xem tất cả
+            const userGroupRaw = user.UserGroupID || user.userGroupID || user.GroupID || user.Group || '';
+            const isAdmin = String(userGroupRaw).toLowerCase() === 'admin';
+
+            if (isAdmin) {
+                branches = null; // admin → không giới hạn
+                console.log(`[BRANCH] User '${userName}' là Admin (UserGroupID='${userGroupRaw}') → ALL`);
+            } else if (rawBranch && String(rawBranch).trim() !== '') {
+                // BranchID có thể là chuỗi phân cách bởi dấu phẩy: "COBI,DONGDU"
+                branches = String(rawBranch).split(',').map(b => b.trim().toUpperCase()).filter(Boolean);
+            } else {
+                // BranchID rỗng + không phải admin → chặn (giống frontend trả về [])
+                branches = [];
+                console.warn(`[BRANCH] User '${userName}' không phải admin và chưa được gán chi nhánh → bị chặn`);
+            }
+        }
+
+        _userBranchCache.set(userName, { branches, expiry: now + BRANCH_CACHE_TTL });
+        console.log(`[BRANCH] User '${userName}' → BranchID: ${branches ? JSON.stringify(branches) : 'ALL (null)'}`);
+        return branches;
+    } catch (err) {
+        console.error('[BRANCH] Lỗi lấy branch từ SY_User:', err.message);
+        return null; // Fail-open: nếu lỗi DB thì không chặn
+    }
+}
+
 let _setupCache = null;
 let _setupCacheTime = 0;
 const SETUP_CACHE_TTL = 5 * 60 * 1000;
@@ -160,20 +241,43 @@ async function fetchFromSQLAPI(listName, keyword, authToken) {
     return null;
 }
 
-app.get('/api/documents', (req, res) => {
+app.get('/api/documents', async (req, res) => {
     try {
-        const files = fs.readdirSync(UPLOADS_DIR);
-        const fileList = files
-            .filter(file => file.endsWith('.docx') || file.endsWith('.xlsx') || file.endsWith('.doc'))
-            .map(file => {
-                const stats = fs.statSync(path.join(UPLOADS_DIR, file));
-                return {
-                    fileName: file,
-                    size: (stats.size / 1024).toFixed(2) + ' KB',
-                    createdAt: stats.birthtime,
-                    updatedAt: stats.mtime
-                };
+        const userBranches = await getUserBranchesFromDB(req);
+        // userBranches = null → xem tất cả; array → chỉ xem các branch đó
+
+        const fileList = [];
+        const scanDir = (dir, branch) => {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            entries.forEach(entry => {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    // Đệ quy vào subfolder branch (không đệ quy sâu hơn 1 cấp)
+                    if (!branch) scanDir(fullPath, entry.name);
+                } else if (entry.isFile() && (entry.name.endsWith('.docx') || entry.name.endsWith('.doc') || entry.name.endsWith('.xlsx'))) {
+                    const stats = fs.statSync(fullPath);
+                    fileList.push({
+                        fileName: branch ? `${branch}/${entry.name}` : entry.name,
+                        branch: branch || '_unassigned',
+                        size: (stats.size / 1024).toFixed(2) + ' KB',
+                        createdAt: stats.birthtime,
+                        updatedAt: stats.mtime
+                    });
+                }
             });
+        };
+
+        if (userBranches === null) {
+            // Admin: scan toàn bộ uploads/
+            scanDir(UPLOADS_DIR, null);
+        } else {
+            // User bình thường: chỉ scan các folder branch được gán
+            userBranches.forEach(branch => {
+                scanDir(path.join(UPLOADS_DIR, branch), branch);
+            });
+        }
+
         res.json({ success: true, data: fileList });
     } catch (error) {
         console.error('[API] Lỗi lấy danh sách:', error.message);
@@ -417,8 +521,30 @@ app.post('/api/documents/generate', async (req, res) => {
         }
 
         const finalFileName = `${outputFileName}_${Date.now()}.docx`;
-        const outputPath = path.join(UPLOADS_DIR, finalFileName);
+
+        // ── Xác định branch folder để lưu file ─────────────────────────────
+        const userBranches = await getUserBranchesFromDB(req);
+        const rowBranch = dataMap.BranchID || dataMap.branchId || dataMap.MaChiNhanh || null;
+        
+        let targetBranch;
+        if (userBranches === null) {
+            // Admin (BranchID=null): Luôn lưu là file Hệ thống (_admin). 
+            // KHÔNG lấy branch của nhân viên để tránh hiển thị sai branch mà account không được gán.
+            targetBranch = '_admin';
+        } else if (userBranches.length > 0) {
+            // User thường: ưu tiên branch từ data nếu user có quyền, không thì ép về branch đầu tiên của user
+            const rowBranchClean = rowBranch ? String(rowBranch).split(',')[0].trim() : null;
+            targetBranch = (rowBranchClean && userBranches.includes(rowBranchClean)) ? rowBranchClean : userBranches[0];
+        } else {
+            targetBranch = '_unassigned';
+        }
+
+        const branchDir = path.join(UPLOADS_DIR, targetBranch);
+        if (!fs.existsSync(branchDir)) fs.mkdirSync(branchDir, { recursive: true });
+
+        const outputPath = path.join(branchDir, finalFileName);
         fs.writeFileSync(outputPath, buf);
+        console.log(`[GENERATE] 📁 Lưu vào branch folder: ${targetBranch}/`);
 
         // Ghi Log vào HR_Documents
         try {
@@ -429,7 +555,8 @@ app.post('/api/documents/generate', async (req, res) => {
                 RefID: refId,
                 DocType: templateType,
                 VersionNo: null,
-                FilePath: finalFileName,
+                FilePath: `${targetBranch}/${finalFileName}`,
+                BranchID: targetBranch,
                 FileHash: fileHash,
                 Status: 'ACTIVE',
                 GeneratedBy: userName
@@ -451,7 +578,7 @@ app.post('/api/documents/generate', async (req, res) => {
         }
 
         console.log(`[GENERATE] ✅ Tạo thành công: ${finalFileName}`);
-        return res.json({ success: true, message: 'Tạo tài liệu thành công!', fileName: finalFileName });
+        return res.json({ success: true, message: 'Tạo tài liệu thành công!', fileName: `${targetBranch}/${finalFileName}`, branch: targetBranch });
 
     } catch (error) {
         console.error('[API] Lỗi generate:', error);
@@ -463,17 +590,39 @@ app.post('/api/documents/generate', async (req, res) => {
     }
 });
 
+// DELETE với branch subfolder: /api/documents/CN001/file.docx
+app.delete('/api/documents/:branch/:fileName', async (req, res) => {
+    req._rawFileName = `${req.params.branch}/${req.params.fileName}`;
+    return _handleDeleteDocument(req, res);
+});
+// DELETE không có branch: /api/documents/file.docx
 app.delete('/api/documents/:fileName', async (req, res) => {
+    req._rawFileName = req.params.fileName;
+    return _handleDeleteDocument(req, res);
+});
+
+async function _handleDeleteDocument(req, res) {
     try {
-        const fileName = req.params.fileName;
-        const filePath = path.join(UPLOADS_DIR, fileName);
+        const rawFileName = req._rawFileName;
+        const filePath = path.join(UPLOADS_DIR, rawFileName);
+
+        // ── Kiểm tra quyền branch ──────────────────────────────────────────
+        const userBranches = await getUserBranchesFromDB(req);
+        const fileParts = rawFileName.replace(/\\/g, '/').split('/');
+        const fileBranch = fileParts.length > 1 ? fileParts[0] : '_unassigned';
+        const fileNameOnly = fileParts[fileParts.length - 1];
+
+        if (userBranches !== null && !userBranches.includes(fileBranch)) {
+            console.warn(`[BRANCH] ⛔ User không có quyền xóa file thuộc branch '${fileBranch}'`);
+            return res.status(403).json({ success: false, message: `Bạn không có quyền xóa tài liệu của chi nhánh '${fileBranch}'.` });
+        }
+
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
             try {
                 let parsedRefID = 'UNKNOWN';
                 let parsedDocType = 'UNKNOWN';
-
-                const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
+                const nameWithoutExt = fileNameOnly.replace(/\.[^/.]+$/, '');
                 const parts = nameWithoutExt.split('_');
                 if (parts.length >= 3) {
                     const timestamp = parts[parts.length - 1];
@@ -482,14 +631,14 @@ app.delete('/api/documents/:fileName', async (req, res) => {
                         parsedDocType = parts.slice(0, parts.length - 2).join('_');
                     }
                 }
-
                 const userName = extractUserName(req);
                 const payload = {
                     List: 'HR_Documents',
                     Func: 'Edit',
                     UserName: userName,
                     JsonData: JSON.stringify({
-                        FilePath: fileName,
+                        FilePath: rawFileName,
+                        BranchID: fileBranch,
                         RefID: parsedRefID,
                         DocType: parsedDocType,
                         Status: 'DELETED',
@@ -498,9 +647,9 @@ app.delete('/api/documents/:fileName', async (req, res) => {
                     })
                 };
                 await axios.post(`${SQL_API_BASE}/api/API_Gateway_Router`, payload);
-                console.log(`[AUDIT] 🪦 Đã dán nhãn XÓA cho file ${fileName} trong CSDL`);
+                console.log(`[AUDIT] 🪦 Đã dán nhãn XÓA cho file ${rawFileName}`);
             } catch (err) {
-                console.error(`[AUDIT] ❌ Lỗi cập nhật bia mộ:`, err.message);
+                console.error('[AUDIT] ❌ Lỗi cập nhật bia mộ:', err.message);
             }
             res.json({ success: true, message: 'Xóa thành công!' });
         } else {
@@ -510,7 +659,7 @@ app.delete('/api/documents/:fileName', async (req, res) => {
         console.error('[API] Lỗi xóa file:', error.message);
         res.status(500).json({ success: false, message: 'Lỗi server khi xóa file.' });
     }
-});
+}
 
 app.post('/api/upload-logo', (req, res) => {
     try {

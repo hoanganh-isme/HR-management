@@ -385,7 +385,11 @@ var DocumentExportPlugin = (function () {
         outputFileName: actualDocType + '_' + docId,
         rowData: row,
         sqlListName: config.sqlListName,
-        convertFields: config.convertFields || []
+        convertFields: config.convertFields || [],
+        // branchId từ localStorage (backend sẽ tự xác thực lại bằng SY_User)
+        branchId: (function() {
+          try { return (JSON.parse(localStorage.getItem('pmql_user') || '{}')).BranchID || null; } catch(e) { return null; }
+        })()
       })
     })
       .then(function (res) { return res.json(); })
@@ -446,6 +450,17 @@ var DocumentExportPlugin = (function () {
         });
       }
     }];
+
+    // Thêm nút xem kho lưu trữ hợp đồng
+    buttons.push({
+      id: 'btn-view-docmgr',
+      text: 'Quản lý Hợp Đồng',
+      icon: 'folder_open',
+      type: 'tool',
+      onClick: function () {
+        window.location.hash = '#/document-manager';
+      }
+    });
 
     return buttons;
   }
