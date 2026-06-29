@@ -1,0 +1,1 @@
+const axios = require('axios'); axios.post('http://127.0.0.1:5000/api/API_Gateway_Router', {List: 'HR_HopDongAddfile', Func: 'View', Keyword: 'WA_HopDongLaoDongFrm'}).then(res => console.log(JSON.stringify(res.data, null, 2))).catch(console.error);

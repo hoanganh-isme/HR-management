@@ -1,5 +1,5 @@
-USE X26DIMTUTAC
-GO
+-- USE X26DIMTUTAC
+-- GO
 
 SET ANSI_NULLS ON
 GO
@@ -16,7 +16,7 @@ CREATE OR ALTER PROCEDURE dbo.API_HopDongLaoDong
     @Keyword NVARCHAR(200) = '',
     @NamLap NVARCHAR(50) = '',
     @LoaiHD NVARCHAR(100) = '',
-    @BranchID NVARCHAR(50) = ''
+    @BranchID NVARCHAR(MAX) = ''
 )
 AS
 BEGIN
@@ -25,7 +25,7 @@ BEGIN
     SELECT 
         H.MaHopDong,
         H.PersonID,
-        ISNULL(H.PersonName, P.PersonName) AS PersonName,
+        P.PersonName AS PersonName,
         H.NgayKyHopDong,
         H.NoiDung,
         H.LoaiHopDong,
@@ -60,11 +60,10 @@ BEGIN
       AND (ISNULL(@Keyword, '') = '' 
            OR H.MaHopDong LIKE '%' + @Keyword + '%' 
            OR H.PersonID LIKE '%' + @Keyword + '%' 
-           OR H.PersonName LIKE N'%' + @Keyword + '%' 
            OR P.PersonName LIKE N'%' + @Keyword + '%')
       AND (ISNULL(@NamLap, '') = '' OR H.NamLap = TRY_CAST(@NamLap AS INT))
       AND (ISNULL(@LoaiHD, '') = '' OR H.LoaiHD = @LoaiHD)
-      AND (ISNULL(@BranchID, '') = '' OR P.BranchID = @BranchID)
+      AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     ORDER BY H.NgayKyHopDong DESC, H.MaHopDong DESC;
 END
 GO

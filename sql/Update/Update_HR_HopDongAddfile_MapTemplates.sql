@@ -60,6 +60,11 @@ GO
 PRINT '>> Da tao Stored Procedure API_HR_GetForm thanh cong!';
 GO
 
+DELETE FROM dbo.SY_FrmLstTbl WHERE FormID = 'HR_HopDongAddfile';
+INSERT INTO dbo.SY_FrmLstTbl (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
+VALUES ('HR_HopDongAddfile', 'LIST', N'Cấu hình mẫu in hợp đồng', 'Contract Templates', 'HR_HopDongAddfile', 'TemplateFile');
+GO
+
 DELETE FROM dbo.WA_API WHERE list IN ('HR_HopDongAddfile', 'HR_GetForm', 'HR_Documents');
 GO
 

@@ -730,6 +730,38 @@ var WizardForm = (function () {
         field.value = formState[fn] || '';
         field.readOnly = field.isReadOnlyAdd;
 
+        // Lắng nghe sự kiện đổi chi nhánh để cập nhật mã nhân viên (Add mode)
+        if (fn === 'BranchID') {
+           setTimeout(function() {
+               var hiddenIn = grid.querySelector('input[type="hidden"][name="BranchID"]');
+               if (hiddenIn) {
+                   hiddenIn.addEventListener('change', function(e) {
+                       var newBranch = e.target.value;
+                       if (!newBranch) return;
+                       
+                       var pidInput = grid.querySelector('input[name="PersonID"]');
+                       if (pidInput) pidInput.value = 'Đang tính toán...';
+                       
+                       var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
+                       _resolveNextPersonID(newBranch, apiUrl, currentUser, function(nextCode, maVietTat, err) {
+                           if (err || !nextCode) {
+                               if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
+                               if (pidInput) pidInput.value = formState['PersonID'] || '';
+                               return;
+                           }
+                           formState['PersonID'] = nextCode;
+                           formState['MaVietTat'] = maVietTat;
+                           if (pidInput) {
+                               pidInput.value = nextCode;
+                               pidInput.style.backgroundColor = 'var(--color-primary-light, rgba(67,56,202,0.1))';
+                               setTimeout(function() { pidInput.style.backgroundColor = ''; }, 1000);
+                           }
+                       });
+                   });
+               }
+           }, 0);
+        }
+
         // --- Custom override cho Giới Tính và Trạng Thái ---
         if (fn === 'GioiTinh') {
           field.renderRule = 'sl';
@@ -797,6 +829,11 @@ var WizardForm = (function () {
       fgw.appendChild(hiddenIn);
 
       var ds = field.dataSource || '';
+      if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
+          ds = 'STATIC:' + userBranches.map(function (b) {
+              return b.id + '|' + (b.name || b.id);
+          }).join(',');
+      }
       if (ds.toUpperCase().startsWith('STATIC:')) {
         var staticData = ds.substring(7).split(',').map(function (s) {
           var p = s.split('|');
@@ -812,7 +849,7 @@ var WizardForm = (function () {
               colFilterIndex: 1
             });
           },
-          onSelect: function (row) { hiddenIn.value = row[0]; formState[field.name] = row[0]; }
+          onSelect: function (row) { hiddenIn.value = row[0]; formState[field.name] = row[0]; hiddenIn.dispatchEvent(new Event('change', { bubbles: true })); }
         });
         var matched = staticData.find(function (r) { return r[0] == field.value; });
         var dIn = combo.querySelector('input.ui-input');
@@ -823,21 +860,58 @@ var WizardForm = (function () {
         var baseUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '');
         var finalUrl = baseUrl + '/api/API_Gateway_Router';
         var fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View', UserName: currentUser };
+        var searchApiCall = function (q) {
+          var pl = Object.assign({}, fetchPayload);
+          if (q) pl.Keyword = q;
+          return ApiClient.post(finalUrl, pl).then(function (res) {
+            var list = res.list || res.records || [];
+            if (!list.length) return { headers: ['Mã', 'Tên'], data: [], colFilterIndex: 1 };
+            var keys = Object.keys(list[0]);
+            
+            var comboData = [];
+            list.forEach(function (d) {
+                var rowData = [];
+                keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                comboData.push(rowData);
+            });
+            
+            var labelRegex = /name|tên|ten|label|desc|title/i;
+            var displayKey = keys.find(function (k) { return labelRegex.test(k); });
+            var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+            
+            return {
+                headers: keys,
+                data: comboData,
+                colFilterIndex: colFilterIndex
+            };
+          });
+        };
+        
         var lazyCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
           headers: ['Mã', 'Tên'],
-          onSearch: function (q) {
-            var pl = Object.assign({}, fetchPayload);
-            if (q) pl.Keyword = q;
-            return ApiClient.post(finalUrl, pl).then(function (res) {
-              var list = res.list || res.records || [];
-              if (!list.length) return { headers: ['Mã', 'Tên'], data: [], colFilterIndex: 1 };
-              var keys = Object.keys(list[0]);
-              return { headers: keys, data: list.map(function (d) { return keys.map(function (k) { return d[k] != null ? d[k] : ''; }); }), colFilterIndex: 1 };
-            });
-          },
-          onSelect: function (row) { hiddenIn.value = row[0]; formState[field.name] = row[0]; }
+          disabled: field.readOnly,
+          onSearch: searchApiCall,
+          onSelect: function (row) {
+              hiddenIn.value = row[0];
+              formState[field.name] = row[0];
+              hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
+          }
         });
+        
+        if (field.value) {
+            searchApiCall('').then(function (res) {
+                var displayInput = lazyCombo.querySelector('input.ui-input');
+                var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
+                if (matched && displayInput) {
+                    displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
+                }
+            }).catch(function (err) {
+                console.error('[WizardForm] DataComboBox initial fetch error:', err);
+                var displayInput = lazyCombo.querySelector('input.ui-input');
+                if (displayInput) displayInput.placeholder = 'Lỗi tải dữ liệu';
+            });
+        }
         fgw.appendChild(lazyCombo);
       }
       return fgw;
@@ -1227,7 +1301,8 @@ var WizardForm = (function () {
             });
             
             var fakeModal = {
-                close: function () { btnClose.click(); }
+                close: function () { btnClose.click(); },
+                closeNow: function () { btnClose.click(); }
             };
             
             // _saveData signature: isEdit, rowData, modal, body, btnSave
@@ -1256,6 +1331,38 @@ var WizardForm = (function () {
             var fCopy = Object.assign({}, field);
             fCopy.value = state[fn] || '';
             fCopy.readOnly = fCopy.isReadOnlyEdit;
+
+            // Lắng nghe sự kiện đổi chi nhánh để cập nhật mã nhân viên (Edit mode)
+            if (fn === 'BranchID') {
+               setTimeout(function() {
+                   var hiddenIn = container.querySelector('input[type="hidden"][name="BranchID"]');
+                   if (hiddenIn) {
+                       hiddenIn.addEventListener('change', function(e) {
+                           var newBranch = e.target.value;
+                           if (!newBranch) return;
+                           
+                           var pidInput = container.querySelector('input[name="PersonID"]');
+                           if (pidInput) pidInput.value = 'Đang tính toán...';
+                           
+                           var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
+                           _resolveNextPersonID(newBranch, apiUrl, currentUser, function(nextCode, maVietTat, err) {
+                               if (err || !nextCode) {
+                                   if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
+                                   if (pidInput) pidInput.value = state['PersonID'] || '';
+                                   return;
+                               }
+                               state['PersonID'] = nextCode;
+                               state['MaVietTat'] = maVietTat;
+                               if (pidInput) {
+                                   pidInput.value = nextCode;
+                                   pidInput.style.backgroundColor = 'var(--color-primary-light, rgba(67,56,202,0.1))';
+                                   setTimeout(function() { pidInput.style.backgroundColor = ''; }, 1000);
+                               }
+                           });
+                       });
+                   }
+               }, 0);
+            }
 
             if (fn === 'GioiTinh') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'; }
             if (fn === 'PersonStatus') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'API_ComboPersonStatus'; }

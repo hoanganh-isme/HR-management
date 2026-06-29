@@ -18,7 +18,7 @@ GO
 --   EXEC dbo.API_BaoCaoNhanSuReportStp @FromDate='2024-01-01', @ToDate='2025-12-31'
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_BaoCaoNhanSuReportStp
-    @BranchID  NVARCHAR(50)  = '',
+    @BranchID  NVARCHAR(MAX)  = '',
     @PhongBan  NVARCHAR(200) = '',
     @FromDate  DATETIME      = NULL,
     @ToDate    DATETIME      = NULL,
@@ -127,7 +127,7 @@ BEGIN
 
     WHERE
         -- Lọc chi nhánh
-        (@BranchID = '' OR P.BranchID = @BranchID)
+        (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
 
         -- Lọc bộ phận (hỗ trợ LIKE nếu truyền một phần tên)
         AND (@PhongBan = '' OR P.PhongBan LIKE N'%' + @PhongBan + N'%')

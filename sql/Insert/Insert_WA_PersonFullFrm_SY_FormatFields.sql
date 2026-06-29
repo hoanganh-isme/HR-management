@@ -1,5 +1,3 @@
-USE [X26DIMTUTAC]
-GO
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ
@@ -275,10 +273,10 @@ GO
 IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD')
 BEGIN
     INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
-    VALUES ('WA_PersonFullFrm', 'LoaiHD', N'Loại HĐ', 'Contract Type', 'sl', 0, 'grid', 0, 0, 0, 0, 100, 1, 'API_ComboHopDongLoai')
+    VALUES ('WA_PersonFullFrm', 'LoaiHD', N'Loại HĐ', 'Contract Type', 'sl', 0, 'grid', 0, 0, 0, 0, 100, 1, 'API_DanhSachLoaiHD')
 END
 ELSE BEGIN
-    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_ComboHopDongLoai' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD'
+    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_DanhSachLoaiHD' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD'
 END
 
 IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'NamLap')

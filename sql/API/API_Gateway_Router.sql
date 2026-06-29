@@ -56,16 +56,30 @@ BEGIN
         WHERE UserName = @UserName;
     END
 
-    -- Nếu là Admin hoặc tài khoản không bị giới hạn Chi nhánh (BranchID rỗng trong CSDL)
-    -- Và trên UI có chọn bộ lọc Chi nhánh (JsonData chứa key BranchID), thì cho phép lấy giá trị này.
-    IF (ISNULL(@BranchID, '') = '' OR @UserGroup = 'Admin') 
-       AND ISNULL(@JsonData, '') <> '' AND ISJSON(@JsonData) = 1
+    -- Xử lý bộ lọc Chi nhánh từ UI
+    IF ISNULL(@JsonData, '') <> '' AND ISJSON(@JsonData) = 1
     BEGIN
         DECLARE @UI_BranchID NVARCHAR(MAX);
         SELECT @UI_BranchID = CAST(JSON_VALUE(@JsonData, '$.BranchID') AS NVARCHAR(MAX));
-        IF @UI_BranchID IS NOT NULL
+        
+        IF @UI_BranchID IS NOT NULL AND @UI_BranchID <> ''
         BEGIN
-            SET @BranchID = @UI_BranchID;
+            -- Nếu là Admin hoặc tài khoản không bị giới hạn Chi nhánh
+            IF (ISNULL(@BranchID, '') = '' OR @UserGroup = 'Admin') 
+            BEGIN
+                SET @BranchID = @UI_BranchID;
+            END
+            ELSE
+            BEGIN
+                -- Nếu tài khoản bị giới hạn chi nhánh, lấy phần giao nhau giữa UI gửi lên và quyền được phép
+                DECLARE @ValidBranches NVARCHAR(MAX) = '';
+                SELECT @ValidBranches = @ValidBranches + LTRIM(RTRIM(value)) + ','
+                FROM STRING_SPLIT(@UI_BranchID, ',')
+                WHERE LTRIM(RTRIM(value)) IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ','));
+                
+                IF LEN(@ValidBranches) > 0
+                    SET @BranchID = LEFT(@ValidBranches, LEN(@ValidBranches) - 1);
+            END
         END
     END
 

@@ -8,7 +8,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.API_QuanLyNghiPhepNam
 (
     @Keyword  NVARCHAR(200) = '',
-    @BranchID NVARCHAR(50)  = '',
+    @BranchID NVARCHAR(MAX)  = '',
     @PhongBan NVARCHAR(50)  = '',
     @PersonName NVARCHAR(200) = ''
 )
@@ -34,7 +34,7 @@ BEGIN
     FROM dbo.HR_PersonTbl P
     WHERE 
         ISNULL(P.PersonStatus, 1) <> 5   -- Không phải đã nghỉ việc (Trạng thái 5 = Nghỉ việc)
-        AND (@BranchID = '' OR P.BranchID = @BranchID)
+        AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
         AND (@PhongBan  = '' OR P.PhongBan = @PhongBan)
         AND (@PersonName = '' OR P.PersonName LIKE N'%' + @PersonName + '%')
         AND (

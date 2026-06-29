@@ -927,19 +927,24 @@ window.DynamicFormEngine = (function () {
               .split-master-detail-container .detail-fields-grid {
                 grid-template-columns: 1fr !important;
                 gap: 12px !important;
+                padding: 16px !important;
               }
 
               /* Put photo box on top of form columns */
               .split-master-detail-container .detail-form-wrap {
                 flex-direction: column-reverse !important;
                 align-items: center !important;
-                gap: 16px !important;
+                gap: 20px !important;
               }
               .split-master-detail-container .detail-form-wrap .photo-box-wrapper {
-                width: 100% !important;
-                max-width: 180px !important;
-                margin-bottom: 12px !important;
+                width: auto !important;
+                max-width: none !important;
+                margin-bottom: 0 !important;
                 align-self: center !important;
+              }
+              .split-master-detail-container .detail-form-wrap .photo-box-wrapper .detail-img-frame {
+                width: 120px !important;
+                height: 120px !important;
               }
             }
           </style>
@@ -1085,7 +1090,7 @@ window.DynamicFormEngine = (function () {
               }
             }
           },
-          onPrint: function () {
+          onPrint: MODULE_CONFIG.HidePrintBtn ? false : function () {
             if (typeof Alert !== 'undefined') {
               Alert.info('In dữ liệu', 'Đang chuẩn bị kết xuất dữ liệu ' + (MODULE_CONFIG.PageTitle || '...') + '...');
             }
@@ -1162,7 +1167,7 @@ window.DynamicFormEngine = (function () {
                 filterObj.dataSource = f.dataSource;
                 // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
                 var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
-                ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000 }).then(function (res) {
+                ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
                   var dataList = res.list || res.records || [];
                   var options = [];
                   if (dataList && dataList.length > 0) {
@@ -1908,12 +1913,12 @@ window.DynamicFormEngine = (function () {
 
         var fieldsGrid = document.createElement('div');
         fieldsGrid.className = 'detail-fields-grid';
-        fieldsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 14px; flex: 1;';
+        fieldsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px 24px; flex: 1; background: var(--color-surface, #fff); padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid var(--color-border, #e2e8f0);';
 
         var fieldsToRender = tabDef.fields || [];
         fieldsToRender.forEach(function (fName) {
           var fldDiv = document.createElement('div');
-          fldDiv.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
+          fldDiv.style.cssText = 'display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--color-border-subtle, #f1f5f9);';
 
           var labelText = (tabDef.headers && tabDef.headers[fName]) ? tabDef.headers[fName] : (globalDictionary[fName] || fName);
           if (typeof labelText === 'string') {
@@ -1922,7 +1927,7 @@ window.DynamicFormEngine = (function () {
 
           var label = document.createElement('span');
           label.textContent = labelText;
-          label.style.cssText = 'font-size: 11px; font-weight: 600; color: var(--color-text-secondary, #64748b); text-transform: uppercase; letter-spacing: 0.5px;';
+          label.style.cssText = 'font-size: 11px; font-weight: 600; color: var(--color-text-tertiary, #94a3b8); text-transform: uppercase; letter-spacing: 0.5px;';
 
           var valSpan = document.createElement('span');
           var rawVal = row[fName];
@@ -1954,9 +1959,9 @@ window.DynamicFormEngine = (function () {
           }
 
           valSpan.innerHTML = valFormatted;
-          valSpan.style.fontSize = '13px';
-          valSpan.style.color = 'var(--color-text, #1e293b)';
-          valSpan.style.fontWeight = '500';
+          valSpan.style.fontSize = '14px';
+          valSpan.style.color = 'var(--color-text, #0f172a)';
+          valSpan.style.fontWeight = '600';
 
           fldDiv.appendChild(label);
           fldDiv.appendChild(valSpan);
@@ -1971,10 +1976,11 @@ window.DynamicFormEngine = (function () {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
           photoBox.className = 'photo-box-wrapper';
-          photoBox.style.cssText = 'width: 160px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid var(--color-border); border-radius: 8px; padding: 10px; background: var(--color-surface);';
+          photoBox.style.cssText = 'width: 180px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
 
           var imgFrame = document.createElement('div');
-          imgFrame.style.cssText = 'width: 140px; height: 175px; border: 1px solid var(--color-border-strong); border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9;';
+          imgFrame.className = 'detail-img-frame';
+          imgFrame.style.cssText = 'width: 160px; height: 160px; border: 4px solid var(--color-surface, #fff); border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.08);';
 
           var img = document.createElement('img');
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
@@ -2819,6 +2825,7 @@ window.DynamicFormEngine = (function () {
     var currentModalFormState = {}; // Trạng thái form để truyền cho các Combobox gọi API
 
     var masterWrapper = document.createElement('div');
+    masterWrapper.className = 'df-master-wrapper';
     masterWrapper.style.display = 'flex';
     masterWrapper.style.gap = '16px';
     masterWrapper.style.alignItems = 'flex-start';

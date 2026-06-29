@@ -22,7 +22,7 @@ BEGIN
 
     -- Giải mã các tham số lọc từ JSON bộ lọc gửi lên từ Web
     DECLARE @PeriodID VARCHAR(50) = NULL;
-    DECLARE @BranchID NVARCHAR(50) = NULL;
+    DECLARE @BranchID NVARCHAR(MAX) = NULL;
     DECLARE @PhongBan NVARCHAR(50) = NULL;
     DECLARE @NgayLoc VARCHAR(50) = NULL;
     DECLARE @LoaiHD NVARCHAR(50) = NULL;
@@ -78,7 +78,7 @@ BEGIN
         -- Bộ lọc Kỳ lương (PeriodID)
         (@PeriodID IS NULL OR @PeriodID = '' OR T.PeriodID = @PeriodID)
         -- Bộ lọc Chi nhánh (BranchID)
-        AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+        AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
         -- Bộ lọc Bộ phận (PhongBan)
         AND (@PhongBan IS NULL OR @PhongBan = '' OR P.PhongBan = @PhongBan)
         -- Bộ lọc Ngày (Ngay)
