@@ -4,7 +4,9 @@ services:
     build: ./backend-app
     container_name: backend_app
     ports:
-      - "8081:8081"
+      - "8083:8081"
+    volumes:
+      - ./env.js:/app/env.js
     restart: always
 
   onlyoffice:
@@ -15,4 +17,16 @@ services:
     environment:
       # Tắt JWT đi để anh dễ test trên Localhost không bị lỗi chặn Token
       - JWT_ENABLED=false
+    restart: always
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hr_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend-app
+      - onlyoffice
     restart: always
