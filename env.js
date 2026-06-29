@@ -32,9 +32,9 @@ const ENV_VARS = {
                     }
                 }
             }
-            // Nếu không phải chạy local (ví dụ chạy qua domain kyhoa.bms7.net), dùng IP máy chủ thực tế
+            // Nếu không phải chạy local (ví dụ chạy qua domain kyhoa.bms7.net hoặc IP remote khác), dùng hostname hiện tại
             if (!isLocal) {
-                return '103.232.122.205';
+                return hostname || '103.232.122.205';
             }
             return hostname || '10.10.10.254';
         }
@@ -61,39 +61,39 @@ window.API_CONFIG = {
         DOCUMENT_MANAGER: {
             NODE_IP: ENV_VARS.BACKEND_HOST,
             get BASE_API() {
-                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return isHttps 
+                return useProxy 
                     ? origin + '/docserver/api/documents'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/api/documents';
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/documents';
             },
             get ONLYOFFICE_API() {
-                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return isHttps
+                return useProxy
                     ? origin + '/onlyoffice/web-apps/apps/api/documents/api.js'
                     : 'https://qlt.bms79.com/onlyoffice/web-apps/apps/api/documents/api.js';
             },
             get UPLOADS_URL() {
-                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return isHttps
+                return useProxy
                     ? origin + '/docserver/uploads/'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/uploads/';
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/uploads/';
             },
             get SAMPLES_URL() {
-                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return isHttps
+                return useProxy
                     ? origin + '/docserver/samples/'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/samples/';
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/samples/';
             },
             get UPLOAD_LOGO_API() {
-                var isHttps = typeof window !== 'undefined' && window.location && window.location.protocol === 'https:';
+                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return isHttps
+                return useProxy
                     ? origin + '/docserver/api/upload-logo'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8081/api/upload-logo';
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/upload-logo';
             }
         },
 
