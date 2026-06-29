@@ -310,9 +310,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   window.APP_MODULES['WA_PERSONQUITFRM'] = Object.assign({}, window.APP_MODULES['WA_PERSONFULLFRM'], {
     FormName: 'WA_PersonQuitFrm',
-    HideAddBtn: false,
+    HideAddBtn: true,
     HideEditBtn: false,
-    HideDeleteBtn: false,
+    HideDeleteBtn: true,
+    HideFilterBtn: false,
+    HidePrintBtn: true,
     AllowDblClickToView: false,
     HideDetailTabsInModal: false,
     SplitLayoutSelectText: 'Vui lòng chọn nhân viên đã nghỉ việc để xem chi tiết',

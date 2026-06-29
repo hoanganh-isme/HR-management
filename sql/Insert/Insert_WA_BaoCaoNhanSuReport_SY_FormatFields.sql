@@ -170,6 +170,7 @@ SET
         WHEN 'DateUpdate'     THEN 'dt'
         WHEN 'LuongCoBanHD'   THEN 'n2'  -- Tiền: 2 chữ số thập phân
         WHEN 'Tuoi'           THEN 'n0'
+        WHEN 'BranchID'       THEN 'sl'
         ELSE NULL
     END,
 
@@ -180,7 +181,8 @@ SET
     IsReadOnlyAdd  = 1,
     IsReadOnlyEdit = 1,
     IsRequired     = 0,
-    ShowInFilter   = 0,
+    ShowInFilter   = CASE WHEN FieldName = 'BranchID' THEN 1 ELSE 0 END,
+    DataSource     = CASE WHEN FieldName = 'BranchID' THEN 'CF_BranchListFrm' ELSE NULL END,
 
     -- ── Thứ tự cột hiển thị ───────────────────────────────────────────
     OrderNo = CASE FieldName

@@ -35,7 +35,7 @@ BEGIN
         P.NationName,
         P.SoHopDong,
         P.DienThoai,
-        ISNULL(S.PersonStatusName, N'Chưa xác định') AS PersonStatus,
+        P.PersonStatus,
         P.NewPersonID,
         P.CardNo,
         P.ProvineName,

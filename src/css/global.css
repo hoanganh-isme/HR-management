@@ -647,14 +647,12 @@ body.dark-theme .nav-item:hover span.icon {
 @media (max-width: 768px) {
 
   /* Trên Mobile: 
-     - Mặc định 100% (df-col-12) vẫn giữ 100%.
-     - Các ô 50% (df-col-6) vẫn giữ nguyên 50% để cho phép xếp 2 ô 1 hàng.
-     - Các ô quá nhỏ như 33% và 25% sẽ được tự động giãn ra thành 50% (xếp 2 ô 1 hàng) 
-       thay vì bị bóp nghẹt quá nhỏ hoặc bị giãn quá to 100%. */
+     - Tất cả các cột sẽ chuyển thành 100% (1 cột) để tối ưu không gian hiển thị,
+       tránh tình trạng chữ bị cắt hoặc ô nhập quá hẹp. */
   .df-col-8,
   .df-col-6,
   .df-col-4,
   .df-col-3 {
-    width: calc(50% - 5px) !important;
+    width: 100% !important;
   }
 }

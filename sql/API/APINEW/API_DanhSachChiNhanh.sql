@@ -1,9 +1,10 @@
-USE X26DIMTUTAC
-GO
+-- USE X26DIMTUTAC
+-- GO
 
 CREATE OR ALTER PROCEDURE dbo.API_DanhSachChiNhanh
 (
-    @Keyword NVARCHAR(100) = ''
+    @Keyword NVARCHAR(100) = '',
+    @UserBranchID NVARCHAR(MAX) = ''
 )
 AS
 BEGIN
@@ -16,9 +17,10 @@ BEGIN
         BranchName     -- Tên chi nhánh
     FROM CF_BranchTbl
     WHERE 
-        @Keyword = ''
+        (@UserBranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@UserBranchID, ',')))
+        AND (@Keyword = ''
         OR BranchID LIKE '%' + @Keyword + '%'
-        OR BranchName LIKE N'%' + @Keyword + '%'
+        OR BranchName LIKE N'%' + @Keyword + '%')
     ORDER BY BranchID;
 END
 GO
@@ -31,7 +33,7 @@ VALUES (
     'CF_BranchListFrm', 
     'View', 
     'API_DanhSachChiNhanh', 
-    '@Keyword=N''{Keyword}'''
+    '@Keyword=N''{Keyword}'', @UserBranchID=N''{BranchID}'''
 );
 GO
 

@@ -35,7 +35,7 @@ BEGIN
         P.DienThoai,
         
         -- === THAY ĐỔI Ở ĐÂY: Lấy tên trạng thái thay vì mã số ===
-        ISNULL(S.PersonStatusName, N'Chưa xác định') AS PersonStatus,
+        P.PersonStatus,
         
         P.NewPersonID,
         P.CardNo,

@@ -95,9 +95,9 @@ var DocumentExportPlugin = (function () {
         if (records.length > 0) {
           templates = records.map(function (r) {
             return {
-              id: r.TemplateFile,
-              name: r.GhiChu || r.TemplateFile,
-              loaiHD: r.LoaiHD
+              id: r.TemplateFile || r.templateFile || r.templatefile,
+              name: r.GhiChu || r.ghiChu || r.ghichu || r.TemplateFile || r.templateFile || r.templatefile,
+              loaiHD: r.LoaiHD || r.loaiHD || r.loaihd
             };
           });
         } else {

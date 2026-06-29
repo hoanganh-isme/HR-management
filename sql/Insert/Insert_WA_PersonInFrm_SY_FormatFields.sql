@@ -1,5 +1,3 @@
-USE [X26DIMTUTAC]
-GO
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ
@@ -184,7 +182,7 @@ SET CaptionVN = CASE FieldName
     FormatID = CASE
         WHEN FieldName IN ('NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayThuViec',
                            'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayHetHopDong') THEN 'd'
-        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID') THEN 'sl'
+        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'PersonStatus') THEN 'sl'
         WHEN FieldName IN ('ChamCong') THEN 'sw'
         ELSE 't'
     END,
@@ -192,6 +190,7 @@ SET CaptionVN = CASE FieldName
         WHEN FieldName = 'BranchID' THEN 'CF_BranchListFrm'
         WHEN FieldName = 'PhongBan' THEN 'HR_DepartmentListTbl'
         WHEN FieldName = 'ShiftID'  THEN 'API_HR_DropdownShifts'
+        WHEN FieldName = 'PersonStatus' THEN 'API_ComboPersonStatus'
         ELSE NULL
     END,
     FormPosition = CASE
@@ -288,3 +287,25 @@ GO
 
 PRINT 'Da thiet lap WA_PersonInFrm (Ho so nhan vien dang lam viec) voi MenuID 2011 thanh cong!';
 GO
+
+-- Thêm các cột ảo dùng cho bộ lọc
+IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonInFrm' AND FieldName = 'LoaiHD')
+BEGIN
+    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
+    VALUES ('WA_PersonInFrm', 'LoaiHD', N'Loại HĐ', 'Contract Type', 'sl', 0, 'grid', 0, 0, 0, 0, 100, 1, 'API_DanhSachLoaiHD')
+END
+ELSE BEGIN
+    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_DanhSachLoaiHD' WHERE FormName = 'WA_PersonInFrm' AND FieldName = 'LoaiHD'
+END
+
+IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonInFrm' AND FieldName = 'NamLap')
+BEGIN
+    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
+    VALUES ('WA_PersonInFrm', 'NamLap', N'Năm Lập', 'Year', 'sl', 0, 'grid', 0, 0, 0, 0, 101, 1, 'API_HopDongLaoDong_NamLap')
+END
+ELSE BEGIN
+    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_HopDongLaoDong_NamLap' WHERE FormName = 'WA_PersonInFrm' AND FieldName = 'NamLap'
+END
+
+-- Đảm bảo Chi nhánh hiện bộ lọc
+UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'CF_BranchListFrm' WHERE FormName = 'WA_PersonInFrm' AND FieldName = 'BranchID'

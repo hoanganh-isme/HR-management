@@ -17,7 +17,7 @@ GO
 -- =========================================================================
 CREATE PROCEDURE dbo.API_BaoHiem_PersonLookup
 (
-    @BranchID NVARCHAR(50) = '',
+    @BranchID NVARCHAR(MAX) = '',
     @LoaiBaoHiem NVARCHAR(50) = '',
     @Keyword NVARCHAR(200) = ''
 )
@@ -47,7 +47,7 @@ BEGIN
         GROUP BY CT.PersonID
     ) BH ON P.PersonID = BH.PersonID
     WHERE 1=1
-      AND (@BranchID = '' OR P.BranchID = @BranchID)
+      AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
       AND (ISNULL(@Keyword, '') = '' 
            OR P.PersonID LIKE '%' + @Keyword + '%' 
            OR P.PersonName LIKE N'%' + @Keyword + '%')
