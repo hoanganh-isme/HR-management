@@ -194,12 +194,14 @@ SET CaptionVN = CASE FieldName
         ELSE NULL
     END,
     FormPosition = CASE
+        -- CÁC TRƯỜNG CƠ BẢN: Hiển thị ở cả Sơ yếu lý lịch (Inline) và Popup Modal ('6' là chia 2 cột)
         WHEN FieldName IN (
-            'PersonID', 'PersonName', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon',
-            'NgaySinh', 'CMND', 'DiaChiThuongTru', 'NgayVaoLam', 'BranchID',
-            'NgayHopDong', 'NationName', 'SoHopDong', 'DienThoai', 'PersonStatus'
-        ) THEN 'grid'
-        ELSE '6'
+            'PersonID', 'NewPersonID', 'PersonName', 'BranchID', 'PhongBan', 
+            'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 
+            'PersonStatus', 'ShiftID', 'DienThoai', 'NgaySinh', 'GioiTinh'
+        ) THEN '6'
+        -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Sơ yếu lý lịch, CHỈ hiển thị trên Popup Modal
+        ELSE 'grid'
     END,
     ShowInAdd  = CASE WHEN FieldName = 'PersonID' THEN 0 ELSE 1 END,
     ShowInEdit = CASE WHEN FieldName = 'PersonID' THEN 0 ELSE 1 END,
@@ -309,3 +311,105 @@ END
 
 -- Đảm bảo Chi nhánh hiện bộ lọc
 UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'CF_BranchListFrm' WHERE FormName = 'WA_PersonInFrm' AND FieldName = 'BranchID'
+
+-- ==============================================================================
+-- 1. XÓA DỮ LIỆU CŨ VÀ ĐĂNG KÝ ROUTING MỚI TRONG WA_API
+-- ==============================================================================
+DELETE FROM [dbo].[WA_API] 
+WHERE [list] = 'API_PersonAttach' 
+  AND [func] IN ('Save', 'Delete');
+
+-- Đăng ký hành động Save thông qua Procedure tuỳ chỉnh (UPSERT)
+INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
+VALUES 
+('API_PersonAttach', 'Save', 'API_PersonAttach_SaveAvatar', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+
+-- Đăng ký hành động Delete 
+INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
+VALUES 
+('API_PersonAttach', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+GO
+
+-- ==============================================================================
+-- 2. TẠO STORED PROCEDURE XỬ LÝ UPSERT (Ghi đè ảnh cũ nếu có)
+-- ==============================================================================
+CREATE OR ALTER PROCEDURE [dbo].[API_PersonAttach_SaveAvatar]
+    @List VARCHAR(50),
+    @Data NVARCHAR(MAX),
+    @UserName VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        -- Trích xuất PersonID hoặc CandidateID từ chuỗi JSON
+        DECLARE @PersonID VARCHAR(50) = JSON_VALUE(@Data, '$.PersonID');
+        DECLARE @CandidateID VARCHAR(50) = JSON_VALUE(@Data, '$.CandidateID');
+        DECLARE @FileType INT = CAST(JSON_VALUE(@Data, '$.FileType') AS INT);
+        
+        DECLARE @TargetID VARCHAR(50) = ISNULL(@PersonID, @CandidateID);
+        
+        IF @TargetID IS NULL OR @TargetID = ''
+        BEGIN
+            SELECT -1 AS code, N'Lỗi: Không tìm thấy mã nhân viên/ứng viên!' AS msg;
+            RETURN;
+        END
+
+        -- Nếu là tải ảnh đại diện (FileType = 1) -> Tìm ID ảnh cũ để ghi đè (UPDATE)
+        IF @FileType = 1 
+        BEGIN
+            DECLARE @ExistingID VARCHAR(50);
+            SELECT TOP 1 @ExistingID = UserAutoID 
+            FROM HR_PersonAttachTbl 
+            WHERE (PersonID = @TargetID) AND FileType = 1;
+
+            IF @ExistingID IS NOT NULL
+            BEGIN
+                -- Nếu đã tồn tại ảnh -> Bơm UserAutoID vào JSON và đổi IsEdit = 1
+                SET @Data = JSON_MODIFY(@Data, '$.UserAutoID', @ExistingID);
+                SET @Data = JSON_MODIFY(@Data, '$.IsEdit', 1);
+            END
+        END
+        
+        -- Uỷ quyền lại cho hàm lõi API_LuuDong xử lý JSON chuẩn
+        EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
+        
+    END TRY
+    BEGIN CATCH
+        SELECT -1 AS code, ERROR_MESSAGE() AS msg;
+    END CATCH
+END
+GO
+GO
+
+-- ==============================================================================
+-- 3. ĐĂNG KÝ FORM VÀO SY_FrmLstTbl (Chuẩn hệ thống)
+-- ==============================================================================
+DELETE FROM [dbo].[SY_FrmLstTbl] WHERE [FormID] = 'API_PersonAttach';
+
+INSERT INTO dbo.SY_FrmLstTbl (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
+VALUES ('API_PersonAttach', 'LIST', N'Tài liệu đính kèm', 'Attachments', 'HR_PersonAttachTbl', 'UserAutoID');
+GO
+
+-- =========================================================================
+-- 4. ĐỒNG BỘ TRƯỜNG GIAO DIỆN TỪ BẢNG VẬT LÝ
+-- =========================================================================
+EXEC dbo.API_DongBoTruongGiaoDien @FormName = 'API_PersonAttach', @ObjectName = 'HR_PersonAttachTbl';
+GO
+
+-- =========================================================================
+-- 5. CẤU HÌNH NHÃN, VỊ TRÍ, ĐỊNH DẠNG (SY_FormatFields)
+-- =========================================================================
+UPDATE dbo.SY_FormatFields
+SET CaptionVN = CASE FieldName
+        WHEN 'PersonID' THEN N'Mã nhân viên'
+        WHEN 'FileName' THEN N'Tên tệp'
+        WHEN 'FileType' THEN N'Loại tệp'
+        WHEN 'STT' THEN N'Số thứ tự'
+        WHEN 'FileSize' THEN N'Kích thước'
+        WHEN 'Content' THEN N'Nội dung tệp nhị phân'
+        WHEN 'Base64Content' THEN N'Nội dung Base64'
+        ELSE FieldName
+    END
+    -- (Các cấu hình CaptionEN, OrderNo... đi kèm bên dưới)
+WHERE FormName = 'API_PersonAttach';
+GO

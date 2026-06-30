@@ -1027,14 +1027,20 @@ var WizardForm = (function () {
         btnNext.disabled = true;
         btnNext.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;animation:wz-spin 0.8s linear infinite;">progress_activity</span> Đang lưu...';
 
-        // Build fakeBody với tất cả formState
+        // Build fakeBody với chỉ những trường được sửa
         var fakeBody = document.createElement('div');
         Object.keys(formState).forEach(function (key) {
-          var inp = document.createElement('input');
-          inp.type = 'hidden';
-          inp.name = key;
-          inp.value = formState[key] || '';
-          fakeBody.appendChild(inp);
+            var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
+            // Vì là Thêm mới (Add) nên không có rowData cũ, chỉ gửi những trường có data khác rỗng
+            // (hoặc cứ gửi hết đối với form Add vì trigger không crash khi Add)
+            // Tuy nhiên, để nhất quán, ta gửi tất cả các trường có giá trị.
+            if (newValue !== '' || key === 'PersonID' || key === 'UserAutoID') {
+                var inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = key;
+                inp.value = newValue;
+                fakeBody.appendChild(inp);
+            }
         });
 
         var fakeModal = {
@@ -1228,8 +1234,40 @@ var WizardForm = (function () {
             var frame = document.createElement('div');
             frame.className = 'photo-frame';
             var img = document.createElement('img');
-            img.src = (formState.HinhAnh && formState.HinhAnh.trim() !== '') ? formState.HinhAnh : 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-            img.onerror = function() { this.src = 'https://cdn-icons-png.flaticon.com/512/149/149071.png'; };
+            var defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+            var mimeType = 'image/jpeg';
+            var fileExt = formState.FileName ? formState.FileName.split('.').pop().toLowerCase() : '';
+            if (fileExt === 'png') mimeType = 'image/png';
+            else if (fileExt === 'gif') mimeType = 'image/gif';
+            else if (fileExt === 'webp') mimeType = 'image/webp';
+
+            var rawContent = formState.Base64Content || formState.Content || formState.HinhAnh;
+            
+            if (rawContent && typeof rawContent === 'string' && rawContent.length > 10) {
+                if (/^0x/i.test(rawContent)) {
+                    var hexStr = rawContent.replace(/^0x/i, '').replace(/\s/g, '');
+                    var bytes = new Uint8Array(hexStr.length / 2);
+                    for (var bi = 0; bi < bytes.length; bi++) {
+                        bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
+                    }
+                    var blob = new Blob([bytes], { type: mimeType });
+                    img.src = URL.createObjectURL(blob);
+                } else if (rawContent.startsWith('http') || rawContent.startsWith('/')) {
+                    img.src = rawContent;
+                } else {
+                    img.src = 'data:' + mimeType + ';base64,' + rawContent;
+                }
+            } else {
+                var pkField = formSchema.PrimaryKey || 'PersonID';
+                var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
+                if (pkVal) {
+                    var subFolder = (formState['CandidateID']) ? 'UngVien' : 'NhanVien';
+                    img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + pkVal + '.jpg';
+                } else {
+                    img.src = defaultAvatar;
+                }
+            }
+            img.onerror = function() { this.src = defaultAvatar; };
             frame.appendChild(img);
             
             var photoInput = document.createElement('input');
@@ -1251,6 +1289,30 @@ var WizardForm = (function () {
                         reader.onload = function(re) {
                             img.src = re.target.result;
                             photoInput.value = re.target.result; // Base64
+                            
+                            // SYNC FOR API_PERSONATTACH
+                            var dataUrl = re.target.result;
+                            var base64Content = dataUrl.split(',')[1] || dataUrl;
+                            
+                            var abReader = new FileReader();
+                            abReader.onload = function(e_ab) {
+                                var bytes = new Uint8Array(e_ab.target.result);
+                                var hexArray = [];
+                                for (var i = 0; i < bytes.length; i++) {
+                                    var hexVal = bytes[i].toString(16);
+                                    if (hexVal.length < 2) hexVal = '0' + hexVal;
+                                    hexArray.push(hexVal);
+                                }
+                                var hexStr = '0x' + hexArray.join('');
+                                
+                                window._pendingWizardAvatar = {
+                                    file: file,
+                                    hexStr: hexStr,
+                                    base64Content: base64Content,
+                                    dataUrl: dataUrl
+                                };
+                            };
+                            abReader.readAsArrayBuffer(file);
                         };
                         reader.readAsDataURL(file);
                     }
@@ -1290,14 +1352,19 @@ var WizardForm = (function () {
     btnSave.onclick = function() {
         _collectData();
         if (saveData) {
-            // Build fakeBody with all formState data so _saveData can query it
+            // Build fakeBody with only changed fields to prevent trigger crashes
             var fakeBody = document.createElement('div');
             Object.keys(formState).forEach(function (key) {
-                var inp = document.createElement('input');
-                inp.type = 'hidden';
-                inp.name = key;
-                inp.value = formState[key] !== null && formState[key] !== undefined ? formState[key] : '';
-                fakeBody.appendChild(inp);
+                var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
+                var oldValue = rowData && rowData[key] !== null && rowData[key] !== undefined ? String(rowData[key]) : '';
+                
+                if (newValue !== oldValue || key === 'PersonID' || key === 'UserAutoID') {
+                    var inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = key;
+                    inp.value = newValue;
+                    fakeBody.appendChild(inp);
+                }
             });
             
             var fakeModal = {
@@ -1338,6 +1405,8 @@ var WizardForm = (function () {
                    var hiddenIn = container.querySelector('input[type="hidden"][name="BranchID"]');
                    if (hiddenIn) {
                        hiddenIn.addEventListener('change', function(e) {
+                           if (isEdit) return; // Không tự động đổi Mã nhân viên khi đang Sửa hồ sơ
+                           
                            var newBranch = e.target.value;
                            if (!newBranch) return;
                            

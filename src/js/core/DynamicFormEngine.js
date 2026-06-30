@@ -8,6 +8,8 @@ window.DynamicFormEngine = (function () {
   var selectedRows = [];
   var lastSelectedIdx = -1;
   var activeDetailTabIdx = 0;
+  var _inlineEditMode = false;
+  var _lastDetailRowId = null;
 
   var currentKeyword = '';
   var currentSortCol = '';
@@ -837,7 +839,7 @@ window.DynamicFormEngine = (function () {
               <div id="dynamic-filter-container" style="margin-bottom:16px;"></div>
               <div class="split-master-detail-container form-${MODULE_CONFIG.FormName}">
                 <div id="dynamic-grid-container"></div>
-                <div id="dynamic-detail-container" style="width: ${detailWidth}; flex-shrink: 0; border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; background: var(--color-surface);">
+                <div id="dynamic-detail-container" style="width: ${detailWidth}; max-width: calc(100% - 320px); flex-shrink: 0; border: 1px solid var(--color-border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; background: var(--color-surface);">
                   <button type="button" class="detail-back-btn" style="display: none; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; background: var(--color-surface-elevated); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-primary); font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 14px; align-self: flex-start; transition: all 0.2s ease;">
                     <span class="material-symbols-outlined" style="font-size: 18px; font-weight: 600;">arrow_back</span>
                     <span>Quay lại danh sách</span>
@@ -846,7 +848,13 @@ window.DynamicFormEngine = (function () {
                     ${defaultDetailTitle}
                   </div>
                   <div id="dynamic-detail-content" style="flex: 1; overflow-y: auto;">
-                    <div style="color:var(--color-text-secondary);padding:12px;text-align:center;">${defaultSelectText}</div>
+                    <div class="empty-detail-state">
+                      <div class="empty-icon-wrapper">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                      </div>
+                      <div class="empty-text-main">Chưa có thông tin</div>
+                      <div class="empty-text-sub">${defaultSelectText}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -873,6 +881,7 @@ window.DynamicFormEngine = (function () {
             /* Responsive styles (Mobile < 768px) */
             @media (max-width: 768px) {
               .split-master-detail-container {
+                height: auto !important;
                 flex-direction: column !important;
                 gap: 0 !important;
               }
@@ -889,9 +898,14 @@ window.DynamicFormEngine = (function () {
               .split-master-detail-container.show-detail #dynamic-detail-container {
                 display: flex !important;
                 width: 100% !important;
+                max-width: none !important;
                 border: none !important;
                 padding: 12px 16px !important;
                 box-sizing: border-box !important;
+                overflow: visible !important;
+              }
+              .split-master-detail-container.show-detail #dynamic-detail-content {
+                overflow: visible !important;
               }
               .split-master-detail-container.show-detail #dynamic-grid-container {
                 display: none !important;
@@ -928,6 +942,9 @@ window.DynamicFormEngine = (function () {
                 grid-template-columns: 1fr !important;
                 gap: 12px !important;
                 padding: 16px !important;
+                width: 100% !important;
+                max-width: 440px !important;
+                margin: 0 auto !important;
               }
 
               /* Put photo box on top of form columns */
@@ -1515,12 +1532,25 @@ window.DynamicFormEngine = (function () {
       if (tbody) {
         // Phục hồi trạng thái Active cho các dòng đã chọn trước đó (Cross-page Selection)
         var allTrs = Array.from(tbody.querySelectorAll('tr'));
+        var updatedSelectedRows = [];
         allTrs.forEach(function (tr, idx) {
           var rData = gridData[idx];
-          if (rData && selectedRows.find(function (sr) { return sr.id === rData.id; })) {
-            tr.classList.add('active');
+          if (rData) {
+            var isSelected = selectedRows.find(function (sr) { return sr.id === rData.id; });
+            if (isSelected) {
+              tr.classList.add('active');
+              updatedSelectedRows.push(rData); // Cập nhật reference mới nhất từ server
+            }
           }
         });
+        // Giữ lại các dòng đã chọn nằm ở trang khác
+        selectedRows.forEach(function (sr) {
+          if (!updatedSelectedRows.find(function (usr) { return usr.id === sr.id; })) {
+            updatedSelectedRows.push(sr);
+          }
+        });
+        selectedRows = updatedSelectedRows;
+        
         // Lắng nghe sự kiện từ Global Drag Select (Trạm gác UITable)
         tbody.addEventListener('rowSelectionToggled', function (e) {
           var rData = gridData[e.detail.rowIndex];
@@ -1735,7 +1765,13 @@ window.DynamicFormEngine = (function () {
         splitContainer.classList.remove('show-detail');
       }
       var selectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
-      detailContent.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">' + selectText + '</div>';
+      detailContent.innerHTML = '<div class="empty-detail-state">' +
+                                  '<div class="empty-icon-wrapper">' +
+                                    '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
+                                  '</div>' +
+                                  '<div class="empty-text-main">Chưa có thông tin</div>' +
+                                  '<div class="empty-text-sub">' + selectText + '</div>' +
+                                '</div>';
       var detailHeader = $container.querySelector('.detail-header');
       if (detailHeader) {
         detailHeader.textContent = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
@@ -1754,13 +1790,61 @@ window.DynamicFormEngine = (function () {
     }
 
     var row = selectedRows[0];
+    var currentRowId = row[MODULE_CONFIG.PrimaryKey] || '';
+    if (currentRowId !== _lastDetailRowId) {
+      _inlineEditMode = false;
+      _lastDetailRowId = currentRowId;
+    }
+
     detailContent.innerHTML = '';
 
     var detailHeader = $container.querySelector('.detail-header');
     if (detailHeader) {
       var defaultDetailTitle = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
       var nameVal = row.PersonName || row.TenPhuCap || row[MODULE_CONFIG.PrimaryKey] || '';
-      detailHeader.textContent = defaultDetailTitle + ': ' + nameVal;
+      
+      detailHeader.style.display = 'flex';
+      detailHeader.style.justifyContent = 'space-between';
+      detailHeader.style.alignItems = 'center';
+      
+      var titleSpan = document.createElement('span');
+      titleSpan.textContent = defaultDetailTitle + ': ' + nameVal;
+      
+      detailHeader.innerHTML = '';
+      detailHeader.appendChild(titleSpan);
+
+      var currentTabDef = MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 ? MODULE_CONFIG.DetailTabs[activeDetailTabIdx || 0] : null;
+      if (currentTabDef && currentTabDef.type === 'form' && !MODULE_CONFIG.HideEditBtn && (typeof _hasPermission !== 'function' || _hasPermission('EDIT'))) {
+         var hdrActions = document.createElement('div');
+         hdrActions.style.cssText = 'display: flex; gap: 8px; font-weight: normal;';
+         if (_inlineEditMode) {
+           var btnSave = document.createElement('button');
+           btnSave.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> Lưu';
+           btnSave.style.cssText = 'padding: 4px 12px; background: var(--color-success, #10b981); color: white; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); outline: none; transition: all 0.2s;';
+           btnSave.onmouseover = function() { this.style.opacity = '0.9'; };
+           btnSave.onmouseout = function() { this.style.opacity = '1'; };
+           btnSave.onclick = function() { _saveInlineEdit(row, currentTabDef, btnSave); };
+           
+           var btnCancel = document.createElement('button');
+           btnCancel.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">close</span> Hủy';
+           btnCancel.style.cssText = 'padding: 4px 12px; background: var(--color-surface-elevated, #f1f5f9); color: var(--color-text-secondary, #64748b); border: 1px solid var(--color-border); border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; outline: none; transition: all 0.2s;';
+           btnCancel.onmouseover = function() { this.style.background = 'var(--color-border-subtle, #e2e8f0)'; };
+           btnCancel.onmouseout = function() { this.style.background = 'var(--color-surface-elevated, #f1f5f9)'; };
+           btnCancel.onclick = function() { _inlineEditMode = false; _updateDetailView(); };
+           
+           hdrActions.appendChild(btnCancel);
+           hdrActions.appendChild(btnSave);
+         } else {
+           var btnEdit = document.createElement('button');
+           btnEdit.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">edit</span> Sửa';
+           btnEdit.style.cssText = 'padding: 4px 12px; background: var(--color-primary-light, #e0e7ff); color: var(--color-primary, #4338ca); border: none; border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; outline: none; transition: all 0.2s;';
+           btnEdit.onmouseover = function() { this.style.background = 'var(--color-primary, #4338ca)'; this.style.color = 'white'; };
+           btnEdit.onmouseout = function() { this.style.background = 'var(--color-primary-light, #e0e7ff)'; this.style.color = 'var(--color-primary, #4338ca)'; };
+           btnEdit.onclick = function() { _inlineEditMode = true; _updateDetailView(); };
+           hdrActions.appendChild(btnEdit);
+         }
+         detailHeader.appendChild(hdrActions);
+      }
     }
 
     if (MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
@@ -1881,7 +1965,7 @@ window.DynamicFormEngine = (function () {
 
         var dropdownPanel = document.createElement('div');
         dropdownPanel.className = 'custom-dropdown-panel';
-        dropdownPanel.style.cssText = 'position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--color-surface); border-radius: var(--radius-md, 8px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); z-index: 100; max-height: 280px; overflow-y: auto; display: none; flex-direction: column; padding: 8px 0; border: 1px solid var(--color-border);';
+        dropdownPanel.style.cssText = 'position: absolute; background: var(--color-surface); border-radius: var(--radius-md, 8px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); z-index: 999999; max-height: 280px; overflow-y: auto; display: none; flex-direction: column; padding: 8px 0; border: 1px solid var(--color-border);';
 
         MODULE_CONFIG.DetailTabs.forEach(function (tab, idx) {
           var optBtn = document.createElement('button');
@@ -1901,6 +1985,7 @@ window.DynamicFormEngine = (function () {
           optBtn.onclick = function(e) {
             e.stopPropagation();
             activeDetailTabIdx = idx;
+            dropdownPanel.style.display = 'none';
             _updateDetailView();
           };
           dropdownPanel.appendChild(optBtn);
@@ -1909,9 +1994,14 @@ window.DynamicFormEngine = (function () {
         triggerBtn.onclick = function(e) {
           e.stopPropagation();
           var isOpen = dropdownPanel.style.display === 'flex';
-          dropdownPanel.style.display = isOpen ? 'none' : 'flex';
           
           if (!isOpen) {
+            dropdownPanel.style.display = 'flex';
+            var rect = triggerBtn.getBoundingClientRect();
+            dropdownPanel.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+            dropdownPanel.style.left = (rect.left + window.scrollX) + 'px';
+            dropdownPanel.style.width = rect.width + 'px';
+            
             triggerBtn.style.background = 'var(--color-primary)';
             triggerBtn.style.color = '#fff';
             triggerBtn.style.borderColor = 'var(--color-primary)';
@@ -1921,6 +2011,7 @@ window.DynamicFormEngine = (function () {
               icon.style.transform = 'rotate(180deg)';
             }
           } else {
+            dropdownPanel.style.display = 'none';
             triggerBtn.style.background = 'var(--color-surface)';
             triggerBtn.style.color = 'var(--color-text)';
             triggerBtn.style.borderColor = 'var(--color-border)';
@@ -1934,7 +2025,7 @@ window.DynamicFormEngine = (function () {
 
         // Click outside to close
         var clickOutsideHandler = function(e) {
-          if (!selectWrapper.contains(e.target)) {
+          if (!selectWrapper.contains(e.target) && !dropdownPanel.contains(e.target)) {
             dropdownPanel.style.display = 'none';
             triggerBtn.style.background = 'var(--color-surface)';
             triggerBtn.style.color = 'var(--color-text)';
@@ -1948,12 +2039,15 @@ window.DynamicFormEngine = (function () {
         };
         document.addEventListener('click', clickOutsideHandler);
         
-        // Clean up event listener when element is removed
+        // Clean up event listener and body element when selectWrapper is removed
         var observer = new MutationObserver(function(mutations) {
           mutations.forEach(function(mutation) {
             Array.from(mutation.removedNodes).forEach(function(node) {
               if (node === selectWrapper || node.contains(selectWrapper)) {
                 document.removeEventListener('click', clickOutsideHandler);
+                if (dropdownPanel && dropdownPanel.parentNode) {
+                  dropdownPanel.parentNode.removeChild(dropdownPanel);
+                }
                 observer.disconnect();
               }
             });
@@ -1962,7 +2056,8 @@ window.DynamicFormEngine = (function () {
         observer.observe(document.body, { childList: true, subtree: true });
 
         selectWrapper.appendChild(triggerBtn);
-        selectWrapper.appendChild(dropdownPanel);
+        // Append dropdownPanel to body so it completely escapes any overflow: hidden
+        document.body.appendChild(dropdownPanel);
         detailContent.appendChild(selectWrapper);
       }
 
@@ -1984,10 +2079,63 @@ window.DynamicFormEngine = (function () {
         fieldsGrid.className = 'detail-fields-grid';
         fieldsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px 24px; flex: 1; background: var(--color-surface, #fff); padding: 24px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid var(--color-border, #e2e8f0);';
 
+        if (_inlineEditMode && !document.getElementById('inline-edit-style-override')) {
+          var inlineStyle = document.createElement('style');
+          inlineStyle.id = 'inline-edit-style-override';
+          inlineStyle.innerHTML = `
+            .inline-edit-field { width: 100%; display: flex; align-items: center; position: relative; }
+            .inline-edit-field .form-inline-input {
+              width: 100%;
+              border: 1px dashed transparent;
+              border-bottom: 1px dashed var(--color-border, #cbd5e1);
+              padding: 4px;
+              margin-left: -4px;
+              border-radius: 4px 4px 0 0;
+              font-size: 14px;
+              font-weight: 600;
+              color: var(--color-text, #0f172a);
+              background: transparent;
+              outline: none;
+              font-family: inherit;
+              transition: all 0.2s;
+            }
+            .inline-edit-field .form-inline-input:hover {
+              background: rgba(0,0,0,0.02);
+            }
+            .inline-edit-field .form-inline-input:focus {
+              border-bottom: 1px solid var(--color-primary, #3c50e0);
+              background: var(--color-primary-light, #e0e7ff);
+            }
+            .inline-edit-field .ui-input:disabled {
+              border: none !important;
+              background: transparent !important;
+              color: var(--color-text-secondary, #64748b);
+              font-weight: 600;
+            }
+            .inline-edit-field select.form-inline-input {
+              appearance: none;
+              background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+              background-repeat: no-repeat;
+              background-position: right 4px center;
+              background-size: 16px;
+            }
+            .inline-edit-field input[type="date"].form-inline-input::-webkit-calendar-picker-indicator {
+              cursor: pointer;
+              opacity: 0.5;
+              transition: 0.2s;
+              padding: 4px;
+            }
+            .inline-edit-field input[type="date"].form-inline-input:hover::-webkit-calendar-picker-indicator {
+              opacity: 1;
+            }
+          `;
+          document.head.appendChild(inlineStyle);
+        }
+
         var fieldsToRender = tabDef.fields || [];
         fieldsToRender.forEach(function (fName) {
           var fldDiv = document.createElement('div');
-          fldDiv.style.cssText = 'display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; border-bottom: 1px dashed var(--color-border-subtle, #f1f5f9);';
+          fldDiv.style.cssText = 'display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; border-bottom: 1px dashed var(--color-border-subtle, #f1f5f9);';
 
           var labelText = (tabDef.headers && tabDef.headers[fName]) ? tabDef.headers[fName] : (globalDictionary[fName] || fName);
           if (typeof labelText === 'string') {
@@ -2001,36 +2149,98 @@ window.DynamicFormEngine = (function () {
           var valSpan = document.createElement('span');
           var rawVal = row[fName];
           var valFormatted = '';
-          if (rawVal === null || rawVal === undefined) {
-            valFormatted = '—';
+          
+          if (_inlineEditMode) {
+             valSpan = document.createElement('div');
+             valSpan.className = 'inline-edit-field';
+             
+             var fieldSchema = globalFormSchema.find(function(s) { return s.name === fName; });
+             var isReadOnly = fieldSchema ? fieldSchema.isReadOnlyEdit : (fName === MODULE_CONFIG.PrimaryKey || fName === 'NewPersonID');
+             var isDate = fName.toLowerCase().indexOf('ngay') >= 0 || (fieldSchema && fieldSchema.renderRule === 'dt');
+             
+             if (isReadOnly) {
+                var roInput = document.createElement('input');
+                roInput.type = 'text';
+                roInput.value = rawVal || '';
+                roInput.disabled = true;
+                roInput.className = 'ui-input form-inline-input';
+                valSpan.appendChild(roInput);
+             } else if (isDate) {
+                var dInput = document.createElement('input');
+                dInput.type = 'date';
+                dInput.name = fName;
+                dInput.className = 'ui-input form-inline-input';
+                if (rawVal) {
+                   try { 
+                     var d = new Date(rawVal); 
+                     if (!isNaN(d.getTime())) dInput.value = d.toISOString().split('T')[0]; 
+                   } catch(e){}
+                }
+                valSpan.appendChild(dInput);
+             } else if (fName === 'GioiTinh') {
+                var sel = document.createElement('select');
+                sel.name = fName;
+                sel.className = 'ui-input form-inline-input';
+                var opts = ['Nam', 'Nữ', 'Khác'];
+                opts.forEach(function(o) {
+                   var option = document.createElement('option');
+                   option.value = o; option.textContent = o;
+                   if (rawVal === o) option.selected = true;
+                   sel.appendChild(option);
+                });
+                valSpan.appendChild(sel);
+             } else if (fName === 'PersonStatus') {
+                var selStatus = document.createElement('select');
+                selStatus.name = fName;
+                selStatus.className = 'ui-input form-inline-input';
+                var statuses = [{v:'1',t:'Thử việc'}, {v:'4',t:'Chính thức'}, {v:'8',t:'Nghỉ việc'}];
+                statuses.forEach(function(s) {
+                   var option = document.createElement('option');
+                   option.value = s.v; option.textContent = s.t;
+                   if (String(rawVal) === s.v) option.selected = true;
+                   selStatus.appendChild(option);
+                });
+                valSpan.appendChild(selStatus);
+             } else {
+                var txtInput = document.createElement('input');
+                txtInput.type = 'text';
+                txtInput.name = fName;
+                txtInput.value = rawVal || '';
+                txtInput.className = 'ui-input form-inline-input';
+                valSpan.appendChild(txtInput);
+             }
           } else {
-            if (fName.toLowerCase().indexOf('ngay') >= 0 && rawVal) {
-              try {
-                var d = new Date(rawVal);
-                if (!isNaN(d.getTime())) {
-                  valFormatted = d.toLocaleDateString('vi-VN');
-                } else {
+            if (rawVal === null || rawVal === undefined) {
+              valFormatted = '—';
+            } else {
+              if (fName.toLowerCase().indexOf('ngay') >= 0 && rawVal) {
+                try {
+                  var d = new Date(rawVal);
+                  if (!isNaN(d.getTime())) {
+                    valFormatted = d.toLocaleDateString('vi-VN');
+                  } else {
+                    valFormatted = rawVal;
+                  }
+                } catch (e) {
                   valFormatted = rawVal;
                 }
-              } catch (e) {
+              } else if (fName === 'PersonStatus') {
+                var statusMap = {
+                  '1': 'Thử việc',
+                  '4': 'Chính thức',
+                  '8': 'Nghỉ việc'
+                };
+                valFormatted = statusMap[String(rawVal)] || rawVal;
+              } else {
                 valFormatted = rawVal;
               }
-            } else if (fName === 'PersonStatus') {
-              var statusMap = {
-                '1': 'Thử việc',
-                '4': 'Chính thức',
-                '8': 'Nghỉ việc'
-              };
-              valFormatted = statusMap[String(rawVal)] || rawVal;
-            } else {
-              valFormatted = rawVal;
             }
+            
+            valSpan.innerHTML = valFormatted;
+            valSpan.style.fontSize = '14px';
+            valSpan.style.color = 'var(--color-text, #0f172a)';
+            valSpan.style.fontWeight = '600';
           }
-
-          valSpan.innerHTML = valFormatted;
-          valSpan.style.fontSize = '14px';
-          valSpan.style.color = 'var(--color-text, #0f172a)';
-          valSpan.style.fontWeight = '600';
 
           fldDiv.appendChild(label);
           fldDiv.appendChild(valSpan);
@@ -2049,7 +2259,7 @@ window.DynamicFormEngine = (function () {
 
           var imgFrame = document.createElement('div');
           imgFrame.className = 'detail-img-frame';
-          imgFrame.style.cssText = 'width: 160px; height: 160px; border: 4px solid var(--color-surface, #fff); border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.08);';
+          imgFrame.style.cssText = 'width: 160px; height: 160px; border: 4px solid var(--color-surface, #fff); border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position: relative;';
 
           var img = document.createElement('img');
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
@@ -2125,6 +2335,64 @@ window.DynamicFormEngine = (function () {
           };
 
           imgFrame.appendChild(img);
+          
+          if (_inlineEditMode) {
+            var avatarOverlay = document.createElement('div');
+            avatarOverlay.className = 'avatar-edit-overlay';
+            avatarOverlay.style.cssText = 'position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; text-align: center; padding: 6px 0; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; transition: 0.2s;';
+            avatarOverlay.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">add_a_photo</span> Thay ảnh';
+            
+            var fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.style.display = 'none';
+            
+            fileInput.onchange = function(e) {
+              var file = e.target.files[0];
+              if (!file) return;
+              if (file.size > 10 * 1024 * 1024) {
+                if (typeof Alert !== 'undefined') Alert.error('Tệp quá lớn', 'Hệ thống chỉ hỗ trợ ảnh tối đa 10MB.');
+                return;
+              }
+              
+              var reader = new FileReader();
+              reader.onload = function(e_ab) {
+                var bytes = new Uint8Array(e_ab.target.result);
+                var hexArray = [];
+                for (var i = 0; i < bytes.length; i++) {
+                  var hexVal = bytes[i].toString(16);
+                  if (hexVal.length < 2) hexVal = '0' + hexVal;
+                  hexArray.push(hexVal);
+                }
+                var hexStr = '0x' + hexArray.join('');
+                
+                var base64Reader = new FileReader();
+                base64Reader.onload = function(e_b64) {
+                  var dataUrl = e_b64.target.result;
+                  var base64Content = dataUrl.split(',')[1] || dataUrl;
+                  
+                  // Preview immediately
+                  img.src = dataUrl;
+                  
+                  // Save to window for _saveInlineEdit
+                  window._pendingAvatar = {
+                    file: file,
+                    hexStr: hexStr,
+                    base64Content: base64Content,
+                    dataUrl: dataUrl // Store the full dataUrl for the backend
+                  };
+                };
+                base64Reader.readAsDataURL(file);
+              };
+              reader.readAsArrayBuffer(file);
+            };
+            
+            avatarOverlay.onclick = function() { fileInput.click(); };
+            
+            imgFrame.appendChild(avatarOverlay);
+            imgFrame.appendChild(fileInput);
+          }
+          
           photoBox.appendChild(imgFrame);
           formWrap.appendChild(photoBox);
         }
@@ -3306,6 +3574,15 @@ window.DynamicFormEngine = (function () {
                     if (form) {
                       var targetInput = form.querySelector('[name="' + keyName + '" i]');
                       if (targetInput && targetInput !== hiddenInput) {
+                        // CHẶN AUTO FILL CHO KHÓA CHÍNH (HOẶC MÃ NHÂN VIÊN) KHI ĐANG Ở CHẾ ĐỘ SỬA (EDIT)
+                        if (isEdit && (
+                            keyName.toUpperCase() === (MODULE_CONFIG.PrimaryKey || '').toUpperCase() || 
+                            keyName.toUpperCase() === 'PERSONID' || 
+                            keyName.toUpperCase() === 'NEWPERSONID'
+                        )) {
+                          return; // Bỏ qua không tự động ghi đè mã
+                        }
+
                         // Điền giá trị
                         targetInput.value = row[index] || '';
                         // Kích hoạt sự kiện để UI update (nếu là ô chọn ngày, số lượng...)
@@ -4210,6 +4487,13 @@ window.DynamicFormEngine = (function () {
     for (var i = 0; i < globalFormSchema.length; i++) {
       var field = globalFormSchema[i];
       var val = formInputData[field.name];
+      
+      // Hỗ trợ Partial Update (ví dụ từ WizardForm truyền fakeBody chỉ chứa các trường thay đổi)
+      // Nếu trường không có trong formInputData nhưng có trong rowData (dữ liệu cũ), ta dùng tạm để pass Validate
+      if (val === undefined && isEdit && rowData && rowData[field.name] !== undefined) {
+        val = rowData[field.name];
+      }
+
       if (field.required && !val) {
         Alert.warning(MODULE_CONFIG.WarnMissingInfo, MODULE_CONFIG.WarnMissingInput.replace('{0}', field.label));
         isInvalid = true;
@@ -4239,7 +4523,7 @@ window.DynamicFormEngine = (function () {
             if (!numRe.test(val)) { Alert.warning('Lỗi nhập liệu', field.label + ' chỉ được phép nhập số'); isInvalid = true; break; }
           } else if (rule === 'cccd') {
             var cccdRe = /^\d{9}(\d{3})?$/;
-            if (!cccdRe.test(val)) { Alert.warning('Lỗi nhập liệu', field.label + ' phải là 9 hoặc 12 số (CMND/CCCD)'); isInvalid = true; break; }
+            if (!ccccdRe.test(val)) { Alert.warning('Lỗi nhập liệu', field.label + ' phải là 9 hoặc 12 số (CMND/CCCD)'); isInvalid = true; break; }
           } else if (rule === 'url') {
             var urlRe = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
             if (!urlRe.test(val)) { Alert.warning('Lỗi nhập liệu', field.label + ' không đúng định dạng đường dẫn trang web'); isInvalid = true; break; }
@@ -4286,8 +4570,14 @@ window.DynamicFormEngine = (function () {
     var singlePayload = _buildPayload(formInputData, isEdit);
     singlePayload.OrderNo = rowData && rowData.OrderNo ? rowData.OrderNo : 0;
 
-    if (isEdit && rowData && MODULE_CONFIG.PrimaryKey && !singlePayload[MODULE_CONFIG.PrimaryKey]) {
-      singlePayload[MODULE_CONFIG.PrimaryKey] = rowData[MODULE_CONFIG.PrimaryKey];
+    if (isEdit && rowData && MODULE_CONFIG.PrimaryKey) {
+      var pkKey = MODULE_CONFIG.PrimaryKey;
+      if (singlePayload[pkKey] !== undefined && singlePayload[pkKey] !== rowData[pkKey]) {
+        singlePayload['Old' + pkKey] = rowData[pkKey];
+      }
+      if (!singlePayload[pkKey]) {
+        singlePayload[pkKey] = rowData[pkKey];
+      }
     }
     payloads.push(singlePayload);
 
@@ -4295,17 +4585,56 @@ window.DynamicFormEngine = (function () {
 
     // Helper finalize save
     function _finalizeSave(isEdit, modal) {
-      UIToast.show(isEdit ? MODULE_CONFIG.ToastEdit : MODULE_CONFIG.ToastAdd, 'success');
-      modal.closeNow();
-      if (_isFormBuilder()) {
-        window._uiConfigCache = {}; // Cache Invalidate
-        selectedRows = [];
-        $container.innerHTML = '';
-        render($container, MODULE_CONFIG);
+      if (window._pendingWizardAvatar) {
+        var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
+        var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm') 
+                          ? 'API_CandidateAttach' : 'API_PersonAttach';
+        
+        var avatarPayload = {
+          List: attachApi,
+          Func: 'Save',
+          JsonData: JSON.stringify({
+            IsEdit: 0,
+            PersonID: masterKeyVal,
+            CandidateID: masterKeyVal,
+            FileName: window._pendingWizardAvatar.file.name,
+            FileType: 1, // 1 = Avatar
+            STT: 2,
+            FileSize: window._pendingWizardAvatar.file.size,
+            Base64Content: window._pendingWizardAvatar.base64Content,
+            Content: window._pendingWizardAvatar.hexStr
+          }),
+          UserName: _currentUser()
+        };
+        
+        ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function() {
+          window._pendingWizardAvatar = null;
+          UIToast.show('Cập nhật hồ sơ và ảnh đại diện thành công!', 'success');
+          modal.closeNow();
+          _postFinalizeSave();
+        }).catch(function() {
+          window._pendingWizardAvatar = null;
+          UIToast.show('Lưu hồ sơ thành công nhưng không lưu được ảnh!', 'warning');
+          modal.closeNow();
+          _postFinalizeSave();
+        });
       } else {
-        selectedRows = [];
-        _updateSelectionCounter();
-        _loadData();
+        UIToast.show(isEdit ? MODULE_CONFIG.ToastEdit : MODULE_CONFIG.ToastAdd, 'success');
+        modal.closeNow();
+        _postFinalizeSave();
+      }
+
+      function _postFinalizeSave() {
+        if (_isFormBuilder()) {
+          window._uiConfigCache = {}; // Cache Invalidate
+          selectedRows = [];
+          $container.innerHTML = '';
+          render($container, MODULE_CONFIG);
+        } else {
+          selectedRows = [];
+          _updateSelectionCounter();
+          _loadData();
+        }
       }
     }
 
@@ -4406,6 +4735,107 @@ window.DynamicFormEngine = (function () {
       .catch(function () {
         Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
         _restoreSaveBtn();
+      });
+  }
+
+  function _saveInlineEdit(originalRow, tabDef, btnSave) {
+    var detailContent = $container.querySelector('#dynamic-detail-content');
+    if (!detailContent) return;
+    
+    var formInputData = {};
+    var inputs = detailContent.querySelectorAll('.form-inline-input');
+    inputs.forEach(function (el) {
+      if (el.name) {
+        formInputData[el.name] = el.value;
+      }
+    });
+
+    var endpoint = MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router';
+    if (!endpoint) {
+      Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertApiMissing);
+      return;
+    }
+
+    // Merge với original row
+    var payloadObj = Object.assign({}, originalRow, formInputData);
+    payloadObj.UserName = _currentUser();
+    payloadObj.IsEdit = 1;
+    
+    var finalPayload = {
+      List: MODULE_CONFIG.FormName,
+      Func: 'Save',
+      JsonData: JSON.stringify(payloadObj)
+    };
+
+    if (btnSave) {
+      btnSave.disabled = true;
+      btnSave.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang lưu...';
+    }
+
+    ApiClient.post(endpoint, finalPayload)
+      .then(function (res) {
+        if (res && res.code === 0) {
+          // Main save successful. Check if there's a pending avatar to upload.
+          if (window._pendingAvatar) {
+            var personId = originalRow.PersonID || originalRow.CandidateID;
+            
+            // CHÚ Ý: API lưu đính kèm phải được định nghĩa trong WA_API. 
+            var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm') 
+                              ? 'API_CandidateAttach' : 'API_PersonAttach';
+            
+            var avatarPayload = {
+              List: attachApi,
+              Func: 'Save',
+              JsonData: JSON.stringify({
+                IsEdit: 0,
+                PersonID: personId,
+                CandidateID: personId,
+                FileName: window._pendingAvatar.file.name,
+                FileType: 1, // 1 = Avatar
+                STT: 2,
+                FileSize: window._pendingAvatar.file.size,
+                Base64Content: window._pendingAvatar.base64Content,
+                Content: window._pendingAvatar.hexStr
+              }),
+              UserName: _currentUser()
+            };
+            
+            ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function(resAvatar) {
+              if (resAvatar && (resAvatar.code === 0 || resAvatar.code === "0")) {
+                UIToast.show('Đã cập nhật thông tin và ảnh đại diện thành công!', 'success');
+              } else {
+                Alert.error('Lỗi lưu ảnh', 'Lưu thông tin thành công nhưng ảnh bị từ chối: ' + (resAvatar.msg || ''));
+              }
+              window._pendingAvatar = null;
+              _inlineEditMode = false;
+              _loadData();
+            }).catch(function(errAvatar) {
+              Alert.error('Lỗi mạng', 'Lưu thông tin thành công nhưng không kết nối được để lưu ảnh.');
+              window._pendingAvatar = null;
+              _inlineEditMode = false;
+              _loadData();
+            });
+            
+          } else {
+            // No avatar to upload
+            UIToast.show(MODULE_CONFIG.ToastEdit || 'Đã cập nhật thông tin thành công', 'success');
+            _inlineEditMode = false;
+            _loadData();
+          }
+        } else {
+          Alert.error(MODULE_CONFIG.AlertTitleError, res && res.msg ? res.msg : MODULE_CONFIG.AlertSaveFailed);
+          if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> Lưu';
+          }
+        }
+      })
+      .catch(function () {
+        Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
+        if (btnSave) {
+          btnSave.disabled = false;
+          btnSave.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> Lưu';
+        }
       });
   }
 

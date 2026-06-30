@@ -191,8 +191,14 @@ SET CaptionVN = CASE FieldName
         ELSE NULL
     END,
     FormPosition = CASE 
-        WHEN FieldName IN ('PersonID', 'PersonName', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgaySinh', 'CMND', 'DiaChiThuongTru', 'NgayVaoLam', 'BranchID', 'NgayHopDong', 'NationName', 'SoHopDong', 'DienThoai', 'PersonStatus') THEN 'grid'
-        ELSE '6' -- Flex layout in the edit modal (span 6 out of 12)
+        -- CÁC TRƯỜNG CƠ BẢN: Hiển thị ở cả Sơ yếu lý lịch (Inline) và Popup Modal ('6' là chia 2 cột)
+        WHEN FieldName IN (
+            'PersonID', 'NewPersonID', 'PersonName', 'BranchID', 'PhongBan', 
+            'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 
+            'PersonStatus', 'ShiftID', 'DienThoai', 'NgaySinh', 'GioiTinh'
+        ) THEN '6'
+        -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Sơ yếu lý lịch, CHỈ hiển thị trên Popup Modal
+        ELSE 'grid'
     END,
     ShowInAdd  = CASE WHEN FieldName = 'PersonID' THEN 0 ELSE 1 END,
     ShowInEdit = CASE WHEN FieldName = 'PersonID' THEN 0 ELSE 1 END,
