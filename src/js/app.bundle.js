@@ -12463,15 +12463,15 @@ var WizardForm = (function () {
         // Build fakeBody với chỉ những trường được sửa
         var fakeBody = document.createElement('div');
         Object.keys(formState).forEach(function (key) {
-            var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
-            // Vì là Thêm mới (Add) nên không có rowData cũ, chỉ gửi những trường có data khác rỗng
-            if (newValue !== '' || key === 'PersonID' || key === 'UserAutoID') {
-                var inp = document.createElement('input');
-                inp.type = 'hidden';
-                inp.name = key;
-                inp.value = newValue;
-                fakeBody.appendChild(inp);
-            }
+          var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
+          // Vì là Thêm mới (Add) nên không có rowData cũ, chỉ gửi những trường có data khác rỗng
+          if (newValue !== '' || key === 'PersonID' || key === 'UserAutoID') {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = key;
+            inp.value = newValue;
+            fakeBody.appendChild(inp);
+          }
         });
 
         var fakeModal = {
@@ -13795,7 +13795,7 @@ window.DynamicFormEngine = (function () {
                     <span class="material-symbols-outlined" style="font-size: 18px; font-weight: 600;">arrow_back</span>
                     <span>Quay lại danh sách</span>
                   </button>
-                  <div class="detail-header" style="margin-bottom: 12px; font-weight: 600; font-size: 15px; color: var(--color-primary); border-bottom: 2px solid var(--color-primary-light); padding-bottom: 8px;">
+                  <div class="detail-header" style="margin-bottom: 12px; font-weight: 600; font-size: 15px; color: var(--color-primary); border-bottom: 2px solid var(--color-primary-light); padding: 0 4px 8px 4px;">
                     ${defaultDetailTitle}
                   </div>
                   <div id="dynamic-detail-content" style="flex: 1; overflow-y: auto;">
@@ -13822,6 +13822,12 @@ window.DynamicFormEngine = (function () {
               flex: 1;
               min-width: 0;
             }
+            
+            /* Hide detail container by default on Desktop too */
+            .split-master-detail-container:not(.show-detail) #dynamic-detail-container {
+              display: none !important;
+            }
+
             .detail-back-btn {
               display: none !important;
             }
@@ -14647,10 +14653,7 @@ window.DynamicFormEngine = (function () {
               width: 100%;
             }
             #selection-counter {
-              margin-left: auto;
-              margin-top: 0;
-              width: auto;
-              flex: 0 0 auto;
+              display: none !important;
             }
           }
         `;
@@ -14695,12 +14698,12 @@ window.DynamicFormEngine = (function () {
       }
       var selectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
       detailContent.innerHTML = '<div class="empty-detail-state">' +
-                                  '<div class="empty-icon-wrapper">' +
-                                    '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
-                                  '</div>' +
-                                  '<div class="empty-text-main">Chưa có thông tin</div>' +
-                                  '<div class="empty-text-sub">' + selectText + '</div>' +
-                                '</div>';
+        '<div class="empty-icon-wrapper">' +
+        '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
+        '</div>' +
+        '<div class="empty-text-main">Chưa có thông tin</div>' +
+        '<div class="empty-text-sub">' + selectText + '</div>' +
+        '</div>';
       var detailHeader = $container.querySelector('.detail-header');
       if (detailHeader) {
         detailHeader.textContent = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');

@@ -76,6 +76,39 @@
   font-weight: 600;
 }
 
+/* ════ DESKTOP & GLOBAL DATA HIGHLIGHTING ════ */
+/* Highlight Name */
+.data-table tbody tr td[data-label="Họ tên"],
+.data-table tbody tr td[data-label="Họ Tên"],
+.data-table tbody tr td[data-label="HỌ TÊN"] {
+  font-weight: 700 !important;
+  color: var(--color-text-primary, #1e293b);
+}
+
+/* Highlight Employee Code */
+.data-table tbody tr td[data-label="Mã nhân viên"],
+.data-table tbody tr td[data-label="Mã NV"],
+.data-table tbody tr td[data-label="MÃ NHÂN VIÊN"] {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* Style Department */
+.data-table tbody tr td[data-label="Bộ phận"],
+.data-table tbody tr td[data-label="Phòng ban"],
+.data-table tbody tr td[data-label="BỘ PHẬN"] {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+/* Style Status / Trạng thái if any */
+.data-table tbody tr td[data-label="Trạng thái"],
+.data-table tbody tr td[data-label="Trạng Thái"],
+.data-table tbody tr td[data-label="TRẠNG THÁI"] {
+  font-weight: 600;
+  color: var(--color-success, #10b981);
+}
+
 /* ════ DARK THEME OVERRIDES ════ */
 body.dark-theme .data-table {
   background-color: var(--color-surface);

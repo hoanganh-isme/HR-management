@@ -66,16 +66,16 @@ window.DynamicFormEngine = (function () {
   function _getUserBranches() {
     // Bảng tên hiển thị — sync với SP [HR_MaNVTuTangTheoBranch]
     var BRANCH_DISPLAY = {
-      'COBI':        'COBI',
-      'DONGDU':      'Đông Du',
-      'ESTELLA':     'Estella',
-      'HOANGHAI':    'Hoàng Hải',
-      'HUNGVUONG':   'Hùng Vương',
-      'NAMVINH':     'Nam Vinh',
-      'SGCENTER':    'SG Center',
-      'THANHDA':     'Thành Đa',
+      'COBI': 'COBI',
+      'DONGDU': 'Đông Du',
+      'ESTELLA': 'Estella',
+      'HOANGHAI': 'Hoàng Hải',
+      'HUNGVUONG': 'Hùng Vương',
+      'NAMVINH': 'Nam Vinh',
+      'SGCENTER': 'SG Center',
+      'THANHDA': 'Thành Đa',
       'TRANHUNGDAO': 'Trần Hưng Đạo',
-      'VANPHONG':    'Văn Phòng',
+      'VANPHONG': 'Văn Phòng',
       // ── Thêm chi nhánh mới vào đây khi DB được cập nhật ─────────
     };
 
@@ -788,7 +788,7 @@ window.DynamicFormEngine = (function () {
             isReadOnlyEditVal = true;
             isReadOnlyAddVal = true;
           }
-          
+
           if (['WA_PersonFullFrm', 'WA_PersonInFrm'].includes(MODULE_CONFIG.FormName)) {
             if (['PersonID', 'NewPersonID'].includes(fieldName)) {
               isReadOnlyEditVal = true;
@@ -844,7 +844,7 @@ window.DynamicFormEngine = (function () {
                     <span class="material-symbols-outlined" style="font-size: 18px; font-weight: 600;">arrow_back</span>
                     <span>Quay lại danh sách</span>
                   </button>
-                  <div class="detail-header" style="margin-bottom: 12px; font-weight: 600; font-size: 15px; color: var(--color-primary); border-bottom: 2px solid var(--color-primary-light); padding-bottom: 8px;">
+                  <div class="detail-header" style="margin-bottom: 12px; font-weight: 600; font-size: 15px; color: var(--color-primary); border-bottom: 2px solid var(--color-primary-light); padding: 0 4px 8px 4px;">
                     ${defaultDetailTitle}
                   </div>
                   <div id="dynamic-detail-content" style="flex: 1; overflow-y: auto;">
@@ -871,6 +871,12 @@ window.DynamicFormEngine = (function () {
               flex: 1;
               min-width: 0;
             }
+            
+            /* Hide detail container by default on Desktop too */
+            .split-master-detail-container:not(.show-detail) #dynamic-detail-container {
+              display: none !important;
+            }
+
             .detail-back-btn {
               display: none !important;
             }
@@ -1393,7 +1399,7 @@ window.DynamicFormEngine = (function () {
 
       // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
       var _sessionUser = {};
-      try { _sessionUser = JSON.parse(localStorage.getItem('pmql_user') || '{}'); } catch(e) {}
+      try { _sessionUser = JSON.parse(localStorage.getItem('pmql_user') || '{}'); } catch (e) { }
       var _branchID = (_sessionUser.BranchID || '').toString().trim();
 
       var query = {
@@ -1550,7 +1556,7 @@ window.DynamicFormEngine = (function () {
           }
         });
         selectedRows = updatedSelectedRows;
-        
+
         // Lắng nghe sự kiện từ Global Drag Select (Trạm gác UITable)
         tbody.addEventListener('rowSelectionToggled', function (e) {
           var rData = gridData[e.detail.rowIndex];
@@ -1718,10 +1724,7 @@ window.DynamicFormEngine = (function () {
               width: 100%;
             }
             #selection-counter {
-              margin-left: auto;
-              margin-top: 0;
-              width: auto;
-              flex: 0 0 auto;
+              display: none !important;
             }
           }
         `;
@@ -1766,12 +1769,12 @@ window.DynamicFormEngine = (function () {
       }
       var selectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
       detailContent.innerHTML = '<div class="empty-detail-state">' +
-                                  '<div class="empty-icon-wrapper">' +
-                                    '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
-                                  '</div>' +
-                                  '<div class="empty-text-main">Chưa có thông tin</div>' +
-                                  '<div class="empty-text-sub">' + selectText + '</div>' +
-                                '</div>';
+        '<div class="empty-icon-wrapper">' +
+        '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
+        '</div>' +
+        '<div class="empty-text-main">Chưa có thông tin</div>' +
+        '<div class="empty-text-sub">' + selectText + '</div>' +
+        '</div>';
       var detailHeader = $container.querySelector('.detail-header');
       if (detailHeader) {
         detailHeader.textContent = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
@@ -1802,48 +1805,48 @@ window.DynamicFormEngine = (function () {
     if (detailHeader) {
       var defaultDetailTitle = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
       var nameVal = row.PersonName || row.TenPhuCap || row[MODULE_CONFIG.PrimaryKey] || '';
-      
+
       detailHeader.style.display = 'flex';
       detailHeader.style.justifyContent = 'space-between';
       detailHeader.style.alignItems = 'center';
-      
+
       var titleSpan = document.createElement('span');
       titleSpan.textContent = defaultDetailTitle + ': ' + nameVal;
-      
+
       detailHeader.innerHTML = '';
       detailHeader.appendChild(titleSpan);
 
       var currentTabDef = MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 ? MODULE_CONFIG.DetailTabs[activeDetailTabIdx || 0] : null;
       if (currentTabDef && currentTabDef.type === 'form' && !MODULE_CONFIG.HideEditBtn && (typeof _hasPermission !== 'function' || _hasPermission('EDIT'))) {
-         var hdrActions = document.createElement('div');
-         hdrActions.style.cssText = 'display: flex; gap: 8px; font-weight: normal;';
-         if (_inlineEditMode) {
-           var btnSave = document.createElement('button');
-           btnSave.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> Lưu';
-           btnSave.style.cssText = 'padding: 4px 12px; background: var(--color-success, #10b981); color: white; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); outline: none; transition: all 0.2s;';
-           btnSave.onmouseover = function() { this.style.opacity = '0.9'; };
-           btnSave.onmouseout = function() { this.style.opacity = '1'; };
-           btnSave.onclick = function() { _saveInlineEdit(row, currentTabDef, btnSave); };
-           
-           var btnCancel = document.createElement('button');
-           btnCancel.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">close</span> Hủy';
-           btnCancel.style.cssText = 'padding: 4px 12px; background: var(--color-surface-elevated, #f1f5f9); color: var(--color-text-secondary, #64748b); border: 1px solid var(--color-border); border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; outline: none; transition: all 0.2s;';
-           btnCancel.onmouseover = function() { this.style.background = 'var(--color-border-subtle, #e2e8f0)'; };
-           btnCancel.onmouseout = function() { this.style.background = 'var(--color-surface-elevated, #f1f5f9)'; };
-           btnCancel.onclick = function() { _inlineEditMode = false; _updateDetailView(); };
-           
-           hdrActions.appendChild(btnCancel);
-           hdrActions.appendChild(btnSave);
-         } else {
-           var btnEdit = document.createElement('button');
-           btnEdit.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">edit</span> Sửa';
-           btnEdit.style.cssText = 'padding: 4px 12px; background: var(--color-primary-light, #e0e7ff); color: var(--color-primary, #4338ca); border: none; border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; outline: none; transition: all 0.2s;';
-           btnEdit.onmouseover = function() { this.style.background = 'var(--color-primary, #4338ca)'; this.style.color = 'white'; };
-           btnEdit.onmouseout = function() { this.style.background = 'var(--color-primary-light, #e0e7ff)'; this.style.color = 'var(--color-primary, #4338ca)'; };
-           btnEdit.onclick = function() { _inlineEditMode = true; _updateDetailView(); };
-           hdrActions.appendChild(btnEdit);
-         }
-         detailHeader.appendChild(hdrActions);
+        var hdrActions = document.createElement('div');
+        hdrActions.style.cssText = 'display: flex; gap: 8px; font-weight: normal; margin-right: 4px;';
+        if (_inlineEditMode) {
+          var btnSave = document.createElement('button');
+          btnSave.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> Lưu';
+          btnSave.style.cssText = 'padding: 6px 16px; background: var(--color-success, #10b981); color: white; border: none; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2); outline: none; transition: all 0.2s;';
+          btnSave.onmouseover = function () { this.style.transform = 'translateY(-1px)'; this.style.boxShadow = '0 4px 6px rgba(16, 185, 129, 0.3)'; };
+          btnSave.onmouseout = function () { this.style.transform = 'none'; this.style.boxShadow = '0 2px 4px rgba(16, 185, 129, 0.2)'; };
+          btnSave.onclick = function () { _saveInlineEdit(row, currentTabDef, btnSave); };
+
+          var btnCancel = document.createElement('button');
+          btnCancel.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">close</span> Hủy';
+          btnCancel.style.cssText = 'padding: 6px 16px; background: var(--color-surface-elevated, #f1f5f9); color: var(--color-text-secondary, #64748b); border: 1px solid var(--color-border); border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 4px; outline: none; transition: all 0.2s;';
+          btnCancel.onmouseover = function () { this.style.background = 'var(--color-border-subtle, #e2e8f0)'; };
+          btnCancel.onmouseout = function () { this.style.background = 'var(--color-surface-elevated, #f1f5f9)'; };
+          btnCancel.onclick = function () { _inlineEditMode = false; _updateDetailView(); };
+
+          hdrActions.appendChild(btnCancel);
+          hdrActions.appendChild(btnSave);
+        } else {
+          var btnEdit = document.createElement('button');
+          btnEdit.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">edit</span> Sửa';
+          btnEdit.style.cssText = 'padding: 6px 16px; background: var(--color-primary-light, #e0e7ff); color: var(--color-primary, #4338ca); border: none; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 4px; outline: none; transition: all 0.2s;';
+          btnEdit.onmouseover = function () { this.style.background = 'var(--color-primary, #4338ca)'; this.style.color = 'white'; };
+          btnEdit.onmouseout = function () { this.style.background = 'var(--color-primary-light, #e0e7ff)'; this.style.color = 'var(--color-primary, #4338ca)'; };
+          btnEdit.onclick = function () { _inlineEditMode = true; _updateDetailView(); };
+          hdrActions.appendChild(btnEdit);
+        }
+        detailHeader.appendChild(hdrActions);
       }
     }
 
@@ -1972,17 +1975,17 @@ window.DynamicFormEngine = (function () {
           optBtn.type = 'button';
           optBtn.textContent = tab.label;
           var isSelected = idx === activeDetailTabIdx;
-          
+
           optBtn.style.cssText = 'width: 100%; display: flex; align-items: center; padding: 10px 16px; font-size: 14px; text-align: left; border: none; background: ' + (isSelected ? 'rgba(var(--color-primary-rgb, 60,80,224), 0.08)' : 'transparent') + '; color: ' + (isSelected ? 'var(--color-primary)' : 'var(--color-text)') + '; font-weight: ' + (isSelected ? '600' : '500') + '; cursor: pointer; transition: background 0.15s ease; font-family: inherit;';
-          
-          optBtn.onmouseover = function() {
+
+          optBtn.onmouseover = function () {
             if (!isSelected) this.style.background = 'var(--color-surface-hover, rgba(0, 0, 0, 0.04))';
           };
-          optBtn.onmouseout = function() {
+          optBtn.onmouseout = function () {
             if (!isSelected) this.style.background = 'transparent';
           };
-          
-          optBtn.onclick = function(e) {
+
+          optBtn.onclick = function (e) {
             e.stopPropagation();
             activeDetailTabIdx = idx;
             dropdownPanel.style.display = 'none';
@@ -1991,17 +1994,17 @@ window.DynamicFormEngine = (function () {
           dropdownPanel.appendChild(optBtn);
         });
 
-        triggerBtn.onclick = function(e) {
+        triggerBtn.onclick = function (e) {
           e.stopPropagation();
           var isOpen = dropdownPanel.style.display === 'flex';
-          
+
           if (!isOpen) {
             dropdownPanel.style.display = 'flex';
             var rect = triggerBtn.getBoundingClientRect();
             dropdownPanel.style.top = (rect.bottom + window.scrollY + 4) + 'px';
             dropdownPanel.style.left = (rect.left + window.scrollX) + 'px';
             dropdownPanel.style.width = rect.width + 'px';
-            
+
             triggerBtn.style.background = 'var(--color-primary)';
             triggerBtn.style.color = '#fff';
             triggerBtn.style.borderColor = 'var(--color-primary)';
@@ -2024,7 +2027,7 @@ window.DynamicFormEngine = (function () {
         };
 
         // Click outside to close
-        var clickOutsideHandler = function(e) {
+        var clickOutsideHandler = function (e) {
           if (!selectWrapper.contains(e.target) && !dropdownPanel.contains(e.target)) {
             dropdownPanel.style.display = 'none';
             triggerBtn.style.background = 'var(--color-surface)';
@@ -2038,11 +2041,11 @@ window.DynamicFormEngine = (function () {
           }
         };
         document.addEventListener('click', clickOutsideHandler);
-        
+
         // Clean up event listener and body element when selectWrapper is removed
-        var observer = new MutationObserver(function(mutations) {
-          mutations.forEach(function(mutation) {
-            Array.from(mutation.removedNodes).forEach(function(node) {
+        var observer = new MutationObserver(function (mutations) {
+          mutations.forEach(function (mutation) {
+            Array.from(mutation.removedNodes).forEach(function (node) {
               if (node === selectWrapper || node.contains(selectWrapper)) {
                 document.removeEventListener('click', clickOutsideHandler);
                 if (dropdownPanel && dropdownPanel.parentNode) {
@@ -2149,66 +2152,66 @@ window.DynamicFormEngine = (function () {
           var valSpan = document.createElement('span');
           var rawVal = row[fName];
           var valFormatted = '';
-          
+
           if (_inlineEditMode) {
-             valSpan = document.createElement('div');
-             valSpan.className = 'inline-edit-field';
-             
-             var fieldSchema = globalFormSchema.find(function(s) { return s.name === fName; });
-             var isReadOnly = fieldSchema ? fieldSchema.isReadOnlyEdit : (fName === MODULE_CONFIG.PrimaryKey || fName === 'NewPersonID');
-             var isDate = fName.toLowerCase().indexOf('ngay') >= 0 || (fieldSchema && fieldSchema.renderRule === 'dt');
-             
-             if (isReadOnly) {
-                var roInput = document.createElement('input');
-                roInput.type = 'text';
-                roInput.value = rawVal || '';
-                roInput.disabled = true;
-                roInput.className = 'ui-input form-inline-input';
-                valSpan.appendChild(roInput);
-             } else if (isDate) {
-                var dInput = document.createElement('input');
-                dInput.type = 'date';
-                dInput.name = fName;
-                dInput.className = 'ui-input form-inline-input';
-                if (rawVal) {
-                   try { 
-                     var d = new Date(rawVal); 
-                     if (!isNaN(d.getTime())) dInput.value = d.toISOString().split('T')[0]; 
-                   } catch(e){}
-                }
-                valSpan.appendChild(dInput);
-             } else if (fName === 'GioiTinh') {
-                var sel = document.createElement('select');
-                sel.name = fName;
-                sel.className = 'ui-input form-inline-input';
-                var opts = ['Nam', 'Nữ', 'Khác'];
-                opts.forEach(function(o) {
-                   var option = document.createElement('option');
-                   option.value = o; option.textContent = o;
-                   if (rawVal === o) option.selected = true;
-                   sel.appendChild(option);
-                });
-                valSpan.appendChild(sel);
-             } else if (fName === 'PersonStatus') {
-                var selStatus = document.createElement('select');
-                selStatus.name = fName;
-                selStatus.className = 'ui-input form-inline-input';
-                var statuses = [{v:'1',t:'Thử việc'}, {v:'4',t:'Chính thức'}, {v:'8',t:'Nghỉ việc'}];
-                statuses.forEach(function(s) {
-                   var option = document.createElement('option');
-                   option.value = s.v; option.textContent = s.t;
-                   if (String(rawVal) === s.v) option.selected = true;
-                   selStatus.appendChild(option);
-                });
-                valSpan.appendChild(selStatus);
-             } else {
-                var txtInput = document.createElement('input');
-                txtInput.type = 'text';
-                txtInput.name = fName;
-                txtInput.value = rawVal || '';
-                txtInput.className = 'ui-input form-inline-input';
-                valSpan.appendChild(txtInput);
-             }
+            valSpan = document.createElement('div');
+            valSpan.className = 'inline-edit-field';
+
+            var fieldSchema = globalFormSchema.find(function (s) { return s.name === fName; });
+            var isReadOnly = fieldSchema ? fieldSchema.isReadOnlyEdit : (fName === MODULE_CONFIG.PrimaryKey || fName === 'NewPersonID');
+            var isDate = fName.toLowerCase().indexOf('ngay') >= 0 || (fieldSchema && fieldSchema.renderRule === 'dt');
+
+            if (isReadOnly) {
+              var roInput = document.createElement('input');
+              roInput.type = 'text';
+              roInput.value = rawVal || '';
+              roInput.disabled = true;
+              roInput.className = 'ui-input form-inline-input';
+              valSpan.appendChild(roInput);
+            } else if (isDate) {
+              var dInput = document.createElement('input');
+              dInput.type = 'date';
+              dInput.name = fName;
+              dInput.className = 'ui-input form-inline-input';
+              if (rawVal) {
+                try {
+                  var d = new Date(rawVal);
+                  if (!isNaN(d.getTime())) dInput.value = d.toISOString().split('T')[0];
+                } catch (e) { }
+              }
+              valSpan.appendChild(dInput);
+            } else if (fName === 'GioiTinh') {
+              var sel = document.createElement('select');
+              sel.name = fName;
+              sel.className = 'ui-input form-inline-input';
+              var opts = ['Nam', 'Nữ', 'Khác'];
+              opts.forEach(function (o) {
+                var option = document.createElement('option');
+                option.value = o; option.textContent = o;
+                if (rawVal === o) option.selected = true;
+                sel.appendChild(option);
+              });
+              valSpan.appendChild(sel);
+            } else if (fName === 'PersonStatus') {
+              var selStatus = document.createElement('select');
+              selStatus.name = fName;
+              selStatus.className = 'ui-input form-inline-input';
+              var statuses = [{ v: '1', t: 'Thử việc' }, { v: '4', t: 'Chính thức' }, { v: '8', t: 'Nghỉ việc' }];
+              statuses.forEach(function (s) {
+                var option = document.createElement('option');
+                option.value = s.v; option.textContent = s.t;
+                if (String(rawVal) === s.v) option.selected = true;
+                selStatus.appendChild(option);
+              });
+              valSpan.appendChild(selStatus);
+            } else {
+              var txtInput = document.createElement('input');
+              txtInput.type = 'text';
+              txtInput.name = fName;
+              txtInput.value = rawVal || '';
+              txtInput.className = 'ui-input form-inline-input';
+              valSpan.appendChild(txtInput);
+            }
           } else {
             if (rawVal === null || rawVal === undefined) {
               valFormatted = '—';
@@ -2235,7 +2238,7 @@ window.DynamicFormEngine = (function () {
                 valFormatted = rawVal;
               }
             }
-            
+
             valSpan.innerHTML = valFormatted;
             valSpan.style.fontSize = '14px';
             valSpan.style.color = 'var(--color-text, #0f172a)';
@@ -2335,28 +2338,28 @@ window.DynamicFormEngine = (function () {
           };
 
           imgFrame.appendChild(img);
-          
+
           if (_inlineEditMode) {
             var avatarOverlay = document.createElement('div');
             avatarOverlay.className = 'avatar-edit-overlay';
             avatarOverlay.style.cssText = 'position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; text-align: center; padding: 6px 0; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; transition: 0.2s;';
             avatarOverlay.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">add_a_photo</span> Thay ảnh';
-            
+
             var fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'image/*';
             fileInput.style.display = 'none';
-            
-            fileInput.onchange = function(e) {
+
+            fileInput.onchange = function (e) {
               var file = e.target.files[0];
               if (!file) return;
               if (file.size > 10 * 1024 * 1024) {
                 if (typeof Alert !== 'undefined') Alert.error('Tệp quá lớn', 'Hệ thống chỉ hỗ trợ ảnh tối đa 10MB.');
                 return;
               }
-              
+
               var reader = new FileReader();
-              reader.onload = function(e_ab) {
+              reader.onload = function (e_ab) {
                 var bytes = new Uint8Array(e_ab.target.result);
                 var hexArray = [];
                 for (var i = 0; i < bytes.length; i++) {
@@ -2365,15 +2368,15 @@ window.DynamicFormEngine = (function () {
                   hexArray.push(hexVal);
                 }
                 var hexStr = '0x' + hexArray.join('');
-                
+
                 var base64Reader = new FileReader();
-                base64Reader.onload = function(e_b64) {
+                base64Reader.onload = function (e_b64) {
                   var dataUrl = e_b64.target.result;
                   var base64Content = dataUrl.split(',')[1] || dataUrl;
-                  
+
                   // Preview immediately
                   img.src = dataUrl;
-                  
+
                   // Save to window for _saveInlineEdit
                   window._pendingAvatar = {
                     file: file,
@@ -2386,13 +2389,13 @@ window.DynamicFormEngine = (function () {
               };
               reader.readAsArrayBuffer(file);
             };
-            
-            avatarOverlay.onclick = function() { fileInput.click(); };
-            
+
+            avatarOverlay.onclick = function () { fileInput.click(); };
+
             imgFrame.appendChild(avatarOverlay);
             imgFrame.appendChild(fileInput);
           }
-          
+
           photoBox.appendChild(imgFrame);
           formWrap.appendChild(photoBox);
         }
@@ -2781,12 +2784,12 @@ window.DynamicFormEngine = (function () {
     // Neu co WizardSteps -> dung Wizard multi-step, nguoc lai dung modal thuong
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
-        steps:        MODULE_CONFIG.WizardSteps,
-        formSchema:   globalFormSchema,
+        steps: MODULE_CONFIG.WizardSteps,
+        formSchema: globalFormSchema,
         moduleConfig: MODULE_CONFIG,
-        currentUser:  _currentUser(),
+        currentUser: _currentUser(),
         userBranches: _getUserBranches(),   // Danh sách chi nhánh của user
-        saveData:     _saveData
+        saveData: _saveData
       });
     } else {
       _openModal(false, null);
@@ -2798,14 +2801,14 @@ window.DynamicFormEngine = (function () {
   function _openEditForm(row) {
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
-        isEdit:       true,
-        rowData:      row,
-        steps:        MODULE_CONFIG.WizardSteps,
-        formSchema:   globalFormSchema,
+        isEdit: true,
+        rowData: row,
+        steps: MODULE_CONFIG.WizardSteps,
+        formSchema: globalFormSchema,
         moduleConfig: MODULE_CONFIG,
-        currentUser:  _currentUser(),
+        currentUser: _currentUser(),
         userBranches: _getUserBranches(),
-        saveData:     _saveData
+        saveData: _saveData
       });
     } else {
       _openModal(true, row);
@@ -3576,9 +3579,9 @@ window.DynamicFormEngine = (function () {
                       if (targetInput && targetInput !== hiddenInput) {
                         // CHẶN AUTO FILL CHO KHÓA CHÍNH (HOẶC MÃ NHÂN VIÊN) KHI ĐANG Ở CHẾ ĐỘ SỬA (EDIT)
                         if (isEdit && (
-                            keyName.toUpperCase() === (MODULE_CONFIG.PrimaryKey || '').toUpperCase() || 
-                            keyName.toUpperCase() === 'PERSONID' || 
-                            keyName.toUpperCase() === 'NEWPERSONID'
+                          keyName.toUpperCase() === (MODULE_CONFIG.PrimaryKey || '').toUpperCase() ||
+                          keyName.toUpperCase() === 'PERSONID' ||
+                          keyName.toUpperCase() === 'NEWPERSONID'
                         )) {
                           return; // Bỏ qua không tự động ghi đè mã
                         }
@@ -4487,7 +4490,7 @@ window.DynamicFormEngine = (function () {
     for (var i = 0; i < globalFormSchema.length; i++) {
       var field = globalFormSchema[i];
       var val = formInputData[field.name];
-      
+
       // Hỗ trợ Partial Update (ví dụ từ WizardForm truyền fakeBody chỉ chứa các trường thay đổi)
       // Nếu trường không có trong formInputData nhưng có trong rowData (dữ liệu cũ), ta dùng tạm để pass Validate
       if (val === undefined && isEdit && rowData && rowData[field.name] !== undefined) {
@@ -4587,9 +4590,9 @@ window.DynamicFormEngine = (function () {
     function _finalizeSave(isEdit, modal) {
       if (window._pendingWizardAvatar) {
         var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
-        var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm') 
-                          ? 'API_CandidateAttach' : 'API_PersonAttach';
-        
+        var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm')
+          ? 'API_CandidateAttach' : 'API_PersonAttach';
+
         var avatarPayload = {
           List: attachApi,
           Func: 'Save',
@@ -4606,13 +4609,13 @@ window.DynamicFormEngine = (function () {
           }),
           UserName: _currentUser()
         };
-        
-        ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function() {
+
+        ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function () {
           window._pendingWizardAvatar = null;
           UIToast.show('Cập nhật hồ sơ và ảnh đại diện thành công!', 'success');
           modal.closeNow();
           _postFinalizeSave();
-        }).catch(function() {
+        }).catch(function () {
           window._pendingWizardAvatar = null;
           UIToast.show('Lưu hồ sơ thành công nhưng không lưu được ảnh!', 'warning');
           modal.closeNow();
@@ -4741,7 +4744,7 @@ window.DynamicFormEngine = (function () {
   function _saveInlineEdit(originalRow, tabDef, btnSave) {
     var detailContent = $container.querySelector('#dynamic-detail-content');
     if (!detailContent) return;
-    
+
     var formInputData = {};
     var inputs = detailContent.querySelectorAll('.form-inline-input');
     inputs.forEach(function (el) {
@@ -4760,7 +4763,7 @@ window.DynamicFormEngine = (function () {
     var payloadObj = Object.assign({}, originalRow, formInputData);
     payloadObj.UserName = _currentUser();
     payloadObj.IsEdit = 1;
-    
+
     var finalPayload = {
       List: MODULE_CONFIG.FormName,
       Func: 'Save',
@@ -4778,11 +4781,11 @@ window.DynamicFormEngine = (function () {
           // Main save successful. Check if there's a pending avatar to upload.
           if (window._pendingAvatar) {
             var personId = originalRow.PersonID || originalRow.CandidateID;
-            
+
             // CHÚ Ý: API lưu đính kèm phải được định nghĩa trong WA_API. 
-            var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm') 
-                              ? 'API_CandidateAttach' : 'API_PersonAttach';
-            
+            var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm')
+              ? 'API_CandidateAttach' : 'API_PersonAttach';
+
             var avatarPayload = {
               List: attachApi,
               Func: 'Save',
@@ -4799,8 +4802,8 @@ window.DynamicFormEngine = (function () {
               }),
               UserName: _currentUser()
             };
-            
-            ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function(resAvatar) {
+
+            ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function (resAvatar) {
               if (resAvatar && (resAvatar.code === 0 || resAvatar.code === "0")) {
                 UIToast.show('Đã cập nhật thông tin và ảnh đại diện thành công!', 'success');
               } else {
@@ -4809,13 +4812,13 @@ window.DynamicFormEngine = (function () {
               window._pendingAvatar = null;
               _inlineEditMode = false;
               _loadData();
-            }).catch(function(errAvatar) {
+            }).catch(function (errAvatar) {
               Alert.error('Lỗi mạng', 'Lưu thông tin thành công nhưng không kết nối được để lưu ảnh.');
               window._pendingAvatar = null;
               _inlineEditMode = false;
               _loadData();
             });
-            
+
           } else {
             // No avatar to upload
             UIToast.show(MODULE_CONFIG.ToastEdit || 'Đã cập nhật thông tin thành công', 'success');
