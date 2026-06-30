@@ -7319,3 +7319,4 @@ body.dark-theme .data-table tbody tr:hover {
   max-width: 250px;
   line-height: 1.5;
 }
+@media (max-width: 768px) { .df-master-wrapper { flex-direction: column-reverse !important; align-items: center !important; } .df-master-wrapper .photo-box-wrapper { width: 100% !important; max-width: 200px !important; margin: 0 auto !important; } }

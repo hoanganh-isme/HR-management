@@ -1121,7 +1121,13 @@ var WizardForm = (function () {
         '.photo-frame { width:100%; height:240px; border:1px dashed var(--color-border-strong); border-radius:6px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#f8fafc; }',
         '.photo-frame img { width:100%; height:100%; object-fit:cover; }',
         '.resume-layout { display:flex; gap:24px; align-items:flex-start; }',
-        '.resume-fields { flex:1; }'
+        '.resume-fields { flex:1; }',
+        '@media (max-width: 768px) {',
+        '  .resume-layout { flex-direction: column-reverse; align-items: center; gap: 16px; }',
+        '  .resume-layout .photo-box { width: 100%; max-width: 200px; padding: 12px; }',
+        '  .resume-fields { width: 100%; }',
+        '  .wz-fields-grid.two-cols { grid-template-columns: 1fr; }',
+        '}'
       ].join('\n');
       document.head.appendChild(style);
     }
