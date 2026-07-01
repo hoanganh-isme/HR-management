@@ -7441,7 +7441,7 @@ var UITable = (function () {
       table.style.tableLayout = nowMobile ? 'fixed' : 'auto';
     });
 
-    // Ép style thu gọn khoảng cách (Compact Density)
+    // Ép style thu gọn khoảng cách (Compact Density) + Sticky Columns
     var styleDensity = document.createElement('style');
     styleDensity.innerHTML = `
       .table-wrapper .data-table th,
@@ -7454,6 +7454,39 @@ var UITable = (function () {
         width: max-content !important;
         white-space: nowrap !important;
         table-layout: auto !important;
+      }
+      /* ── Sticky Columns ── */
+      .table-wrapper.has-sticky-cols .data-table td.sticky-col {
+        position: sticky !important;
+        z-index: 2 !important;
+        background: var(--color-surface, #fff);
+      }
+      /* Header sticky-col cần z-index cao hơn th thường (z-index:10) để không bị che khuất khi scroll */
+      .table-wrapper.has-sticky-cols .data-table thead th.sticky-col {
+        position: sticky !important;
+        z-index: 30 !important;
+        background: var(--color-surface, #fff);
+      }
+      .table-wrapper.has-sticky-cols .data-table th.sticky-col-last,
+      .table-wrapper.has-sticky-cols .data-table td.sticky-col-last {
+        box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);
+        border-right: 1px solid var(--color-border, #e2e8f0) !important;
+      }
+      body.dark-theme .table-wrapper.has-sticky-cols .data-table th.sticky-col,
+      body.dark-theme .table-wrapper.has-sticky-cols .data-table td.sticky-col {
+        background: var(--color-surface, #1e293b);
+      }
+      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
+        background: rgba(255,255,255,0.05);
+      }
+      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
+        background: var(--color-primary-light, rgba(67,97,238,0.18));
+      }
+      .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
+        background: var(--color-surface-elevated, #f8fafc);
+      }
+      .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
+        background: var(--color-primary-light, rgba(67,97,238,0.06));
       }
       @media (max-width: 768px) {
         .table-wrapper .data-table th,
@@ -7485,9 +7518,56 @@ var UITable = (function () {
         .table-wrapper .data-table td:first-child {
           padding-left: 16px !important;
         }
+        /* Tắt sticky trên mobile để không bị chồng lấp */
+        .table-wrapper.has-sticky-cols .data-table th.sticky-col,
+        .table-wrapper.has-sticky-cols .data-table td.sticky-col {
+          position: static !important;
+          box-shadow: none !important;
+          border-right: none !important;
+        }
       }
     `;
     wrapper.appendChild(styleDensity);
+
+    // Số cột cần sticky (mặc định 0 = tắt)
+    var stickyCount = (typeof config.stickyColumns === 'number' && config.stickyColumns > 0) ? config.stickyColumns : 0;
+    if (stickyCount > 0) {
+      wrapper.classList.add('has-sticky-cols');
+    }
+
+    // Tính trước left offset cho từng sticky column từ config width (sync)
+    var _stickyOffsets = [];
+    if (stickyCount > 0 && config.headers) {
+      var _acc = 0;
+      for (var _si = 0; _si < Math.min(stickyCount, config.headers.length); _si++) {
+        _stickyOffsets.push(_acc);
+        var _hdr = config.headers[_si];
+        var _w = (_hdr && _hdr.width) ? (parseInt(_hdr.width) || 150) : 150;
+        _acc += _w;
+      }
+    }
+
+    // Hàm cập nhật left offset khi chiều rộng cột thay đổi (VD: column resize)
+    function _applyStickyOffsets() {
+      if (stickyCount <= 0) return;
+      var stickyThs = thead.querySelectorAll('th.sticky-col');
+      var acc = 0;
+      for (var si = 0; si < stickyThs.length; si++) {
+        _stickyOffsets[si] = acc;
+        stickyThs[si].style.left = acc + 'px';
+        stickyThs[si].style.top = '0';
+        acc += stickyThs[si].offsetWidth;
+      }
+      var rows = tbody.querySelectorAll('tr');
+      for (var ri = 0; ri < rows.length; ri++) {
+        var stickyTds = rows[ri].querySelectorAll('td.sticky-col');
+        for (var ci = 0; ci < stickyTds.length; ci++) {
+          if (_stickyOffsets[ci] !== undefined) {
+            stickyTds[ci].style.left = _stickyOffsets[ci] + 'px';
+          }
+        }
+      }
+    }
 
     var currentData = config.data ? config.data.slice() : [];
     var currentSort = config.currentSort ? { field: config.currentSort.field, dir: config.currentSort.dir } : { field: null, dir: 'asc' };
@@ -7507,6 +7587,13 @@ var UITable = (function () {
                 td.setAttribute('data-label', config.headers[idx].label);
               }
 
+              // Sticky column: gắn class + left ngay khi tạo td (không cần đợi rAF)
+              if (stickyCount > 0 && idx < stickyCount) {
+                td.classList.add('sticky-col');
+                if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
+                td.style.left = (_stickyOffsets[idx] || 0) + 'px';
+              }
+
               var val = row[col.field];
               if (col.render) {
                 var rendered = col.render(val, row);
@@ -7518,8 +7605,13 @@ var UITable = (function () {
               tr.appendChild(td);
             });
           } else {
-            row.forEach(function (cellStr) {
+            row.forEach(function (cellStr, idx) {
               var td = document.createElement('td');
+              if (stickyCount > 0 && idx < stickyCount) {
+                td.classList.add('sticky-col');
+                if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
+                td.style.left = (_stickyOffsets[idx] || 0) + 'px';
+              }
               if (typeof cellStr === 'string' && cellStr.indexOf('<') > -1) {
                 td.innerHTML = cellStr;
               } else {
@@ -7613,6 +7705,16 @@ var UITable = (function () {
             th.style.minWidth = h.width; // Ép cứng chiều rộng ban đầu
           }
           if (h.align) th.style.textAlign = h.align;
+
+          // Sticky column: gắn class + set left và top inline ngay khi tạo th
+          if (stickyCount > 0 && idx < stickyCount) {
+            th.classList.add('sticky-col');
+            if (idx === stickyCount - 1) th.classList.add('sticky-col-last');
+            th.draggable = false;
+            th.style.cursor = 'default';
+            th.style.left = (_stickyOffsets[idx] || 0) + 'px';
+            th.style.top = '0';
+          }
 
           // --- COLUMN RESIZING LOGIC ---
           th.style.position = 'sticky'; // Cần thiết cho sticky header & neo resizer
@@ -7772,6 +7874,7 @@ var UITable = (function () {
     function renderAll() {
       renderHead();
       renderBody();
+      // left đã được áp dụng đồng bộ trong renderHead/renderBody.
     }
 
     renderAll();
@@ -7976,7 +8079,9 @@ var UITable = (function () {
       data: data,
       currentSort: options.currentSort,
       onSort: options.onSort,
-      className: options.className
+      className: options.className,
+      // Mặc định sticky 2 cột đầu (Mã NV + Họ tên), có thể override qua options.stickyColumns
+      stickyColumns: (typeof options.stickyColumns === 'number') ? options.stickyColumns : 2
     };
 
     return create(tableConfig);
@@ -14409,7 +14514,11 @@ window.DynamicFormEngine = (function () {
 
     if (typeof UITable !== 'undefined') {
       // Dùng bộ từ điển từ DB để dịch các cột sang Tiếng Việt
-      var dictionary = globalDictionary;
+      var dictionary = Object.assign({}, globalDictionary);
+      // Ẩn cột Mã trạng thái (PersonStatus) khỏi lưới nếu có PersonStatusName
+      if (dictionary['PersonStatusName'] && dictionary['PersonStatus']) {
+        delete dictionary['PersonStatus'];
+      }
 
       // Render các cột tùy chỉnh (Sinh ra tự động từ RenderRule trong DB)
       var customRenderers = globalRenderers;

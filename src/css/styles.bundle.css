@@ -5876,6 +5876,7 @@ body.dark-theme .data-table tbody tr:hover {
   box-shadow: 0 1px 0 var(--color-border);
 }
 
+
 /* Responsive override to disable table height capping on mobile & stick pagination to viewport bottom */
 @media (max-width: 768px) {
 

@@ -94,6 +94,7 @@ UPDATE dbo.SY_FormatFields
 SET CaptionVN = CASE FieldName
         WHEN 'PersonID'                  THEN N'Mã nhân viên'
         WHEN 'PersonName'                THEN N'Họ tên'
+        WHEN 'GioiTinh'                  THEN N'Giới tính'
         WHEN 'PhongBan'                  THEN N'Bộ phận'
         WHEN 'TitleName'                 THEN N'Chức vụ'
         WHEN 'ChucDanhChuyenMon'         THEN N'Chức danh chuyên môn'
@@ -106,8 +107,8 @@ SET CaptionVN = CASE FieldName
         WHEN 'NationName'                THEN N'Quốc gia'
         WHEN 'SoHopDong'                 THEN N'Số hợp đồng'
         WHEN 'DienThoai'                 THEN N'Điện thoại'
-        WHEN 'PersonStatus'              THEN N'Trạng thái'
-        WHEN 'NewPersonID'               THEN N'Mã nhân viên mới'
+        WHEN 'PersonStatus'              THEN N'Mã trạng thái'
+        WHEN 'NewPersonID'               THEN N'Mã NV cũ'
         WHEN 'CardNo'                    THEN N'Mã số thẻ'
         WHEN 'ProvineName'               THEN N'Tỉnh thành'
         WHEN 'DiaChiHienNay'             THEN N'Địa chỉ hiện nay'
@@ -132,14 +133,43 @@ SET CaptionVN = CASE FieldName
         WHEN 'NguoiLienHeSoDT'           THEN N'Số ĐT người liên hệ'
         WHEN 'FileName'                  THEN N'Tên file ảnh'
         WHEN 'Base64Content'             THEN N'Ảnh 3x4'
+        WHEN 'MaNVChamCong'              THEN N'Mã NV chấm công'
+        WHEN 'PersonName2'               THEN N'Tên gọi khác'
+        WHEN 'PostionName'               THEN N'Vị trí công việc'
+        WHEN 'NgayNghiViec'              THEN N'Ngày nghỉ việc'
+        WHEN 'WorkingGroupName'          THEN N'Tổ/nhóm làm việc'
+        WHEN 'DungCuLamViec'             THEN N'Dụng cụ làm việc'
+        WHEN 'GhiChu'                    THEN N'Ghi chú'
+        WHEN 'LocationID'                THEN N'Địa điểm làm việc'
+        WHEN 'NgayDuKienTV'              THEN N'Ngày DK thử việc'
+        WHEN 'UserCreate'                THEN N'Người tạo'
+        WHEN 'UserUpdate'                THEN N'Người cập nhật'
+        WHEN 'DateUpdate'                THEN N'Ngày cập nhật'
+        WHEN 'DateCreate'                THEN N'Ngày tạo'
+        WHEN 'DiaChiTamTru'              THEN N'Địa chỉ tạm trú'
+        WHEN 'isTaiTuyen'                THEN N'Đã tái tuyển'
+        WHEN 'PersonStatusName'          THEN N'Trạng thái'
+        WHEN 'HonNhan'                   THEN N'Tình trạng hôn nhân'
+        WHEN 'CMNDNgayCap'               THEN N'Ngày cấp CCCD'
+        WHEN 'CMNDNoiCap'                THEN N'Nơi cấp CCCD'
+        WHEN 'NoiSinh'                   THEN N'Nơi sinh'
+        WHEN 'PeoplesName'               THEN N'Dân tộc'
+        WHEN 'ReligionName'              THEN N'Tôn giáo'
+        WHEN 'Email'                     THEN N'Email'
+        WHEN 'EducationName'             THEN N'Trình độ học vấn'
+        WHEN 'Nationality'               THEN N'Quốc tịch'
+        WHEN 'JobName'                   THEN N'Nghề nghiệp'
+        WHEN 'CareerName'                THEN N'Chuyên ngành'
+        WHEN 'HospitalName'              THEN N'Nơi KCB'
         ELSE FieldName
     END,
     CaptionEN = CASE FieldName
         WHEN 'PersonID'                  THEN 'Employee ID'
         WHEN 'PersonName'                THEN 'Full Name'
+        WHEN 'GioiTinh'                  THEN 'Gender'
         WHEN 'PhongBan'                  THEN 'Department'
         WHEN 'TitleName'                 THEN 'Title'
-        WHEN 'ChucDanhChuyenMon'         THEN 'Professional title'
+        WHEN 'ChucDanhChuyenMon'         THEN 'Professional Title'
         WHEN 'NgaySinh'                  THEN 'Date of Birth'
         WHEN 'CMND'                      THEN 'ID/Passport'
         WHEN 'DiaChiThuongTru'           THEN 'Permanent Address'
@@ -149,8 +179,8 @@ SET CaptionVN = CASE FieldName
         WHEN 'NationName'                THEN 'Country'
         WHEN 'SoHopDong'                 THEN 'Contract No'
         WHEN 'DienThoai'                 THEN 'Phone'
-        WHEN 'PersonStatus'              THEN 'Status'
-        WHEN 'NewPersonID'               THEN 'New Employee ID'
+        WHEN 'PersonStatus'              THEN 'Status ID'
+        WHEN 'NewPersonID'               THEN 'Old Employee ID'
         WHEN 'CardNo'                    THEN 'Card No'
         WHEN 'ProvineName'               THEN 'City/Province'
         WHEN 'DiaChiHienNay'             THEN 'Current Address'
@@ -175,33 +205,64 @@ SET CaptionVN = CASE FieldName
         WHEN 'NguoiLienHeSoDT'           THEN 'Contact Phone'
         WHEN 'FileName'                  THEN 'File Name'
         WHEN 'Base64Content'             THEN '3x4 Photo'
+        WHEN 'MaNVChamCong'              THEN 'Timekeeping ID'
+        WHEN 'PersonName2'               THEN 'Alias/Other Name'
+        WHEN 'PostionName'               THEN 'Position'
+        WHEN 'NgayNghiViec'              THEN 'Resignation Date'
+        WHEN 'WorkingGroupName'          THEN 'Working Group'
+        WHEN 'DungCuLamViec'             THEN 'Working Tools'
+        WHEN 'GhiChu'                    THEN 'Notes'
+        WHEN 'LocationID'                THEN 'Work Location'
+        WHEN 'NgayDuKienTV'              THEN 'Expected Probation Date'
+        WHEN 'UserCreate'                THEN 'Created By'
+        WHEN 'UserUpdate'                THEN 'Updated By'
+        WHEN 'DateUpdate'                THEN 'Updated Date'
+        WHEN 'DateCreate'                THEN 'Created Date'
+        WHEN 'DiaChiTamTru'              THEN 'Temporary Address'
+        WHEN 'isTaiTuyen'                THEN 'Re-hired'
+        WHEN 'PersonStatusName'          THEN 'Status'
+        WHEN 'HonNhan'                   THEN 'Marital Status'
+        WHEN 'CMNDNgayCap'               THEN 'ID Issue Date'
+        WHEN 'CMNDNoiCap'                THEN 'ID Issue Place'
+        WHEN 'NoiSinh'                   THEN 'Place of Birth'
+        WHEN 'PeoplesName'               THEN 'Ethnicity'
+        WHEN 'ReligionName'              THEN 'Religion'
+        WHEN 'Email'                     THEN 'Email'
+        WHEN 'EducationName'             THEN 'Education'
+        WHEN 'Nationality'               THEN 'Nationality'
+        WHEN 'JobName'                   THEN 'Job'
+        WHEN 'CareerName'                THEN 'Career'
+        WHEN 'HospitalName'              THEN 'Hospital'
         ELSE FieldName
     END,
     FormatID = CASE
-        WHEN FieldName IN ('NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayHetHopDong') THEN 'd'
-        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'PersonStatus') THEN 'sl'
-        WHEN FieldName IN ('ChamCong') THEN 'sw'
+        WHEN FieldName IN ('NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayHetHopDong', 'NgayNghiViec', 'NgayDuKienTV', 'DateCreate', 'DateUpdate', 'CMNDNgayCap') THEN 'd'
+        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'PersonStatus', 'GioiTinh') THEN 'sl'
+        WHEN FieldName IN ('ChamCong', 'isTaiTuyen') THEN 'sw'
         ELSE 't'
     END,
     DataSource = CASE
-        WHEN FieldName = 'BranchID' THEN 'CF_BranchListFrm'
-        WHEN FieldName = 'PhongBan' THEN 'HR_DepartmentListTbl'
-        WHEN FieldName = 'ShiftID'  THEN 'API_HR_DropdownShifts'
-        WHEN FieldName = 'PersonStatus' THEN 'API_ComboPersonStatus'
+        WHEN FieldName = 'BranchID'      THEN 'CF_BranchListFrm'
+        WHEN FieldName = 'PhongBan'      THEN 'HR_DepartmentListTbl'
+        WHEN FieldName = 'ShiftID'       THEN 'API_HR_DropdownShifts'
+        WHEN FieldName = 'PersonStatus'  THEN 'API_ComboPersonStatus'
+        WHEN FieldName = 'GioiTinh'      THEN N'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'
         ELSE NULL
     END,
     FormPosition = CASE 
         -- CÁC TRƯỜNG CƠ BẢN: Hiển thị ở cả Sơ yếu lý lịch (Inline) và Popup Modal ('6' là chia 2 cột)
         WHEN FieldName IN (
-            'PersonID', 'NewPersonID', 'PersonName', 'BranchID', 'PhongBan', 
+            'PersonID', 'NewPersonID', 'PersonName', 'GioiTinh', 'BranchID', 'PhongBan', 
             'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 
-            'PersonStatus', 'ShiftID', 'DienThoai', 'NgaySinh', 'GioiTinh'
+            'PersonStatus', 'ShiftID', 'DienThoai', 'NgaySinh',
+            'MaNVChamCong', 'PersonName2', 'PostionName', 'WorkingGroupName',
+            'LocationID', 'DiaChiTamTru', 'NgayNghiViec'
         ) THEN '6'
         -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Sơ yếu lý lịch, CHỈ hiển thị trên Popup Modal
         ELSE 'grid'
     END,
-    ShowInAdd  = CASE WHEN FieldName = 'PersonID' THEN 0 ELSE 1 END,
-    ShowInEdit = CASE WHEN FieldName = 'PersonID' THEN 0 ELSE 1 END,
+    ShowInAdd  = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 0 ELSE 1 END,
+    ShowInEdit = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 0 ELSE 1 END,
     IsReadOnlyAdd  = 1,
     IsReadOnlyEdit = 1,
     IsRequired     = 0,
@@ -209,44 +270,62 @@ SET CaptionVN = CASE FieldName
     OrderNo = CASE FieldName
         WHEN 'PersonID'                  THEN 1
         WHEN 'PersonName'                THEN 2
-        WHEN 'PhongBan'                  THEN 3
-        WHEN 'TitleName'                 THEN 4
-        WHEN 'ChucDanhChuyenMon'         THEN 5
-        WHEN 'NgaySinh'                  THEN 6
-        WHEN 'CMND'                      THEN 7
-        WHEN 'DiaChiThuongTru'           THEN 8
-        WHEN 'NgayVaoLam'                THEN 9
-        WHEN 'BranchID'                  THEN 10
-        WHEN 'NgayHopDong'               THEN 11
-        WHEN 'NationName'                THEN 12
-        WHEN 'SoHopDong'                 THEN 13
-        WHEN 'DienThoai'                 THEN 14
-        WHEN 'PersonStatus'              THEN 15
-        WHEN 'NewPersonID'               THEN 16
-        WHEN 'CardNo'                    THEN 17
-        WHEN 'ProvineName'               THEN 18
-        WHEN 'DiaChiHienNay'             THEN 19
-        WHEN 'Quanly'                    THEN 20
-        WHEN 'NgayThuViec'               THEN 21
-        WHEN 'BankHolder'                THEN 22
-        WHEN 'BankAccountNo'             THEN 23
-        WHEN 'BankName'                  THEN 24
-        WHEN 'BankLocation'              THEN 25
-        WHEN 'SocialID'                  THEN 26
-        WHEN 'SocialDate'                THEN 27
-        WHEN 'NgayKetThucBH'             THEN 28
-        WHEN 'ShiftID'                   THEN 29
-        WHEN 'SoTheBHYT'                 THEN 30
-        WHEN 'ThoiGianHuongBHYT'         THEN 31
-        WHEN 'NoiDangKyBHYT'             THEN 32
-        WHEN 'ChamCong'                  THEN 33
-        WHEN 'LoaiHopDong'               THEN 34
-        WHEN 'NgayHetHopDong'            THEN 35
-        WHEN 'NguoiLienHe'               THEN 36
-        WHEN 'MoiQuanHe'                 THEN 37
-        WHEN 'NguoiLienHeSoDT'           THEN 38
-        WHEN 'FileName'                  THEN 39
-        WHEN 'Base64Content'             THEN 40
+        WHEN 'GioiTinh'                  THEN 3
+        WHEN 'PhongBan'                  THEN 4
+        WHEN 'TitleName'                 THEN 5
+        WHEN 'ChucDanhChuyenMon'         THEN 6
+        WHEN 'NgaySinh'                  THEN 7
+        WHEN 'CMND'                      THEN 8
+        WHEN 'DiaChiThuongTru'           THEN 9
+        WHEN 'NgayVaoLam'                THEN 10
+        WHEN 'BranchID'                  THEN 11
+        WHEN 'NgayHopDong'               THEN 12
+        WHEN 'NationName'                THEN 13
+        WHEN 'SoHopDong'                 THEN 14
+        WHEN 'DienThoai'                 THEN 15
+        WHEN 'PersonStatus'              THEN 16
+        WHEN 'NewPersonID'               THEN 17
+        WHEN 'CardNo'                    THEN 18
+        WHEN 'ProvineName'               THEN 19
+        WHEN 'DiaChiHienNay'             THEN 20
+        WHEN 'Quanly'                    THEN 21
+        WHEN 'NgayThuViec'               THEN 22
+        WHEN 'BankHolder'                THEN 23
+        WHEN 'BankAccountNo'             THEN 24
+        WHEN 'BankName'                  THEN 25
+        WHEN 'BankLocation'              THEN 26
+        WHEN 'SocialID'                  THEN 27
+        WHEN 'SocialDate'                THEN 28
+        WHEN 'NgayKetThucBH'             THEN 29
+        WHEN 'ShiftID'                   THEN 30
+        WHEN 'SoTheBHYT'                 THEN 31
+        WHEN 'ThoiGianHuongBHYT'         THEN 32
+        WHEN 'NoiDangKyBHYT'             THEN 33
+        WHEN 'ChamCong'                  THEN 34
+        WHEN 'LoaiHopDong'               THEN 35
+        WHEN 'NgayHetHopDong'            THEN 36
+        WHEN 'NguoiLienHe'               THEN 37
+        WHEN 'MoiQuanHe'                 THEN 38
+        WHEN 'NguoiLienHeSoDT'           THEN 39
+        WHEN 'MaNVChamCong'              THEN 40
+        WHEN 'PersonName2'               THEN 41
+        WHEN 'PostionName'               THEN 42
+        WHEN 'WorkingGroupName'          THEN 43
+        WHEN 'LocationID'                THEN 44
+        WHEN 'DiaChiTamTru'              THEN 45
+        WHEN 'NgayNghiViec'              THEN 46
+        WHEN 'DungCuLamViec'             THEN 47
+        WHEN 'GhiChu'                    THEN 48
+        WHEN 'NgayDuKienTV'              THEN 49
+        WHEN 'isTaiTuyen'                THEN 50
+        WHEN 'PersonStatusName'          THEN 51
+        WHEN 'UserCreate'                THEN 52
+        WHEN 'DateCreate'                THEN 53
+        WHEN 'UserUpdate'                THEN 54
+        WHEN 'DateUpdate'                THEN 55
+        WHEN 'PersonStatus'              THEN 56
+        WHEN 'FileName'                  THEN 57
+        WHEN 'Base64Content'             THEN 58
         ELSE 99
     END
 WHERE FormName = 'WA_PersonFullFrm';
