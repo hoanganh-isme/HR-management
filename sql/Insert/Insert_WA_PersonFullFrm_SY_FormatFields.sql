@@ -107,7 +107,6 @@ SET CaptionVN = CASE FieldName
         WHEN 'NationName'                THEN N'Quốc gia'
         WHEN 'SoHopDong'                 THEN N'Số hợp đồng'
         WHEN 'DienThoai'                 THEN N'Điện thoại'
-        WHEN 'PersonStatus'              THEN N'Mã trạng thái'
         WHEN 'NewPersonID'               THEN N'Mã NV cũ'
         WHEN 'CardNo'                    THEN N'Mã số thẻ'
         WHEN 'ProvineName'               THEN N'Tỉnh thành'
@@ -179,7 +178,6 @@ SET CaptionVN = CASE FieldName
         WHEN 'NationName'                THEN 'Country'
         WHEN 'SoHopDong'                 THEN 'Contract No'
         WHEN 'DienThoai'                 THEN 'Phone'
-        WHEN 'PersonStatus'              THEN 'Status ID'
         WHEN 'NewPersonID'               THEN 'Old Employee ID'
         WHEN 'CardNo'                    THEN 'Card No'
         WHEN 'ProvineName'               THEN 'City/Province'
@@ -237,7 +235,7 @@ SET CaptionVN = CASE FieldName
     END,
     FormatID = CASE
         WHEN FieldName IN ('NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayHetHopDong', 'NgayNghiViec', 'NgayDuKienTV', 'DateCreate', 'DateUpdate', 'CMNDNgayCap') THEN 'd'
-        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'PersonStatus', 'GioiTinh') THEN 'sl'
+        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'GioiTinh') THEN 'sl'
         WHEN FieldName IN ('ChamCong', 'isTaiTuyen') THEN 'sw'
         ELSE 't'
     END,
@@ -245,7 +243,6 @@ SET CaptionVN = CASE FieldName
         WHEN FieldName = 'BranchID'      THEN 'CF_BranchListFrm'
         WHEN FieldName = 'PhongBan'      THEN 'HR_DepartmentListTbl'
         WHEN FieldName = 'ShiftID'       THEN 'API_HR_DropdownShifts'
-        WHEN FieldName = 'PersonStatus'  THEN 'API_ComboPersonStatus'
         WHEN FieldName = 'GioiTinh'      THEN N'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'
         ELSE NULL
     END,
@@ -283,7 +280,6 @@ SET CaptionVN = CASE FieldName
         WHEN 'NationName'                THEN 13
         WHEN 'SoHopDong'                 THEN 14
         WHEN 'DienThoai'                 THEN 15
-        WHEN 'PersonStatus'              THEN 16
         WHEN 'NewPersonID'               THEN 17
         WHEN 'CardNo'                    THEN 18
         WHEN 'ProvineName'               THEN 19
@@ -318,12 +314,11 @@ SET CaptionVN = CASE FieldName
         WHEN 'GhiChu'                    THEN 48
         WHEN 'NgayDuKienTV'              THEN 49
         WHEN 'isTaiTuyen'                THEN 50
-        WHEN 'PersonStatusName'          THEN 51
+        WHEN 'PersonStatusName'          THEN 16
         WHEN 'UserCreate'                THEN 52
         WHEN 'DateCreate'                THEN 53
         WHEN 'UserUpdate'                THEN 54
         WHEN 'DateUpdate'                THEN 55
-        WHEN 'PersonStatus'              THEN 56
         WHEN 'FileName'                  THEN 57
         WHEN 'Base64Content'             THEN 58
         ELSE 99

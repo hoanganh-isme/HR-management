@@ -1,17 +1,16 @@
-USE X26DIMTUTAC
-GO
 
 -- =========================================================================
 -- 1. Master API: Danh sách nhân viên tổng hợp
 -- EXEC dbo.API_HoSoNhanVien @Keyword = '', @BranchID = '', @PhongBan = ''
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVien
+ALTER PROCEDURE dbo.API_HoSoNhanVien
 (
     @Keyword   NVARCHAR(200) = '',
     @BranchID  NVARCHAR(MAX)  = '',
     @PhongBan  NVARCHAR(50)  = '',
     @NamLap    INT           = NULL,
-    @LoaiHD    NVARCHAR(50)  = ''
+    @LoaiHD    NVARCHAR(50)  = '',
+    @PersonStatus NVARCHAR(50) = ''
 )
 AS
 BEGIN
@@ -121,6 +120,9 @@ BEGIN
         
         -- Bộ lọc loại hợp đồng (LoaiHD từ HR_HopDongTbl)
         AND (@LoaiHD = '' OR HD.LoaiHD LIKE N'%' + @LoaiHD + '%')
+        
+        -- Bộ lọc trạng thái nhân viên
+        AND (@PersonStatus = '' OR P.PersonStatus = @PersonStatus)
     ORDER BY P.PersonID DESC;
 END
 GO
@@ -128,7 +130,7 @@ GO
 -- =========================================================================
 -- 2. Detail API Tab 1: Quá trình làm việc và lương (HR_PersonSalaryTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T1_Salary
+ALTER PROCEDURE dbo.API_PersonFull_T1_Salary
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -145,7 +147,7 @@ GO
 -- =========================================================================
 -- 4. Detail API Tab 3: Khen thưởng - Kỷ luật (HR_PersonKTKLTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T3_KTKL
+ALTER PROCEDURE dbo.API_PersonFull_T3_KTKL
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -165,7 +167,7 @@ GO
 -- =========================================================================
 -- 5. Detail API Tab 4: Khai báo phép năm (HR_PersonNghiPhepTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T4_NghiPhep
+ALTER PROCEDURE dbo.API_PersonFull_T4_NghiPhep
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -194,7 +196,7 @@ GO
 -- =========================================================================
 -- 6. Detail API Tab 5: Gia cảnh & Mối liên hệ (HR_PersonRelationTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T5_Relation
+ALTER PROCEDURE dbo.API_PersonFull_T5_Relation
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -220,7 +222,7 @@ GO
 -- =========================================================================
 -- 7. Detail API Tab 6: Lịch sử hợp đồng (HR_HopDongTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T6_HopDong
+ALTER PROCEDURE dbo.API_PersonFull_T6_HopDong
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -247,7 +249,7 @@ GO
 -- =========================================================================
 -- 8. Detail API Tab 7: Lịch sử công tác (HR_LichSuCongTacTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T7_CongTac
+ALTER PROCEDURE dbo.API_PersonFull_T7_CongTac
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -273,7 +275,7 @@ GO
 -- =========================================================================
 -- 9. Detail API Tab 8: Lịch sử công việc (HR_PersonLogTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T8_Log
+ALTER PROCEDURE dbo.API_PersonFull_T8_Log
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -297,7 +299,7 @@ GO
 -- =========================================================================
 -- 10. Detail API Tab 9: Giấy tờ (HR_PersonGiayToTbl)
 -- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T9_GiayTo
+ALTER PROCEDURE dbo.API_PersonFull_T9_GiayTo
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -338,5 +340,60 @@ VALUES
 ('API_PersonFull_T9_GiayTo',    'View', 'API_PersonFull_T9_GiayTo',    '@PersonID=N''{PersonID}''');
 GO
 
-PRINT 'Da tao toan bo API_HoSoNhanVien va cac detail SPs dong thoi dang ky WA_API thanh cong!';
+-- 1. Đăng ký các Detail API làm danh sách (List) trong SY_FrmLstTbl
+DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN (
+    'API_PersonFull_T1_Salary',
+    'API_PersonFull_T2_Allowance',
+    'API_PersonFull_T3_KTKL',
+    'API_PersonFull_T4_NghiPhep',
+    'API_PersonFull_T5_Relation',
+    'API_PersonFull_T6_HopDong',
+    'API_PersonFull_T7_CongTac',
+    'API_PersonFull_T8_Log',
+    'API_PersonFull_T9_GiayTo'
+);
+
+INSERT INTO dbo.SY_FrmLstTbl ([FormID], [Loai], [VN_Name], [EN_Name], [Tbl], [Fld])
+VALUES 
+('API_PersonFull_T1_Salary', 'LIST', N'Quá trình lương', 'Salary', 'HR_PersonSalaryTbl', 'UserAutoID'),
+('API_PersonFull_T2_Allowance', 'LIST', N'Phụ cấp', 'Allowance', 'HR_PersonAllowanceTbl', 'UserAutoID'),
+('API_PersonFull_T3_KTKL', 'LIST', N'Khen thưởng kỷ luật', 'KTKL', 'HR_PersonKTKLTbl', 'UserAutoID'),
+('API_PersonFull_T4_NghiPhep', 'LIST', N'Nghỉ phép', 'Leave', 'HR_PersonNghiPhepTbl', 'UserAutoID'),
+('API_PersonFull_T5_Relation', 'LIST', N'Gia cảnh', 'Relation', 'HR_PersonRelationTbl', 'RelationID'),
+('API_PersonFull_T6_HopDong', 'LIST', N'Hợp đồng', 'Contract', 'HR_HopDongTbl', 'MaHopDong'),
+('API_PersonFull_T7_CongTac', 'LIST', N'Công tác', 'Work history', 'HR_LichSuCongTacTbl', 'UserAutoID'),
+('API_PersonFull_T8_Log', 'LIST', N'Log', 'Log', 'HR_LichSuCongViecTbl', 'UserAutoID'),
+('API_PersonFull_T9_GiayTo', 'LIST', N'Giấy tờ', 'Document', 'HR_GiayToTbl', 'DocumentID');
 GO
+
+-- 2. Đăng ký Save/Delete trong WA_API
+INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+VALUES 
+('API_PersonFull_T1_Salary', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T1_Salary', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T2_Allowance', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T2_Allowance', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T3_KTKL', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T3_KTKL', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T4_NghiPhep', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T4_NghiPhep', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T5_Relation', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T5_Relation', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T6_HopDong', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T6_HopDong', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T7_CongTac', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T7_CongTac', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T8_Log', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T8_Log', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+
+('API_PersonFull_T9_GiayTo', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_PersonFull_T9_GiayTo', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+GO
+

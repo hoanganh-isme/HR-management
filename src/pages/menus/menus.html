@@ -12,7 +12,7 @@
         <h3 class="mb-0" style="font-size: var(--font-size-md);">
           <span class="material-symbols-outlined"
             style="font-size:18px;vertical-align:middle;margin-right:6px;color:var(--color-primary);">account_tree</span>
-          Cấu trúc Menu
+          Cấu trúc Menu <span id="cache-buster-v2" style="font-size: 10px; color: red; margin-left: 10px;">(Đã cập nhật V2)</span>
         </h3>
         <span class="status-badge primary" id="menus-count-badge" style="font-size:11px;">0 Menu</span>
       </div>
@@ -157,6 +157,72 @@
 </div>
 
 <style>
+/* ══ FORCE LAYOUT CHO NESTED TABS VERTICAL ══════════════════
+   Override đảm bảo layout sidebar + content luôn đúng
+   ═══════════════════════════════════════════════════════════ */
+#menus-nested-tabs-container .ui-nested-tabs--vertical {
+  display: flex !important;
+  flex-direction: row !important;
+  width: 100% !important;
+  min-height: 400px !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tabs__sidebar {
+  width: 220px !important;
+  min-width: 160px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-right: 1px solid var(--color-border) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  position: relative !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tabs__sidebar-parent {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tabs__child-list {
+  display: none !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tabs__child-list.open {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tabs__vertical-content {
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding: 0 0 0 20px !important;
+  overflow: visible !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tab-parent-btn--v {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 10px 16px !important;
+  border: none !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  width: 100% !important;
+  white-space: nowrap !important;
+  font-family: inherit !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tab-panel--v {
+  display: none !important;
+}
+
+#menus-nested-tabs-container .ui-nested-tab-panel--v.active {
+  display: block !important;
+}
+
 /* Tối ưu Responsive cho trang Menu trên Mobile (Màn 320px - 768px) */
 @media (max-width: 767.98px) {
   /* Loại bỏ khoảng cách 2 bên thừa thãi */
@@ -209,12 +275,17 @@
   }
   .ui-nested-tabs__sidebar::-webkit-scrollbar { display: none; }
   
-  /* Bỏ qua wrapper để button con xếp chung dòng với button cha */
+  /* Wrapper giữ cấu trúc nhưng xếp ngang trên mobile */
   .ui-nested-tabs__sidebar-parent {
-    display: contents !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0 !important;
   }
   .ui-nested-tabs__child-list.open {
-    display: contents !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
   }
   
   /* Định dạng lại nút để trông giống Tab ngang thay vì Sidebar */

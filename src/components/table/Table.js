@@ -672,11 +672,11 @@ var UITable = (function () {
         // Custom renderer (nếu truyền vào)
         if (options.actionRenderers && options.actionRenderers[key]) {
           var customRender = options.actionRenderers[key];
-          col.render = function (v) { return customRender(v, key); };
+          col.render = function (v, row) { return customRender(v, row, key); };
         } else if (options.actionRenderers && options.actionRenderers[headerLabel]) {
           // Hoặc kiểm tra theo label tiếng Việt nếu dev truyền key là label
           var customRenderLabel = options.actionRenderers[headerLabel];
-          col.render = function (v) { return customRenderLabel(v, key); };
+          col.render = function (v, row) { return customRenderLabel(v, row, key); };
         }
 
         dynamicHeaders.push(header);
@@ -812,6 +812,9 @@ var UITable = (function () {
       }
 
       if (changed) {
+        var checkbox = tr.querySelector('.df-row-checkbox');
+        if (checkbox) checkbox.checked = tr.classList.contains('active');
+        
         var idx = Array.from(tbody.children).indexOf(tr);
         // Dispatch custom event for frameworks (like DynamicFormEngine) to catch
         tbody.dispatchEvent(new CustomEvent('rowSelectionToggled', {

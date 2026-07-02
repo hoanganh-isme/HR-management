@@ -325,7 +325,6 @@ SET CaptionVN = CASE FieldName
         WHEN 'DateCreate'                THEN 55
         WHEN 'UserUpdate'                THEN 56
         WHEN 'DateUpdate'                THEN 57
-        WHEN 'PersonStatus'              THEN 58
         ELSE 99
     END
 WHERE FormName = 'WA_PersonInFrm';

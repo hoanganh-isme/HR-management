@@ -123,19 +123,20 @@ var MenusPage = (function () {
 
   function _renderNestedTabs() {
     var container = $container.querySelector('#menus-nested-tabs-container');
+    container.innerHTML = '';
 
-    var validIds = new Set(allMenus.map(function (m) { return m.id; }));
+    var validIds = new Set(allMenus.map(function (m) { return m.id ? String(m.id).trim().toUpperCase() : ''; }));
 
     // Chuẩn hóa records cho UINestedTabs
     var records = allMenus.map(function (m) {
-      var safeParent = m.parent || '';
+      var safeParent = m.parent ? String(m.parent).trim().toUpperCase() : '';
       // Nếu ID cha không hề tồn tại trong DB -> Ép nó ra Root để không bị tàng hình
       if (safeParent !== '' && !validIds.has(safeParent)) {
         safeParent = '';
       }
 
       return {
-        id: m.id,
+        id: m.id ? String(m.id).trim().toUpperCase() : '',
         parent: safeParent,
         label: m.label || '(Không tên)',
         labelEN: m.en || '',

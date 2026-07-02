@@ -105,7 +105,8 @@ document.addEventListener('DOMContentLoaded', function () {
   window.APP_MODULES['WA_PERSONFULLFRM'] = {
     FormName: 'WA_PersonFullFrm',
     PrimaryKey: 'PersonID',
-    UseSplitLayout: true,
+    IsFullPageDetail: false,
+    UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem hồ sơ chi tiết',
     SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
     SplitLayoutDetailWidth: '950px',
@@ -118,67 +119,25 @@ document.addEventListener('DOMContentLoaded', function () {
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã, tên nhân viên hoặc số điện thoại...',
     WizardSteps: [
-      { label: 'Cơ bản', icon: 'person', description: 'Thông tin công việc', fields: ['PersonID', 'NewPersonID', 'PersonName', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 'PersonStatus', 'ShiftID'] },
-      { label: 'Cá nhân', icon: 'badge', description: 'Thông tin cá nhân', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'PeoplesName', 'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'EducationName', 'CareerName'] },
-      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['BankHolder', 'BankAccountNo', 'BankName', 'BankLocation', 'SocialID', 'SocialDate', 'NgayKetThucBH', 'SoTheBHYT', 'ThoiGianHuongBHYT', 'SoHopDong', 'LoaiHopDong'] },
+      { label: 'Thông tin công việc', icon: 'work', description: 'Vị trí và phòng ban', fields: ['PersonID', 'PersonName', 'PersonStatus', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 'ShiftID'] },
+      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch & Liên hệ', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'HonNhan', 'PeoplesName', 'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienNay', 'EducationName', 'CareerName', 'NguoiLienHe', 'MoiQuanHe', 'NguoiLienHeSoDT'] },
+      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['SoHopDong', 'LoaiHopDong', 'SocialID', 'SocialDate', 'NgayKetThucBH', 'SoTheBHYT', 'ThoiGianHuongBHYT', 'HospitalName'] },
+      { label: 'Tài chính & Khác', icon: 'account_balance', description: 'Ngân hàng & Thông tin phụ', fields: ['BankName', 'BankLocation', 'BankAccountNo', 'BankHolder', 'NewPersonID', 'CardNo', 'ProvineName', 'NgayNghiViec'] },
       { label: 'Xác nhận', icon: 'fact_check', description: 'Kiểm tra thông tin trước khi lưu', fields: [] }
     ],
-
-    DetailTabs: [
+    Filters: [
       {
-        label: 'Sơ yếu lý lịch',
-        type: 'form',
-        fields: [
-          'PersonID', 'NewPersonID', 'PersonName', 'GioiTinh',
-          'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'PeoplesName',
-          'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'EducationName', 'CareerName',
-          'NgayVaoLam', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon',
-          'NgayThuViec', 'PersonStatus', 'BankHolder', 'BankAccountNo', 'BankName',
-          'BankLocation', 'SocialID', 'SocialDate', 'NgayKetThucBH', 'ShiftID',
-          'SoTheBHYT', 'ThoiGianHuongBHYT', 'SoHopDong', 'LoaiHopDong'
-        ],
-        headers: {
-          PersonID: 'Mã nhân viên',
-          NewPersonID: 'Mã NV cũ',
-          PersonName: 'Họ tên',
-          GioiTinh: 'Giới tính',
-          NgaySinh: 'Ngày sinh',
-          NoiSinh: 'Nơi sinh',
-          CMND: 'Số CCCD/CMND',
-          CMNDNgayCap: 'Ngày cấp CCCD',
-          CMNDNoiCap: 'Nơi cấp CCCD',
-          PeoplesName: 'Dân tộc',
-          ReligionName: 'Tôn giáo',
-          Nationality: 'Quốc tịch',
-          DienThoai: 'Điện thoại',
-          Email: 'Email',
-          DiaChiThuongTru: 'Địa chỉ thường trú',
-          EducationName: 'Học vấn',
-          CareerName: 'Nghề nghiệp',
-          NgayVaoLam: 'Ngày vào làm',
-          BranchID: 'Chi nhánh',
-          PhongBan: 'Bộ phận',
-          TitleName: 'Chức vụ',
-          ChucDanhChuyenMon: 'Chức danh',
-          NgayThuViec: 'Ngày thử việc',
-          PersonStatus: 'Trạng thái',
-          BankHolder: 'Chủ tài khoản NH',
-          BankAccountNo: 'Số tài khoản NH',
-          BankName: 'Tên ngân hàng',
-          BankLocation: 'Chi nhánh NH',
-          SocialID: 'Số thẻ BHXH',
-          SocialDate: 'Ngày bắt đầu BH',
-          NgayKetThucBH: 'Ngày kết thúc BH',
-          ShiftID: 'Ca làm việc',
-          SoTheBHYT: 'Số thẻ BHYT',
-          ThoiGianHuongBHYT: 'Thời gian hưởng BHYT',
-          SoHopDong: 'Số hợp đồng',
-          LoaiHopDong: 'Loại hợp đồng'
-        }
-      },
+        id: 'PersonStatus',
+        label: 'Trạng thái nhân sự',
+        type: 'select',
+        dataSource: 'API_ComboPersonStatus'
+      }
+    ],
+    DetailTabs: [
       {
         label: 'Quá trình làm việc và lương, phụ cấp',
         api: 'API_PersonFull_T1_Salary',
+        editable: true,
         filterField: 'PersonID',
         fields: ['TrangThai', 'TuNgay', 'DenNgay', 'MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'GhiChu'],
         headers: {
@@ -196,6 +155,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Khen thưởng - Kỷ luật',
         api: 'API_PersonFull_T3_KTKL',
+        editable: true,
         filterField: 'PersonID',
         fields: ['NoiDungKTKL', 'SoNgay', 'GhiChu'],
         headers: {
@@ -207,6 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Khai báo phép năm',
         api: 'API_PersonFull_T4_NghiPhep',
+        editable: true,
         filterField: 'PersonID',
         fields: ['Nam', 'SoNgay', 'PhepThamNien', 'SoNgayDaSuDung', 'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat', 'GhiChu'],
         headers: {
@@ -225,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Gia cảnh & Liên hệ',
         api: 'API_PersonFull_T5_Relation',
+        editable: true,
         filterField: 'PersonID',
         fields: ['RelationID', 'PersonRelationName', 'NgaySinh', 'DiaChiThuongTru', 'DiaChiHienNay', 'IsNguoiPhuThuoc', 'GiamTruTuThang', 'GiamTruDenThang'],
         headers: {
@@ -241,6 +203,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Lịch sử hợp đồng',
         api: 'API_PersonFull_T6_HopDong',
+        editable: true,
         filterField: 'PersonID',
         fields: ['MaHopDong', 'PersonName', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'LoaiHopDong', 'LuongCoBan', 'MucDong', 'NoiDung'],
         headers: {
@@ -258,6 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Lịch sử công tác',
         api: 'API_PersonFull_T7_CongTac',
+        editable: true,
         filterField: 'PersonID',
         fields: ['PhongBan', 'TitleName', 'PostionName', 'Quanly', 'ShiftID', 'NgayThayDoi', 'UserName'],
         headers: {
@@ -273,6 +237,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Lịch sử công việc',
         api: 'API_PersonFull_T8_Log',
+        editable: true,
         filterField: 'PersonID',
         fields: ['UserName', 'LogDate', 'BranchID', 'StatusID', 'Notes'],
         headers: {
@@ -286,6 +251,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Giấy tờ',
         api: 'API_PersonFull_T9_GiayTo',
+        editable: true,
         filterField: 'PersonID',
         fields: ['DocumentID', 'LoaiGiayTo', 'TuNgay', 'DenNgay', 'Notes'],
         headers: {
@@ -299,33 +265,7 @@ document.addEventListener('DOMContentLoaded', function () {
     ]
   };
 
-  window.APP_MODULES['WA_PERSONINFRM'] = Object.assign({}, window.APP_MODULES['WA_PERSONFULLFRM'], {
-    FormName: 'WA_PersonInFrm',
-    HideAddBtn: false,
-    HideEditBtn: false,
-    HideDeleteBtn: false,
-    AllowDblClickToView: false,
-    HideDetailTabsInModal: false
-  });
 
-  window.APP_MODULES['WA_PERSONQUITFRM'] = Object.assign({}, window.APP_MODULES['WA_PERSONFULLFRM'], {
-    FormName: 'WA_PersonQuitFrm',
-    HideAddBtn: true,
-    HideEditBtn: false,
-    HideDeleteBtn: true,
-    HideFilterBtn: false,
-    HidePrintBtn: true,
-    AllowDblClickToView: false,
-    HideDetailTabsInModal: false,
-    SplitLayoutSelectText: 'Vui lòng chọn nhân viên đã nghỉ việc để xem chi tiết',
-    SplitLayoutEmptyText: 'Không có chi tiết hồ sơ',
-    DetailTabs: [
-      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[0],
-      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[1],
-      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[3],
-      window.APP_MODULES['WA_PERSONFULLFRM'].DetailTabs[4]
-    ]
-  });
 
   window.APP_MODULES['WA_DANHSACHUNGVIENFRM'] = {
     FormName: 'WA_DanhSachUngVienFrm',
@@ -394,7 +334,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.APP_MODULES['WA_BANGPHUCAPFRM'] = {
     FormName: 'WA_BangPhuCapFrm',
     PrimaryKey: 'MaPhuCap',
-    UseSplitLayout: true,
+    UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn loại phụ cấp để xem danh sách nhân viên',
     SplitLayoutEmptyText: 'Không có nhân viên nào được hưởng loại phụ cấp này',
     SplitLayoutDetailWidth: '800px',
@@ -423,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.APP_MODULES['WA_BAOHIEMFRM'] = {
     FormName: 'WA_BaoHiemFrm',
     PrimaryKey: 'DocumentID',
-    UseSplitLayout: true,
+    UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn chứng từ đóng bảo hiểm để xem chi tiết',
     SplitLayoutEmptyText: 'Không có chi tiết bảo hiểm nào cho chứng từ này',
     SplitLayoutDetailWidth: '960px',
@@ -474,7 +414,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.APP_MODULES['WA_PAYROLLFRM'] = {
     FormName: 'WA_PayrollFrm',
     PrimaryKey: 'DocumentID',
-    UseSplitLayout: true,
+    UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn chứng từ lương để xem chi tiết',
     SplitLayoutEmptyText: 'Không có chi tiết bảng lương nào cho nhân viên này',
     SplitLayoutDetailWidth: '950px',
@@ -515,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.APP_MODULES['WA_HOPDONGLAODONGFRM'] = {
     FormName: 'WA_HopDongLaoDongFrm',
     PrimaryKey: 'MaHopDong',
-    UseSplitLayout: true,
+    UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn hợp đồng lao động để xem chi tiết',
     SplitLayoutEmptyText: 'Không có phụ cấp nào trong hợp đồng này',
     SplitLayoutDetailWidth: '960px',
@@ -883,7 +823,23 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   if (typeof Router !== 'undefined') {
-    Router.init();
+    var currentUser = localStorage.getItem('pmql_user');
+    if (currentUser && typeof ApiClient !== 'undefined') {
+      ApiClient.post('/api/API_Gateway_Router', {
+        List: 'CF_BranchListFrm',
+        FormName: 'CF_BranchListFrm',
+        Func: 'View',
+        Limit: 1000
+      }).then(function (res) {
+        var branchList = Array.isArray(res) ? res : (res.data || res.list || res.records || []);
+        localStorage.setItem('pmql_sys_branches', JSON.stringify(branchList));
+        Router.init();
+      }).catch(function () {
+        Router.init();
+      });
+    } else {
+      Router.init();
+    }
   }
 
   // 3. Khởi tạo Navbar (chỉ render nếu đã đăng nhập)

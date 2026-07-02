@@ -732,34 +732,34 @@ var WizardForm = (function () {
 
         // Lắng nghe sự kiện đổi chi nhánh để cập nhật mã nhân viên (Add mode)
         if (fn === 'BranchID') {
-           setTimeout(function() {
-               var hiddenIn = grid.querySelector('input[type="hidden"][name="BranchID"]');
-               if (hiddenIn) {
-                   hiddenIn.addEventListener('change', function(e) {
-                       var newBranch = e.target.value;
-                       if (!newBranch) return;
-                       
-                       var pidInput = grid.querySelector('input[name="PersonID"]');
-                       if (pidInput) pidInput.value = 'Đang tính toán...';
-                       
-                       var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
-                       _resolveNextPersonID(newBranch, apiUrl, currentUser, function(nextCode, maVietTat, err) {
-                           if (err || !nextCode) {
-                               if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
-                               if (pidInput) pidInput.value = formState['PersonID'] || '';
-                               return;
-                           }
-                           formState['PersonID'] = nextCode;
-                           formState['MaVietTat'] = maVietTat;
-                           if (pidInput) {
-                               pidInput.value = nextCode;
-                               pidInput.style.backgroundColor = 'var(--color-primary-light, rgba(67,56,202,0.1))';
-                               setTimeout(function() { pidInput.style.backgroundColor = ''; }, 1000);
-                           }
-                       });
-                   });
-               }
-           }, 0);
+          setTimeout(function () {
+            var hiddenIn = grid.querySelector('input[type="hidden"][name="BranchID"]');
+            if (hiddenIn) {
+              hiddenIn.addEventListener('change', function (e) {
+                var newBranch = e.target.value;
+                if (!newBranch) return;
+
+                var pidInput = grid.querySelector('input[name="PersonID"]');
+                if (pidInput) pidInput.value = 'Đang tính toán...';
+
+                var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
+                _resolveNextPersonID(newBranch, apiUrl, currentUser, function (nextCode, maVietTat, err) {
+                  if (err || !nextCode) {
+                    if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
+                    if (pidInput) pidInput.value = formState['PersonID'] || '';
+                    return;
+                  }
+                  formState['PersonID'] = nextCode;
+                  formState['MaVietTat'] = maVietTat;
+                  if (pidInput) {
+                    pidInput.value = nextCode;
+                    pidInput.style.backgroundColor = 'var(--color-primary-light, rgba(67,56,202,0.1))';
+                    setTimeout(function () { pidInput.style.backgroundColor = ''; }, 1000);
+                  }
+                });
+              });
+            }
+          }, 0);
         }
 
         // --- Custom override cho Giới Tính và Trạng Thái ---
@@ -830,9 +830,9 @@ var WizardForm = (function () {
 
       var ds = field.dataSource || '';
       if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
-          ds = 'STATIC:' + userBranches.map(function (b) {
-              return b.id + '|' + (b.name || b.id);
-          }).join(',');
+        ds = 'STATIC:' + userBranches.map(function (b) {
+          return b.id + '|' + (b.name || b.id);
+        }).join(',');
       }
       if (ds.toUpperCase().startsWith('STATIC:')) {
         var staticData = ds.substring(7).split(',').map(function (s) {
@@ -867,50 +867,50 @@ var WizardForm = (function () {
             var list = res.list || res.records || [];
             if (!list.length) return { headers: ['Mã', 'Tên'], data: [], colFilterIndex: 1 };
             var keys = Object.keys(list[0]);
-            
+
             var comboData = [];
             list.forEach(function (d) {
-                var rowData = [];
-                keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
-                comboData.push(rowData);
+              var rowData = [];
+              keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+              comboData.push(rowData);
             });
-            
+
             var labelRegex = /name|tên|ten|label|desc|title/i;
             var displayKey = keys.find(function (k) { return labelRegex.test(k); });
             var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
-            
+
             return {
-                headers: keys,
-                data: comboData,
-                colFilterIndex: colFilterIndex
+              headers: keys,
+              data: comboData,
+              colFilterIndex: colFilterIndex
             };
           });
         };
-        
+
         var lazyCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
           headers: ['Mã', 'Tên'],
           disabled: field.readOnly,
           onSearch: searchApiCall,
           onSelect: function (row) {
-              hiddenIn.value = row[0];
-              formState[field.name] = row[0];
-              hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
+            hiddenIn.value = row[0];
+            formState[field.name] = row[0];
+            hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
           }
         });
-        
+
         if (field.value) {
-            searchApiCall('').then(function (res) {
-                var displayInput = lazyCombo.querySelector('input.ui-input');
-                var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
-                if (matched && displayInput) {
-                    displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
-                }
-            }).catch(function (err) {
-                console.error('[WizardForm] DataComboBox initial fetch error:', err);
-                var displayInput = lazyCombo.querySelector('input.ui-input');
-                if (displayInput) displayInput.placeholder = 'Lỗi tải dữ liệu';
-            });
+          searchApiCall('').then(function (res) {
+            var displayInput = lazyCombo.querySelector('input.ui-input');
+            var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
+            if (matched && displayInput) {
+              displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
+            }
+          }).catch(function (err) {
+            console.error('[WizardForm] DataComboBox initial fetch error:', err);
+            var displayInput = lazyCombo.querySelector('input.ui-input');
+            if (displayInput) displayInput.placeholder = 'Lỗi tải dữ liệu';
+          });
         }
         fgw.appendChild(lazyCombo);
       }
@@ -1030,17 +1030,17 @@ var WizardForm = (function () {
         // Build fakeBody với chỉ những trường được sửa
         var fakeBody = document.createElement('div');
         Object.keys(formState).forEach(function (key) {
-            var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
-            // Vì là Thêm mới (Add) nên không có rowData cũ, chỉ gửi những trường có data khác rỗng
-            // (hoặc cứ gửi hết đối với form Add vì trigger không crash khi Add)
-            // Tuy nhiên, để nhất quán, ta gửi tất cả các trường có giá trị.
-            if (newValue !== '' || key === 'PersonID' || key === 'UserAutoID') {
-                var inp = document.createElement('input');
-                inp.type = 'hidden';
-                inp.name = key;
-                inp.value = newValue;
-                fakeBody.appendChild(inp);
-            }
+          var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
+          // Vì là Thêm mới (Add) nên không có rowData cũ, chỉ gửi những trường có data khác rỗng
+          // (hoặc cứ gửi hết đối với form Add vì trigger không crash khi Add)
+          // Tuy nhiên, để nhất quán, ta gửi tất cả các trường có giá trị.
+          if (newValue !== '' || key === 'PersonID' || key === 'UserAutoID') {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = key;
+            inp.value = newValue;
+            fakeBody.appendChild(inp);
+          }
         });
 
         var fakeModal = {
@@ -1131,9 +1131,9 @@ var WizardForm = (function () {
       ].join('\n');
       document.head.appendChild(style);
     }
-    
+
     _injectEditCSS();
-    
+
     var steps = config.steps || [];
     var formSchema = config.formSchema || [];
     var rowData = config.rowData || {};
@@ -1141,19 +1141,20 @@ var WizardForm = (function () {
     var moduleConfig = config.moduleConfig || {};
     var currentUser = config.currentUser || '';
     var userBranches = config.userBranches || [];
+    var isViewMode = config.isViewMode || false;
 
     var formState = Object.assign({}, rowData);
 
     var uiTabs = [];
-    steps.forEach(function(s, idx) {
-        if (s.fields && s.fields.length > 0) {
-            uiTabs.push({
-                id: 'step_' + idx,
-                label: s.label,
-                icon: s.icon || 'folder',
-                fields: s.fields
-            });
-        }
+    steps.forEach(function (s, idx) {
+      if (s.fields && s.fields.length > 0) {
+        uiTabs.push({
+          id: 'step_' + idx,
+          label: s.label,
+          icon: s.icon || 'folder',
+          fields: s.fields
+        });
+      }
     });
 
     var overlay = document.createElement('div');
@@ -1168,15 +1169,16 @@ var WizardForm = (function () {
     header.className = 'wz-header-edit';
     var title = document.createElement('h3');
     title.className = 'wz-title-edit';
-    title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">manage_accounts</span> ' + 
-                      'Sửa hồ sơ: ' + (formState.PersonName || formState.PersonID || '');
-    
+    var titleText = isViewMode ? (moduleConfig.TitleView || 'Thông tin cá nhân') : ('Sửa hồ sơ: ' + (formState.PersonName || formState.PersonID || ''));
+    var titleIcon = isViewMode ? 'person' : 'manage_accounts';
+    title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">' + titleIcon + '</span> ' + titleText;
+
     var btnClose = document.createElement('button');
     btnClose.className = 'wz-close-edit';
     btnClose.innerHTML = '<span class="material-symbols-outlined">close</span>';
-    btnClose.onclick = function() {
-        overlay.style.opacity = '0';
-        setTimeout(function(){ overlay.remove(); }, 200);
+    btnClose.onclick = function () {
+      overlay.style.opacity = '0';
+      setTimeout(function () { overlay.remove(); }, 200);
     };
     header.appendChild(title);
     header.appendChild(btnClose);
@@ -1190,13 +1192,13 @@ var WizardForm = (function () {
     // Tabs Container
     var tabsContainer = document.createElement('div');
     tabsContainer.className = 'wz-tabs-container';
-    
+
     var tabBar = document.createElement('div');
     tabBar.className = 'wz-tab-bar';
-    
+
     var tabContent = document.createElement('div');
     tabContent.className = 'wz-tab-content';
-    
+
     tabsContainer.appendChild(tabBar);
     tabsContainer.appendChild(tabContent);
     body.appendChild(tabsContainer);
@@ -1204,140 +1206,143 @@ var WizardForm = (function () {
     var activeTab = uiTabs.length > 0 ? uiTabs[0].id : null;
 
     function _renderTabs() {
-        tabBar.innerHTML = '';
-        uiTabs.forEach(function(tab) {
-            var btn = document.createElement('button');
-            btn.className = 'wz-tab-btn' + (activeTab === tab.id ? ' active' : '');
-            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px">' + tab.icon + '</span> ' + tab.label;
-            btn.onclick = function() {
-                _collectData();
-                activeTab = tab.id;
-                _renderTabs();
-                _renderTabContent();
-            };
-            tabBar.appendChild(btn);
-        });
+      tabBar.innerHTML = '';
+      uiTabs.forEach(function (tab) {
+        var btn = document.createElement('button');
+        btn.className = 'wz-tab-btn' + (activeTab === tab.id ? ' active' : '');
+        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px">' + tab.icon + '</span> ' + tab.label;
+        btn.onclick = function () {
+          _collectData();
+          activeTab = tab.id;
+          _renderTabs();
+          _renderTabContent();
+        };
+        tabBar.appendChild(btn);
+      });
     }
 
     function _renderTabContent() {
-        tabContent.innerHTML = '';
-        if (!activeTab) return;
-        var tab = uiTabs.find(function(t) { return t.id === activeTab; });
-        if (!tab) return;
+      tabContent.innerHTML = '';
+      if (!activeTab) return;
+      var tab = uiTabs.find(function (t) { return t.id === activeTab; });
+      if (!tab) return;
 
-        var wrapper = document.createElement('div');
-        
-        if (tab.label === 'Cá nhân') {
-            wrapper.className = 'resume-layout';
+      var wrapper = document.createElement('div');
 
-            var fieldsArea = document.createElement('div');
-            fieldsArea.className = 'resume-fields wz-fields-grid two-cols';
-            _renderFields(tab.fields, fieldsArea, formSchema, formState);
+      if (tab.label === 'Cá nhân') {
+        wrapper.className = 'resume-layout';
 
-            var photoArea = document.createElement('div');
-            photoArea.className = 'photo-box';
-            
-            var frame = document.createElement('div');
-            frame.className = 'photo-frame';
-            var img = document.createElement('img');
-            var defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
-            var mimeType = 'image/jpeg';
-            var fileExt = formState.FileName ? formState.FileName.split('.').pop().toLowerCase() : '';
-            if (fileExt === 'png') mimeType = 'image/png';
-            else if (fileExt === 'gif') mimeType = 'image/gif';
-            else if (fileExt === 'webp') mimeType = 'image/webp';
+        var fieldsArea = document.createElement('div');
+        fieldsArea.className = 'resume-fields wz-fields-grid two-cols';
+        _renderFields(tab.fields, fieldsArea, formSchema, formState);
 
-            var rawContent = formState.Base64Content || formState.Content || formState.HinhAnh;
-            
-            if (rawContent && typeof rawContent === 'string' && rawContent.length > 10) {
-                if (/^0x/i.test(rawContent)) {
-                    var hexStr = rawContent.replace(/^0x/i, '').replace(/\s/g, '');
-                    var bytes = new Uint8Array(hexStr.length / 2);
-                    for (var bi = 0; bi < bytes.length; bi++) {
-                        bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
-                    }
-                    var blob = new Blob([bytes], { type: mimeType });
-                    img.src = URL.createObjectURL(blob);
-                } else if (rawContent.startsWith('http') || rawContent.startsWith('/')) {
-                    img.src = rawContent;
-                } else {
-                    img.src = 'data:' + mimeType + ';base64,' + rawContent;
-                }
-            } else {
-                var pkField = formSchema.PrimaryKey || 'PersonID';
-                var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
-                if (pkVal) {
-                    var subFolder = (formState['CandidateID']) ? 'UngVien' : 'NhanVien';
-                    img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + pkVal + '.jpg';
-                } else {
-                    img.src = defaultAvatar;
-                }
+        var photoArea = document.createElement('div');
+        photoArea.className = 'photo-box';
+
+        var frame = document.createElement('div');
+        frame.className = 'photo-frame';
+        var img = document.createElement('img');
+        var defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+        var mimeType = 'image/jpeg';
+        var fileExt = formState.FileName ? formState.FileName.split('.').pop().toLowerCase() : '';
+        if (fileExt === 'png') mimeType = 'image/png';
+        else if (fileExt === 'gif') mimeType = 'image/gif';
+        else if (fileExt === 'webp') mimeType = 'image/webp';
+
+        var rawContent = formState.Base64Content || formState.Content || formState.HinhAnh;
+
+        if (rawContent && typeof rawContent === 'string' && rawContent.length > 10) {
+          if (/^0x/i.test(rawContent)) {
+            var hexStr = rawContent.replace(/^0x/i, '').replace(/\s/g, '');
+            var bytes = new Uint8Array(hexStr.length / 2);
+            for (var bi = 0; bi < bytes.length; bi++) {
+              bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
             }
-            img.onerror = function() { this.src = defaultAvatar; };
-            frame.appendChild(img);
-            
-            var photoInput = document.createElement('input');
-            photoInput.type = 'hidden';
-            photoInput.name = 'HinhAnh';
-            photoInput.value = formState.HinhAnh || '';
-
-            var btnUpload = document.createElement('button');
-            btnUpload.className = 'btn btn-outline btn-sm w-100';
-            btnUpload.innerHTML = '<span class="material-symbols-outlined">upload</span> Cập nhật ảnh';
-            btnUpload.onclick = function() {
-                var input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*';
-                input.onchange = function(e) {
-                    var file = e.target.files[0];
-                    if (file) {
-                        var reader = new FileReader();
-                        reader.onload = function(re) {
-                            img.src = re.target.result;
-                            photoInput.value = re.target.result; // Base64
-                            
-                            // SYNC FOR API_PERSONATTACH
-                            var dataUrl = re.target.result;
-                            var base64Content = dataUrl.split(',')[1] || dataUrl;
-                            
-                            var abReader = new FileReader();
-                            abReader.onload = function(e_ab) {
-                                var bytes = new Uint8Array(e_ab.target.result);
-                                var hexArray = [];
-                                for (var i = 0; i < bytes.length; i++) {
-                                    var hexVal = bytes[i].toString(16);
-                                    if (hexVal.length < 2) hexVal = '0' + hexVal;
-                                    hexArray.push(hexVal);
-                                }
-                                var hexStr = '0x' + hexArray.join('');
-                                
-                                window._pendingWizardAvatar = {
-                                    file: file,
-                                    hexStr: hexStr,
-                                    base64Content: base64Content,
-                                    dataUrl: dataUrl
-                                };
-                            };
-                            abReader.readAsArrayBuffer(file);
-                        };
-                        reader.readAsDataURL(file);
-                    }
-                };
-                input.click();
-            };
-
-            photoArea.appendChild(frame);
-            photoArea.appendChild(btnUpload);
-            photoArea.appendChild(photoInput);
-
-            wrapper.appendChild(fieldsArea);
-            wrapper.appendChild(photoArea);
+            var blob = new Blob([bytes], { type: mimeType });
+            img.src = URL.createObjectURL(blob);
+          } else if (rawContent.startsWith('http') || rawContent.startsWith('/')) {
+            img.src = rawContent;
+          } else {
+            img.src = 'data:' + mimeType + ';base64,' + rawContent;
+          }
         } else {
-            wrapper.className = 'wz-fields-grid two-cols';
-            _renderFields(tab.fields, wrapper, formSchema, formState);
+          var pkField = formSchema.PrimaryKey || 'PersonID';
+          var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
+          if (pkVal) {
+            var subFolder = (formState['CandidateID']) ? 'UngVien' : 'NhanVien';
+            img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + pkVal + '.jpg';
+          } else {
+            img.src = defaultAvatar;
+          }
         }
-        
-        tabContent.appendChild(wrapper);
+        img.onerror = function () { this.src = defaultAvatar; };
+        frame.appendChild(img);
+
+        var photoInput = document.createElement('input');
+        photoInput.type = 'hidden';
+        photoInput.name = 'HinhAnh';
+        photoInput.value = formState.HinhAnh || '';
+
+        var btnUpload = document.createElement('button');
+        btnUpload.className = 'btn btn-outline btn-sm w-100';
+        if (isViewMode) {
+          btnUpload.style.display = 'none';
+        }
+        btnUpload.innerHTML = '<span class="material-symbols-outlined">upload</span> Cập nhật ảnh';
+        btnUpload.onclick = function () {
+          var input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = function (e) {
+            var file = e.target.files[0];
+            if (file) {
+              var reader = new FileReader();
+              reader.onload = function (re) {
+                img.src = re.target.result;
+                photoInput.value = re.target.result; // Base64
+
+                // SYNC FOR API_PERSONATTACH
+                var dataUrl = re.target.result;
+                var base64Content = dataUrl.split(',')[1] || dataUrl;
+
+                var abReader = new FileReader();
+                abReader.onload = function (e_ab) {
+                  var bytes = new Uint8Array(e_ab.target.result);
+                  var hexArray = [];
+                  for (var i = 0; i < bytes.length; i++) {
+                    var hexVal = bytes[i].toString(16);
+                    if (hexVal.length < 2) hexVal = '0' + hexVal;
+                    hexArray.push(hexVal);
+                  }
+                  var hexStr = '0x' + hexArray.join('');
+
+                  window._pendingWizardAvatar = {
+                    file: file,
+                    hexStr: hexStr,
+                    base64Content: base64Content,
+                    dataUrl: dataUrl
+                  };
+                };
+                abReader.readAsArrayBuffer(file);
+              };
+              reader.readAsDataURL(file);
+            }
+          };
+          input.click();
+        };
+
+        photoArea.appendChild(frame);
+        photoArea.appendChild(btnUpload);
+        photoArea.appendChild(photoInput);
+
+        wrapper.appendChild(fieldsArea);
+        wrapper.appendChild(photoArea);
+      } else {
+        wrapper.className = 'wz-fields-grid two-cols';
+        _renderFields(tab.fields, wrapper, formSchema, formState);
+      }
+
+      tabContent.appendChild(wrapper);
     }
 
     _renderTabs();
@@ -1346,42 +1351,80 @@ var WizardForm = (function () {
     // Footer
     var footer = document.createElement('div');
     footer.className = 'wz-footer';
-    
+
     var btnCancel = document.createElement('button');
     btnCancel.className = 'btn btn-outline';
     btnCancel.innerText = 'Hủy bỏ';
-    btnCancel.onclick = btnClose.onclick;
+    btnCancel.onclick = function() {
+      if (!isViewMode && config.isViewMode) {
+        // Was opened in view mode, but now in edit mode. Revert!
+        isViewMode = true;
+        formState = Object.assign({}, rowData); // Revert data
+        
+        var titleText = moduleConfig.TitleView || 'Thông tin cá nhân';
+        title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">person</span> ' + titleText;
+        
+        btnSave.innerHTML = '<span class="material-symbols-outlined">edit</span> Sửa';
+        btnSave.onclick = function () {
+          isViewMode = false;
+          title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">manage_accounts</span> ' +
+            'Sửa hồ sơ: ' + (formState.PersonName || formState.PersonID || '');
+          btnSave.innerHTML = '<span class="material-symbols-outlined">save</span> Lưu Thông Tin';
+          btnSave.onclick = _onSaveData;
+          _renderTabContent();
+        };
+        
+        _renderTabContent();
+      } else {
+        btnClose.click();
+      }
+    };
 
     var btnSave = document.createElement('button');
     btnSave.className = 'btn btn-primary';
-    btnSave.innerHTML = '<span class="material-symbols-outlined">save</span> Lưu Thông Tin';
-    btnSave.onclick = function() {
-        _collectData();
-        if (saveData) {
-            // Build fakeBody with only changed fields to prevent trigger crashes
-            var fakeBody = document.createElement('div');
-            Object.keys(formState).forEach(function (key) {
-                var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
-                var oldValue = rowData && rowData[key] !== null && rowData[key] !== undefined ? String(rowData[key]) : '';
-                
-                if (newValue !== oldValue || key === 'PersonID' || key === 'UserAutoID') {
-                    var inp = document.createElement('input');
-                    inp.type = 'hidden';
-                    inp.name = key;
-                    inp.value = newValue;
-                    fakeBody.appendChild(inp);
-                }
-            });
-            
-            var fakeModal = {
-                close: function () { btnClose.click(); },
-                closeNow: function () { btnClose.click(); }
-            };
-            
-            // _saveData signature: isEdit, rowData, modal, body, btnSave
-            saveData(true, rowData, fakeModal, fakeBody, btnSave);
-        }
+
+    var _onSaveData = function () {
+      _collectData();
+      if (saveData) {
+        // Build fakeBody with only changed fields to prevent trigger crashes
+        var fakeBody = document.createElement('div');
+        Object.keys(formState).forEach(function (key) {
+          var newValue = formState[key] !== null && formState[key] !== undefined ? String(formState[key]) : '';
+          var oldValue = rowData && rowData[key] !== null && rowData[key] !== undefined ? String(rowData[key]) : '';
+
+          if (newValue !== oldValue || key === 'PersonID' || key === 'UserAutoID') {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = key;
+            inp.value = newValue;
+            fakeBody.appendChild(inp);
+          }
+        });
+
+        var fakeModal = {
+          close: function () { btnClose.click(); },
+          closeNow: function () { btnClose.click(); }
+        };
+
+        // _saveData signature: isEdit, rowData, modal, body, btnSave
+        saveData(true, rowData, fakeModal, fakeBody, btnSave);
+      }
     };
+
+    if (isViewMode) {
+      btnSave.innerHTML = '<span class="material-symbols-outlined">edit</span> Sửa';
+      btnSave.onclick = function () {
+        isViewMode = false;
+        title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">manage_accounts</span> ' +
+          'Sửa hồ sơ: ' + (formState.PersonName || formState.PersonID || '');
+        btnSave.innerHTML = '<span class="material-symbols-outlined">save</span> Lưu Thông Tin';
+        btnSave.onclick = _onSaveData;
+        _renderTabContent();
+      };
+    } else {
+      btnSave.innerHTML = '<span class="material-symbols-outlined">save</span> Lưu Thông Tin';
+      btnSave.onclick = _onSaveData;
+    }
 
     footer.appendChild(btnCancel);
     footer.appendChild(btnSave);
@@ -1389,198 +1432,198 @@ var WizardForm = (function () {
     document.body.appendChild(overlay);
 
     function _collectData() {
-        dialog.querySelectorAll('input, select, textarea').forEach(function (el) {
-            if (el.name && el.type !== 'button' && el.type !== 'file') {
-                formState[el.name] = el.value;
-            }
-        });
+      dialog.querySelectorAll('input, select, textarea').forEach(function (el) {
+        if (el.name && el.type !== 'button' && el.type !== 'file') {
+          formState[el.name] = el.value;
+        }
+      });
     }
 
     function _renderFields(fieldNames, container, schema, state) {
-        fieldNames.forEach(function (fn) {
-            var field = schema.find(function (f) { return f.name === fn; });
-            if (!field) return;
+      fieldNames.forEach(function (fn) {
+        var field = schema.find(function (f) { return f.name === fn; });
+        if (!field) return;
 
-            var fCopy = Object.assign({}, field);
-            fCopy.value = state[fn] || '';
-            fCopy.readOnly = fCopy.isReadOnlyEdit;
+        var fCopy = Object.assign({}, field);
+        fCopy.value = state[fn] || '';
+        fCopy.readOnly = isViewMode ? true : fCopy.isReadOnlyEdit;
 
-            // Lắng nghe sự kiện đổi chi nhánh để cập nhật mã nhân viên (Edit mode)
-            if (fn === 'BranchID') {
-               setTimeout(function() {
-                   var hiddenIn = container.querySelector('input[type="hidden"][name="BranchID"]');
-                   if (hiddenIn) {
-                       hiddenIn.addEventListener('change', function(e) {
-                           if (isEdit) return; // Không tự động đổi Mã nhân viên khi đang Sửa hồ sơ
-                           
-                           var newBranch = e.target.value;
-                           if (!newBranch) return;
-                           
-                           var pidInput = container.querySelector('input[name="PersonID"]');
-                           if (pidInput) pidInput.value = 'Đang tính toán...';
-                           
-                           var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
-                           _resolveNextPersonID(newBranch, apiUrl, currentUser, function(nextCode, maVietTat, err) {
-                               if (err || !nextCode) {
-                                   if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
-                                   if (pidInput) pidInput.value = state['PersonID'] || '';
-                                   return;
-                               }
-                               state['PersonID'] = nextCode;
-                               state['MaVietTat'] = maVietTat;
-                               if (pidInput) {
-                                   pidInput.value = nextCode;
-                                   pidInput.style.backgroundColor = 'var(--color-primary-light, rgba(67,56,202,0.1))';
-                                   setTimeout(function() { pidInput.style.backgroundColor = ''; }, 1000);
-                               }
-                           });
-                       });
-                   }
-               }, 0);
+        // Lắng nghe sự kiện đổi chi nhánh để cập nhật mã nhân viên (Edit mode)
+        if (fn === 'BranchID') {
+          setTimeout(function () {
+            var hiddenIn = container.querySelector('input[type="hidden"][name="BranchID"]');
+            if (hiddenIn) {
+              hiddenIn.addEventListener('change', function (e) {
+                if (isEdit) return; // Không tự động đổi Mã nhân viên khi đang Sửa hồ sơ
+
+                var newBranch = e.target.value;
+                if (!newBranch) return;
+
+                var pidInput = container.querySelector('input[name="PersonID"]');
+                if (pidInput) pidInput.value = 'Đang tính toán...';
+
+                var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
+                _resolveNextPersonID(newBranch, apiUrl, currentUser, function (nextCode, maVietTat, err) {
+                  if (err || !nextCode) {
+                    if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
+                    if (pidInput) pidInput.value = state['PersonID'] || '';
+                    return;
+                  }
+                  state['PersonID'] = nextCode;
+                  state['MaVietTat'] = maVietTat;
+                  if (pidInput) {
+                    pidInput.value = nextCode;
+                    pidInput.style.backgroundColor = 'var(--color-primary-light, rgba(67,56,202,0.1))';
+                    setTimeout(function () { pidInput.style.backgroundColor = ''; }, 1000);
+                  }
+                });
+              });
             }
+          }, 0);
+        }
 
-            if (fn === 'GioiTinh') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'; }
-            if (fn === 'PersonStatus') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'API_ComboPersonStatus'; }
+        if (fn === 'GioiTinh') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'; }
+        if (fn === 'PersonStatus') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'API_ComboPersonStatus'; }
 
-            var inputEl;
-            if (fCopy.renderRule === 'sw' || fCopy.renderRule === 'boolean') {
-                inputEl = UIInput.createSwitch(fCopy);
-            } else if (fCopy.renderRule === 'dt' || fCopy.renderRule === 'date' || fCopy.renderRule === 'd') {
-                inputEl = UIInput.createDate(fCopy);
-            } else if (fCopy.renderRule === 'tm' || fCopy.renderRule === 'time') {
-                inputEl = UIInput.createTime(fCopy);
-            } else if (fCopy.renderRule === 'sl' || fCopy.renderRule === 'select') {
-                inputEl = _buildSelectFieldEdit(fCopy);
-            } else if (fCopy.renderRule === 'ta' || fCopy.renderRule === 'textarea') {
-                inputEl = UIInput.createTextarea ? UIInput.createTextarea(fCopy) : UIInput.createText(fCopy);
-            } else {
-                inputEl = UIInput.createText(fCopy);
-            }
+        var inputEl;
+        if (fCopy.renderRule === 'sw' || fCopy.renderRule === 'boolean') {
+          inputEl = UIInput.createSwitch(fCopy);
+        } else if (fCopy.renderRule === 'dt' || fCopy.renderRule === 'date' || fCopy.renderRule === 'd') {
+          inputEl = UIInput.createDate(fCopy);
+        } else if (fCopy.renderRule === 'tm' || fCopy.renderRule === 'time') {
+          inputEl = UIInput.createTime(fCopy);
+        } else if (fCopy.renderRule === 'sl' || fCopy.renderRule === 'select') {
+          inputEl = _buildSelectFieldEdit(fCopy);
+        } else if (fCopy.renderRule === 'ta' || fCopy.renderRule === 'textarea') {
+          inputEl = UIInput.createTextarea ? UIInput.createTextarea(fCopy) : UIInput.createText(fCopy);
+        } else {
+          inputEl = UIInput.createText(fCopy);
+        }
 
-            var isFullWidth = String(fCopy.position) === 'body' || String(fCopy.position) === '12' ||
-                              fn.toLowerCase().includes('diachi') || fn.toLowerCase().includes('ghichu') ||
-                              fn.toLowerCase().includes('mota') || fCopy.renderRule === 'ta' || fCopy.renderRule === 'textarea';
+        var isFullWidth = String(fCopy.position) === 'body' || String(fCopy.position) === '12' ||
+          fn.toLowerCase().includes('diachi') || fn.toLowerCase().includes('ghichu') ||
+          fn.toLowerCase().includes('mota') || fCopy.renderRule === 'ta' || fCopy.renderRule === 'textarea';
 
-            var colClass = isFullWidth ? 'df-col-12' : 'df-col-6';
-            if (container.classList.contains('two-cols') && !isFullWidth) {
-                colClass = '';
-            }
+        var colClass = isFullWidth ? 'df-col-12' : 'df-col-6';
+        if (container.classList.contains('two-cols') && !isFullWidth) {
+          colClass = '';
+        }
 
-            var wrapper = document.createElement('div');
-            if (colClass) wrapper.className = colClass;
-            wrapper.appendChild(inputEl);
-            container.appendChild(wrapper);
-        });
+        var wrapper = document.createElement('div');
+        if (colClass) wrapper.className = colClass;
+        wrapper.appendChild(inputEl);
+        container.appendChild(wrapper);
+      });
     }
 
     function _buildSelectFieldEdit(field) {
-        var fgw = document.createElement('div');
-        fgw.className = 'form-group';
-        if (field.label) {
-            var lbl = document.createElement('label');
-            lbl.innerText = field.label;
-            if (field.required) lbl.innerHTML += ' <span style="color:var(--color-danger)">*</span>';
-            fgw.appendChild(lbl);
-        }
-        var hiddenIn = document.createElement('input');
-        hiddenIn.type = 'hidden';
-        hiddenIn.name = field.name;
-        hiddenIn.value = field.value || '';
-        fgw.appendChild(hiddenIn);
+      var fgw = document.createElement('div');
+      fgw.className = 'form-group';
+      if (field.label) {
+        var lbl = document.createElement('label');
+        lbl.innerText = field.label;
+        if (field.required) lbl.innerHTML += ' <span style="color:var(--color-danger)">*</span>';
+        fgw.appendChild(lbl);
+      }
+      var hiddenIn = document.createElement('input');
+      hiddenIn.type = 'hidden';
+      hiddenIn.name = field.name;
+      hiddenIn.value = field.value || '';
+      fgw.appendChild(hiddenIn);
 
-        var ds = field.dataSource || '';
-        if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
-            ds = 'STATIC:' + userBranches.map(function (b) {
-                return b.id + '|' + (b.name || b.id);
-            }).join(',');
-        }
-        if (ds.toUpperCase().startsWith('STATIC:')) {
-            var staticData = ds.substring(7).split(',').map(function (s) {
-                var p = s.split('|'); return [p[0], p[1] || p[0]];
+      var ds = field.dataSource || '';
+      if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
+        ds = 'STATIC:' + userBranches.map(function (b) {
+          return b.id + '|' + (b.name || b.id);
+        }).join(',');
+      }
+      if (ds.toUpperCase().startsWith('STATIC:')) {
+        var staticData = ds.substring(7).split(',').map(function (s) {
+          var p = s.split('|'); return [p[0], p[1] || p[0]];
+        });
+        var opts = {
+          placeholder: '-- Vui lòng chọn --',
+          headers: ['Mã', 'Tên'],
+          disabled: field.readOnly,
+          onSearch: function (q) {
+            return Promise.resolve({
+              headers: ['Mã', 'Tên'],
+              data: q ? staticData.filter(function (r) { return r[1].toLowerCase().indexOf(q.toLowerCase()) > -1; }) : staticData,
+              colFilterIndex: 1
             });
-            var opts = {
-                placeholder: '-- Vui lòng chọn --',
-                headers: ['Mã', 'Tên'],
-                disabled: field.readOnly,
-                onSearch: function (q) {
-                    return Promise.resolve({
-                        headers: ['Mã', 'Tên'],
-                        data: q ? staticData.filter(function (r) { return r[1].toLowerCase().indexOf(q.toLowerCase()) > -1; }) : staticData,
-                        colFilterIndex: 1
-                    });
-                },
-                onSelect: function (row) {
-                    hiddenIn.value = row[0];
-                    formState[field.name] = row[0];
-                    hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            };
-            var combo = UIControls.createDataComboBox(opts);
-            var matched = staticData.find(function (r) { return r[0] == field.value; });
-            var dIn = combo.querySelector('input.ui-input');
-            if (matched && dIn) dIn.value = matched[1];
-            fgw.appendChild(combo);
-        } else if (ds) {
-            var endpointRaw = ds.indexOf('|') > -1 ? ds.split('|')[0] : ds;
-            var baseUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '');
-            var finalUrl = baseUrl + '/api/API_Gateway_Router';
-            var fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View', UserName: currentUser };
-            
-            var searchApiCall = function (q) {
-                var pl = Object.assign({}, fetchPayload);
-                if (q) pl.Keyword = q;
-                return ApiClient.post(finalUrl, pl).then(function (res) {
-                    var list = res.list || res.records || [];
-                    if (!list.length) return { headers: ['Mã', 'Tên'], data: [], colFilterIndex: 1 };
-                    var keys = Object.keys(list[0]);
-                    
-                    var comboData = [];
-                    list.forEach(function (d) {
-                        var rowData = [];
-                        keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
-                        comboData.push(rowData);
-                    });
-                    
-                    var labelRegex = /name|tên|ten|label|desc|title/i;
-                    var displayKey = keys.find(function (k) { return labelRegex.test(k); });
-                    var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
-                    
-                    return {
-                        headers: keys,
-                        data: comboData,
-                        colFilterIndex: colFilterIndex
-                    };
-                });
-            };
-            
-            var lazyCombo = UIControls.createDataComboBox({
-                placeholder: '-- Vui lòng chọn --',
-                headers: ['Mã', 'Tên'],
-                disabled: field.readOnly,
-                onSearch: searchApiCall,
-                onSelect: function (row) {
-                    hiddenIn.value = row[0];
-                    formState[field.name] = row[0];
-                    hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
-                }
+          },
+          onSelect: function (row) {
+            hiddenIn.value = row[0];
+            formState[field.name] = row[0];
+            hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        };
+        var combo = UIControls.createDataComboBox(opts);
+        var matched = staticData.find(function (r) { return r[0] == field.value; });
+        var dIn = combo.querySelector('input.ui-input');
+        if (matched && dIn) dIn.value = matched[1];
+        fgw.appendChild(combo);
+      } else if (ds) {
+        var endpointRaw = ds.indexOf('|') > -1 ? ds.split('|')[0] : ds;
+        var baseUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '');
+        var finalUrl = baseUrl + '/api/API_Gateway_Router';
+        var fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View', UserName: currentUser };
+
+        var searchApiCall = function (q) {
+          var pl = Object.assign({}, fetchPayload);
+          if (q) pl.Keyword = q;
+          return ApiClient.post(finalUrl, pl).then(function (res) {
+            var list = res.list || res.records || [];
+            if (!list.length) return { headers: ['Mã', 'Tên'], data: [], colFilterIndex: 1 };
+            var keys = Object.keys(list[0]);
+
+            var comboData = [];
+            list.forEach(function (d) {
+              var rowData = [];
+              keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+              comboData.push(rowData);
             });
-            
-            if (field.value) {
-                searchApiCall('').then(function (res) {
-                    var displayInput = lazyCombo.querySelector('input.ui-input');
-                    var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
-                    if (matched && displayInput) {
-                        displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
-                    }
-                }).catch(function (err) {
-                    console.error('[WizardForm] DataComboBox initial fetch error:', err);
-                    var displayInput = lazyCombo.querySelector('input.ui-input');
-                    if (displayInput) displayInput.placeholder = 'Lỗi tải dữ liệu';
-                });
+
+            var labelRegex = /name|tên|ten|label|desc|title/i;
+            var displayKey = keys.find(function (k) { return labelRegex.test(k); });
+            var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+
+            return {
+              headers: keys,
+              data: comboData,
+              colFilterIndex: colFilterIndex
+            };
+          });
+        };
+
+        var lazyCombo = UIControls.createDataComboBox({
+          placeholder: '-- Vui lòng chọn --',
+          headers: ['Mã', 'Tên'],
+          disabled: field.readOnly,
+          onSearch: searchApiCall,
+          onSelect: function (row) {
+            hiddenIn.value = row[0];
+            formState[field.name] = row[0];
+            hiddenIn.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        });
+
+        if (field.value) {
+          searchApiCall('').then(function (res) {
+            var displayInput = lazyCombo.querySelector('input.ui-input');
+            var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
+            if (matched && displayInput) {
+              displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
             }
-            fgw.appendChild(lazyCombo);
+          }).catch(function (err) {
+            console.error('[WizardForm] DataComboBox initial fetch error:', err);
+            var displayInput = lazyCombo.querySelector('input.ui-input');
+            if (displayInput) displayInput.placeholder = 'Lỗi tải dữ liệu';
+          });
         }
-        return fgw;
+        fgw.appendChild(lazyCombo);
+      }
+      return fgw;
     }
   }
 

@@ -94,7 +94,8 @@ img {
 .app-content {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden; /* Ngăn toàn bộ trang scroll ngang */
+  overflow-x: hidden;
+  /* Ngăn toàn bộ trang scroll ngang */
   padding: 32px var(--spacing-xl);
   background: var(--color-background);
 }
@@ -116,7 +117,7 @@ img {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-border);
-  margin-bottom: 24px;
+  margin-bottom: 10px;
 }
 
 .page-title-info {
@@ -268,7 +269,7 @@ img {
   }
 
   .page-title-actions .button-bar,
-  .page-title-actions .mobile-action-wrapper > .button-bar {
+  .page-title-actions .mobile-action-wrapper>.button-bar {
     width: auto !important;
     margin: 0 !important;
     border: none !important;
@@ -655,4 +656,20 @@ body.dark-theme .nav-item:hover span.icon {
   .df-col-3 {
     width: 100% !important;
   }
+
+  .df-master-wrapper, .df-avatar-group-wrapper {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  .df-master-wrapper .photo-box-wrapper {
+    width: 100% !important;
+  }
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
