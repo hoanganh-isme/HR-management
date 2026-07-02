@@ -44,11 +44,11 @@ var MenusPage = (function () {
     if (!globalActions) return;
 
     globalActions.innerHTML = '';
-    
+
     if (typeof UIActionToolbar !== 'undefined') {
       var permKey = _getPermKey();
       var hasAdd = Permission.canAdd(permKey);
-      
+
       var toolbar = UIActionToolbar.create({
         onAdd: hasAdd ? function () { _openModal(false); } : 'DISABLED',
         onEdit: false,
@@ -66,13 +66,13 @@ var MenusPage = (function () {
           }
         ]
       });
-      
+
       // Override text for "Thêm"
       var btnAdd = toolbar.querySelector('.btn-primary, [title*="Thêm"]');
       if (btnAdd) {
         btnAdd.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">add</span><span class="d-none d-sm-inline">Thêm Nhóm Cha</span>';
       }
-      
+
       globalActions.appendChild(toolbar);
     }
   }
