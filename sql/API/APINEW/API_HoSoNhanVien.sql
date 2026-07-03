@@ -330,8 +330,6 @@ GO
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
 ('WA_PersonFullFrm', 'View', 'API_HoSoNhanVien', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @NamLap=N''{NamLap}'', @LoaiHD=N''{LoaiHD}'', @PersonStatus=N''{PersonStatus}'''),
-('WA_PersonFullFrm', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('WA_PersonFullFrm', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('API_PersonFull_T1_Salary',    'View', 'API_PersonFull_T1_Salary',    '@PersonID=N''{PersonID}'''),
 ('API_PersonFull_T2_Allowance', 'View', 'API_PersonFull_T2_Allowance', '@PersonID=N''{PersonID}'''),
 ('API_PersonFull_T3_KTKL',      'View', 'API_PersonFull_T3_KTKL',      '@PersonID=N''{PersonID}'''),
@@ -400,3 +398,58 @@ VALUES
 ('API_PersonFull_T9_GiayTo', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 GO
 
+
+
+CREATE OR ALTER PROCEDURE [dbo].[API_PersonAttach_SaveAvatar]
+    @List VARCHAR(50),
+    @Data NVARCHAR(MAX),
+    @UserName VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        -- Trích xuất PersonID hoặc CandidateID từ chuỗi JSON
+        DECLARE @PersonID VARCHAR(50) = JSON_VALUE(@Data, '$.PersonID');
+        DECLARE @CandidateID VARCHAR(50) = JSON_VALUE(@Data, '$.CandidateID');
+        DECLARE @FileType INT = CAST(JSON_VALUE(@Data, '$.FileType') AS INT);
+        
+        DECLARE @TargetID VARCHAR(50) = ISNULL(@PersonID, @CandidateID);
+        
+        IF @TargetID IS NULL OR @TargetID = ''
+        BEGIN
+            SELECT -1 AS code, N'Lỗi: Không tìm thấy mã nhân viên/ứng viên!' AS msg;
+            RETURN;
+        END
+
+        -- Nếu là tải ảnh đại diện (FileType = 1) -> Tìm ID ảnh cũ để ghi đè (UPDATE)
+        IF @FileType = 1 
+        BEGIN
+            DECLARE @ExistingID VARCHAR(50);
+            SELECT TOP 1 @ExistingID = UserAutoID 
+            FROM HR_PersonAttachTbl 
+            WHERE (PersonID = @TargetID) AND FileType = 1;
+
+            IF @ExistingID IS NOT NULL
+            BEGIN
+                -- Nếu đã tồn tại ảnh -> Bơm UserAutoID vào JSON và đổi IsEdit = 1
+                SET @Data = JSON_MODIFY(@Data, '$.UserAutoID', @ExistingID);
+                SET @Data = JSON_MODIFY(@Data, '$.IsEdit', 1);
+            END
+        END
+        
+        -- Uỷ quyền lại cho hàm lõi API_LuuDong xử lý JSON chuẩn
+        EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
+        
+    END TRY
+    BEGIN CATCH
+        SELECT -1 AS code, ERROR_MESSAGE() AS msg;
+    END CATCH
+END
+GO
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = 'API_PersonAttach' AND func = 'SaveAvatar')
+BEGIN
+    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+    VALUES ('API_PersonAttach', 'SaveAvatar', 'API_PersonAttach_SaveAvatar', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+END

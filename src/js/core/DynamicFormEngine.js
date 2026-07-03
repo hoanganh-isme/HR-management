@@ -996,6 +996,122 @@ window.DynamicFormEngine = (function () {
           });
         }
 
+        // Bổ sung các nút công cụ của Tabulator
+        extraBtns.push({
+          text: 'Bật/Tắt Lọc Cột',
+          icon: 'filter_alt',
+          onClick: function () {
+             if(window.tabulatorInstance) {
+                var tableEl = window.tabulatorInstance.element;
+                tableEl.classList.toggle('show-filters');
+                window.tabulatorInstance.redraw(true); // Redraw để bảng tính lại chiều cao header
+             }
+          }
+        });
+
+        extraBtns.push({
+          text: 'Tùy chọn cột',
+          icon: 'view_column',
+          onClick: function (e) {
+             var menu = document.getElementById('tabulator-col-menu');
+             if(menu) {
+                menu.remove();
+                return;
+             }
+             menu = document.createElement('div');
+             menu.id = 'tabulator-col-menu';
+             menu.style.position = 'absolute';
+             menu.style.background = 'var(--color-surface, #fff)';
+             menu.style.border = '1px solid var(--color-border, #ccc)';
+             menu.style.padding = '12px';
+             menu.style.zIndex = 1000;
+             menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+             menu.style.borderRadius = '8px';
+             menu.style.maxHeight = '400px';
+             menu.style.overflowY = 'auto';
+             
+             // Vị trí hiển thị (ngay dưới con trỏ chuột)
+             menu.style.top = (e.clientY + 15) + 'px';
+             menu.style.left = (e.clientX - 100) + 'px';
+             
+             var title = document.createElement('div');
+             title.textContent = 'Ẩn / Hiện Cột';
+             title.style.fontWeight = 'bold';
+             title.style.marginBottom = '8px';
+             title.style.paddingBottom = '8px';
+             title.style.borderBottom = '1px solid #eee';
+             menu.appendChild(title);
+
+             if (window.tabulatorInstance) {
+                var columns = window.tabulatorInstance.getColumns();
+                columns.forEach(function(col) {
+                    var field = col.getField();
+                    if(field && field !== '__action__' && field !== 'row_select') {
+                        var def = col.getDefinition();
+                        var label = document.createElement('label');
+                        label.style.display = 'flex';
+                        label.style.alignItems = 'center';
+                        label.style.marginBottom = '6px';
+                        label.style.cursor = 'pointer';
+                        
+                        var checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = col.isVisible();
+                        checkbox.style.marginRight = '8px';
+                        checkbox.style.cursor = 'pointer';
+                        checkbox.onchange = function() {
+                            col.toggle();
+                        };
+                        
+                        label.appendChild(checkbox);
+                        label.appendChild(document.createTextNode(def.title || field));
+                        menu.appendChild(label);
+                    }
+                });
+             }
+             
+             document.body.appendChild(menu);
+             
+             // Click ra ngoài để đóng menu
+             setTimeout(function() {
+                 var closeMenu = function(evt) {
+                     if(!menu.contains(evt.target)) {
+                         menu.remove();
+                         document.removeEventListener('click', closeMenu);
+                     }
+                 };
+                 document.addEventListener('click', closeMenu);
+             }, 100);
+          }
+        });
+
+        extraBtns.push({
+          text: 'Xuất Excel',
+          icon: 'download',
+          onClick: function () {
+             if(window.tabulatorInstance) {
+                window.tabulatorInstance.download("xlsx", (MODULE_CONFIG.PageTitle || "Data") + ".xlsx", {sheetName:"Du_Lieu"});
+             } else {
+                if (typeof Alert !== 'undefined') Alert.info('Thông báo', 'Bảng chưa được tải.');
+             }
+          }
+        });
+
+        extraBtns.push({
+          text: 'Xuất PDF',
+          icon: 'picture_as_pdf',
+          onClick: function () {
+             if(window.tabulatorInstance) {
+                window.tabulatorInstance.download("pdf", (MODULE_CONFIG.PageTitle || "Data") + ".pdf", {
+                    orientation:"landscape",
+                    title:"Báo cáo " + (MODULE_CONFIG.PageTitle || ""),
+                });
+             } else {
+                if (typeof Alert !== 'undefined') Alert.info('Thông báo', 'Bảng chưa được tải.');
+             }
+          }
+        });
+
         var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
         var isReport = formNameLower.endsWith('report');
         var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
@@ -1476,12 +1592,24 @@ window.DynamicFormEngine = (function () {
   function _renderTable() {
     var gridContainer = $container.querySelector('#dynamic-grid-container');
     if (!gridContainer) return;
-    gridContainer.innerHTML = '';
+    
+    // Tạo wrapper cho tabulator nếu chưa có
+    var tableWrapper = gridContainer.querySelector('.tabulator-wrapper');
+    if (!tableWrapper) {
+      gridContainer.innerHTML = '';
+      gridContainer.style.display = 'flex';
+      gridContainer.style.flexDirection = 'column';
+
+      tableWrapper = document.createElement('div');
+      tableWrapper.className = 'tabulator-wrapper';
+      tableWrapper.style.flex = '1';
+      tableWrapper.style.minHeight = '0';
+      gridContainer.appendChild(tableWrapper);
+    }
+    
     lastSelectedIdx = -1;
 
-    if (typeof UITable !== 'undefined') {
-      // Dùng bộ từ điển từ DB để dịch các cột sang Tiếng Việt
-      // CHỈ lấy các cột có cấu hình hiển thị trên grid (FormPosition chứa 'grid')
+    if (typeof Tabulator !== 'undefined') {
       var dictionary = {};
       if (globalFormSchema && globalFormSchema.length > 0) {
         globalFormSchema.forEach(function (schema) {
@@ -1494,17 +1622,10 @@ window.DynamicFormEngine = (function () {
         dictionary = globalDictionary; // Fallback
       }
 
-      // Render các cột tùy chỉnh (Sinh ra tự động từ RenderRule trong DB)
       var customRenderers = globalRenderers;
-
-      // Sắp xếp lại globalFormSchema theo OrderNo trước khi dựng cột grid
       globalFormSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
-
-      // Inject __action__ column
-      var dict = Object.assign({ '__action__': 'Thao tác' }, dictionary);
       var renderers = Object.assign({}, customRenderers);
 
-      // Tự động highlight các trường dữ liệu quan trọng
       var hlFields = {
         'PersonID': 'font-weight: 600; color: var(--color-primary);',
         'personid': 'font-weight: 600; color: var(--color-primary);',
@@ -1523,59 +1644,48 @@ window.DynamicFormEngine = (function () {
         }
       }
 
-      renderers['__action__'] = function (val, row) {
-        var rowId = row[MODULE_CONFIG.PrimaryKey] || '';
-        if (!window._navToDetail) {
-          window._navToDetail = function (moduleName, rId) {
-            var r = window._currentGridData ? window._currentGridData.find(function (item) { return item[window._currentGridPK] == rId || item.id == rId; }) : null;
-            if (r) sessionStorage.setItem('HR_Detail_Row_' + moduleName, JSON.stringify(r));
-            window.location.hash = '#/detail?module=' + encodeURIComponent(moduleName) + '&id=' + encodeURIComponent(rId);
-          };
-        }
-        window._currentGridData = gridData;
-        window._currentGridPK = MODULE_CONFIG.PrimaryKey;
 
-        return '<div style="display:flex; align-items:center; gap:8px;">' +
-          '<input type="checkbox" class="df-row-checkbox" value="' + rowId + '" style="cursor:pointer; width:16px; height:16px;" />' +
-          '<button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); window._navToDetail(\'' + MODULE_CONFIG.FormName + '\', \'' + rowId + '\')">' +
-          '<span class="material-symbols-outlined" style="font-size:16px; vertical-align:middle;">edit</span> Sửa' +
-          '</button>' +
-          '</div>';
-      };
-
-      var dataWithAction = gridData.map(function (row) {
-        return Object.assign({ '__action__': '' }, row);
+      var tabulatorColumns = [];
+      
+      // Cột Checkbox của Tabulator
+      tabulatorColumns.push({
+        formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: true
       });
 
-      // Gọi UITable.createDynamic siêu cấp
-      var tableEl = UITable.createDynamic(dataWithAction, dict, {
-        currentSort: { field: currentSortCol, dir: currentSortDir },
-        onSort: function (field, dir) {
-          currentSortCol = field;
-          currentSortDir = dir;
-          currentPage = 1;
-          selectedRows = [];
-          _updateSelectionCounter();
-          _loadData();
-        },
-        actionRenderers: renderers,
-        orderedFields: ['__action__'].concat(globalFormSchema
-          .filter(function (f) { return f.position === 'grid'; })
-          .map(function (f) { return f.name; }))
+      var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
+      var rowKeys = Object.keys(sampleRow);
+
+      globalFormSchema.forEach(function(f) {
+         var pos = (f.position || 'grid').toLowerCase();
+         if (pos.indexOf('grid') > -1) {
+            var fieldName = f.name;
+            // Tìm key trong data có chữ hoa/thường khớp với fieldName (case-insensitive search)
+            var actualField = rowKeys.find(function(k) { return k.toLowerCase() === fieldName.toLowerCase(); }) || fieldName;
+            
+            var colDef = {
+               title: dictionary[fieldName] || fieldName,
+               field: actualField,
+               headerFilter: "input", // Bật tính năng Lọc từng cột
+            };
+            
+            // Ghim 2 cột Mã NV và Họ tên
+            if (actualField.toLowerCase() === 'personid' || actualField.toLowerCase() === 'personname') {
+               colDef.frozen = true;
+            }
+            
+            if (renderers[fieldName]) {
+               colDef.formatter = function(cell) {
+                 return renderers[fieldName](cell.getValue(), cell.getData());
+               };
+            }
+            tabulatorColumns.push(colDef);
+         }
       });
 
-
-      var actualTable = tableEl.querySelector('table');
-      if (actualTable) actualTable.classList.add('no-mobile-stack');
-
-      // Các tính năng nâng cao (Copy, Vuốt chọn) giờ đã được chuẩn hóa trong UITable
-      // (Sẽ gọi sau khi gán gridData và selectedRows)
-
-      gridContainer.appendChild(tableEl);
-
-      // Thêm Pagination xuống dưới Table
+      // Tạo thanh Pagination trước
+      var paginationEl = null;
       if (typeof Pagination !== 'undefined') {
-        var paginationEl = Pagination.create({
+        paginationEl = Pagination.create({
           totalItems: totalRecords,
           totalPages: totalPagesFromApi,
           timestamp: lastTimestamp,
@@ -1598,97 +1708,54 @@ window.DynamicFormEngine = (function () {
             _loadData();
           }
         });
-        gridContainer.appendChild(paginationEl);
       }
 
-      // Phục hồi vị trí cuộn trang
-      if (savedScrollY > 0) {
-        setTimeout(function () { window.scrollTo(0, savedScrollY); }, 10);
+      if (window.tabulatorInstance) {
+          window.tabulatorInstance.destroy();
+      }
+      
+      var tabulatorConfig = {
+        data: gridData,
+        columns: tabulatorColumns,
+        layout: "fitDataFill",
+        selectableRows: true, // bật chọn dòng
+        selectableRowsRangeMode: "click", // Shift + click range
+        height: "100%", // Chiếm 100% chiều cao của flex container
+        // rowHeight: 45, // Đã xóa bỏ để Tabulator tự tính lại chiều cao theo text nhỏ
+      };
+
+      // Đẩy pagination vào footer cố định của Tabulator
+      if (paginationEl) {
+        tabulatorConfig.footerElement = paginationEl;
       }
 
-      var tbody = tableEl.querySelector('tbody');
-      if (tbody) {
-        // Phục hồi trạng thái Active cho các dòng đã chọn trước đó (Cross-page Selection)
-        var allTrs = Array.from(tbody.querySelectorAll('tr'));
-        var updatedSelectedRows = [];
-        allTrs.forEach(function (tr, idx) {
-          var rData = gridData[idx];
-          if (rData) {
-            var isSelected = selectedRows.find(function (sr) { return sr.id === rData.id; });
-            if (isSelected) {
-              tr.classList.add('active');
-              updatedSelectedRows.push(rData); // Cập nhật reference mới nhất từ server
-            }
-          }
-        });
-        // Giữ lại các dòng đã chọn nằm ở trang khác
-        selectedRows.forEach(function (sr) {
-          if (!updatedSelectedRows.find(function (usr) { return usr.id === sr.id; })) {
-            updatedSelectedRows.push(sr);
-          }
-        });
-        selectedRows = updatedSelectedRows;
+      window.tabulatorInstance = new Tabulator(tableWrapper, tabulatorConfig);
 
-        // Lắng nghe sự kiện từ Global Drag Select (Trạm gác UITable)
-        tbody.addEventListener('rowSelectionToggled', function (e) {
-          var rData = gridData[e.detail.rowIndex];
-          if (!rData) return;
-          if (e.detail.action === 'add') {
-            if (!selectedRows.find(function (sr) { return sr.id === rData.id; })) selectedRows.push(rData);
-          } else {
-            selectedRows = selectedRows.filter(function (sr) { return sr.id !== rData.id; });
-          }
+      // Bắt sự kiện chọn dòng để update biến selectedRows
+      window.tabulatorInstance.on("rowSelectionChanged", function(data, rows){
+          selectedRows = data;
           _updateSelectionCounter();
-        });
+      });
 
-        tbody.addEventListener('click', function (e) {
-          if (typeof tbody.isDragSelecting === 'function' && tbody.isDragSelecting()) return;
-          var isCheckboxClick = e.target.classList && e.target.classList.contains('df-row-checkbox');
-          var tr = e.target.closest('tr');
-          if (!tr || tr.children.length === 1) return;
-          var idx = Array.from(tbody.children).indexOf(tr);
-          var allTrsList = Array.from(tbody.querySelectorAll('tr'));
-          var rData = gridData[idx];
+      // Hack cho Mobile/Touch: Cho phép click vào bất kỳ đâu trên dòng để CHỌN NHIỀU (Toggle) mà không cần giữ Ctrl
+      tableWrapper.addEventListener('click', function(e) {
+          if (e.target.closest('.tabulator-header')) return;
+          // Bỏ qua nếu click vào nút, link, hoặc input (như checkbox của Tabulator)
+          if (e.target.closest('button, a, input, select, textarea')) return;
 
-          if (e.shiftKey && lastSelectedIdx !== -1) {
-            // Shift + Click: Chọn một dải
-            document.getSelection().removeAllRanges(); // Tránh bôi đen text
-            var start = Math.min(idx, lastSelectedIdx);
-            var end = Math.max(idx, lastSelectedIdx);
-            for (var i = start; i <= end; i++) {
-              allTrsList[i].classList.add('active');
-              if (!selectedRows.find(function (sr) { return sr.id === gridData[i].id; })) {
-                selectedRows.push(gridData[i]);
+          var rowEl = e.target.closest('.tabulator-row');
+          if (rowEl) {
+              var row = window.tabulatorInstance.getRow(rowEl);
+              if (row && typeof row.toggleSelect === 'function') {
+                  e.stopPropagation(); // Ngăn Tabulator clear các dòng khác
+                  row.toggleSelect();
               }
-            }
-          } else if (e.ctrlKey || e.metaKey || isCheckboxClick) {
-            // Ctrl + Click: Chọn thêm hoặc Bỏ chọn
-            tr.classList.toggle('active');
-            if (tr.classList.contains('active')) {
-              if (!selectedRows.find(function (sr) { return sr.id === rData.id; })) selectedRows.push(rData);
-            } else {
-              selectedRows = selectedRows.filter(function (sr) { return sr.id !== rData.id; });
-            }
-            lastSelectedIdx = idx;
-          } else {
-            // Click don: Chon 1 dong (clear dong cu), click lai de bo chon
-            var wasActive = tr.classList.contains('active');
-            allTrsList.forEach(function (r) { r.classList.remove('active'); });
-            selectedRows = [];
-            if (!wasActive) {
-              tr.classList.add('active');
-              selectedRows.push(rData);
-            }
-            lastSelectedIdx = wasActive ? -1 : idx;
           }
-          _updateSelectionCounter();
-        });
-        tbody.addEventListener('dblclick', function (e) {
-          var tr = e.target.closest('tr');
-          if (!tr) return;
+      }, true);
 
-          var idx = Array.from(tbody.children).indexOf(tr);
-          var rData = gridData[idx];
+      // Bắt sự kiện double click dòng để mở form sửa
+      window.tabulatorInstance.on("rowDblClick", function(e, row){
+          var rData = row.getData();
           if (!rData) return;
 
           if (typeof MODULE_CONFIG.onRowDblClick === 'function') {
@@ -1698,14 +1765,36 @@ window.DynamicFormEngine = (function () {
 
           if (MODULE_CONFIG.HideEditBtn && !MODULE_CONFIG.AllowDblClickToView) return;
 
-          // Nếu đang chọn nhiều dòng (và dòng được double click nằm trong số đó) thì mở sửa hàng loạt
           if (selectedRows.length > 1 && selectedRows.find(function (sr) { return sr.id === rData.id; })) {
             _openBulkEditForm();
           } else {
-            // Mở form sửa cho dòng vừa được double click (bất kể trước đó có được bôi đen hay chưa)
             _openEditForm(rData);
           }
-        });
+      });
+      
+      // Bắt sự kiện click header để sort
+      window.tabulatorInstance.on("headerClick", function(e, column){
+          var field = column.getField();
+          if(field !== "__action__" && field) {
+              var currentDir = column.getDir() === "asc" ? "desc" : "asc";
+              currentSortCol = field;
+              currentSortDir = currentDir;
+              currentPage = 1;
+              selectedRows = [];
+              _updateSelectionCounter();
+              _loadData(); // Load lại data từ server
+          }
+      });
+
+      // Xóa container cũ ở ngoài vì đã dùng footer của Tabulator
+      var oldPaginationContainer = gridContainer.querySelector('.pagination-wrapper');
+      if (oldPaginationContainer) {
+          oldPaginationContainer.remove();
+      }
+
+      // Phục hồi vị trí cuộn trang
+      if (savedScrollY > 0) {
+        setTimeout(function () { window.scrollTo(0, savedScrollY); }, 10);
       }
 
       _updateSelectionCounter();
@@ -1715,12 +1804,18 @@ window.DynamicFormEngine = (function () {
   function _clearSelection() {
     selectedRows = [];
     _updateSelectionCounter();
-    var checkboxes = $container.querySelectorAll('tbody .form-check-input');
-    if (checkboxes) checkboxes.forEach(function (cb) { cb.checked = false; });
-    var checkAll = $container.querySelector('thead .form-check-input');
-    if (checkAll) checkAll.checked = false;
-    var allTrs = $container.querySelectorAll('tbody tr');
-    if (allTrs) allTrs.forEach(function (tr) { tr.classList.remove('active', 'selected', 'table-active', 'table-primary'); });
+    
+    if (window.tabulatorInstance) {
+      window.tabulatorInstance.deselectRow();
+    } else {
+      var checkboxes = $container.querySelectorAll('tbody .form-check-input');
+      if (checkboxes) checkboxes.forEach(function (cb) { cb.checked = false; });
+      var checkAll = $container.querySelector('thead .form-check-input');
+      if (checkAll) checkAll.checked = false;
+      var allTrs = $container.querySelectorAll('tbody tr');
+      if (allTrs) allTrs.forEach(function (tr) { tr.classList.remove('active', 'selected', 'table-active', 'table-primary'); });
+    }
+
     var splitContainer = $container.querySelector('.split-master-detail-container');
     if (splitContainer) {
       splitContainer.classList.remove('show-detail');
@@ -1730,13 +1825,15 @@ window.DynamicFormEngine = (function () {
   function _updateSelectionCounter() {
     _saveSelectedRows();
 
-    // Đồng bộ trạng thái checkbox
-    var allTrs = $container.querySelectorAll('#dynamic-grid-container tbody tr');
-    if (allTrs) {
-      allTrs.forEach(function (tr) {
-        var checkbox = tr.querySelector('.df-row-checkbox');
-        if (checkbox) checkbox.checked = tr.classList.contains('active');
-      });
+    if (!window.tabulatorInstance) {
+      // Đồng bộ trạng thái checkbox
+      var allTrs = $container.querySelectorAll('#dynamic-grid-container tbody tr');
+      if (allTrs) {
+        allTrs.forEach(function (tr) {
+          var checkbox = tr.querySelector('.df-row-checkbox');
+          if (checkbox) checkbox.checked = tr.classList.contains('active');
+        });
+      }
     }
 
     var globalActions = document.getElementById('global-page-actions');

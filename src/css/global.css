@@ -688,3 +688,40 @@ body.dark-theme .nav-item:hover span.icon {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* CUSTOM TABULATOR CHO KẾ TOÁN */
+.tabulator {
+    font-size: 12.5px !important; /* Giảm cỡ chữ xuống mức tiêu chuẩn Excel */
+}
+.tabulator-row {
+    border-bottom: 1px solid #e2e8f0;
+}
+.tabulator-row .tabulator-cell {
+    border-right: 1px solid #e2e8f0; /* Kẻ đường dọc như Excel */
+    padding: 4px 8px !important; /* Thu gọn tối đa padding */
+}
+.tabulator-row.tabulator-row-even {
+    background-color: #f8fafc !important; /* Xám nhạt xen kẽ */
+}
+.tabulator-row.tabulator-row-odd {
+    background-color: #ffffff !important;
+}
+.tabulator-row.tabulator-selectable:hover {
+    background-color: #e2e8f0 !important; /* Đậm hơn xíu khi di chuột */
+}
+.tabulator-header .tabulator-col {
+    background-color: #f1f5f9 !important; /* Làm chìm màu header */
+    border-right: 1px solid #cbd5e1;
+    font-weight: 600;
+    padding: 6px 8px !important;
+}
+
+/* ẨN TÍNH NĂNG LỌC CỘT MẶC ĐỊNH */
+.tabulator .tabulator-header .tabulator-header-filter {
+    display: none !important;
+}
+
+/* HIỆN LẠI KHI CÓ CLASS SHOW-FILTERS */
+.tabulator.show-filters .tabulator-header .tabulator-header-filter {
+    display: block !important;
+}
