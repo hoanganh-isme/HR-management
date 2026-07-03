@@ -645,8 +645,23 @@ body.dark-theme .nav-item:hover span.icon {
   width: calc(25% - 8px) !important;
 }
 
-@media (max-width: 768px) {
+/* TABLET & SMALL DESKTOP (992px - 1399px) - Fallback to 3 columns if 4 columns are too squeezed */
+@media (max-width: 1399px) {
+  .df-col-3 {
+    width: calc(33.333% - 7px) !important;
+  }
+}
 
+/* TABLET PORTRAIT (769px - 991px) - Fallback to 2 columns */
+@media (max-width: 991px) {
+  .df-col-3,
+  .df-col-4 {
+    width: calc(50% - 5px) !important;
+  }
+}
+
+/* MOBILE (<= 768px) - 1 Column Full Width */
+@media (max-width: 768px) {
   /* Trên Mobile: 
      - Tất cả các cột sẽ chuyển thành 100% (1 cột) để tối ưu không gian hiển thị,
        tránh tình trạng chữ bị cắt hoặc ô nhập quá hẹp. */

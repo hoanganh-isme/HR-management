@@ -1,0 +1,335 @@
+﻿
+  src\js\core\index.js:100:        }
+  src\js\core\index.js:101:      }
+  src\js\core\index.js:102:    ]
+  src\js\core\index.js:103:  };
+  src\js\core\index.js:104:
+> src\js\core\index.js:105:  window.APP_MODULES['WA_PERSONFULLFRM'] = {
+> src\js\core\index.js:106:    FormName: 'WA_PersonFullFrm',
+  src\js\core\index.js:107:    PrimaryKey: 'PersonID',
+  src\js\core\index.js:108:    IsFullPageDetail: false,
+  src\js\core\index.js:109:    UseSplitLayout: false,
+  src\js\core\index.js:110:    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem hồ sơ chi tiết',
+  src\js\core\index.js:111:    SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
+  src\js\core\index.js:112:    SplitLayoutDetailWidth: '950px',
+  src\js\core\index.js:113:    ModalWidth: '960px',
+  src\js\core\index.js:114:    HideAddBtn: false,
+  src\js\core\index.js:115:    HideEditBtn: false,
+  src\js\core\index.js:116:    HideDeleteBtn: false,
+  src\js\core\index.js:117:    AllowDblClickToView: true,
+  src\js\core\index.js:118:    HideDetailTabsInModal: true,
+  src\js\core\index.js:119:    FilterKeywordLabel: 'Mã/Tên nhân viên',
+  src\js\core\index.js:120:    SearchPlaceholder: 'Nhập mã, tên nhân viên hoặc số điện thoại...',
+  src\js\core\index.js:121:    WizardSteps: [
+  src\js\core\index.js:122:      { label: 'Thông tin công việc', icon: 'work', description: 'Vị trí và phòng ban', 
+fields: ['PersonID', 'PersonName', 'PersonStatus', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 
+'NgayVaoLam', 'NgayThuViec', 'ShiftID'] },
+  src\js\core\index.js:123:      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch & 
+Liên hệ', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'HonNhan', 'PeoplesName', 
+'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienNay', 'EducationName', 
+'CareerName', 'NguoiLienHe', 'MoiQuanHe', 'NguoiLienHeSoDT'] },
+  src\js\core\index.js:124:      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', 
+fields: ['SoHopDong', 'LoaiHopDong', 'SocialID', 'SocialDate', 'NgayKetThucBH', 'SoTheBHYT', 'ThoiGianHuongBHYT', 
+'HospitalName'] },
+  src\js\core\index.js:125:      { label: 'Tài chính & Khác', icon: 'account_balance', description: 'Ngân hàng & Thông 
+tin phụ', fields: ['BankName', 'BankLocation', 'BankAccountNo', 'BankHolder', 'NewPersonID', 'CardNo', 'ProvineName', 
+'NgayNghiViec'] },
+  src\js\core\index.js:126:      { label: 'Xác nhận', icon: 'fact_check', description: 'Kiểm tra thông tin trước khi 
+lưu', fields: [] }
+  src\js\core\index.js:127:    ],
+  src\js\core\index.js:128:    Filters: [
+  src\js\core\index.js:129:      {
+  src\js\core\index.js:130:        id: 'PersonStatus',
+  src\js\core\index.js:131:        label: 'Trạng thái nhân sự',
+  src\js\core\index.js:132:        type: 'select',
+  src\js\core\index.js:133:        dataSource: 'API_ComboPersonStatus'
+  src\js\core\index.js:134:      }
+  src\js\core\index.js:135:    ],
+  src\js\core\index.js:136:    DetailTabs: [
+  src\js\core\index.js:137:      {
+  src\js\core\index.js:138:        label: 'Quá trình làm việc và lương, phụ cấp',
+  src\js\core\index.js:139:        api: 'API_PersonFull_T1_Salary',
+  src\js\core\index.js:140:        editable: true,
+  src\js\core\index.js:141:        filterField: 'PersonID',
+  src\js\core\index.js:142:        fields: ['TrangThai', 'TuNgay', 'DenNgay', 'MucLuong', 'LuongBaoHiem', 'PCCongTac', 
+'PCTrachNhiem', 'PCKhac', 'GhiChu'],
+  src\js\core\index.js:143:        headers: {
+  src\js\core\index.js:144:          TrangThai: 'Trạng thái',
+  src\js\core\index.js:145:          TuNgay: 'Từ ngày',
+  src\js\core\index.js:146:          DenNgay: 'Đến ngày',
+  src\js\core\index.js:147:          MucLuong: 'Mức lương',
+  src\js\core\index.js:148:          LuongBaoHiem: 'Lương đóng BH',
+  src\js\core\index.js:149:          PCCongTac: 'PC Công tác',
+  src\js\core\index.js:150:          PCTrachNhiem: 'PC Trách nhiệm',
+  src\js\core\index.js:151:          PCKhac: 'Phụ cấp khác',
+  src\js\core\index.js:152:          GhiChu: 'Ghi chú'
+  src\js\core\index.js:153:        }
+  src\js\core\index.js:154:      },
+  src\js\core\index.js:155:      {
+  src\js\core\index.js:156:        label: 'Khen thưởng - Kỷ luật',
+  src\js\core\index.js:157:        api: 'API_PersonFull_T3_KTKL',
+  src\js\core\index.js:158:        editable: true,
+  src\js\core\index.js:159:        filterField: 'PersonID',
+  src\js\core\index.js:160:        fields: ['NoiDungKTKL', 'SoNgay', 'GhiChu'],
+  src\js\core\index.js:161:        headers: {
+  src\js\core\index.js:162:          NoiDungKTKL: 'Nội dung KTKL',
+  src\js\core\index.js:163:          SoNgay: 'Số ngày',
+  src\js\core\index.js:164:          GhiChu: 'Ghi chú'
+  src\js\core\index.js:165:        }
+  src\js\core\index.js:166:      },
+  src\js\core\index.js:167:      {
+  src\js\core\index.js:168:        label: 'Khai báo phép năm',
+  src\js\core\index.js:169:        api: 'API_PersonFull_T4_NghiPhep',
+  src\js\core\index.js:170:        editable: true,
+  src\js\core\index.js:171:        filterField: 'PersonID',
+  src\js\core\index.js:172:        fields: ['Nam', 'SoNgay', 'PhepThamNien', 'SoNgayDaSuDung', 'SoNgayConLai', 
+'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat', 'GhiChu'],
+  src\js\core\index.js:173:        headers: {
+  src\js\core\index.js:174:          Nam: 'Năm',
+  src\js\core\index.js:175:          SoNgay: 'Số ngày',
+  src\js\core\index.js:176:          PhepThamNien: 'Phép thâm niên',
+  src\js\core\index.js:177:          SoNgayDaSuDung: 'Đã dùng',
+  src\js\core\index.js:178:          SoNgayConLai: 'Còn lại',
+  src\js\core\index.js:179:          PhepTonNamTruoc: 'Phép tồn',
+  src\js\core\index.js:180:          SoNgayPhepTet: 'Phép Tết',
+  src\js\core\index.js:181:          SoNgayPhepOm: 'Phép ốm',
+  src\js\core\index.js:182:          NgayCapNhat: 'Cập nhật',
+  src\js\core\index.js:183:          GhiChu: 'Ghi chú'
+  src\js\core\index.js:184:        }
+  src\js\core\index.js:185:      },
+  src\js\core\index.js:186:      {
+  src\js\core\index.js:187:        label: 'Gia cảnh & Liên hệ',
+  src\js\core\index.js:188:        api: 'API_PersonFull_T5_Relation',
+  src\js\core\index.js:189:        editable: true,
+  src\js\core\index.js:190:        filterField: 'PersonID',
+  src\js\core\index.js:191:        fields: ['RelationID', 'PersonRelationName', 'NgaySinh', 'DiaChiThuongTru', 
+'DiaChiHienNay', 'IsNguoiPhuThuoc', 'GiamTruTuThang', 'GiamTruDenThang'],
+  src\js\core\index.js:192:        headers: {
+  src\js\core\index.js:193:          RelationID: 'Mã gia cảnh',
+  src\js\core\index.js:194:          PersonRelationName: 'Tên thân nhân',
+  src\js\core\index.js:195:          NgaySinh: 'Ngày sinh',
+  src\js\core\index.js:196:          DiaChiThuongTru: 'Địa chỉ thường trú',
+  src\js\core\index.js:197:          DiaChiHienNay: 'Địa chỉ hiện nay',
+  src\js\core\index.js:198:          IsNguoiPhuThuoc: 'Phụ thuộc',
+  src\js\core\index.js:199:          GiamTruTuThang: 'Giảm từ',
+  src\js\core\index.js:200:          GiamTruDenThang: 'Giảm đến'
+  src\js\core\index.js:201:        }
+  src\js\core\index.js:202:      },
+  src\js\core\index.js:203:      {
+  src\js\core\index.js:204:        label: 'Lịch sử hợp đồng',
+  src\js\core\index.js:205:        api: 'API_PersonFull_T6_HopDong',
+  src\js\core\index.js:206:        editable: true,
+  src\js\core\index.js:207:        filterField: 'PersonID',
+  src\js\core\index.js:208:        fields: ['MaHopDong', 'PersonName', 'NgayKyHopDong', 'NgayCoHieuLuc', 
+'NgayHetHieuLuc', 'LoaiHopDong', 'LuongCoBan', 'MucDong', 'NoiDung'],
+  src\js\core\index.js:209:        headers: {
+  src\js\core\index.js:210:          MaHopDong: 'Mã HĐ',
+  src\js\core\index.js:211:          PersonName: 'Họ tên',
+  src\js\core\index.js:212:          NgayKyHopDong: 'Ngày ký',
+  src\js\core\index.js:213:          NgayCoHieuLuc: 'Ngày hiệu lực',
+  src\js\core\index.js:214:          NgayHetHieuLuc: 'Ngày hết hạn',
+  src\js\core\index.js:215:          LoaiHopDong: 'Loại HĐ',
+  src\js\core\index.js:216:          LuongCoBan: 'Lương cơ bản',
+  src\js\core\index.js:217:          MucDong: 'Mức đóng',
+  src\js\core\index.js:218:          NoiDung: 'Nội dung'
+  src\js\core\index.js:219:        }
+  src\js\core\index.js:220:      },
+  src\js\core\index.js:221:      {
+  src\js\core\index.js:222:        label: 'Lịch sử công tác',
+  src\js\core\index.js:223:        api: 'API_PersonFull_T7_CongTac',
+  src\js\core\index.js:224:        editable: true,
+  src\js\core\index.js:225:        filterField: 'PersonID',
+  src\js\core\index.js:226:        fields: ['PhongBan', 'TitleName', 'PostionName', 'Quanly', 'ShiftID', 
+'NgayThayDoi', 'UserName'],
+  src\js\core\index.js:227:        headers: {
+  src\js\core\index.js:228:          PhongBan: 'Bộ phận',
+  src\js\core\index.js:229:          TitleName: 'Chức danh',
+  src\js\core\index.js:230:          PostionName: 'Vị trí',
+  src\js\core\index.js:231:          Quanly: 'Quản lý',
+  src\js\core\index.js:232:          ShiftID: 'Ca làm việc',
+  src\js\core\index.js:233:          NgayThayDoi: 'Ngày thay đổi',
+  src\js\core\index.js:234:          UserName: 'Người cập nhật'
+  src\js\core\index.js:235:        }
+  src\js\core\index.js:236:      },
+  src\js\core\index.js:237:      {
+  src\js\core\index.js:238:        label: 'Lịch sử công việc',
+  src\js\core\index.js:239:        api: 'API_PersonFull_T8_Log',
+  src\js\core\index.js:240:        editable: true,
+  src\js\core\index.js:241:        filterField: 'PersonID',
+  src\js\core\index.js:242:        fields: ['UserName', 'LogDate', 'BranchID', 'StatusID', 'Notes'],
+  src\js\core\index.js:243:        headers: {
+  src\js\core\index.js:244:          UserName: 'Tài khoản',
+  src\js\core\index.js:245:          LogDate: 'Ngày log',
+  src\js\core\index.js:246:          BranchID: 'Chi nhánh',
+  src\js\core\index.js:247:          StatusID: 'Trạng thái',
+  src\js\core\index.js:248:          Notes: 'Ghi chú'
+  src\js\core\index.js:249:        }
+  src\js\core\index.js:250:      },
+  src\js\core\index.js:251:      {
+  src\js\core\index.js:252:        label: 'Giấy tờ',
+  src\js\core\index.js:253:        api: 'API_PersonFull_T9_GiayTo',
+  src\js\core\index.js:254:        editable: true,
+  src\js\core\index.js:255:        filterField: 'PersonID',
+  src\js\core\index.js:256:        fields: ['DocumentID', 'LoaiGiayTo', 'TuNgay', 'DenNgay', 'Notes'],
+  src\js\core\index.js:257:        headers: {
+  src\js\core\index.js:258:          DocumentID: 'Mã tài liệu',
+  src\js\core\index.js:259:          LoaiGiayTo: 'Loại giấy tờ',
+  src\js\core\index.js:260:          TuNgay: 'Từ ngày',
+  src\js\core\index.js:261:          DenNgay: 'Đến ngày',
+  src\js\core\index.js:262:          Notes: 'Ghi chú'
+  src\js\core\index.js:263:        }
+  src\js\core\index.js:264:      }
+  src\js\core\index.js:265:    ]
+  src\js\core\index.js:266:  };
+  src\js\core\index.js:267:
+  src\js\core\index.js:268:
+  src\js\core\index.js:269:
+  src\js\core\index.js:270:  window.APP_MODULES['WA_DANHSACHUNGVIENFRM'] = {
+  src\js\core\index.js:271:    FormName: 'WA_DanhSachUngVienFrm',
+  src\js\core\index.js:272:    PrimaryKey: 'CandidateID',
+  src\js\core\index.js:273:    ModalWidth: '960px',
+  src\js\core\index.js:274:    DetailTabs: [
+  src\js\core\index.js:275:      {
+  src\js\core\index.js:276:        label: 'Phỏng vấn',
+  src\js\core\index.js:277:        api: 'API_QuanLyUngVien_PhongVan',
+  src\js\core\index.js:278:        filterField: 'CandidateID',
+  src\js\core\index.js:279:        fields: ['VongPhongVan', 'NgayPhongVan', 'NguoiPhongVan', 'KetQuaVong', 
+'NhanXetChiTiet'],
+  src\js\core\index.js:280:        headers: {
+  src\js\core\index.js:281:          VongPhongVan: 'Vòng phỏng vấn',
+  src\js\core\index.js:282:          NgayPhongVan: 'Ngày Phỏng Vấn',
+  src\js\core\index.js:283:          NguoiPhongVan: 'Người phỏng vấn',
+  src\js\core\index.js:284:          KetQuaVong: 'Kết quả phỏng vấn',
+  src\js\core\index.js:285:          NhanXetChiTiet: 'Nhận xét chi tiết'
+  src\js\core\index.js:286:        }
+  src\js\core\index.js:287:      },
+  src\js\core\index.js:288:      {
+  src\js\core\index.js:289:        label: 'Kinh nghiệm',
+  src\js\core\index.js:290:        api: 'API_QuanLyUngVien_KinhNghiem',
+  src\js\core\index.js:291:        filterField: 'CandidateID',
+  src\js\core\index.js:292:        fields: ['CongTyCu', 'ViTriCongTac', 'TuThangNam', 'DenThangNam', 'MoTaCongViec'],
+  src\js\core\index.js:293:        headers: {
+  src\js\core\index.js:294:          CongTyCu: 'Công ty cũ',
+  src\js\core\index.js:295:          ViTriCongTac: 'Vị trí công tác',
+  src\js\core\index.js:296:          TuThangNam: 'Từ ngày',
+  src\js\core\index.js:297:          DenThangNam: 'Đến ngày',
+  src\js\core\index.js:298:          MoTaCongViec: 'Mô tả công việc'
+  src\js\core\index.js:299:        }
+  src\js\core\index.js:300:      },
+  src\js\core\index.js:301:      {
+  src\js\core\index.js:302:        label: 'Học vấn',
+  src\js\core\index.js:303:        api: 'API_QuanLyUngVien_HocVan',
+  src\js\core\index.js:304:        filterField: 'CandidateID',
+  src\js\core\index.js:305:        fields: ['TruongDaoTao', 'ChuyenNganh', 'TuNam', 'DenNam', 'BangCap'],
+  src\js\core\index.js:306:        headers: {
+  src\js\core\index.js:307:          TruongDaoTao: 'Trường đào tạo',
+  src\js\core\index.js:308:          ChuyenNganh: 'Chuyên ngành',
+  src\js\core\index.js:309:          TuNam: 'Từ năm',
+  src\js\core\index.js:310:          DenNam: 'Đến năm',
+  src\js\core\index.js:311:          BangCap: 'Bằng cấp'
+  src\js\core\index.js:312:        }
+  src\js\core\index.js:313:      },
+  src\js\core\index.js:314:      {
+  src\js\core\index.js:315:        label: 'Chứng chỉ',
+  src\js\core\index.js:316:        api: 'API_QuanLyUngVien_ChungChi',
+  src\js\core\index.js:317:        filterField: 'CandidateID',
+  src\js\core\index.js:318:        fields: ['TenChungChi', 'ToChucCap', 'NgayCap'],
+  src\js\core\index.js:319:        headers: {
+  src\js\core\index.js:320:          TenChungChi: 'Tên chứng chỉ',
+  src\js\core\index.js:321:          ToChucCap: 'Tổ chức cấp',
+  src\js\core\index.js:322:          NgayCap: 'Ngày cấp'
+  src\js\core\index.js:323:        }
+  src\js\core\index.js:324:      }
+  src\js\core\index.js:325:    ]
+  src\js\core\index.js:326:  };
+  src\js\core\index.js:327:
+  src\js\core\index.js:328:  window.APP_MODULES['WA_LUONGKHOANFRM'] = {
+  src\js\core\index.js:329:    FormName: 'WA_LuongKhoanFrm',
+  src\js\core\index.js:330:    FilterKeywordLabel: 'Mã/Tên nhân viên',
+  src\js\core\index.js:331:    SearchPlaceholder: 'Nhập mã hoặc tên nhân viên...'
+  src\js\core\index.js:332:  };
+  src\js\core\index.js:333:
+  src\js\core\index.js:334:  window.APP_MODULES['WA_BANGPHUCAPFRM'] = {
+  src\js\core\index.js:335:    FormName: 'WA_BangPhuCapFrm',
+  src\js\core\index.js:336:    PrimaryKey: 'MaPhuCap',
+  src\js\core\index.js:337:    UseSplitLayout: false,
+  src\js\core\index.js:338:    SplitLayoutSelectText: 'Vui lòng chọn loại phụ cấp để xem danh sách nhân viên',
+  src\js\core\index.js:339:    SplitLayoutEmptyText: 'Không có nhân viên nào được hưởng loại phụ cấp này',
+  src\js\core\index.js:340:    SplitLayoutDetailWidth: '800px',
+  src\js\core\index.js:341:    ModalWidth: '960px',
+  src\js\core\index.js:342:    FilterKeywordLabel: 'Mã/Tên phụ cấp',
+  src\js\core\index.js:343:    SearchPlaceholder: 'Nhập mã hoặc tên phụ cấp...',
+  src\js\core\index.js:344:    DetailTabs: [
+  src\js\core\index.js:345:      {
+  src\js\core\index.js:346:        label: 'Nhân viên hưởng phụ cấp',
+  src\js\core\index.js:347:        api: 'API_BangPhuCap_Detail',
+  src\js\core\index.js:348:        filterField: 'MaPhuCap',
+  src\js\core\index.js:349:        editable: true,
+  src\js\core\index.js:350:        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'GhiChu', 
+'NoiDungPhuCap'],
+  src\js\core\index.js:351:        headers: {
+  src\js\core\index.js:352:          PersonID: 'Mã nhân viên',
+  src\js\core\index.js:353:          PersonName: 'Họ Tên',
+  src\js\core\index.js:354:          PhongBan: 'Bộ phận',
+  src\js\core\index.js:355:          TitleName: 'Chức vụ',
+  src\js\core\index.js:356:          GhiChu: 'Ghi chú',
+  src\js\core\index.js:357:          NoiDungPhuCap: 'Nội dung phụ cấp'
+  src\js\core\index.js:358:        }
+  src\js\core\index.js:359:      }
+  src\js\core\index.js:360:    ]
+  src\js\core\index.js:361:  };
+  src\js\core\index.js:362:
+  src\js\core\index.js:363:  window.APP_MODULES['WA_BAOHIEMFRM'] = {
+  src\js\core\index.js:364:    FormName: 'WA_BaoHiemFrm',
+  src\js\core\index.js:365:    PrimaryKey: 'DocumentID',
+  src\js\core\index.js:366:    UseSplitLayout: false,
+  src\js\core\index.js:367:    SplitLayoutSelectText: 'Vui lòng chọn chứng từ đóng bảo hiểm để xem chi tiết',
+  src\js\core\index.js:368:    SplitLayoutEmptyText: 'Không có chi tiết bảo hiểm nào cho chứng từ này',
+  src\js\core\index.js:369:    SplitLayoutDetailWidth: '960px',
+  src\js\core\index.js:370:    ModalWidth: '1020px',
+  src\js\core\index.js:371:    FilterKeywordLabel: 'Tìm nhanh',
+  src\js\core\index.js:372:    SearchPlaceholder: 'Nhập số chứng từ hoặc ghi chú...',
+  src\js\core\index.js:373:    RowNameField: 'DocumentID',
+  src\js\core\index.js:374:    Filters: [
+  src\js\core\index.js:375:      {
+  src\js\core\index.js:376:        id: 'BranchID',
+  src\js\core\index.js:377:        label: 'Chi nhánh',
+  src\js\core\index.js:378:        type: 'select',
+  src\js\core\index.js:379:        dataSource: 'CF_BranchListFrm'
+  src\js\core\index.js:380:      }
+  src\js\core\index.js:381:    ],
+  src\js\core\index.js:382:    LocalFormSchema: [
+  src\js\core\index.js:383:      { name: 'DocumentID', label: 'Số chứng từ', required: true, showInAdd: true, 
+showInEdit: true, isReadOnlyEdit: true, position: 'grid', orderNo: 1 },
+  src\js\core\index.js:384:      { name: 'DocumentDate', label: 'Ngày lập', required: true, showInAdd: true, 
+showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 2, renderRule: 'dt' },
+  src\js\core\index.js:385:      { name: 'BranchID', label: 'Chi nhánh', required: true, showInAdd: true, showInEdit: 
+true, isReadOnlyEdit: false, position: 'grid', orderNo: 3, renderRule: 'sl', dataSource: 'CF_BranchListFrm' },
+  src\js\core\index.js:386:      { name: 'PeriodKeyID', label: 'Kỳ đóng bảo hiểm', required: true, showInAdd: true, 
+showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 4, renderRule: 'sl', dataSource: 
+'HR_BangThamSoTbl' },
+  src\js\core\index.js:387:      { name: 'Notes', label: 'Ghi chú', required: false, showInAdd: true, showInEdit: 
+true, isReadOnlyEdit: false, position: 'grid', orderNo: 5 }
+  src\js\core\index.js:388:    ],
+  src\js\core\index.js:389:    DetailTabs: [
+  src\js\core\index.js:390:      {
+  src\js\core\index.js:391:        label: 'Chi tiết đóng bảo hiểm',
+  src\js\core\index.js:392:        api: 'API_BaoHiem_Detail',
+  src\js\core\index.js:393:        filterField: 'DocumentID',
+  src\js\core\index.js:394:        editable: true,
+  src\js\core\index.js:395:        fields: ['PersonID', 'PersonName', 'ChucDanhChuyenMon', 'PhongBan', 'MucDong', 
+'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD', 
+'GhiChu'],
+  src\js\core\index.js:396:        headers: {
+  src\js\core\index.js:397:          PersonID: 'Mã nhân viên',
+  src\js\core\index.js:398:          PersonName: 'Họ Tên',
+  src\js\core\index.js:399:          ChucDanhChuyenMon: 'Chuyên môn',
+  src\js\core\index.js:400:          PhongBan: 'Bộ phận',
+  src\js\core\index.js:401:          MucDong: 'Mức đóng',
+  src\js\core\index.js:402:          MucDongBHXHNLD: 'BHXH Người LD',
+  src\js\core\index.js:403:          MucDongBHXHNSDLD: 'BHXH Công Ty',
+  src\js\core\index.js:404:          MucDongBHYTNLD: 'BHYT Người LD',
+  src\js\core\index.js:405:          MucDongBHYTNSDLD: 'BHYT Công Ty',
+  src\js\core\index.js:406:          MucDongBHTNNLD: 'BHTN Người LD',
+
+

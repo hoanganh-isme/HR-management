@@ -5,12 +5,13 @@
 -- =========================================================================
 ALTER PROCEDURE dbo.API_HoSoNhanVien
 (
-    @Keyword   NVARCHAR(200) = '',
-    @BranchID  NVARCHAR(MAX)  = '',
-    @PhongBan  NVARCHAR(50)  = '',
-    @NamLap    INT           = NULL,
-    @LoaiHD    NVARCHAR(50)  = '',
-    @PersonStatus NVARCHAR(50) = ''
+    @Keyword           NVARCHAR(200) = '',
+    @BranchID          NVARCHAR(MAX) = '',
+    @PhongBan          NVARCHAR(50)  = '',
+    @NamLap            INT           = NULL,
+    @LoaiHD            NVARCHAR(50)  = '',
+    @PersonStatusName  NVARCHAR(100) = '', -- Thêm tham số nhận Tên trạng thái từ UI
+    @PersonStatus      NVARCHAR(50)  = ''
 )
 AS
 BEGIN
@@ -111,22 +112,22 @@ BEGIN
         -- Bộ lọc chi nhánh (BranchID)
         AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
 
-        
         -- Bộ lọc bộ phận (PhongBan)
         AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
         
-        -- Bộ lọc năm lập (NamLap - lọc theo năm sinh của nhân viên hoặc năm vào làm nếu không có cột NamLap)
+        -- Bộ lọc năm lập
         AND (@NamLap IS NULL OR YEAR(ISNULL(P.NgaySinh, '1900-01-01')) = @NamLap OR YEAR(ISNULL(P.NgayVaoLam, '1900-01-01')) = @NamLap)
         
         -- Bộ lọc loại hợp đồng (LoaiHD từ HR_HopDongTbl)
         AND (@LoaiHD = '' OR HD.LoaiHD LIKE N'%' + @LoaiHD + '%')
         
-        -- Bộ lọc trạng thái nhân viên
+        -- Bộ lọc trạng thái nhân sự (theo tên hiển thị trên UI hoặc mã trạng thái)
+        AND (@PersonStatusName = '' OR S.PersonStatusName = @PersonStatusName)
         AND (@PersonStatus = '' OR P.PersonStatus = @PersonStatus)
+        
     ORDER BY P.PersonID DESC;
 END
 GO
-
 -- =========================================================================
 -- 2. Detail API Tab 1: Quá trình làm việc và lương (HR_PersonSalaryTbl)
 -- =========================================================================
@@ -328,7 +329,9 @@ GO
 
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
-('WA_PersonFullFrm', 'View', 'API_HoSoNhanVien', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @NamLap=N''{NamLap}'', @LoaiHD=N''{LoaiHD}'''),
+('WA_PersonFullFrm', 'View', 'API_HoSoNhanVien', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @NamLap=N''{NamLap}'', @LoaiHD=N''{LoaiHD}'', @PersonStatus=N''{PersonStatus}'''),
+('WA_PersonFullFrm', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('WA_PersonFullFrm', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('API_PersonFull_T1_Salary',    'View', 'API_PersonFull_T1_Salary',    '@PersonID=N''{PersonID}'''),
 ('API_PersonFull_T2_Allowance', 'View', 'API_PersonFull_T2_Allowance', '@PersonID=N''{PersonID}'''),
 ('API_PersonFull_T3_KTKL',      'View', 'API_PersonFull_T3_KTKL',      '@PersonID=N''{PersonID}'''),
@@ -353,7 +356,7 @@ DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN (
     'API_PersonFull_T9_GiayTo'
 );
 
-INSERT INTO dbo.SY_FrmLstTbl ([FormID], [Loai], [VN_Name], [EN_Name], [Tbl], [Fld])
+INSERT INTO dbo.SY_FrmLstTbl ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey])
 VALUES 
 ('API_PersonFull_T1_Salary', 'LIST', N'Quá trình lương', 'Salary', 'HR_PersonSalaryTbl', 'UserAutoID'),
 ('API_PersonFull_T2_Allowance', 'LIST', N'Phụ cấp', 'Allowance', 'HR_PersonAllowanceTbl', 'UserAutoID'),

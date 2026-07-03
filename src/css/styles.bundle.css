@@ -63,7 +63,7 @@
   --spacing-xl: 24px;
 
   /* Typography */
-  --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family: Arial, Helvetica, sans-serif;
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-md: 15px;
@@ -776,8 +776,23 @@ body.dark-theme .nav-item:hover span.icon {
   width: calc(25% - 8px) !important;
 }
 
-@media (max-width: 768px) {
+/* TABLET & SMALL DESKTOP (992px - 1399px) - Fallback to 3 columns if 4 columns are too squeezed */
+@media (max-width: 1399px) {
+  .df-col-3 {
+    width: calc(33.333% - 7px) !important;
+  }
+}
 
+/* TABLET PORTRAIT (769px - 991px) - Fallback to 2 columns */
+@media (max-width: 991px) {
+  .df-col-3,
+  .df-col-4 {
+    width: calc(50% - 5px) !important;
+  }
+}
+
+/* MOBILE (<= 768px) - 1 Column Full Width */
+@media (max-width: 768px) {
   /* Trên Mobile: 
      - Tất cả các cột sẽ chuyển thành 100% (1 cột) để tối ưu không gian hiển thị,
        tránh tình trạng chữ bị cắt hoặc ô nhập quá hẹp. */
@@ -5620,14 +5635,14 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.dynamic-grid-card) .page-wrapper {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
   }
 
   body:has(.dynamic-grid-card) .dynamic-grid-card {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -5635,7 +5650,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.dynamic-grid-card) .dynamic-grid-card>.card-body {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -5643,7 +5658,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.dynamic-grid-card) #dynamic-grid-container {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -5651,7 +5666,7 @@ body.dark-theme .data-table tbody tr:hover {
 
   /* Make table wrapper fit the master container height & auto-scroll */
   body:has(.dynamic-grid-card) #dynamic-grid-container .table-wrapper {
-    flex: 0 1 auto;
+    flex: 1;
     overflow-y: auto;
     overflow-x: auto;
     min-height: 0;
@@ -5659,7 +5674,7 @@ body.dark-theme .data-table tbody tr:hover {
 
   /* Specific styles for Split Master-Detail layout */
   body:has(.split-master-detail-container) .split-master-detail-container {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     min-height: 0;
     align-items: stretch;
@@ -5673,7 +5688,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.split-master-detail-container) #dynamic-detail-content {
-    flex: 0 1 auto;
+    flex: 1;
     overflow-y: auto;
   }
 
@@ -5687,6 +5702,16 @@ body.dark-theme .data-table tbody tr:hover {
   z-index: 10;
   background-color: var(--color-surface);
   box-shadow: 0 1px 0 var(--color-border);
+}
+
+/* --- Global Sticky Pagination --- */
+.datagrid-pager {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 100 !important;
+  background-color: var(--color-surface) !important;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08) !important;
+  border-top: 1px solid var(--color-border) !important;
 }
 
 /* Responsive override to disable table height capping on mobile & stick pagination to viewport bottom */
@@ -5711,13 +5736,8 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   .datagrid-pager {
-    position: sticky !important;
     bottom: -16px !important;
     /* Offset the 16px mobile padding of .app-content */
-    z-index: 100 !important;
-    background-color: var(--color-surface) !important;
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08) !important;
-    border-top: 1px solid var(--color-border) !important;
     margin-left: -16px !important;
     margin-right: -16px !important;
     padding: 10px 16px !important;
@@ -5923,6 +5943,49 @@ body.dark-theme .data-table tbody tr:hover {
   .form-WA_PersonInFrm .data-table tbody tr td[data-label="Chức danh"],
   .form-WA_PersonQuitFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
 
+
+/* --- DATA HIGHLIGHTING FOR ACCOUNTING/HR --- */
+/* Identifiers & Numbers */
+.data-table tbody tr td[data-label="cccd" i],
+.data-table tbody tr td[data-label*="s? h?p d?ng" i],
+.data-table tbody tr td[data-label*="di?n tho?i" i],
+.data-table tbody tr td[data-label*="m� nh�n vi�n" i],
+.data-table tbody tr td[data-label*="m� nv" i] {
+  color: var(--color-primary) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+}
+
+/* Dates */
+.data-table tbody tr td[data-label*="ng�y sinh" i],
+.data-table tbody tr td[data-label*="ng�y nh?n vi?c" i],
+.data-table tbody tr td[data-label*="ng�y h?p d?ng" i],
+.data-table tbody tr td[data-label*="ng�y k?t th�c" i],
+.data-table tbody tr td[data-label*="ng�y ngh? vi?c" i] {
+  color: var(--color-text-secondary) !important;
+  font-weight: 500 !important;
+}
+
+/* Statuses */
+.data-table tbody tr td[data-label*="tr?ng th�i" i] {
+  font-weight: 700 !important;
+  color: #10b981 !important; /* Emerald green for statuses */
+}
+
+/* --- CLASS BASED HIGHLIGHTING FOR ACCOUNTING/HR --- */
+.data-table tbody tr td.highlight-identifier {
+  color: var(--color-primary) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.5px;
+}
+.data-table tbody tr td.highlight-date {
+  color: var(--color-text-secondary) !important;
+  font-weight: 500 !important;
+}
+.data-table tbody tr td.highlight-status {
+  font-weight: 700 !important;
+  color: #10b981 !important; /* Emerald green */
+}
 
 
 /* --- tabs.css --- */

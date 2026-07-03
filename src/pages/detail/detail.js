@@ -50,6 +50,20 @@ var DetailPage = (function () {
       HideEditBtn: true
     });
 
+    // Frontend Override: Nếu grid cấu hình IsReadOnlyEdit = 1 (khóa sửa), 
+    // ta cần mở khóa nó trên trang Chi tiết (FullPageDetail)
+    if (typeof globalFormSchema !== 'undefined' && Array.isArray(globalFormSchema)) {
+      var systemFields = ['personid', 'usercreate', 'userupdate', 'dateupdate', 'datecreate', 'personstatusname'];
+      globalFormSchema.forEach(function (f) {
+        if (systemFields.indexOf(f.name.toLowerCase()) === -1) {
+          f.isReadOnlyEdit = false;
+          f.IsReadOnlyEdit = 0;
+          f.isReadOnlyAdd = false;
+          f.IsReadOnlyAdd = 0;
+        }
+      });
+    }
+
     if (typeof DynamicFormEngine !== 'undefined') {
       DynamicFormEngine.render($container, config);
     } else {

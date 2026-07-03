@@ -111,9 +111,9 @@ document.addEventListener('DOMContentLoaded', function () {
     SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
     SplitLayoutDetailWidth: '950px',
     ModalWidth: '960px',
-    HideAddBtn: true,
-    HideEditBtn: true,
-    HideDeleteBtn: true,
+    HideAddBtn: false,
+    HideEditBtn: false,
+    HideDeleteBtn: false,
     AllowDblClickToView: true,
     HideDetailTabsInModal: true,
     FilterKeywordLabel: 'Mã/Tên nhân viên',
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Quá trình làm việc và lương, phụ cấp',
         api: 'API_PersonFull_T1_Salary',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['TrangThai', 'TuNgay', 'DenNgay', 'MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'GhiChu'],
         headers: {
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Khen thưởng - Kỷ luật',
         api: 'API_PersonFull_T3_KTKL',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['NoiDungKTKL', 'SoNgay', 'GhiChu'],
         headers: {
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Khai báo phép năm',
         api: 'API_PersonFull_T4_NghiPhep',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['Nam', 'SoNgay', 'PhepThamNien', 'SoNgayDaSuDung', 'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat', 'GhiChu'],
         headers: {
@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Gia cảnh & Liên hệ',
         api: 'API_PersonFull_T5_Relation',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['RelationID', 'PersonRelationName', 'NgaySinh', 'DiaChiThuongTru', 'DiaChiHienNay', 'IsNguoiPhuThuoc', 'GiamTruTuThang', 'GiamTruDenThang'],
         headers: {
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Lịch sử hợp đồng',
         api: 'API_PersonFull_T6_HopDong',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['MaHopDong', 'PersonName', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'LoaiHopDong', 'LuongCoBan', 'MucDong', 'NoiDung'],
         headers: {
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Lịch sử công tác',
         api: 'API_PersonFull_T7_CongTac',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['PhongBan', 'TitleName', 'PostionName', 'Quanly', 'ShiftID', 'NgayThayDoi', 'UserName'],
         headers: {
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Lịch sử công việc',
         api: 'API_PersonFull_T8_Log',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['UserName', 'LogDate', 'BranchID', 'StatusID', 'Notes'],
         headers: {
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function () {
       {
         label: 'Giấy tờ',
         api: 'API_PersonFull_T9_GiayTo',
-        editable: true,
+        editable: false,
         filterField: 'PersonID',
         fields: ['DocumentID', 'LoaiGiayTo', 'TuNgay', 'DenNgay', 'Notes'],
         headers: {

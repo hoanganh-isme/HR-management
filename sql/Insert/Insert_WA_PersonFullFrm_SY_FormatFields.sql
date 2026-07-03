@@ -218,7 +218,7 @@ SET CaptionVN = CASE FieldName
         WHEN 'DateCreate'                THEN 'Created Date'
         WHEN 'DiaChiTamTru'              THEN 'Temporary Address'
         WHEN 'isTaiTuyen'                THEN 'Re-hired'
-        WHEN 'PersonStatusName'          THEN 'Status'
+        WHEN 'PersonStatusName'          THEN 'Status Name'
         WHEN 'HonNhan'                   THEN 'Marital Status'
         WHEN 'CMNDNgayCap'               THEN 'ID Issue Date'
         WHEN 'CMNDNoiCap'                THEN 'ID Issue Place'
@@ -247,21 +247,19 @@ SET CaptionVN = CASE FieldName
         ELSE NULL
     END,
     FormPosition = CASE 
-        -- CÁC TRƯỜNG CƠ BẢN: Hiển thị ở cả Sơ yếu lý lịch (Inline) và Popup Modal ('6' là chia 2 cột)
+        -- CÁC TRƯỜNG QUAN TRỌNG: Hiển thị trên Danh sách (Grid) VÀ trên Form chia 2 cột ('grid|6')
         WHEN FieldName IN (
-            'PersonID', 'NewPersonID', 'PersonName', 'GioiTinh', 'BranchID', 'PhongBan', 
-            'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 
-            'PersonStatus', 'ShiftID', 'DienThoai', 'NgaySinh',
-            'MaNVChamCong', 'PersonName2', 'PostionName', 'WorkingGroupName',
-            'LocationID', 'DiaChiTamTru', 'NgayNghiViec'
-        ) THEN '6'
-        -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Sơ yếu lý lịch, CHỈ hiển thị trên Popup Modal
-        ELSE 'grid'
+            'PersonID', 'PersonName', 'GioiTinh', 'NgaySinh', 'CMND', 'DienThoai', 
+            'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 
+            'NgayVaoLam', 'PersonStatus'
+        ) THEN 'grid|6'
+        -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Danh sách, CHỈ hiển thị trên Form chia 2 cột ('6')
+        ELSE '6'
     END,
     ShowInAdd  = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 0 ELSE 1 END,
     ShowInEdit = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 0 ELSE 1 END,
-    IsReadOnlyAdd  = 1,
-    IsReadOnlyEdit = 1,
+    IsReadOnlyAdd  = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 1 ELSE 0 END,
+    IsReadOnlyEdit = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 1 ELSE 0 END,
     IsRequired     = 0,
     ShowInFilter   = 0,
     OrderNo = CASE FieldName
@@ -370,3 +368,14 @@ END
 
 -- Đảm bảo Chi nhánh hiện bộ lọc
 UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'CF_BranchListFrm' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'BranchID'
+
+-- Đảm bảo PersonStatus hiện bộ lọc
+IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus')
+BEGIN
+    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
+    VALUES ('WA_PersonFullFrm', 'PersonStatus', N'Trạng thái', 'Status', 'sl', 0, 'grid', 0, 0, 0, 0, 102, 1, 'API_ComboPersonStatus')
+END
+ELSE BEGIN
+    UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trạng thái', CaptionEN = 'Status', ShowInFilter = 1, DataSource = 'API_ComboPersonStatus', FormatID = 'sl' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus'
+END
+
