@@ -85,6 +85,8 @@ BEGIN
         P.DiaChiTamTru,
         P.isTaiTuyen,
         S.PersonStatusName,
+        HD.LoaiHD,
+        YEAR(P.NgayVaoLam) AS NamLap,
         PA.FileName,
         PA.Content
     FROM dbo.HR_PersonTbl P
@@ -330,6 +332,8 @@ GO
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
 ('WA_PersonFullFrm', 'View', 'API_HoSoNhanVien', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @NamLap=N''{NamLap}'', @LoaiHD=N''{LoaiHD}'', @PersonStatus=N''{PersonStatus}'''),
+('WA_PersonFullFrm', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('WA_PersonFullFrm', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('API_PersonFull_T1_Salary',    'View', 'API_PersonFull_T1_Salary',    '@PersonID=N''{PersonID}'''),
 ('API_PersonFull_T2_Allowance', 'View', 'API_PersonFull_T2_Allowance', '@PersonID=N''{PersonID}'''),
 ('API_PersonFull_T3_KTKL',      'View', 'API_PersonFull_T3_KTKL',      '@PersonID=N''{PersonID}'''),

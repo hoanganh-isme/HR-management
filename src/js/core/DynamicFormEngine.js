@@ -996,51 +996,75 @@ window.DynamicFormEngine = (function () {
           });
         }
 
-        // Bổ sung các nút công cụ của Tabulator
-        extraBtns.push({
-          text: 'Bật/Tắt Lọc Cột',
-          icon: 'filter_alt',
-          onClick: function () {
-             if(window.tabulatorInstance) {
-                var tableEl = window.tabulatorInstance.element;
-                tableEl.classList.toggle('show-filters');
-                window.tabulatorInstance.redraw(true); // Redraw để bảng tính lại chiều cao header
-             }
-          }
-        });
+        // Menu Tùy chọn bảng
+        var tabulatorActionWrapper = document.createElement('div');
+        tabulatorActionWrapper.className = 'tabulator-action-wrapper';
+        tabulatorActionWrapper.style.cssText = 'position: relative; display: inline-flex; margin-left: auto; align-items: center;';
 
-        extraBtns.push({
-          text: 'Tùy chọn cột',
-          icon: 'view_column',
-          onClick: function (e) {
+        var tabulatorActionBtn = document.createElement('button');
+        tabulatorActionBtn.type = 'button';
+        // Giao diện mềm mại, không có viền cứng, màu nền nhạt như phong cách hiện đại
+        tabulatorActionBtn.className = 'btn'; 
+        tabulatorActionBtn.style.cssText = 'display: flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 500; height: 36px; background: rgba(79, 70, 229, 0.08); color: #4f46e5; border: none; transition: background 0.2s;';
+        tabulatorActionBtn.onmouseover = function() { this.style.background = 'rgba(79, 70, 229, 0.15)'; };
+        tabulatorActionBtn.onmouseout = function() { this.style.background = 'rgba(79, 70, 229, 0.08)'; };
+        tabulatorActionBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">table_chart</span> <span>Tùy chọn bảng</span> <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span>';
+
+        var tabulatorActionMenu = document.createElement('div');
+        tabulatorActionMenu.style.cssText = 'display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 200px; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #ccc); box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius: 8px; z-index: 9999; padding: 8px;';
+
+        // Helper tạo item
+        function createMenuItem(icon, text, action) {
+            var item = document.createElement('div');
+            item.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; font-size: 14px; border-radius: 6px; color: var(--color-text); transition: background 0.2s;';
+            item.innerHTML = '<span class="material-symbols-outlined" style="font-size:20px; color:var(--color-text-secondary);">' + icon + '</span><span>' + text + '</span>';
+            item.onmouseover = function() { item.style.backgroundColor = 'var(--color-background, #f1f5f9)'; };
+            item.onmouseout = function() { item.style.backgroundColor = 'transparent'; };
+            item.onclick = function(e) {
+                tabulatorActionMenu.style.display = 'none';
+                action(e);
+            };
+            return item;
+        }
+
+        tabulatorActionMenu.appendChild(createMenuItem('filter_alt', 'Bộ lọc dữ liệu', function() {
+            var filterContainer = document.querySelector('#dynamic-filter-container');
+            if (filterContainer) {
+              if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
+                filterContainer.style.display = 'flex';
+                var inputKeyword = filterContainer.querySelector('#keyword');
+                if (inputKeyword) inputKeyword.focus();
+              } else {
+                filterContainer.style.display = 'none';
+              }
+            }
+        }));
+
+        tabulatorActionMenu.appendChild(createMenuItem('view_column', 'Tùy chọn hiển thị cột', function(e) {
              var menu = document.getElementById('tabulator-col-menu');
              if(menu) {
                 menu.remove();
                 return;
              }
+             
+             // Backdrop để che nền (làm mờ hoặc không tùy ý, giúp click out dễ dàng)
+             var backdrop = document.createElement('div');
+             backdrop.id = 'tabulator-col-backdrop';
+             backdrop.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); z-index: 10000;';
+             
              menu = document.createElement('div');
              menu.id = 'tabulator-col-menu';
-             menu.style.position = 'absolute';
-             menu.style.background = 'var(--color-surface, #fff)';
-             menu.style.border = '1px solid var(--color-border, #ccc)';
-             menu.style.padding = '12px';
-             menu.style.zIndex = 1000;
-             menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-             menu.style.borderRadius = '8px';
-             menu.style.maxHeight = '400px';
-             menu.style.overflowY = 'auto';
-             
-             // Vị trí hiển thị (ngay dưới con trỏ chuột)
-             menu.style.top = (e.clientY + 15) + 'px';
-             menu.style.left = (e.clientX - 100) + 'px';
+             // Modal hiển thị chính giữa màn hình
+             menu.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--color-surface, #fff); border-radius: 12px; padding: 20px; z-index: 10001; box-shadow: 0 12px 32px rgba(0,0,0,0.2); width: 90%; max-width: 400px; max-height: 80vh; display: flex; flex-direction: column;';
              
              var title = document.createElement('div');
              title.textContent = 'Ẩn / Hiện Cột';
-             title.style.fontWeight = 'bold';
-             title.style.marginBottom = '8px';
-             title.style.paddingBottom = '8px';
-             title.style.borderBottom = '1px solid #eee';
+             title.style.cssText = 'font-weight: 600; font-size: 16px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border, #eee); text-align: center;';
              menu.appendChild(title);
+             
+             var content = document.createElement('div');
+             content.style.cssText = 'overflow-y: auto; flex: 1; padding-right: 8px; margin-bottom: 16px;';
+             menu.appendChild(content);
 
              if (window.tabulatorInstance) {
                 var columns = window.tabulatorInstance.getColumns();
@@ -1049,58 +1073,65 @@ window.DynamicFormEngine = (function () {
                     if(field && field !== '__action__' && field !== 'row_select') {
                         var def = col.getDefinition();
                         var label = document.createElement('label');
-                        label.style.display = 'flex';
-                        label.style.alignItems = 'center';
-                        label.style.marginBottom = '6px';
-                        label.style.cursor = 'pointer';
+                        label.style.cssText = 'display: flex; align-items: center; margin-bottom: 12px; cursor: pointer; font-size: 14px; padding: 4px 0;';
                         
                         var checkbox = document.createElement('input');
                         checkbox.type = 'checkbox';
                         checkbox.checked = col.isVisible();
-                        checkbox.style.marginRight = '8px';
-                        checkbox.style.cursor = 'pointer';
-                        checkbox.onchange = function() {
-                            col.toggle();
+                        checkbox.style.cssText = 'margin-right: 12px; width: 18px; height: 18px; cursor: pointer;';
+                        checkbox.onchange = function() { 
+                            col.toggle(); 
+                            
+                            // Lưu trạng thái cột vào LocalStorage theo User và Form
+                            var cols = window.tabulatorInstance.getColumns();
+                            var visibilityState = {};
+                            cols.forEach(function(c) {
+                                var fld = c.getField();
+                                if (fld && fld !== '__action__' && fld !== 'row_select') {
+                                    visibilityState[fld] = c.isVisible();
+                                }
+                            });
+                            var userName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
+                            var formName = MODULE_CONFIG.FormName || 'default_form';
+                            localStorage.setItem('tabulator_cols_' + userName + '_' + formName, JSON.stringify(visibilityState));
                         };
                         
                         label.appendChild(checkbox);
                         label.appendChild(document.createTextNode(def.title || field));
-                        menu.appendChild(label);
+                        content.appendChild(label);
                     }
                 });
              }
              
-             document.body.appendChild(menu);
+             var closeBtn = document.createElement('button');
+             closeBtn.type = 'button';
+             closeBtn.className = 'btn btn-primary w-100';
+             closeBtn.textContent = 'Hoàn tất';
+             closeBtn.onclick = function() {
+                 backdrop.remove();
+             };
+             menu.appendChild(closeBtn);
              
-             // Click ra ngoài để đóng menu
-             setTimeout(function() {
-                 var closeMenu = function(evt) {
-                     if(!menu.contains(evt.target)) {
-                         menu.remove();
-                         document.removeEventListener('click', closeMenu);
-                     }
-                 };
-                 document.addEventListener('click', closeMenu);
-             }, 100);
-          }
-        });
+             backdrop.appendChild(menu);
+             document.body.appendChild(backdrop);
+             
+             // Click ra ngoài modal để đóng
+             backdrop.onclick = function(evt) {
+                 if(evt.target === backdrop) {
+                     backdrop.remove();
+                 }
+             };
+        }));
 
-        extraBtns.push({
-          text: 'Xuất Excel',
-          icon: 'download',
-          onClick: function () {
+        tabulatorActionMenu.appendChild(createMenuItem('download', 'Xuất dữ liệu Excel', function() {
              if(window.tabulatorInstance) {
                 window.tabulatorInstance.download("xlsx", (MODULE_CONFIG.PageTitle || "Data") + ".xlsx", {sheetName:"Du_Lieu"});
              } else {
                 if (typeof Alert !== 'undefined') Alert.info('Thông báo', 'Bảng chưa được tải.');
              }
-          }
-        });
+        }));
 
-        extraBtns.push({
-          text: 'Xuất PDF',
-          icon: 'picture_as_pdf',
-          onClick: function () {
+        tabulatorActionMenu.appendChild(createMenuItem('picture_as_pdf', 'Xuất dữ liệu PDF', function() {
              if(window.tabulatorInstance) {
                 window.tabulatorInstance.download("pdf", (MODULE_CONFIG.PageTitle || "Data") + ".pdf", {
                     orientation:"landscape",
@@ -1109,8 +1140,40 @@ window.DynamicFormEngine = (function () {
              } else {
                 if (typeof Alert !== 'undefined') Alert.info('Thông báo', 'Bảng chưa được tải.');
              }
-          }
+        }));
+
+        tabulatorActionWrapper.appendChild(tabulatorActionBtn);
+        // Append menu to body to avoid overflow hidden clipping from parents
+        document.body.appendChild(tabulatorActionMenu);
+
+        // Bật/tắt menu
+        tabulatorActionBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var isVisible = tabulatorActionMenu.style.display === 'block';
+            document.querySelectorAll('.dropdown-menu-custom').forEach(function(el) { el.style.display = 'none'; });
+            
+            if (!isVisible) {
+                var rect = tabulatorActionBtn.getBoundingClientRect();
+                tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
+                // Đẩy sang trái một chút nếu nút nằm ở góc phải
+                tabulatorActionMenu.style.left = (rect.right - 200) + 'px'; 
+                // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
+                if (parseInt(tabulatorActionMenu.style.left) < 10) {
+                    tabulatorActionMenu.style.left = '10px';
+                }
+                tabulatorActionMenu.style.display = 'block';
+            } else {
+                tabulatorActionMenu.style.display = 'none';
+            }
         });
+
+        // Đóng menu khi click bên ngoài
+        document.addEventListener('click', function(e) {
+            if (!tabulatorActionWrapper.contains(e.target) && !tabulatorActionMenu.contains(e.target)) {
+                tabulatorActionMenu.style.display = 'none';
+            }
+        });
+
 
         var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
         var isReport = formNameLower.endsWith('report');
@@ -1219,11 +1282,7 @@ window.DynamicFormEngine = (function () {
               }
             }
           },
-          onPrint: MODULE_CONFIG.HidePrintBtn ? false : function () {
-            if (typeof Alert !== 'undefined') {
-              Alert.info('In dữ liệu', 'Đang chuẩn bị kết xuất dữ liệu ' + (MODULE_CONFIG.PageTitle || '...') + '...');
-            }
-          },
+          onPrint: false, // Ẩn nút In theo yêu cầu UX
           onClose: false,
           extras: extraBtns
         });
@@ -1255,8 +1314,51 @@ window.DynamicFormEngine = (function () {
           }
         }
 
+        // Thanh tìm kiếm nhanh (Quick Search) trên Toolbar
+        var searchWrapper = document.createElement('div');
+        searchWrapper.className = 'quick-search-wrapper';
+        searchWrapper.style.cssText = 'flex: 1; display: flex; justify-content: flex-end; margin: 0 16px; min-width: 200px;';
+        
+        var quickSearchInput = document.createElement('input');
+        quickSearchInput.type = 'text';
+        quickSearchInput.className = 'ui-input';
+        quickSearchInput.id = 'toolbar-quick-search';
+        quickSearchInput.placeholder = MODULE_CONFIG.SearchPlaceholder || 'Nhập mã, tên nhân viên hoặc chứng từ...';
+        quickSearchInput.style.cssText = `width: 100%; max-width: 350px; padding: 8px 16px 8px 36px; border-radius: 20px; border: 1px solid var(--color-border, #e2e8f0); outline: none; transition: all 0.2s; font-size: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E") no-repeat 12px center var(--color-surface, #fff);`;
+        
+        quickSearchInput.addEventListener('focus', function() { 
+            this.style.borderColor = 'var(--color-primary, #3b82f6)'; 
+            this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+        });
+        quickSearchInput.addEventListener('blur', function() { 
+            this.style.borderColor = 'var(--color-border, #e2e8f0)'; 
+            this.style.boxShadow = 'none';
+        });
+        
+        var _searchTimer = null;
+        quickSearchInput.addEventListener('input', function() {
+            clearTimeout(_searchTimer);
+            _searchTimer = setTimeout(function() {
+                currentKeyword = quickSearchInput.value;
+                window.currentFilters = window.currentFilters || {};
+                window.currentFilters.keyword = currentKeyword;
+                currentPage = 1;
+                selectedRows = [];
+                _updateSelectionCounter();
+                _loadData();
+            }, 500); // Tự động tìm sau 0.5s
+        });
+        
+        searchWrapper.appendChild(quickSearchInput);
 
+        // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
+        btnContainer.style.display = 'flex';
+        btnContainer.style.flexWrap = 'wrap';
+        btnContainer.style.alignItems = 'center';
+        
         btnContainer.appendChild(toolbar);
+        btnContainer.appendChild(searchWrapper); // Nằm ở giữa, đẩy Tùy chọn bảng sang phải
+        btnContainer.appendChild(tabulatorActionWrapper);
       }
 
       // Search bar (FilterComponent)
@@ -1389,13 +1491,9 @@ window.DynamicFormEngine = (function () {
             return filterObj;
           });
 
-        // 2. Gom với cấu hình cứng trong AppModules.js (nếu có) hoặc xài Keyword mặc định
+        // 2. Gom với cấu hình cứng trong AppModules.js (nếu có)
+        // Lưu ý: Đã đưa 'Từ khóa' ra ngoài thanh công cụ dưới dạng Quick Search Bar
         var filters = [];
-        filters.push({
-          id: 'keyword',
-          label: MODULE_CONFIG.FilterKeywordLabel || 'Từ khóa',
-          placeholder: MODULE_CONFIG.SearchPlaceholder || 'Nhập mã, tên nhân viên hoặc số chứng từ...'
-        });
 
         if (dynamicFilters.length > 0) {
           filters = filters.concat(dynamicFilters);
@@ -1405,7 +1503,14 @@ window.DynamicFormEngine = (function () {
 
         var filterNode = FilterComponent.create(filters, function (values) {
           console.log('[DynamicFormEngine] Filter values callback received:', values);
-          // Lưu lại toàn bộ các giá trị filter thay vì chỉ keyword
+          
+          // Lấy giá trị keyword từ ô Quick Search Bar để tránh bị đè mất
+          var quickSearch = document.getElementById('toolbar-quick-search');
+          if (quickSearch) {
+              values.keyword = quickSearch.value;
+          }
+          
+          // Lưu lại toàn bộ các giá trị filter
           window.currentFilters = values;
           currentKeyword = values.keyword || '';
           currentPage = 1; // Reset về trang 1 khi lọc mới
@@ -1646,10 +1751,20 @@ window.DynamicFormEngine = (function () {
 
 
       var tabulatorColumns = [];
-      
+      var isMobile = window.innerWidth <= 768;
+
+      // Đọc cấu hình cột đã lưu từ LocalStorage
+      var userName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
+      var formName = MODULE_CONFIG.FormName || 'default_form';
+      var savedVisibility = null;
+      try {
+          var storedStr = localStorage.getItem('tabulator_cols_' + userName + '_' + formName);
+          if (storedStr) savedVisibility = JSON.parse(storedStr);
+      } catch(e) {}
+
       // Cột Checkbox của Tabulator
       tabulatorColumns.push({
-        formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: true
+        formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: !isMobile
       });
 
       var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
@@ -1664,13 +1779,36 @@ window.DynamicFormEngine = (function () {
             
             var colDef = {
                title: dictionary[fieldName] || fieldName,
-               field: actualField,
-               headerFilter: "input", // Bật tính năng Lọc từng cột
+               field: actualField
+               // Đã loại bỏ headerFilter: "input" để header gọn gàng, người dùng sẽ xài Popup lọc dữ liệu thay thế
             };
             
-            // Ghim 2 cột Mã NV và Họ tên
+            // Apply trạng thái ẩn/hiện cột nếu đã được lưu
+            if (savedVisibility && savedVisibility[actualField] !== undefined) {
+                colDef.visible = savedVisibility[actualField];
+            }
+            
+            // Ghim 2 cột Mã NV và Họ tên chỉ trên giao diện Desktop
             if (actualField.toLowerCase() === 'personid' || actualField.toLowerCase() === 'personname') {
-               colDef.frozen = true;
+               colDef.frozen = !isMobile;
+            }
+            
+            // Fix: Cột PersonStatus ưu tiên hiển thị chữ (PersonStatusName) thay vì số
+            if (actualField.toLowerCase() === 'personstatus') {
+               colDef.formatter = function(cell) {
+                 var data = cell.getData();
+                 var val = cell.getValue();
+                 var text = data.PersonStatusName || data.personstatusname || val;
+                 
+                 // Tô màu cơ bản cho trạng thái
+                 var color = 'inherit';
+                 if (String(val) === '1') color = 'var(--color-success, #10b981)';
+                 else if (String(val) === '4' || String(val) === '8' || String(val) === '9') color = 'var(--color-danger, #ef4444)';
+                 else if (String(val) === '2') color = 'var(--color-warning, #f59e0b)';
+                 else if (String(val) === '3') color = 'var(--color-info, #3b82f6)';
+                 
+                 return '<span style="color: ' + color + '; font-weight: 500;">' + text + '</span>';
+               };
             }
             
             if (renderers[fieldName]) {
