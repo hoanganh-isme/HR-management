@@ -1,16 +1,16 @@
-
+﻿
 -- =========================================================================
--- 1. Master API: Danh sách nhân viên tổng hợp
+-- 1. Master API: Danh sÃ¡ch nhÃ¢n viÃªn tá»•ng há»£p
 -- EXEC dbo.API_HoSoNhanVien @Keyword = '', @BranchID = '', @PhongBan = ''
 -- =========================================================================
-ALTER PROCEDURE dbo.API_HoSoNhanVien
+CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVien
 (
     @Keyword           NVARCHAR(200) = '',
     @BranchID          NVARCHAR(MAX) = '',
     @PhongBan          NVARCHAR(50)  = '',
     @NamLap            INT           = NULL,
     @LoaiHD            NVARCHAR(50)  = '',
-    @PersonStatusName  NVARCHAR(100) = '', -- Thêm tham số nhận Tên trạng thái từ UI
+    @PersonStatusName  NVARCHAR(100) = '', -- ThÃªm tham sá»‘ nháº­n TÃªn tráº¡ng thÃ¡i tá»« UI
     @PersonStatus      NVARCHAR(50)  = ''
 )
 AS
@@ -21,12 +21,12 @@ BEGIN
         P.PersonID,
         P.PersonName,
         P.PhongBan,
-        P.TitleName,            -- Chức vụ
-        P.ChucDanhChuyenMon,    -- Chức danh chuyên môn
-        P.NgaySinh,             -- Ngày sinh
+        P.TitleName,            -- Chá»©c vá»¥
+        P.ChucDanhChuyenMon,    -- Chá»©c danh chuyÃªn mÃ´n
+        P.NgaySinh,             -- NgÃ y sinh
         P.CMND,                 -- CCCD
-        P.DiaChiThuongTru,      -- Địa chỉ thường trú
-        P.NgayVaoLam,           -- Ngày nhận việc
+        P.DiaChiThuongTru,      -- Äá»‹a chá»‰ thÆ°á»ng trÃº
+        P.NgayVaoLam,           -- NgÃ y nháº­n viá»‡c
         P.BranchID,
         P.NgayHopDong,
         P.NationName,
@@ -105,25 +105,25 @@ BEGIN
         ORDER BY NgayKyHopDong DESC
     ) HD
     WHERE 
-        -- Bộ lọc từ khoá (Keyword)
+        -- Bá»™ lá»c tá»« khoÃ¡ (Keyword)
         (@Keyword IS NULL OR @Keyword = ''
          OR P.PersonName LIKE N'%' + @Keyword + '%'
          OR P.PersonID   LIKE N'%' + @Keyword + '%'
          OR P.DienThoai  LIKE N'%' + @Keyword + '%')
         
-        -- Bộ lọc chi nhánh (BranchID)
+        -- Bá»™ lá»c chi nhÃ¡nh (BranchID)
         AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
 
-        -- Bộ lọc bộ phận (PhongBan)
+        -- Bá»™ lá»c bá»™ pháº­n (PhongBan)
         AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
         
-        -- Bộ lọc năm lập
+        -- Bá»™ lá»c nÄƒm láº­p
         AND (@NamLap IS NULL OR YEAR(ISNULL(P.NgaySinh, '1900-01-01')) = @NamLap OR YEAR(ISNULL(P.NgayVaoLam, '1900-01-01')) = @NamLap)
         
-        -- Bộ lọc loại hợp đồng (LoaiHD từ HR_HopDongTbl)
+        -- Bá»™ lá»c loáº¡i há»£p Ä‘á»“ng (LoaiHD tá»« HR_HopDongTbl)
         AND (@LoaiHD = '' OR HD.LoaiHD LIKE N'%' + @LoaiHD + '%')
         
-        -- Bộ lọc trạng thái nhân sự (theo tên hiển thị trên UI hoặc mã trạng thái)
+        -- Bá»™ lá»c tráº¡ng thÃ¡i nhÃ¢n sá»± (theo tÃªn hiá»ƒn thá»‹ trÃªn UI hoáº·c mÃ£ tráº¡ng thÃ¡i)
         AND (@PersonStatusName = '' OR S.PersonStatusName = @PersonStatusName)
         AND (@PersonStatus = '' OR P.PersonStatus = @PersonStatus)
         
@@ -131,9 +131,9 @@ BEGIN
 END
 GO
 -- =========================================================================
--- 2. Detail API Tab 1: Quá trình làm việc và lương (HR_PersonSalaryTbl)
+-- 2. Detail API Tab 1: QuÃ¡ trÃ¬nh lÃ m viá»‡c vÃ  lÆ°Æ¡ng (HR_PersonSalaryTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T1_Salary
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T1_Salary
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -148,9 +148,9 @@ END
 GO
 
 -- =========================================================================
--- 4. Detail API Tab 3: Khen thưởng - Kỷ luật (HR_PersonKTKLTbl)
+-- 4. Detail API Tab 3: Khen thÆ°á»Ÿng - Ká»· luáº­t (HR_PersonKTKLTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T3_KTKL
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T3_KTKL
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -168,9 +168,9 @@ END
 GO
 
 -- =========================================================================
--- 5. Detail API Tab 4: Khai báo phép năm (HR_PersonNghiPhepTbl)
+-- 5. Detail API Tab 4: Khai bÃ¡o phÃ©p nÄƒm (HR_PersonNghiPhepTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T4_NghiPhep
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T4_NghiPhep
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -197,9 +197,9 @@ END
 GO
 
 -- =========================================================================
--- 6. Detail API Tab 5: Gia cảnh & Mối liên hệ (HR_PersonRelationTbl)
+-- 6. Detail API Tab 5: Gia cáº£nh & Má»‘i liÃªn há»‡ (HR_PersonRelationTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T5_Relation
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T5_Relation
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -223,9 +223,9 @@ END
 GO
 
 -- =========================================================================
--- 7. Detail API Tab 6: Lịch sử hợp đồng (HR_HopDongTbl)
+-- 7. Detail API Tab 6: Lá»‹ch sá»­ há»£p Ä‘á»“ng (HR_HopDongTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T6_HopDong
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T6_HopDong
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -250,9 +250,9 @@ END
 GO
 
 -- =========================================================================
--- 8. Detail API Tab 7: Lịch sử công tác (HR_LichSuCongTacTbl)
+-- 8. Detail API Tab 7: Lá»‹ch sá»­ cÃ´ng tÃ¡c (HR_LichSuCongTacTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T7_CongTac
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T7_CongTac
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -276,9 +276,9 @@ END
 GO
 
 -- =========================================================================
--- 9. Detail API Tab 8: Lịch sử công việc (HR_PersonLogTbl)
+-- 9. Detail API Tab 8: Lá»‹ch sá»­ cÃ´ng viá»‡c (HR_PersonLogTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T8_Log
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T8_Log
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -300,9 +300,9 @@ END
 GO
 
 -- =========================================================================
--- 10. Detail API Tab 9: Giấy tờ (HR_PersonGiayToTbl)
+-- 10. Detail API Tab 9: Giáº¥y tá» (HR_PersonGiayToTbl)
 -- =========================================================================
-ALTER PROCEDURE dbo.API_PersonFull_T9_GiayTo
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T9_GiayTo
 (
     @PersonID NVARCHAR(50) = ''
 )
@@ -323,7 +323,7 @@ END
 GO
 
 -- =========================================================================
--- Đăng ký các API này vào bảng WA_API
+-- ÄÄƒng kÃ½ cÃ¡c API nÃ y vÃ o báº£ng WA_API
 -- =========================================================================
 DELETE FROM dbo.WA_API WHERE list = 'WA_PersonFullFrm';
 DELETE FROM dbo.WA_API WHERE list LIKE 'API_PersonFull_T%';
@@ -345,7 +345,7 @@ VALUES
 ('API_PersonFull_T9_GiayTo',    'View', 'API_PersonFull_T9_GiayTo',    '@PersonID=N''{PersonID}''');
 GO
 
--- 1. Đăng ký các Detail API làm danh sách (List) trong SY_FrmLstTbl
+-- 1. ÄÄƒng kÃ½ cÃ¡c Detail API lÃ m danh sÃ¡ch (List) trong SY_FrmLstTbl
 DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN (
     'API_PersonFull_T1_Salary',
     'API_PersonFull_T2_Allowance',
@@ -360,18 +360,18 @@ DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN (
 
 INSERT INTO dbo.SY_FrmLstTbl ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey])
 VALUES 
-('API_PersonFull_T1_Salary', 'LIST', N'Quá trình lương', 'Salary', 'HR_PersonSalaryTbl', 'UserAutoID'),
-('API_PersonFull_T2_Allowance', 'LIST', N'Phụ cấp', 'Allowance', 'HR_PersonAllowanceTbl', 'UserAutoID'),
-('API_PersonFull_T3_KTKL', 'LIST', N'Khen thưởng kỷ luật', 'KTKL', 'HR_PersonKTKLTbl', 'UserAutoID'),
-('API_PersonFull_T4_NghiPhep', 'LIST', N'Nghỉ phép', 'Leave', 'HR_PersonNghiPhepTbl', 'UserAutoID'),
-('API_PersonFull_T5_Relation', 'LIST', N'Gia cảnh', 'Relation', 'HR_PersonRelationTbl', 'RelationID'),
-('API_PersonFull_T6_HopDong', 'LIST', N'Hợp đồng', 'Contract', 'HR_HopDongTbl', 'MaHopDong'),
-('API_PersonFull_T7_CongTac', 'LIST', N'Công tác', 'Work history', 'HR_LichSuCongTacTbl', 'UserAutoID'),
+('API_PersonFull_T1_Salary', 'LIST', N'QuÃ¡ trÃ¬nh lÆ°Æ¡ng', 'Salary', 'HR_PersonSalaryTbl', 'UserAutoID'),
+('API_PersonFull_T2_Allowance', 'LIST', N'Phá»¥ cáº¥p', 'Allowance', 'HR_PersonAllowanceTbl', 'UserAutoID'),
+('API_PersonFull_T3_KTKL', 'LIST', N'Khen thÆ°á»Ÿng ká»· luáº­t', 'KTKL', 'HR_PersonKTKLTbl', 'UserAutoID'),
+('API_PersonFull_T4_NghiPhep', 'LIST', N'Nghá»‰ phÃ©p', 'Leave', 'HR_PersonNghiPhepTbl', 'UserAutoID'),
+('API_PersonFull_T5_Relation', 'LIST', N'Gia cáº£nh', 'Relation', 'HR_PersonRelationTbl', 'RelationID'),
+('API_PersonFull_T6_HopDong', 'LIST', N'Há»£p Ä‘á»“ng', 'Contract', 'HR_HopDongTbl', 'MaHopDong'),
+('API_PersonFull_T7_CongTac', 'LIST', N'CÃ´ng tÃ¡c', 'Work history', 'HR_LichSuCongTacTbl', 'UserAutoID'),
 ('API_PersonFull_T8_Log', 'LIST', N'Log', 'Log', 'HR_LichSuCongViecTbl', 'UserAutoID'),
-('API_PersonFull_T9_GiayTo', 'LIST', N'Giấy tờ', 'Document', 'HR_GiayToTbl', 'DocumentID');
+('API_PersonFull_T9_GiayTo', 'LIST', N'Giáº¥y tá»', 'Document', 'HR_GiayToTbl', 'DocumentID');
 GO
 
--- 2. Đăng ký Save/Delete trong WA_API
+-- 2. ÄÄƒng kÃ½ Save/Delete trong WA_API
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
 ('API_PersonFull_T1_Salary', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
@@ -412,7 +412,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
-        -- Trích xuất PersonID hoặc CandidateID từ chuỗi JSON
+        -- TrÃ­ch xuáº¥t PersonID hoáº·c CandidateID tá»« chuá»—i JSON
         DECLARE @PersonID VARCHAR(50) = JSON_VALUE(@Data, '$.PersonID');
         DECLARE @CandidateID VARCHAR(50) = JSON_VALUE(@Data, '$.CandidateID');
         DECLARE @FileType INT = CAST(JSON_VALUE(@Data, '$.FileType') AS INT);
@@ -421,11 +421,11 @@ BEGIN
         
         IF @TargetID IS NULL OR @TargetID = ''
         BEGIN
-            SELECT -1 AS code, N'Lỗi: Không tìm thấy mã nhân viên/ứng viên!' AS msg;
+            SELECT -1 AS code, N'Lá»—i: KhÃ´ng tÃ¬m tháº¥y mÃ£ nhÃ¢n viÃªn/á»©ng viÃªn!' AS msg;
             RETURN;
         END
 
-        -- Nếu là tải ảnh đại diện (FileType = 1) -> Tìm ID ảnh cũ để ghi đè (UPDATE)
+        -- Náº¿u lÃ  táº£i áº£nh Ä‘áº¡i diá»‡n (FileType = 1) -> TÃ¬m ID áº£nh cÅ© Ä‘á»ƒ ghi Ä‘Ã¨ (UPDATE)
         IF @FileType = 1 
         BEGIN
             DECLARE @ExistingID VARCHAR(50);
@@ -435,13 +435,13 @@ BEGIN
 
             IF @ExistingID IS NOT NULL
             BEGIN
-                -- Nếu đã tồn tại ảnh -> Bơm UserAutoID vào JSON và đổi IsEdit = 1
+                -- Náº¿u Ä‘Ã£ tá»“n táº¡i áº£nh -> BÆ¡m UserAutoID vÃ o JSON vÃ  Ä‘á»•i IsEdit = 1
                 SET @Data = JSON_MODIFY(@Data, '$.UserAutoID', @ExistingID);
                 SET @Data = JSON_MODIFY(@Data, '$.IsEdit', 1);
             END
         END
         
-        -- Uỷ quyền lại cho hàm lõi API_LuuDong xử lý JSON chuẩn
+        -- Uá»· quyá»n láº¡i cho hÃ m lÃµi API_LuuDong xá»­ lÃ½ JSON chuáº©n
         EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
         
     END TRY

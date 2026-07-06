@@ -2,7 +2,7 @@
    TOAST COMPONENT (Thông báo đẩy)
    ═══════════════════════════════════════════ */
 
-#toast-container {
+#ui-toast-container {
   position: fixed;
   bottom: 24px;
   right: 24px;

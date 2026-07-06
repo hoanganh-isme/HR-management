@@ -401,7 +401,30 @@ var WizardForm = (function () {
     dialog.appendChild(footer);
 
     // ── Helpers ──────────────────────────────────────────────────────
-    function _close() {
+    function _close(force) {
+      if (!force) {
+        // Thu thập data hiện tại
+        _collect();
+        var hasData = currentStep > 0 || Object.keys(formState).length > 0;
+        
+        if (hasData) {
+          if (typeof ConfirmModal !== 'undefined') {
+            ConfirmModal.show({
+              title: 'Xác nhận thoát',
+              message: 'Bạn đang có dữ liệu chưa lưu. Bạn có chắc chắn muốn thoát và hủy bỏ toàn bộ các thay đổi này không?',
+              confirmText: 'Đồng ý thoát',
+              confirmClass: 'btn-danger',
+              onConfirm: function() { _close(true); }
+            });
+            return; // Dừng lại chờ confirm
+          } else {
+            if (!confirm('Bạn đang có dữ liệu chưa lưu. Bạn có chắc chắn muốn thoát và hủy bỏ toàn bộ các thay đổi này không?')) {
+              return;
+            }
+          }
+        }
+      }
+      
       overlay.style.opacity = '0';
       overlay.style.transition = 'opacity 0.18s';
       setTimeout(function () {
@@ -693,13 +716,7 @@ var WizardForm = (function () {
       sh.appendChild(shText);
       content.appendChild(sh);
 
-      // Hiển thị mã NV đã chọn (gợi nhắc)
-      if (resolvedPersonID) {
-        var idBanner = document.createElement('div');
-        idBanner.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(79,70,229,0.07);border:1px solid rgba(79,70,229,0.2);border-radius:8px;margin-bottom:14px;font-size:12px;color:var(--color-text-secondary);';
-        idBanner.innerHTML = '<span class="material-symbols-outlined" style="font-size:15px;color:var(--color-primary);">badge</span>Mã nhân viên: <strong style="font-family:monospace;color:var(--color-primary);font-size:13px;">' + resolvedPersonID + '</strong>';
-        content.appendChild(idBanner);
-      }
+      // Bỏ hiển thị mã NV đã chọn ở banner để tránh rườm rà theo yêu cầu
 
       // Last step → Review
       var isLastWiz = !step.fields || step.fields.length === 0;
@@ -938,7 +955,7 @@ var WizardForm = (function () {
 
       var cellID = document.createElement('div');
       cellID.className = 'wz-review-cell';
-      cellID.innerHTML = '<div class="wz-review-label">Mã nhân viên</div><div class="wz-review-value mono">' + (resolvedPersonID || '—') + '</div>';
+      cellID.innerHTML = '<div class="wz-review-label">Mã nhân viên</div><div class="wz-review-value mono">' + (formState['PersonID'] || resolvedPersonID || '—') + '</div>';
 
       branchGrid.appendChild(cellBranch);
       branchGrid.appendChild(cellID);

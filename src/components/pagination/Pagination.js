@@ -23,11 +23,16 @@ var Pagination = (function () {
     var sizeSelector = document.createElement('div');
     sizeSelector.className = 'pager-size-selector';
     var select = document.createElement('select');
-    [10, 15, 20, 50, 100].forEach(function (val) {
+    var pageSizes = [10, 15, 20, 50, 100, 200, 500, 1000, { label: "Tất cả", value: 100000 }];
+    pageSizes.forEach(function (valObj) {
+      var val = typeof valObj === 'object' ? valObj.value : valObj;
+      var label = typeof valObj === 'object' ? valObj.label : val;
       var opt = document.createElement('option');
       opt.value = val;
-      opt.text = val;
-      if (val === options.itemsPerPage) opt.selected = true;
+      opt.text = label;
+      if (val === options.itemsPerPage || (val === 100000 && options.itemsPerPage >= 100000)) {
+         opt.selected = true;
+      }
       select.appendChild(opt);
     });
     select.onchange = function (e) {
