@@ -207,11 +207,11 @@ var Navbar = (function () {
           </div>
           <div class="navbar-user" id="navbar-user">
             <div class="user-avatar-nav">
-              <img src="https://ui-avatars.com/api/?name=Admin&background=3C50E0&color=fff" alt="User">
+              <img id="nav-avatar-img" src="https://ui-avatars.com/api/?name=User&background=3C50E0&color=fff" alt="User">
             </div>
             <div class="user-info-nav">
-              <div class="user-name-nav">Admin</div>
-              <div class="user-role-nav">Quản trị hệ thống</div>
+              <div class="user-name-nav" id="nav-user-name">Người dùng</div>
+              <div class="user-role-nav" id="nav-user-role">Nhân viên</div>
             </div>
             <span class="material-symbols-outlined expand-icon">expand_more</span>
 
@@ -313,11 +313,11 @@ var Navbar = (function () {
               </div>
               <div class="navbar-user" id="vertical-user-profile">
                 <div class="user-avatar-nav">
-                  <img src="https://ui-avatars.com/api/?name=Admin&background=3C50E0&color=fff" alt="User">
+                  <img id="vert-nav-avatar-img" src="https://ui-avatars.com/api/?name=User&background=3C50E0&color=fff" alt="User">
                 </div>
                 <div class="user-info-nav">
-                  <div class="user-name-nav">Admin</div>
-                  <div class="user-role-nav">Quản trị hệ thống</div>
+                  <div class="user-name-nav" id="vert-nav-user-name">Người dùng</div>
+                  <div class="user-role-nav" id="vert-nav-user-role">Nhân viên</div>
                 </div>
                 <span class="material-symbols-outlined expand-icon">expand_more</span>
 
@@ -357,8 +357,9 @@ var Navbar = (function () {
     var container = document.getElementById(containerId);
     if (!container) return;
 
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    var groupId = u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var groupId = currentUser.UserGroupID || currentUser.userGroupID || currentUser.Group || currentUser.GroupID || currentUser.NhomQuyen || 'Admin';
+    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
 
     // Check version server trước — nếu khác cache thì tự clear (bắt được thay đổi từ máy Admin)
     if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
@@ -460,6 +461,19 @@ var Navbar = (function () {
     } else {
       _renderHorizontal(container);
     }
+
+    // UPDATE USER INFO IN DOM AFTER RENDER
+    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
+    var navUserName = document.getElementById('nav-user-name');
+    var vertNavUserName = document.getElementById('vert-nav-user-name');
+    var navAvatar = document.getElementById('nav-avatar-img');
+    var vertNavAvatar = document.getElementById('vert-nav-avatar-img');
+    
+    if (navUserName) navUserName.textContent = userName;
+    if (vertNavUserName) vertNavUserName.textContent = userName;
+    if (navAvatar) navAvatar.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=3C50E0&color=fff";
+    if (vertNavAvatar) vertNavAvatar.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=3C50E0&color=fff";
 
     // Fetch and update Com1 setup value for user roles (outer nav only)
     if (window.SystemDataService && window.SystemDataService.getSetupValue) {

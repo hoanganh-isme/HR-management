@@ -68,6 +68,30 @@ BEGIN
     END
 
     BEGIN TRY
+        -- =========================================================
+        -- BẢO MẬT: Kiểm tra quyền Xóa từ WA_UserGroupPermisstion
+        -- =========================================================
+        IF @UserName <> 'Admin'
+        BEGIN
+            DECLARE @HasPermission INT = 0;
+            DECLARE @UserGrp VARCHAR(50);
+            DECLARE @MenuID VARCHAR(50);
+
+            SELECT @UserGrp = UserGroupID FROM SY_User WHERE UserName = @UserName;
+            SELECT TOP 1 @MenuID = MenuID FROM WA_Menu WHERE FormName = @List;
+
+            IF @MenuID IS NOT NULL AND @UserGrp IS NOT NULL
+            BEGIN
+                SELECT @HasPermission = IsDelete FROM WA_UserGroupPermisstion WHERE UserGroupID = @UserGrp AND MenuID = @MenuID;
+                IF ISNULL(@HasPermission, 0) = 0
+                BEGIN
+                    SELECT -1 AS code, N'Lỗi bảo mật (RBAC): Bạn không có quyền Xóa ở chức năng này!' AS msg;
+                    RETURN;
+                END
+            END
+        END
+        -- =========================================================
+
         DECLARE @sql NVARCHAR(MAX) = '';
         DECLARE @RowsAffected INT = 0;
         

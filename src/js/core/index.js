@@ -23,6 +23,49 @@ document.addEventListener('DOMContentLoaded', function () {
     window.location.href = 'login.html';
     return;
   }
+
+  // 0.6 Khởi tạo hệ thống Phân quyền (RBAC)
+  window.AppPermissions = {
+    _cache: null,
+    
+    _init: function() {
+      try {
+        var navCache = JSON.parse(sessionStorage.getItem('pmql_nav_cache') || 'null');
+        var userCache = JSON.parse(localStorage.getItem('pmql_user') || 'null');
+        
+        var isAdmin = (userCache && (userCache.UserGroupID === 'Admin' || userCache.userGroupID === 'Admin'));
+        
+        this._cache = {
+          isAdmin: isAdmin,
+          dict: {}
+        };
+
+        if (navCache && navCache.rawRecords) {
+          navCache.rawRecords.forEach(function(r) {
+            if (r.formName) {
+              this._cache.dict[r.formName.toLowerCase()] = r;
+            }
+          }.bind(this));
+        }
+      } catch (e) {
+        console.error('Error init AppPermissions', e);
+      }
+    },
+    
+    hasPermission: function(formName, action) {
+      if (!this._cache) this._init();
+      if (!this._cache) return false;
+      
+      if (this._cache.isAdmin) return true; // Admin bypass
+      
+      if (!formName) return true; // Các module ko định danh thì cho phép qua
+      var perm = this._cache.dict[formName.toLowerCase()];
+      if (!perm) return false; // Không có trong phân quyền thì tịt
+      
+      // action có thể là 'IsAdd', 'IsUpdate', 'IsDelete', 'IsRun', v.v.
+      return (perm[action] == 1 || perm[action] === true);
+    }
+  };
   // 1. Khởi tạo trình quản lý phím tắt
   if (typeof KeyboardManager !== 'undefined') {
     KeyboardManager.init();
@@ -31,6 +74,20 @@ document.addEventListener('DOMContentLoaded', function () {
   // 2. Khởi tạo Router
   // Cấu hình các form có DetailTabs (Master-Detail)
   window.APP_MODULES = window.APP_MODULES || {};
+  window.APP_MODULES['WA_NGUOIDUNGNHOMFRM'] = {
+    FormName: 'WA_NguoiDungNhomFrm',
+    PrimaryKey: 'UserGroupID',
+    TitleAdd: 'Thêm nhóm',
+    TitleEdit: 'Sửa nhóm',
+    TitleView: 'Chi tiết nhóm'
+  };
+  window.APP_MODULES['WA_NGUOIDUNGFRM'] = {
+    FormName: 'WA_NguoiDungFrm',
+    PrimaryKey: 'UserID',
+    TitleAdd: 'Thêm người dùng',
+    TitleEdit: 'Sửa người dùng',
+    TitleView: 'Chi tiết người dùng'
+  };
   window.APP_MODULES['WA_TIMESHEETDAYFRM'] = {
     FormName: 'WA_TimeSheetDayFrm',
     PrimaryKey: 'UserAutoID',
@@ -117,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
     AllowDblClickToView: true,
     HideDetailTabsInModal: true,
     FilterKeywordLabel: 'Mã/Tên nhân viên',
-    SearchPlaceholder: 'Nhập mã, tên nhân viên hoặc số điện thoại...',
+    SearchPlaceholder: 'Tìm kiếm',
     WizardSteps: [
       { label: 'Thông tin công việc', icon: 'work', description: 'Vị trí và phòng ban', fields: ['PersonID', 'PersonName', 'PersonStatus', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 'ShiftID'] },
       { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch & Liên hệ', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'HonNhan', 'PeoplesName', 'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienNay', 'EducationName', 'CareerName', 'NguoiLienHe', 'MoiQuanHe', 'NguoiLienHeSoDT'] },

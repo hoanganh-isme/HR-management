@@ -24,6 +24,15 @@ VALUES
     (N'WA_PersonFullFrm', N'EDIT', N'Hồ sơ nhân viên tổng hợp', N'General Employee Profile', N'HR_PersonTbl', N'PersonID', N'Hồ sơ nhân viên tổng hợp');
 GO
 
+-- Xóa khai báo cũ nếu có
+DELETE FROM dbo.WA_API WHERE list = 'WA_PersonFullFrm' AND func = 'View';
+
+-- Thêm khai báo API Gateway cho Form WA_PersonFullFrm để lấy dữ liệu danh sách
+INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+VALUES 
+('WA_PersonFullFrm', 'View', 'API_HoSoNhanVien', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}''');
+GO
+
 -- =========================================================================
 -- 3. CẤU HÌNH LIÊN KẾT MASTER-DETAIL (SY_FrmCfg)
 -- =========================================================================
@@ -251,7 +260,7 @@ SET CaptionVN = CASE FieldName
         WHEN FieldName IN (
             'PersonID', 'PersonName', 'GioiTinh', 'NgaySinh', 'CMND', 'DienThoai', 
             'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 
-            'NgayVaoLam', 'PersonStatus', 'SoHopDong', 'BankAccountNo', 'BankName', 'PeoplesName', 'ReligionName', 'Nationality'
+            'NgayVaoLam', 'PersonStatusName', 'SoHopDong', 'BankAccountNo', 'BankName', 'PeoplesName', 'ReligionName', 'Nationality'
         ) THEN 'grid|6'
         -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Danh sách, CHỈ hiển thị trên Form chia 2 cột ('6')
         ELSE '6'

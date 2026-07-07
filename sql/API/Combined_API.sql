@@ -1,4 +1,4 @@
-﻿USE [X26DIMTUTAC]
+USE [X26DIMTUTAC]
 GO
 
 SET ANSI_NULLS ON
@@ -1576,7 +1576,7 @@ BEGIN
         BH.PeriodID,
         BH.LoaiBaoHiem,
         BH.BranchID,
-        (BH.PeriodID + BH.LoaiBaoHiem) AS PeriodKeyID,
+        CONCAT(BH.PeriodID, '_', BH.LoaiBaoHiem) AS PeriodKeyID,
         BH.UserCreate,
         BH.UserUpdate,
         BH.DateUpdate,
@@ -2022,8 +2022,7 @@ GO
 
 GO
 
-USE X26DIMTUTAC
-GO
+
 
 CREATE OR ALTER PROCEDURE dbo.API_DanhSachCaLamViecChiNhanh
 (
@@ -2981,7 +2980,7 @@ GO
 
 
 -- =========================================================================
--- 1. Master API: Danh sÃ¡ch nhÃ¢n viÃªn tá»•ng há»£p
+-- 1. Master API: Danh sÃƒÂ¡ch nhÃƒÂ¢n viÃƒÂªn tÃ¡Â»â€¢ng hÃ¡Â»Â£p
 -- EXEC dbo.API_HoSoNhanVien @Keyword = '', @BranchID = '', @PhongBan = ''
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVien
@@ -2991,7 +2990,7 @@ CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVien
     @PhongBan          NVARCHAR(50)  = '',
     @NamLap            INT           = NULL,
     @LoaiHD            NVARCHAR(50)  = '',
-    @PersonStatusName  NVARCHAR(100) = '', -- ThÃªm tham sá»‘ nháº­n TÃªn tráº¡ng thÃ¡i tá»« UI
+    @PersonStatusName  NVARCHAR(100) = '', -- ThÃƒÂªm tham sÃ¡Â»â€˜ nhÃ¡ÂºÂ­n TÃƒÂªn trÃ¡ÂºÂ¡ng thÃƒÂ¡i tÃ¡Â»Â« UI
     @PersonStatus      NVARCHAR(50)  = ''
 )
 AS
@@ -3002,12 +3001,12 @@ BEGIN
         P.PersonID,
         P.PersonName,
         P.PhongBan,
-        P.TitleName,            -- Chá»©c vá»¥
-        P.ChucDanhChuyenMon,    -- Chá»©c danh chuyÃªn mÃ´n
-        P.NgaySinh,             -- NgÃ y sinh
+        P.TitleName,            -- ChÃ¡Â»Â©c vÃ¡Â»Â¥
+        P.ChucDanhChuyenMon,    -- ChÃ¡Â»Â©c danh chuyÃƒÂªn mÃƒÂ´n
+        P.NgaySinh,             -- NgÃƒÂ y sinh
         P.CMND,                 -- CCCD
-        P.DiaChiThuongTru,      -- Äá»‹a chá»‰ thÆ°á»ng trÃº
-        P.NgayVaoLam,           -- NgÃ y nháº­n viá»‡c
+        P.DiaChiThuongTru,      -- Ã„ÂÃ¡Â»â€¹a chÃ¡Â»â€° thÃ†Â°Ã¡Â»Âng trÃƒÂº
+        P.NgayVaoLam,           -- NgÃƒÂ y nhÃ¡ÂºÂ­n viÃ¡Â»â€¡c
         P.BranchID,
         P.NgayHopDong,
         P.NationName,
@@ -3069,12 +3068,12 @@ BEGIN
         HD.LoaiHD,
         YEAR(P.NgayVaoLam) AS NamLap,
         PA.FileName,
-        PA.Content
+        NULL AS Content -- Removed PA.Content to drastically improve load time
     FROM dbo.HR_PersonTbl P
     LEFT JOIN dbo.HR_PersonStatusTbl S 
         ON P.PersonStatus = S.PersonStatus
     OUTER APPLY (
-        SELECT TOP 1 FileName, Content
+        SELECT TOP 1 FileName
         FROM dbo.HR_PersonAttachTbl
         WHERE PersonID = P.PersonID
         ORDER BY UserAutoID DESC
@@ -3086,25 +3085,25 @@ BEGIN
         ORDER BY NgayKyHopDong DESC
     ) HD
     WHERE 
-        -- Bá»™ lá»c tá»« khoÃ¡ (Keyword)
+        -- BÃ¡Â»â„¢ lÃ¡Â»Âc tÃ¡Â»Â« khoÃƒÂ¡ (Keyword)
         (@Keyword IS NULL OR @Keyword = ''
          OR P.PersonName LIKE N'%' + @Keyword + '%'
          OR P.PersonID   LIKE N'%' + @Keyword + '%'
          OR P.DienThoai  LIKE N'%' + @Keyword + '%')
         
-        -- Bá»™ lá»c chi nhÃ¡nh (BranchID)
+        -- BÃ¡Â»â„¢ lÃ¡Â»Âc chi nhÃƒÂ¡nh (BranchID)
         AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
 
-        -- Bá»™ lá»c bá»™ pháº­n (PhongBan)
+        -- BÃ¡Â»â„¢ lÃ¡Â»Âc bÃ¡Â»â„¢ phÃ¡ÂºÂ­n (PhongBan)
         AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
         
-        -- Bá»™ lá»c nÄƒm láº­p
+        -- BÃ¡Â»â„¢ lÃ¡Â»Âc nÃ„Æ’m lÃ¡ÂºÂ­p
         AND (@NamLap IS NULL OR YEAR(ISNULL(P.NgaySinh, '1900-01-01')) = @NamLap OR YEAR(ISNULL(P.NgayVaoLam, '1900-01-01')) = @NamLap)
         
-        -- Bá»™ lá»c loáº¡i há»£p Ä‘á»“ng (LoaiHD tá»« HR_HopDongTbl)
+        -- BÃ¡Â»â„¢ lÃ¡Â»Âc loÃ¡ÂºÂ¡i hÃ¡Â»Â£p Ã„â€˜Ã¡Â»â€œng (LoaiHD tÃ¡Â»Â« HR_HopDongTbl)
         AND (@LoaiHD = '' OR HD.LoaiHD LIKE N'%' + @LoaiHD + '%')
         
-        -- Bá»™ lá»c tráº¡ng thÃ¡i nhÃ¢n sá»± (theo tÃªn hiá»ƒn thá»‹ trÃªn UI hoáº·c mÃ£ tráº¡ng thÃ¡i)
+        -- BÃ¡Â»â„¢ lÃ¡Â»Âc trÃ¡ÂºÂ¡ng thÃƒÂ¡i nhÃƒÂ¢n sÃ¡Â»Â± (theo tÃƒÂªn hiÃ¡Â»Æ’n thÃ¡Â»â€¹ trÃƒÂªn UI hoÃ¡ÂºÂ·c mÃƒÂ£ trÃ¡ÂºÂ¡ng thÃƒÂ¡i)
         AND (@PersonStatusName = '' OR S.PersonStatusName = @PersonStatusName)
         AND (@PersonStatus = '' OR P.PersonStatus = @PersonStatus)
         
@@ -3112,7 +3111,7 @@ BEGIN
 END
 GO
 -- =========================================================================
--- 2. Detail API Tab 1: QuÃ¡ trÃ¬nh lÃ m viá»‡c vÃ  lÆ°Æ¡ng (HR_PersonSalaryTbl)
+-- 2. Detail API Tab 1: QuÃƒÂ¡ trÃƒÂ¬nh lÃƒÂ m viÃ¡Â»â€¡c vÃƒÂ  lÃ†Â°Ã†Â¡ng (HR_PersonSalaryTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T1_Salary
 (
@@ -3129,7 +3128,7 @@ END
 GO
 
 -- =========================================================================
--- 4. Detail API Tab 3: Khen thÆ°á»Ÿng - Ká»· luáº­t (HR_PersonKTKLTbl)
+-- 4. Detail API Tab 3: Khen thÃ†Â°Ã¡Â»Å¸ng - KÃ¡Â»Â· luÃ¡ÂºÂ­t (HR_PersonKTKLTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T3_KTKL
 (
@@ -3149,7 +3148,7 @@ END
 GO
 
 -- =========================================================================
--- 5. Detail API Tab 4: Khai bÃ¡o phÃ©p nÄƒm (HR_PersonNghiPhepTbl)
+-- 5. Detail API Tab 4: Khai bÃƒÂ¡o phÃƒÂ©p nÃ„Æ’m (HR_PersonNghiPhepTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T4_NghiPhep
 (
@@ -3178,7 +3177,7 @@ END
 GO
 
 -- =========================================================================
--- 6. Detail API Tab 5: Gia cáº£nh & Má»‘i liÃªn há»‡ (HR_PersonRelationTbl)
+-- 6. Detail API Tab 5: Gia cÃ¡ÂºÂ£nh & MÃ¡Â»â€˜i liÃƒÂªn hÃ¡Â»â€¡ (HR_PersonRelationTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T5_Relation
 (
@@ -3204,7 +3203,7 @@ END
 GO
 
 -- =========================================================================
--- 7. Detail API Tab 6: Lá»‹ch sá»­ há»£p Ä‘á»“ng (HR_HopDongTbl)
+-- 7. Detail API Tab 6: LÃ¡Â»â€¹ch sÃ¡Â»Â­ hÃ¡Â»Â£p Ã„â€˜Ã¡Â»â€œng (HR_HopDongTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T6_HopDong
 (
@@ -3231,7 +3230,7 @@ END
 GO
 
 -- =========================================================================
--- 8. Detail API Tab 7: Lá»‹ch sá»­ cÃ´ng tÃ¡c (HR_LichSuCongTacTbl)
+-- 8. Detail API Tab 7: LÃ¡Â»â€¹ch sÃ¡Â»Â­ cÃƒÂ´ng tÃƒÂ¡c (HR_LichSuCongTacTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T7_CongTac
 (
@@ -3257,7 +3256,7 @@ END
 GO
 
 -- =========================================================================
--- 9. Detail API Tab 8: Lá»‹ch sá»­ cÃ´ng viá»‡c (HR_PersonLogTbl)
+-- 9. Detail API Tab 8: LÃ¡Â»â€¹ch sÃ¡Â»Â­ cÃƒÂ´ng viÃ¡Â»â€¡c (HR_PersonLogTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T8_Log
 (
@@ -3281,7 +3280,7 @@ END
 GO
 
 -- =========================================================================
--- 10. Detail API Tab 9: Giáº¥y tá» (HR_PersonGiayToTbl)
+-- 10. Detail API Tab 9: GiÃ¡ÂºÂ¥y tÃ¡Â»Â (HR_PersonGiayToTbl)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T9_GiayTo
 (
@@ -3304,7 +3303,7 @@ END
 GO
 
 -- =========================================================================
--- ÄÄƒng kÃ½ cÃ¡c API nÃ y vÃ o báº£ng WA_API
+-- Ã„ÂÃ„Æ’ng kÃƒÂ½ cÃƒÂ¡c API nÃƒÂ y vÃƒÂ o bÃ¡ÂºÂ£ng WA_API
 -- =========================================================================
 DELETE FROM dbo.WA_API WHERE list = 'WA_PersonFullFrm';
 DELETE FROM dbo.WA_API WHERE list LIKE 'API_PersonFull_T%';
@@ -3326,7 +3325,7 @@ VALUES
 ('API_PersonFull_T9_GiayTo',    'View', 'API_PersonFull_T9_GiayTo',    '@PersonID=N''{PersonID}''');
 GO
 
--- 1. ÄÄƒng kÃ½ cÃ¡c Detail API lÃ m danh sÃ¡ch (List) trong SY_FrmLstTbl
+-- 1. Ã„ÂÃ„Æ’ng kÃƒÂ½ cÃƒÂ¡c Detail API lÃƒÂ m danh sÃƒÂ¡ch (List) trong SY_FrmLstTbl
 DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN (
     'API_PersonFull_T1_Salary',
     'API_PersonFull_T2_Allowance',
@@ -3341,18 +3340,18 @@ DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN (
 
 INSERT INTO dbo.SY_FrmLstTbl ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey])
 VALUES 
-('API_PersonFull_T1_Salary', 'LIST', N'QuÃ¡ trÃ¬nh lÆ°Æ¡ng', 'Salary', 'HR_PersonSalaryTbl', 'UserAutoID'),
-('API_PersonFull_T2_Allowance', 'LIST', N'Phá»¥ cáº¥p', 'Allowance', 'HR_PersonAllowanceTbl', 'UserAutoID'),
-('API_PersonFull_T3_KTKL', 'LIST', N'Khen thÆ°á»Ÿng ká»· luáº­t', 'KTKL', 'HR_PersonKTKLTbl', 'UserAutoID'),
-('API_PersonFull_T4_NghiPhep', 'LIST', N'Nghá»‰ phÃ©p', 'Leave', 'HR_PersonNghiPhepTbl', 'UserAutoID'),
-('API_PersonFull_T5_Relation', 'LIST', N'Gia cáº£nh', 'Relation', 'HR_PersonRelationTbl', 'RelationID'),
-('API_PersonFull_T6_HopDong', 'LIST', N'Há»£p Ä‘á»“ng', 'Contract', 'HR_HopDongTbl', 'MaHopDong'),
-('API_PersonFull_T7_CongTac', 'LIST', N'CÃ´ng tÃ¡c', 'Work history', 'HR_LichSuCongTacTbl', 'UserAutoID'),
+('API_PersonFull_T1_Salary', 'LIST', N'QuÃƒÂ¡ trÃƒÂ¬nh lÃ†Â°Ã†Â¡ng', 'Salary', 'HR_PersonSalaryTbl', 'UserAutoID'),
+('API_PersonFull_T2_Allowance', 'LIST', N'PhÃ¡Â»Â¥ cÃ¡ÂºÂ¥p', 'Allowance', 'HR_PersonAllowanceTbl', 'UserAutoID'),
+('API_PersonFull_T3_KTKL', 'LIST', N'Khen thÃ†Â°Ã¡Â»Å¸ng kÃ¡Â»Â· luÃ¡ÂºÂ­t', 'KTKL', 'HR_PersonKTKLTbl', 'UserAutoID'),
+('API_PersonFull_T4_NghiPhep', 'LIST', N'NghÃ¡Â»â€° phÃƒÂ©p', 'Leave', 'HR_PersonNghiPhepTbl', 'UserAutoID'),
+('API_PersonFull_T5_Relation', 'LIST', N'Gia cÃ¡ÂºÂ£nh', 'Relation', 'HR_PersonRelationTbl', 'RelationID'),
+('API_PersonFull_T6_HopDong', 'LIST', N'HÃ¡Â»Â£p Ã„â€˜Ã¡Â»â€œng', 'Contract', 'HR_HopDongTbl', 'MaHopDong'),
+('API_PersonFull_T7_CongTac', 'LIST', N'CÃƒÂ´ng tÃƒÂ¡c', 'Work history', 'HR_LichSuCongTacTbl', 'UserAutoID'),
 ('API_PersonFull_T8_Log', 'LIST', N'Log', 'Log', 'HR_LichSuCongViecTbl', 'UserAutoID'),
-('API_PersonFull_T9_GiayTo', 'LIST', N'Giáº¥y tá»', 'Document', 'HR_GiayToTbl', 'DocumentID');
+('API_PersonFull_T9_GiayTo', 'LIST', N'GiÃ¡ÂºÂ¥y tÃ¡Â»Â', 'Document', 'HR_GiayToTbl', 'DocumentID');
 GO
 
--- 2. ÄÄƒng kÃ½ Save/Delete trong WA_API
+-- 2. Ã„ÂÃ„Æ’ng kÃƒÂ½ Save/Delete trong WA_API
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
 ('API_PersonFull_T1_Salary', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
@@ -3393,7 +3392,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
-        -- TrÃ­ch xuáº¥t PersonID hoáº·c CandidateID tá»« chuá»—i JSON
+        -- TrÃƒÂ­ch xuÃ¡ÂºÂ¥t PersonID hoÃ¡ÂºÂ·c CandidateID tÃ¡Â»Â« chuÃ¡Â»â€”i JSON
         DECLARE @PersonID VARCHAR(50) = JSON_VALUE(@Data, '$.PersonID');
         DECLARE @CandidateID VARCHAR(50) = JSON_VALUE(@Data, '$.CandidateID');
         DECLARE @FileType INT = CAST(JSON_VALUE(@Data, '$.FileType') AS INT);
@@ -3402,11 +3401,11 @@ BEGIN
         
         IF @TargetID IS NULL OR @TargetID = ''
         BEGIN
-            SELECT -1 AS code, N'Lá»—i: KhÃ´ng tÃ¬m tháº¥y mÃ£ nhÃ¢n viÃªn/á»©ng viÃªn!' AS msg;
+            SELECT -1 AS code, N'LÃ¡Â»â€”i: KhÃƒÂ´ng tÃƒÂ¬m thÃ¡ÂºÂ¥y mÃƒÂ£ nhÃƒÂ¢n viÃƒÂªn/Ã¡Â»Â©ng viÃƒÂªn!' AS msg;
             RETURN;
         END
 
-        -- Náº¿u lÃ  táº£i áº£nh Ä‘áº¡i diá»‡n (FileType = 1) -> TÃ¬m ID áº£nh cÅ© Ä‘á»ƒ ghi Ä‘Ã¨ (UPDATE)
+        -- NÃ¡ÂºÂ¿u lÃƒÂ  tÃ¡ÂºÂ£i Ã¡ÂºÂ£nh Ã„â€˜Ã¡ÂºÂ¡i diÃ¡Â»â€¡n (FileType = 1) -> TÃƒÂ¬m ID Ã¡ÂºÂ£nh cÃ…Â© Ã„â€˜Ã¡Â»Æ’ ghi Ã„â€˜ÃƒÂ¨ (UPDATE)
         IF @FileType = 1 
         BEGIN
             DECLARE @ExistingID VARCHAR(50);
@@ -3416,13 +3415,13 @@ BEGIN
 
             IF @ExistingID IS NOT NULL
             BEGIN
-                -- Náº¿u Ä‘Ã£ tá»“n táº¡i áº£nh -> BÆ¡m UserAutoID vÃ o JSON vÃ  Ä‘á»•i IsEdit = 1
+                -- NÃ¡ÂºÂ¿u Ã„â€˜ÃƒÂ£ tÃ¡Â»â€œn tÃ¡ÂºÂ¡i Ã¡ÂºÂ£nh -> BÃ†Â¡m UserAutoID vÃƒÂ o JSON vÃƒÂ  Ã„â€˜Ã¡Â»â€¢i IsEdit = 1
                 SET @Data = JSON_MODIFY(@Data, '$.UserAutoID', @ExistingID);
                 SET @Data = JSON_MODIFY(@Data, '$.IsEdit', 1);
             END
         END
         
-        -- Uá»· quyá»n láº¡i cho hÃ m lÃµi API_LuuDong xá»­ lÃ½ JSON chuáº©n
+        -- UÃ¡Â»Â· quyÃ¡Â»Ân lÃ¡ÂºÂ¡i cho hÃƒÂ m lÃƒÂµi API_LuuDong xÃ¡Â»Â­ lÃƒÂ½ JSON chuÃ¡ÂºÂ©n
         EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
         
     END TRY
@@ -3549,6 +3548,60 @@ BEGIN
         OR P.PersonName LIKE N'%' + @Keyword + '%'
         OR L.GhiChu LIKE N'%' + @Keyword + '%'
     ORDER BY L.TuNgay DESC, L.PersonID ASC;
+END
+GO
+
+GO
+
+CREATE OR ALTER PROCEDURE [dbo].[API_NguoiDungFrm]
+(
+    @List VARCHAR(50) = '',
+    @Keyword NVARCHAR(200) = '',
+    @SortColumn VARCHAR(50) = '',
+    @SortDir VARCHAR(10) = '',
+    @Data NVARCHAR(MAX) = ''
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        U.*,
+        G.UserGroupName,
+        B.BranchName
+    FROM dbo.SY_User U
+    LEFT JOIN dbo.SY_UserGroup G ON U.UserGroupID = G.UserGroupID
+    LEFT JOIN dbo.CF_BranchTbl B ON U.BranchID = B.BranchID
+    WHERE (@Keyword = '' 
+           OR U.UserName LIKE N'%' + @Keyword + '%' 
+           OR U.HoTen LIKE N'%' + @Keyword + '%'
+           OR U.EmployeeID LIKE N'%' + @Keyword + '%')
+    ORDER BY U.UserName ASC;
+END
+GO
+
+GO
+
+CREATE OR ALTER PROCEDURE [dbo].[API_NguoiDungNhomFrm]
+(
+    @List VARCHAR(50) = '',
+    @Keyword NVARCHAR(200) = '',
+    @SortColumn VARCHAR(50) = '',
+    @SortDir VARCHAR(10) = '',
+    @Data NVARCHAR(MAX) = ''
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        G.UserGroupID,
+        G.UserGroupName,
+        G.IsDisable,
+        (SELECT COUNT(*) FROM dbo.SY_User U WHERE U.UserGroupID = G.UserGroupID) AS CountUser
+    FROM dbo.SY_UserGroup G
+    WHERE (@Keyword = '' OR G.UserGroupName LIKE N'%' + @Keyword + '%' OR G.UserGroupID LIKE N'%' + @Keyword + '%')
+    ORDER BY G.UserGroupID ASC;
 END
 GO
 
@@ -4362,8 +4415,6 @@ GO
 
 GO
 
-USE [QLTiec]
-GO
 
 IF OBJECT_ID('API_DongBoTruongGiaoDien', 'P') IS NOT NULL
     DROP PROCEDURE API_DongBoTruongGiaoDien;
@@ -5141,6 +5192,39 @@ BEGIN
     BEGIN TRY
         DECLARE @IsEdit INT = ISNULL(CAST(JSON_VALUE(@Data, '$.IsEdit') AS INT), 0);
         DECLARE @SQL NVARCHAR(MAX) = '';
+
+        -- =========================================================
+        -- Báº¢O Máº¬T: Kiá»ƒm tra quyá»n ThÃªm/Sá»­a tá»« WA_UserGroupPermisstion
+        -- =========================================================
+        IF @UserName <> 'Admin'
+        BEGIN
+            DECLARE @HasPermission INT = 0;
+            DECLARE @UserGrp VARCHAR(50);
+            DECLARE @MenuID VARCHAR(50);
+
+            -- Láº¥y NhÃ³m cá»§a tÃ i khoáº£n Ä‘ang thao tÃ¡c
+            SELECT @UserGrp = UserGroupID FROM SY_User WHERE UserName = @UserName;
+            
+            -- Láº¥y mÃ£ Menu gáº¯n vá»›i FormName (@List)
+            SELECT TOP 1 @MenuID = MenuID FROM WA_Menu WHERE FormName = @List;
+
+            -- Chá»‰ kiá»ƒm tra náº¿u Form nÃ y cÃ³ Ä‘Äƒng kÃ½ trÃªn Menu
+            IF @MenuID IS NOT NULL AND @UserGrp IS NOT NULL
+            BEGIN
+                IF @IsEdit = 0 -- ThÃªm má»›i
+                    SELECT @HasPermission = IsAdd FROM WA_UserGroupPermisstion WHERE UserGroupID = @UserGrp AND MenuID = @MenuID;
+                ELSE -- Cáº­p nháº­t
+                    SELECT @HasPermission = IsUpdate FROM WA_UserGroupPermisstion WHERE UserGroupID = @UserGrp AND MenuID = @MenuID;
+
+                IF ISNULL(@HasPermission, 0) = 0
+                BEGIN
+                    SELECT -1 AS code, N'Lá»—i báº£o máº­t (RBAC): Báº¡n khÃ´ng cÃ³ quyá»n ' + (CASE WHEN @IsEdit = 0 THEN N'ThÃªm má»›i' ELSE N'Cáº­p nháº­t' END) + N' á»Ÿ chá»©c nÄƒng nÃ y!' AS msg;
+                    RETURN;
+                END
+            END
+        END
+        -- =========================================================
+
         
         -- 1. Lá»c cÃ¡c cá»™t há»£p lá»‡ tá»« JSON (Bá» qua cÃ¡c cá»™t há»‡ thá»‘ng do FE Ä‘áº©y xuá»‘ng)
         -- Sá»­ dá»¥ng JOIN vá»›i sys.columns (so sÃ¡nh khÃ´ng phÃ¢n biá»‡t hoa thÆ°á»ng) Ä‘á»ƒ láº¥y Ä‘Ãºng casing váº­t lÃ½
@@ -6752,6 +6836,30 @@ BEGIN
     END
 
     BEGIN TRY
+        -- =========================================================
+        -- Báº¢O Máº¬T: Kiá»ƒm tra quyá»n XÃ³a tá»« WA_UserGroupPermisstion
+        -- =========================================================
+        IF @UserName <> 'Admin'
+        BEGIN
+            DECLARE @HasPermission INT = 0;
+            DECLARE @UserGrp VARCHAR(50);
+            DECLARE @MenuID VARCHAR(50);
+
+            SELECT @UserGrp = UserGroupID FROM SY_User WHERE UserName = @UserName;
+            SELECT TOP 1 @MenuID = MenuID FROM WA_Menu WHERE FormName = @List;
+
+            IF @MenuID IS NOT NULL AND @UserGrp IS NOT NULL
+            BEGIN
+                SELECT @HasPermission = IsDelete FROM WA_UserGroupPermisstion WHERE UserGroupID = @UserGrp AND MenuID = @MenuID;
+                IF ISNULL(@HasPermission, 0) = 0
+                BEGIN
+                    SELECT -1 AS code, N'Lá»—i báº£o máº­t (RBAC): Báº¡n khÃ´ng cÃ³ quyá»n XÃ³a á»Ÿ chá»©c nÄƒng nÃ y!' AS msg;
+                    RETURN;
+                END
+            END
+        END
+        -- =========================================================
+
         DECLARE @sql NVARCHAR(MAX) = '';
         DECLARE @RowsAffected INT = 0;
         

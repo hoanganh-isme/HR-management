@@ -77,6 +77,39 @@ BEGIN
     BEGIN TRY
         DECLARE @IsEdit INT = ISNULL(CAST(JSON_VALUE(@Data, '$.IsEdit') AS INT), 0);
         DECLARE @SQL NVARCHAR(MAX) = '';
+
+        -- =========================================================
+        -- BẢO MẬT: Kiểm tra quyền Thêm/Sửa từ WA_UserGroupPermisstion
+        -- =========================================================
+        IF @UserName <> 'Admin'
+        BEGIN
+            DECLARE @HasPermission INT = 0;
+            DECLARE @UserGrp VARCHAR(50);
+            DECLARE @MenuID VARCHAR(50);
+
+            -- Lấy Nhóm của tài khoản đang thao tác
+            SELECT @UserGrp = UserGroupID FROM SY_User WHERE UserName = @UserName;
+            
+            -- Lấy mã Menu gắn với FormName (@List)
+            SELECT TOP 1 @MenuID = MenuID FROM WA_Menu WHERE FormName = @List;
+
+            -- Chỉ kiểm tra nếu Form này có đăng ký trên Menu
+            IF @MenuID IS NOT NULL AND @UserGrp IS NOT NULL
+            BEGIN
+                IF @IsEdit = 0 -- Thêm mới
+                    SELECT @HasPermission = IsAdd FROM WA_UserGroupPermisstion WHERE UserGroupID = @UserGrp AND MenuID = @MenuID;
+                ELSE -- Cập nhật
+                    SELECT @HasPermission = IsUpdate FROM WA_UserGroupPermisstion WHERE UserGroupID = @UserGrp AND MenuID = @MenuID;
+
+                IF ISNULL(@HasPermission, 0) = 0
+                BEGIN
+                    SELECT -1 AS code, N'Lỗi bảo mật (RBAC): Bạn không có quyền ' + (CASE WHEN @IsEdit = 0 THEN N'Thêm mới' ELSE N'Cập nhật' END) + N' ở chức năng này!' AS msg;
+                    RETURN;
+                END
+            END
+        END
+        -- =========================================================
+
         
         -- 1. Lọc các cột hợp lệ từ JSON (Bỏ qua các cột hệ thống do FE đẩy xuống)
         -- Sử dụng JOIN với sys.columns (so sánh không phân biệt hoa thường) để lấy đúng casing vật lý
@@ -265,7 +298,12 @@ BEGIN
         END
 
         -- Chạy câu lệnh sinh ra
+        DECLARE @AppLockResource VARCHAR(255) = 'API_LuuDong_' + @TableName;
+        EXEC sp_getapplock @Resource = @AppLockResource, @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = 15000;
+        
         EXEC sp_executesql @SQL;
+        
+        EXEC sp_releaseapplock @Resource = @AppLockResource, @LockOwner = 'Session';
 
         SELECT 0 AS code, N'Lưu thành công!' AS msg;
         
@@ -273,6 +311,11 @@ BEGIN
         DROP TABLE #JsonData;
     END TRY
     BEGIN CATCH
+        -- Giải phóng lock nếu có lỗi xảy ra
+        DECLARE @CatchLockName VARCHAR(255) = 'API_LuuDong_' + ISNULL(@TableName, '');
+        IF APPLOCK_MODE('public', @CatchLockName, 'Session') <> 'NoLock'
+            EXEC sp_releaseapplock @Resource = @CatchLockName, @LockOwner = 'Session';
+
         -- Bẫy lỗi và in ra câu lệnh SQL để dễ debug
         DECLARE @ErrMsg NVARCHAR(MAX) = ERROR_MESSAGE();
         SELECT -1 AS code, N'Lỗi SQL: ' + @ErrMsg + N'. [SQL: ' + ISNULL(@SQL, '') + N']' AS msg;

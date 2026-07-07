@@ -1,5 +1,3 @@
-USE [X26DIMTUTAC]
-GO
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_ShiftListCNFrm

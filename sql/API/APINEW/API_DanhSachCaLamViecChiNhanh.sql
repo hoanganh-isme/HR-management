@@ -1,5 +1,4 @@
-USE X26DIMTUTAC
-GO
+
 
 CREATE OR ALTER PROCEDURE dbo.API_DanhSachCaLamViecChiNhanh
 (

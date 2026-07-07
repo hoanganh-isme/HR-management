@@ -1,4 +1,4 @@
-﻿
+
 -- =========================================================================
 -- 1. Master API: Danh sÃ¡ch nhÃ¢n viÃªn tá»•ng há»£p
 -- EXEC dbo.API_HoSoNhanVien @Keyword = '', @BranchID = '', @PhongBan = ''
@@ -88,12 +88,12 @@ BEGIN
         HD.LoaiHD,
         YEAR(P.NgayVaoLam) AS NamLap,
         PA.FileName,
-        PA.Content
+        NULL AS Content -- Removed PA.Content to drastically improve load time
     FROM dbo.HR_PersonTbl P
     LEFT JOIN dbo.HR_PersonStatusTbl S 
         ON P.PersonStatus = S.PersonStatus
     OUTER APPLY (
-        SELECT TOP 1 FileName, Content
+        SELECT TOP 1 FileName
         FROM dbo.HR_PersonAttachTbl
         WHERE PersonID = P.PersonID
         ORDER BY UserAutoID DESC
