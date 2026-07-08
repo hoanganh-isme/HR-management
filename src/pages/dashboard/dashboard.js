@@ -43,7 +43,7 @@ var DashboardPage = (function () {
              avgGuest:Math.round(r/(g[p]||890)),
              profit:Math.round(r*0.62), prevProfit:Math.round(pr*0.60),
              sparkline:_spark(),
-             pieLabels: ['Tiệc cưới', 'Hội nghị', 'Sinh nhật', 'Khác'],
+             pieLabels: ['Hành chính', 'Kế toán', 'Kỹ thuật', 'Khác'],
              pieValues: pie };
   }
   function _spark() {
@@ -256,12 +256,12 @@ var DashboardPage = (function () {
     });
     _refs.mcOngoing = MetricCard.create({
       icon:'restaurant', iconColor:'#F59E0B', iconBg:'rgba(245,158,11,0.08)',
-      label:'Tiệc đang diễn ra',
+      label:'Nhân viên đang làm việc',
       value:d.ongoing, subValue:d.ongoingGuests+' khách'
     });
     _refs.mcUpcoming = MetricCard.create({
       icon:'event', iconColor:'#0EA5E9', iconBg:'rgba(14,165,233,0.08)',
-      label:'Tiệc sắp diễn ra',
+      label:'Nhân viên nghỉ phép',
       value:d.upcoming, subValue:d.upcomingTime
     });
     _refs.mcCancelled = MetricCard.create({
@@ -351,7 +351,7 @@ var DashboardPage = (function () {
 
     var pieLabel = document.createElement('div');
     pieLabel.style.cssText = 'font-size: 11px; color: var(--color-text-secondary); margin-top: 10px; font-weight: 500; text-align: center; line-height: 1.3;';
-    pieLabel.textContent = 'Phân bổ loại tiệc';
+    pieLabel.textContent = 'Phân bổ nhân sự';
     pieCol.appendChild(pieLabel);
 
     left.appendChild(pieCol);
@@ -441,10 +441,10 @@ var DashboardPage = (function () {
     var bd = _bizData(_period.biz);
     _refs.bizTable = KVTable.create({ rows:[
       { label:'', value:'Số tiền', isHeader:true },
-      { label:'Doanh thu từ tiệc cưới', value:_fmtShort(bd.revenue) },
+      { label:'Quỹ lương bộ phận', value:_fmtShort(bd.revenue) },
       { label:'Chi phí dịch vụ', value:_fmtShort(bd.cost), color:'danger' },
       { label:'Khuyến mãi / Giảm giá', value:_fmtShort(bd.discount), color:'warning' },
-      { label:'Lợi nhuận từ tiệc cưới', value:_fmtShort(bd.profit), color:'success', isTotal:true }
+      { label:'Quỹ khen thưởng', value:_fmtShort(bd.profit), color:'success', isTotal:true }
     ]});
     // Fix header row label
     var headerRow = _refs.bizTable.querySelector('.kvtable__row--header .kvtable__label');
@@ -532,10 +532,10 @@ var DashboardPage = (function () {
     var d = _bizData(_period.biz);
     KVTable.setRows(_refs.bizTable, [
       { label:'Chỉ tiêu', value:'Số tiền', isHeader:true },
-      { label:'Doanh thu từ tiệc cưới', value:_fmtShort(d.revenue) },
+      { label:'Quỹ lương bộ phận', value:_fmtShort(d.revenue) },
       { label:'Chi phí dịch vụ', value:_fmtShort(d.cost), color:'danger' },
       { label:'Khuyến mãi / Giảm giá', value:_fmtShort(d.discount), color:'warning' },
-      { label:'Lợi nhuận từ tiệc cưới', value:_fmtShort(d.profit), color:'success', isTotal:true }
+      { label:'Quỹ khen thưởng', value:_fmtShort(d.profit), color:'success', isTotal:true }
     ]);
   }
 

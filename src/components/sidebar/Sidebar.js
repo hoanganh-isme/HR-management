@@ -134,8 +134,8 @@ var Sidebar = (function () {
       <aside class="app-sidebar" id="app-sidebar">
         <div class="sidebar-header">
           <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
           </div>
           <!-- Nút đóng Sidebar trên Mobile -->
           <button class="btn-close-sidebar" id="btn-close-sidebar">

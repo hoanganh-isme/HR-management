@@ -1,5 +1,3 @@
-USE [QLTiec]
-GO
 
 ALTER PROCEDURE [dbo].[API_LayMenuTheoNhomQuyen]
     @NhomNguoiDangThaoTac NVARCHAR(50), -- BẮT BUỘC THÊM: ID Nhóm của người gọi API

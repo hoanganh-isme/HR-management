@@ -179,8 +179,8 @@ var Navbar = (function () {
 
         <!-- Brand / Logo -->
         <div class="navbar-brand" onclick="window.location.hash='#/'" style="display:flex; align-items:center;">
-          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
-          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
         </div>
 
         <!-- Desktop Menu with scroll arrows -->
@@ -244,8 +244,8 @@ var Navbar = (function () {
       <div class="mobile-drawer" id="mobile-drawer">
         <div class="mobile-drawer-header">
           <div class="mobile-drawer-brand" style="display:flex; align-items:center; justify-content:center; width:100%; margin: 12px 0;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
           </div>
           <button class="mobile-drawer-close" id="mobile-drawer-close">
             <span class="material-symbols-outlined">arrow_back</span>
@@ -273,8 +273,8 @@ var Navbar = (function () {
         <aside class="app-sidebar" id="app-sidebar">
           <div class="sidebar-header">
             <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
-              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
+              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
             </div>
             <button class="btn-close-sidebar" id="btn-close-sidebar">
               <span class="material-symbols-outlined">arrow_back</span>
@@ -469,7 +469,7 @@ var Navbar = (function () {
     var vertNavUserName = document.getElementById('vert-nav-user-name');
     var navAvatar = document.getElementById('nav-avatar-img');
     var vertNavAvatar = document.getElementById('vert-nav-avatar-img');
-    
+
     if (navUserName) navUserName.textContent = userName;
     if (vertNavUserName) vertNavUserName.textContent = userName;
     if (navAvatar) navAvatar.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=3C50E0&color=fff";

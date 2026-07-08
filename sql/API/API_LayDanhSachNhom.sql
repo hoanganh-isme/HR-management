@@ -1,5 +1,4 @@
-﻿USE [QLTiec]
-GO
+﻿
 
 CREATE PROCEDURE [dbo].[API_LayDanhSachNhom]
 AS

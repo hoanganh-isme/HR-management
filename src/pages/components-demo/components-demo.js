@@ -244,7 +244,7 @@ var ComponentsDemoPage = (function () {
       { id: '140101', parent: '14', label: 'BC Khách tham quan' },
       { id: '140103', parent: '14', label: 'BC Khách cọc chỗ' },
       { id: '140112', parent: '14', label: 'TK Tiền cọc - coc hội' },
-      { id: '140115', parent: '14', label: 'TK Tiến trình nhận tiệc' },
+      { id: '140115', parent: '14', label: 'TK Tiến trình nhân sự' },
       { id: '1402',   parent: '14', label: 'Báo cáo dịch vụ' },
 
       // Tab Cha: Hệ thống (10)
@@ -308,7 +308,7 @@ var ComponentsDemoPage = (function () {
       { id: '1401', parent: '14', label: 'Thống kê chung' },
       { id: '140101', parent: '14', label: 'BC Khách tham quan' },
       { id: '140103', parent: '14', label: 'BC Cọc chỗ' },
-      { id: '140115', parent: '14', label: 'TK Tiến trình nhận tiệc' },
+      { id: '140115', parent: '14', label: 'TK Tiến trình nhân sự' },
       { id: '10', parent: '',   label: 'Hệ thống',   icon: 'settings' },
       { id: '1001', parent: '10', label: 'Người dùng' },
       { id: '1002', parent: '10', label: 'Phân quyền' },
@@ -344,7 +344,7 @@ var ComponentsDemoPage = (function () {
     if (typeof UIAccordion !== 'undefined') {
       el.appendChild(UIAccordion.create([
         { title: 'Điều khoản Thanh toán', content: 'Khách hàng thanh toán 50% tiền cọc khi ký hợp đồng. Phần còn lại thanh toán trước ngày tổ chức.' },
-        { title: 'Chính sách Hủy tiệc', content: 'Hủy trước 30 ngày: hoàn 80% tiền cọc. Hủy trước 15 ngày: hoàn 50%. Hủy trước 7 ngày: không hoàn.' },
+        { title: 'Chính sách Nghỉ phép', content: 'Nghỉ có lương: cần xin phép trước 3 ngày. Nghỉ không lương: cần sự đồng ý của trưởng phòng.' },
         { title: 'Dịch vụ bổ sung', content: 'MC, Vũ đoàn, Trang trí hoa tươi, Chụp ảnh sự kiện... được tính phí phát sinh ngoài hợp đồng.' }
       ]));
     } else { el.innerHTML = '<p style="color:var(--color-text-secondary)">UIAccordion chưa được khai báo.</p>'; }
@@ -359,7 +359,7 @@ var ComponentsDemoPage = (function () {
         { label: 'Khách tham quan', completed: true },
         { label: 'Đặt cọc lần 1', completed: true },
         { label: 'Ký hợp đồng', active: true },
-        { label: 'Tổ chức tiệc' },
+        { label: 'Đánh giá năng lực' },
         { label: 'Quyết toán' }
       ]));
     } else { el.innerHTML = '<p style="color:var(--color-text-secondary)">UIStepper chưa được khai báo.</p>'; }
@@ -373,7 +373,7 @@ var ComponentsDemoPage = (function () {
       el.appendChild(UITimeline.create([
         { time: '09:00', title: 'Khách đến tham quan', desc: 'Trương Tuấn Anh & Trần Thủy Tiên', type: 'info' },
         { time: '10:30', title: 'Ký biên nhận cọc lần 1', desc: 'Cọc 20,000,000 VNĐ', type: 'success' },
-        { time: '14:00', title: 'Lập hợp đồng tiệc', desc: 'HĐ-260101 — Sảnh Kim Cương', type: 'primary' },
+        { time: '14:00', title: 'Ký hợp đồng lao động', desc: 'HĐ-260101 — Nhân sự mới', type: 'primary' },
         { time: '16:00', title: 'In phiếu giao khách', desc: 'Hoàn tất quy trình', type: 'warning' }
       ]));
     } else { el.innerHTML = '<p style="color:var(--color-text-secondary)">UITimeline chưa được khai báo.</p>'; }
@@ -521,7 +521,7 @@ var ComponentsDemoPage = (function () {
   function _mountInputs() {
     var el = document.getElementById('demo-inputs');
     if (!el) return;
-    el.innerHTML = '<div class="row g-3"><div class="col-md-4"><div class="form-group"><label class="form-label">Text Input</label><input type="text" class="ui-input w-100" placeholder="Nhập văn bản..."></div></div><div class="col-md-4"><div class="form-group"><label class="form-label">Number Input</label><input type="number" class="ui-input w-100" placeholder="0" value="100"></div></div><div class="col-md-4"><div class="form-group"><label class="form-label">Date Input</label><input type="date" class="ui-input w-100"></div></div><div class="col-md-4"><div class="form-group"><label class="form-label">Select</label><select class="ui-input w-100"><option>Tiệc Cưới</option><option>Sinh Nhật</option><option>Hội Nghị</option></select></div></div><div class="col-md-4" id="demo-pw-slot"></div><div class="col-md-4"><div class="form-group"><label class="form-label">Readonly</label><input type="text" class="ui-input w-100" value="Không thể sửa" readonly style="background: rgba(148, 163, 184, 0.1);"></div></div><div class="col-12"><div class="form-group"><label class="form-label">Textarea</label><textarea class="ui-input w-100" rows="3" placeholder="Nhập ghi chú..." style="resize:vertical;"></textarea></div></div></div>';
+    el.innerHTML = '<div class="row g-3"><div class="col-md-4"><div class="form-group"><label class="form-label">Text Input</label><input type="text" class="ui-input w-100" placeholder="Nhập văn bản..."></div></div><div class="col-md-4"><div class="form-group"><label class="form-label">Number Input</label><input type="number" class="ui-input w-100" placeholder="0" value="100"></div></div><div class="col-md-4"><div class="form-group"><label class="form-label">Date Input</label><input type="date" class="ui-input w-100"></div></div><div class="col-md-4"><div class="form-group"><label class="form-label">Select</label><select class="ui-input w-100"><option>Phòng Kỹ thuật</option><option>Phòng Nhân sự</option><option>Phòng Kế toán</option></select></div></div><div class="col-md-4" id="demo-pw-slot"></div><div class="col-md-4"><div class="form-group"><label class="form-label">Readonly</label><input type="text" class="ui-input w-100" value="Không thể sửa" readonly style="background: rgba(148, 163, 184, 0.1);"></div></div><div class="col-12"><div class="form-group"><label class="form-label">Textarea</label><textarea class="ui-input w-100" rows="3" placeholder="Nhập ghi chú..." style="resize:vertical;"></textarea></div></div></div>';
     // Chèn Password component (DOM) vào slot
     var pwSlot = el.querySelector('#demo-pw-slot');
     if (pwSlot) {

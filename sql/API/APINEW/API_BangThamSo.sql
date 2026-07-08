@@ -1,5 +1,4 @@
-USE X26DIM_TT
-GO
+
 CREATE OR ALTER PROCEDURE dbo.API_BangThamSo
 (
     @Keyword NVARCHAR(200) = ''

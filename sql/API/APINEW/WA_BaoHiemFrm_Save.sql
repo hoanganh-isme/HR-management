@@ -1,5 +1,3 @@
-USE X26DIM_TT;
-GO
 
 IF OBJECT_ID('dbo.WA_BaoHiemFrm_Save', 'P') IS NOT NULL
     DROP PROCEDURE dbo.WA_BaoHiemFrm_Save;

@@ -80,7 +80,7 @@ var MockData = {
   // Dữ liệu Demo Khảo sát - Yếu tố đặt tiệc
   demoSurveyFactors: [
     { label: 'Không gian sảnh', value: 35 },
-    { label: 'Thực đơn ngon', value: 25 },
+    { label: 'Môi trường tốt', value: 25 },
     { label: 'Giá cả hợp lý', value: 20 },
     { label: 'Khuyến mãi tốt', value: 15 },
     { label: 'Phục vụ', value: 5 }

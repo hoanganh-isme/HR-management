@@ -760,20 +760,12 @@ window.DynamicFormEngine = (function () {
           var fieldName = item.name || item.FieldName;
           var isReadOnlyEditVal = _bool(item.isReadOnlyEdit, item.IsReadOnlyEdit);
           var isReadOnlyAddVal = _bool(item.isReadOnlyAdd, item.IsReadOnlyAdd);
-          if (MODULE_CONFIG.FormName === 'WA_KinhPhiCongDoanFrm' && ['PersonName', 'ChucDanhChuyenMon', 'BranchID'].includes(fieldName)) {
-            isReadOnlyEditVal = true;
-            isReadOnlyAddVal = true;
-          }
-
-          if (['WA_PersonFullFrm'].includes(MODULE_CONFIG.FormName)) {
-            if (['PersonID', 'NewPersonID'].includes(fieldName)) {
-              isReadOnlyEditVal = true;
-              isReadOnlyAddVal = true; // Không cho sửa mã vì đã gen
-            }
-            if (['PersonName', 'PersonStatus'].includes(fieldName)) {
-              item.required = true;
-              item.IsRequired = true;
-            }
+          if (MODULE_CONFIG.fieldOverrides && MODULE_CONFIG.fieldOverrides[fieldName]) {
+            var overrides = MODULE_CONFIG.fieldOverrides[fieldName];
+            if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
+            if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
+            if (overrides.required !== undefined) item.required = overrides.required;
+            if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
           }
 
           globalFormSchema.push({
@@ -804,9 +796,9 @@ window.DynamicFormEngine = (function () {
         console.warn('API Dictionary fetch failed or empty', resConfig);
       }
       // Tự động sinh mã HTML (Không cần file .html rời nữa)
-      if ((MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' || MODULE_CONFIG.UseSplitLayout) && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
-        var defaultDetailTitle = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
-        var defaultSelectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
+      if (MODULE_CONFIG.UseSplitLayout && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
+        var defaultDetailTitle = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
+        var defaultSelectText = MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết';
         var detailWidth = MODULE_CONFIG.SplitLayoutDetailWidth || '450px';
         $container.innerHTML = `
           <div id="dynamic-btn-container" style="display:none;"></div>
@@ -1433,395 +1425,395 @@ window.DynamicFormEngine = (function () {
         }
 
         tabulatorActionWrapper.appendChild(tabulatorActionBtn);
-          // Append menu to body to avoid overflow hidden clipping from parents
-          document.body.appendChild(tabulatorActionMenu);
+        // Append menu to body to avoid overflow hidden clipping from parents
+        document.body.appendChild(tabulatorActionMenu);
 
-          // Bật/tắt menu
-          tabulatorActionBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            var isVisible = tabulatorActionMenu.style.display === 'block';
-            document.querySelectorAll('.dropdown-menu-custom').forEach(function (el) { el.style.display = 'none'; });
+        // Bật/tắt menu
+        tabulatorActionBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var isVisible = tabulatorActionMenu.style.display === 'block';
+          document.querySelectorAll('.dropdown-menu-custom').forEach(function (el) { el.style.display = 'none'; });
 
-            if (!isVisible) {
-              var rect = tabulatorActionBtn.getBoundingClientRect();
-              tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
-              // Đẩy sang trái một chút nếu nút nằm ở góc phải
-              tabulatorActionMenu.style.left = (rect.right - 200) + 'px';
-              // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
-              if (parseInt(tabulatorActionMenu.style.left) < 10) {
-                tabulatorActionMenu.style.left = '10px';
-              }
-              tabulatorActionMenu.style.display = 'block';
-            } else {
-              tabulatorActionMenu.style.display = 'none';
+          if (!isVisible) {
+            var rect = tabulatorActionBtn.getBoundingClientRect();
+            tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
+            // Đẩy sang trái một chút nếu nút nằm ở góc phải
+            tabulatorActionMenu.style.left = (rect.right - 200) + 'px';
+            // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
+            if (parseInt(tabulatorActionMenu.style.left) < 10) {
+              tabulatorActionMenu.style.left = '10px';
             }
-          });
-
-          // Đóng menu khi click bên ngoài
-          document.addEventListener('click', function (e) {
-            if (!tabulatorActionWrapper.contains(e.target) && !tabulatorActionMenu.contains(e.target)) {
-              tabulatorActionMenu.style.display = 'none';
-            }
-          });
-
-
-          var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
-          var isReport = formNameLower.endsWith('report');
-          var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
-
-          var toolbar = UIActionToolbar.create({
-            onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
-            onEdit: (isFrm && !MODULE_CONFIG.HideEditBtn) ? (_hasPermission('EDIT') ? function () {
-              if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectEdit);
-
-              // CHẶN CHỈNH SỬA NẾU HỢP ĐỒNG ĐÃ CHỐT
-              var hasSigned = selectedRows.find(function (r) {
-                var st = (r.TrangThai || '').toString().toLowerCase();
-                return st.includes('đã ký');
-              });
-              if (hasSigned) {
-                return Alert.warning('Bị khóa', 'Không thể sửa hợp đồng/phiếu đã chốt (Đã ký). Vui lòng dùng chức năng Phụ lục nếu muốn thay đổi!');
-              }
-
-              if (selectedRows.length > 1) {
-                _openBulkEditForm();
-              } else {
-                _openEditForm(selectedRows[0]);
-              }
-            } : 'DISABLED') : false,
-            onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
-              if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
-
-              // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
-              var hasSigned = selectedRows.find(function (r) {
-                var st = (r.TrangThai || '').toString().toLowerCase();
-                return st.includes('đã ký') || st.includes('quyết toán') || st === 'signed' || st === 'completed';
-              });
-              if (hasSigned) {
-                return Alert.warning('Bị khóa', 'Tuyệt đối không được xóa hợp đồng/phiếu đã chốt (Đã ký / Đã quyết toán). Hệ thống yêu cầu lưu trữ chứng từ pháp lý!');
-              }
-
-              // Hàm thực thi xóa gọi API
-              var performDelete = function () {
-                if (!MODULE_CONFIG.ApiDelete) {
-                  return Alert.info(MODULE_CONFIG.AlertTitleInfo, MODULE_CONFIG.InfoDeleteDev);
-                }
-
-                // Xử lý từng dòng một (Vì API Gateway C# map JSON sang Model, thiếu field sẽ bị NULL update)
-                var deletePromises = selectedRows.map(function (row) {
-                  var payload = {
-                    List: MODULE_CONFIG.FormName,
-                    Func: 'Delete',
-                    UserName: _currentUser()
-                  };
-
-                  // Bơm toàn bộ dữ liệu gốc của row vào để C# binding không bị mất các cột Not Null (như Ngaytochuc)
-                  var rowData = Object.assign({}, row);
-                  rowData.IsDeleted = 1; // Flag xóa mềm
-
-                  payload.JsonData = JSON.stringify(rowData);
-
-                  return ApiClient.post(MODULE_CONFIG.ApiDelete, payload);
-                });
-
-                Promise.all(deletePromises).then(function (results) {
-                  var allSuccess = results.every(function (res) { return res && res.code === 0; });
-                  if (allSuccess) {
-                    if (typeof UIToast !== 'undefined') UIToast.show(MODULE_CONFIG.ToastDelete, 'success');
-                    selectedRows = [];
-                    if (_isFormBuilder()) window._uiConfigCache = {};
-                    _updateSelectionCounter();
-                    _loadData();
-                  } else {
-                    Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertDeleteFailed);
-                  }
-                }).catch(function (err) {
-                  Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
-                });
-              };
-
-              // Xóa hàng loạt
-              if (selectedRows.length > 1) {
-                if (typeof ConfirmModal !== 'undefined') {
-                  ConfirmModal.show({
-                    title: MODULE_CONFIG.AlertTitleConfirm,
-                    message: `Bạn có chắc muốn xóa ${selectedRows.length} dòng đã chọn?`,
-                    onConfirm: performDelete
-                  });
-                }
-              } else {
-                var deleteName = selectedRows[0][MODULE_CONFIG.RowNameField] || MODULE_CONFIG.TextDeleteFallback;
-                if (typeof ConfirmModal !== 'undefined') {
-                  ConfirmModal.show({
-                    title: MODULE_CONFIG.AlertTitleConfirm,
-                    message: MODULE_CONFIG.ConfirmDelete.replace('{0}', deleteName),
-                    onConfirm: performDelete
-                  });
-                }
-              }
-            } : false) : false,
-            onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
-              var filterContainer = $container.querySelector('#dynamic-filter-container');
-              if (filterContainer) {
-                if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
-                  filterContainer.style.display = 'flex';
-                  var inputKeyword = filterContainer.querySelector('#keyword');
-                  if (inputKeyword) inputKeyword.focus();
-                } else {
-                  filterContainer.style.display = 'none';
-                }
-              }
-            },
-            onPrint: false, // Ẩn nút In theo yêu cầu UX
-            onClose: false,
-            extras: extraBtns
-          });
-          toolbar.style.display = 'inline-flex';
-          toolbar.style.width = 'auto';
-
-          // // Custom Buttons
-          // var hasAdd = _hasPermission('ADD');
-          // if (isFrm && !MODULE_CONFIG.HideAddBtn) {
-          //   var bulkAddConfig = {
-          //     text: 'Thêm nhiều',
-          //     icon: 'post_add',
-          //     type: 'tool',
-          //     disabled: !hasAdd,
-          //     onClick: function () {
-          //       if (!hasAdd) return typeof Alert !== 'undefined' ? Alert.warning('Từ chối', 'Bạn không có quyền thao tác chức năng này!') : null;
-          //       var emptyRows = [];
-          //       for (var i = 0; i < 3; i++) emptyRows.push({});
-          //       _openBulkGridEditForm(emptyRows, true);
-          //     }
-          //   };
-          //   // Dùng API addToMobilePanel để thêm vào cả desktop bar lẫn mobile action sheet
-          //   if (typeof toolbar.addToMobilePanel === 'function') {
-          //     toolbar.addToMobilePanel(bulkAddConfig, true); // insertFirst = true
-          //   } else {
-          //     // Fallback: chèn trực tiếp vào bar (trường hợp không dùng mobile wrapper)
-          //     var btnBulkAdd = UIButton.create(bulkAddConfig);
-          //     toolbar.insertBefore(btnBulkAdd, toolbar.firstChild);
-          //   }
-          // }
-
-          // Thanh tìm kiếm nhanh (Quick Search) trên Toolbar
-          var searchWrapper = document.createElement('div');
-          searchWrapper.className = 'quick-search-wrapper';
-          searchWrapper.style.cssText = 'flex: 1; display: flex; justify-content: flex-end; margin: 0 16px; min-width: 200px;';
-
-          var quickSearchInput = document.createElement('input');
-          quickSearchInput.type = 'text';
-          quickSearchInput.className = 'ui-input';
-          quickSearchInput.id = 'toolbar-quick-search';
-          quickSearchInput.placeholder = MODULE_CONFIG.SearchPlaceholder || 'Tìm kiếm...';
-          quickSearchInput.style.cssText = `width: 100%; max-width: 350px; padding: 8px 16px 8px 36px; border-radius: 20px; border: 1px solid var(--color-border, #e2e8f0); outline: none; transition: all 0.2s; font-size: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E") no-repeat 12px center var(--color-surface, #fff);`;
-
-          quickSearchInput.addEventListener('focus', function () {
-            this.style.borderColor = 'var(--color-primary, #3b82f6)';
-            this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-          });
-          quickSearchInput.addEventListener('blur', function () {
-            this.style.borderColor = 'var(--color-border, #e2e8f0)';
-            this.style.boxShadow = 'none';
-          });
-
-          var _searchTimer = null;
-          quickSearchInput.addEventListener('input', function () {
-            clearTimeout(_searchTimer);
-            _searchTimer = setTimeout(function () {
-              currentKeyword = quickSearchInput.value;
-              window.currentFilters = window.currentFilters || {};
-              window.currentFilters.keyword = currentKeyword;
-              currentPage = 1;
-              selectedRows = [];
-              _updateSelectionCounter();
-              _loadData();
-            }, 500); // Tự động tìm sau 0.5s
-          });
-
-          searchWrapper.appendChild(quickSearchInput);
-
-          // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
-          btnContainer.style.display = 'flex';
-          btnContainer.style.flexWrap = 'wrap';
-          btnContainer.style.alignItems = 'center';
-
-          btnContainer.appendChild(toolbar);
-          btnContainer.appendChild(searchWrapper); // Nằm ở giữa, đẩy Tùy chọn bảng sang phải
-          btnContainer.appendChild(tabulatorActionWrapper);
-        }
-
-        // Search bar (FilterComponent)
-        var filterContainer = $container.querySelector('#dynamic-filter-container');
-        if (filterContainer && typeof FilterComponent !== 'undefined') {
-          filterContainer.innerHTML = ''; // Xóa placeholder nếu có
-
-          // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-          var dynamicFilters = globalFormSchema
-            .filter(function (f) { return f.showInFilter; })
-            .map(function (f) {
-              // Chuyển đổi định dạng từ FormEngine sang FilterComponent
-              var filterType = 'text';
-              if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
-              if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
-
-              var filterObj = {
-                id: f.name,
-                label: f.label,
-                type: filterType,
-                placeholder: f.label
-              };
-
-              // Parse DataSource cho trường Select/Dropdown
-              if (f.renderRule === 'sl' || f.renderRule === 'sw') {
-                filterObj.type = 'select';
-                filterObj.options = [];
-                if (f.renderRule === 'sw') {
-                  filterObj.options = [{ value: 1, label: 'Có' }, { value: 0, label: 'Không' }];
-                } else if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
-                  var parts = f.dataSource.replace('STATIC:', '').split(',');
-                  parts.forEach(function (p) {
-                    var kv = p.split('|');
-                    filterObj.options.push({ value: kv[0], label: kv[1] || kv[0] });
-                  });
-                } else if (f.dataSource) {
-                  filterObj.dataSource = f.dataSource;
-                  // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
-                  var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
-                  ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
-                    var dataList = res.list || res.records || [];
-                    var options = [];
-                    if (dataList && dataList.length > 0) {
-                      var keys = Object.keys(dataList[0]);
-                      var valKey = keys[0];
-                      var labelRegex = /name|tên|ten|label|desc|title/i;
-                      var displayKey = keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0];
-                      dataList.forEach(function (row) {
-                        options.push({ value: row[valKey], label: row[displayKey] });
-                      });
-                    }
-
-                    // Tìm phần tử select tương ứng để cập nhật các option mới tải về
-                    var selectEl = document.getElementById(f.name);
-                    if (selectEl) {
-                      var hasSavedValue = window.currentFilters && window.currentFilters[f.name] !== undefined;
-                      var currentValue = hasSavedValue ? window.currentFilters[f.name] : '';
-
-                      selectEl.innerHTML = '<option value="">-- Tất cả --</option>';
-                      options.forEach(function (opt) {
-                        var optionNode = document.createElement('option');
-                        optionNode.value = opt.value;
-                        optionNode.innerText = opt.label;
-                        if (opt.value == currentValue) optionNode.selected = true;
-                        selectEl.appendChild(optionNode);
-                      });
-
-                      // Tự động chọn kỳ gần nhất nếu chưa có filter được thiết lập
-                      if (!hasSavedValue && options.length > 0 && (f.name.toLowerCase().indexOf('period') >= 0 || f.name.toLowerCase().indexOf('ky') >= 0)) {
-                        var now = new Date();
-                        var cy = now.getFullYear();
-                        var cm = now.getMonth() + 1;
-                        var bestOpt = null;
-                        var minDiff = Infinity;
-
-                        function parseYearMonth(str) {
-                          var clean = String(str);
-                          var m1 = clean.match(/(\d{4})[-_\/\s]?(\d{1,2})/);
-                          if (m1) {
-                            var y = parseInt(m1[1], 10);
-                            var m = parseInt(m1[2], 10);
-                            if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
-                              return { year: y, month: m };
-                            }
-                          }
-                          var m2 = clean.match(/(\d{1,2})[-_\/\s]?(\d{4})/);
-                          if (m2) {
-                            var m = parseInt(m2[1], 10);
-                            var y = parseInt(m2[2], 10);
-                            if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
-                              return { year: y, month: m };
-                            }
-                          }
-                          return null;
-                        }
-
-                        options.forEach(function (opt) {
-                          var parsed = parseYearMonth(opt.value) || parseYearMonth(opt.label);
-                          if (parsed) {
-                            var diff = Math.abs((parsed.year - cy) * 12 + (parsed.month - cm));
-                            if (diff < minDiff) {
-                              minDiff = diff;
-                              bestOpt = opt;
-                            }
-                          }
-                        });
-
-                        if (!bestOpt) {
-                          bestOpt = options[0];
-                        }
-
-                        if (bestOpt) {
-                          currentValue = bestOpt.value;
-                          selectEl.value = currentValue;
-                          if (!window.currentFilters) window.currentFilters = {};
-                          window.currentFilters[f.name] = currentValue;
-                          // Reload data với kỳ mặc định mới chọn
-                          setTimeout(function () {
-                            _loadData();
-                          }, 50);
-                        }
-                      }
-                    }
-                    filterObj.options = options;
-                  }).catch(function (err) {
-                    console.error('Lỗi tải dữ liệu lọc cho ' + f.name, err);
-                  });
-                }
-              }
-              return filterObj;
-            });
-
-          // 2. Gom với cấu hình cứng trong AppModules.js (nếu có)
-          // Lưu ý: Đã đưa 'Từ khóa' ra ngoài thanh công cụ dưới dạng Quick Search Bar
-          var filters = [];
-
-          if (dynamicFilters.length > 0) {
-            filters = filters.concat(dynamicFilters);
-          } else if (MODULE_CONFIG.Filters && MODULE_CONFIG.Filters.length > 0) {
-            filters = filters.concat(MODULE_CONFIG.Filters);
+            tabulatorActionMenu.style.display = 'block';
+          } else {
+            tabulatorActionMenu.style.display = 'none';
           }
+        });
 
-          var filterNode = FilterComponent.create(filters, function (values) {
-            console.log('[DynamicFormEngine] Filter values callback received:', values);
+        // Đóng menu khi click bên ngoài
+        document.addEventListener('click', function (e) {
+          if (!tabulatorActionWrapper.contains(e.target) && !tabulatorActionMenu.contains(e.target)) {
+            tabulatorActionMenu.style.display = 'none';
+          }
+        });
 
-            // Lấy giá trị keyword từ ô Quick Search Bar để tránh bị đè mất
-            var quickSearch = document.getElementById('toolbar-quick-search');
-            if (quickSearch) {
-              values.keyword = quickSearch.value;
+
+        var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
+        var isReport = formNameLower.endsWith('report');
+        var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
+
+        var toolbar = UIActionToolbar.create({
+          onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
+          onEdit: (isFrm && !MODULE_CONFIG.HideEditBtn) ? (_hasPermission('EDIT') ? function () {
+            if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectEdit);
+
+            // CHẶN CHỈNH SỬA NẾU HỢP ĐỒNG ĐÃ CHỐT
+            var hasSigned = selectedRows.find(function (r) {
+              var st = (r.TrangThai || '').toString().toLowerCase();
+              return st.includes('đã ký');
+            });
+            if (hasSigned) {
+              return Alert.warning('Bị khóa', 'Không thể sửa hợp đồng/phiếu đã chốt (Đã ký). Vui lòng dùng chức năng Phụ lục nếu muốn thay đổi!');
             }
 
-            // Lưu lại toàn bộ các giá trị filter
-            window.currentFilters = values;
-            currentKeyword = values.keyword || '';
-            currentPage = 1; // Reset về trang 1 khi lọc mới
+            if (selectedRows.length > 1) {
+              _openBulkEditForm();
+            } else {
+              _openEditForm(selectedRows[0]);
+            }
+          } : 'DISABLED') : false,
+          onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
+            if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
+
+            // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
+            var hasSigned = selectedRows.find(function (r) {
+              var st = (r.TrangThai || '').toString().toLowerCase();
+              return st.includes('đã ký') || st.includes('quyết toán') || st === 'signed' || st === 'completed';
+            });
+            if (hasSigned) {
+              return Alert.warning('Bị khóa', 'Tuyệt đối không được xóa hợp đồng/phiếu đã chốt (Đã ký / Đã quyết toán). Hệ thống yêu cầu lưu trữ chứng từ pháp lý!');
+            }
+
+            // Hàm thực thi xóa gọi API
+            var performDelete = function () {
+              if (!MODULE_CONFIG.ApiDelete) {
+                return Alert.info(MODULE_CONFIG.AlertTitleInfo, MODULE_CONFIG.InfoDeleteDev);
+              }
+
+              // Xử lý từng dòng một (Vì API Gateway C# map JSON sang Model, thiếu field sẽ bị NULL update)
+              var deletePromises = selectedRows.map(function (row) {
+                var payload = {
+                  List: MODULE_CONFIG.FormName,
+                  Func: 'Delete',
+                  UserName: _currentUser()
+                };
+
+                // Bơm toàn bộ dữ liệu gốc của row vào để C# binding không bị mất các cột Not Null (như Ngaytochuc)
+                var rowData = Object.assign({}, row);
+                rowData.IsDeleted = 1; // Flag xóa mềm
+
+                payload.JsonData = JSON.stringify(rowData);
+
+                return ApiClient.post(MODULE_CONFIG.ApiDelete, payload);
+              });
+
+              Promise.all(deletePromises).then(function (results) {
+                var allSuccess = results.every(function (res) { return res && res.code === 0; });
+                if (allSuccess) {
+                  if (typeof UIToast !== 'undefined') UIToast.show(MODULE_CONFIG.ToastDelete, 'success');
+                  selectedRows = [];
+                  if (_isFormBuilder()) window._uiConfigCache = {};
+                  _updateSelectionCounter();
+                  _loadData();
+                } else {
+                  Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertDeleteFailed);
+                }
+              }).catch(function (err) {
+                Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
+              });
+            };
+
+            // Xóa hàng loạt
+            if (selectedRows.length > 1) {
+              if (typeof ConfirmModal !== 'undefined') {
+                ConfirmModal.show({
+                  title: MODULE_CONFIG.AlertTitleConfirm,
+                  message: `Bạn có chắc muốn xóa ${selectedRows.length} dòng đã chọn?`,
+                  onConfirm: performDelete
+                });
+              }
+            } else {
+              var deleteName = selectedRows[0][MODULE_CONFIG.RowNameField] || MODULE_CONFIG.TextDeleteFallback;
+              if (typeof ConfirmModal !== 'undefined') {
+                ConfirmModal.show({
+                  title: MODULE_CONFIG.AlertTitleConfirm,
+                  message: MODULE_CONFIG.ConfirmDelete.replace('{0}', deleteName),
+                  onConfirm: performDelete
+                });
+              }
+            }
+          } : false) : false,
+          onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
+            var filterContainer = $container.querySelector('#dynamic-filter-container');
+            if (filterContainer) {
+              if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
+                filterContainer.style.display = 'flex';
+                var inputKeyword = filterContainer.querySelector('#keyword');
+                if (inputKeyword) inputKeyword.focus();
+              } else {
+                filterContainer.style.display = 'none';
+              }
+            }
+          },
+          onPrint: false, // Ẩn nút In theo yêu cầu UX
+          onClose: false,
+          extras: extraBtns
+        });
+        toolbar.style.display = 'inline-flex';
+        toolbar.style.width = 'auto';
+
+        // // Custom Buttons
+        // var hasAdd = _hasPermission('ADD');
+        // if (isFrm && !MODULE_CONFIG.HideAddBtn) {
+        //   var bulkAddConfig = {
+        //     text: 'Thêm nhiều',
+        //     icon: 'post_add',
+        //     type: 'tool',
+        //     disabled: !hasAdd,
+        //     onClick: function () {
+        //       if (!hasAdd) return typeof Alert !== 'undefined' ? Alert.warning('Từ chối', 'Bạn không có quyền thao tác chức năng này!') : null;
+        //       var emptyRows = [];
+        //       for (var i = 0; i < 3; i++) emptyRows.push({});
+        //       _openBulkGridEditForm(emptyRows, true);
+        //     }
+        //   };
+        //   // Dùng API addToMobilePanel để thêm vào cả desktop bar lẫn mobile action sheet
+        //   if (typeof toolbar.addToMobilePanel === 'function') {
+        //     toolbar.addToMobilePanel(bulkAddConfig, true); // insertFirst = true
+        //   } else {
+        //     // Fallback: chèn trực tiếp vào bar (trường hợp không dùng mobile wrapper)
+        //     var btnBulkAdd = UIButton.create(bulkAddConfig);
+        //     toolbar.insertBefore(btnBulkAdd, toolbar.firstChild);
+        //   }
+        // }
+
+        // Thanh tìm kiếm nhanh (Quick Search) trên Toolbar
+        var searchWrapper = document.createElement('div');
+        searchWrapper.className = 'quick-search-wrapper';
+        searchWrapper.style.cssText = 'flex: 1; display: flex; justify-content: flex-end; margin: 0 16px; min-width: 200px;';
+
+        var quickSearchInput = document.createElement('input');
+        quickSearchInput.type = 'text';
+        quickSearchInput.className = 'ui-input';
+        quickSearchInput.id = 'toolbar-quick-search';
+        quickSearchInput.placeholder = MODULE_CONFIG.SearchPlaceholder || 'Tìm kiếm...';
+        quickSearchInput.style.cssText = `width: 100%; max-width: 350px; padding: 8px 16px 8px 36px; border-radius: 20px; border: 1px solid var(--color-border, #e2e8f0); outline: none; transition: all 0.2s; font-size: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E") no-repeat 12px center var(--color-surface, #fff);`;
+
+        quickSearchInput.addEventListener('focus', function () {
+          this.style.borderColor = 'var(--color-primary, #3b82f6)';
+          this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+        });
+        quickSearchInput.addEventListener('blur', function () {
+          this.style.borderColor = 'var(--color-border, #e2e8f0)';
+          this.style.boxShadow = 'none';
+        });
+
+        var _searchTimer = null;
+        quickSearchInput.addEventListener('input', function () {
+          clearTimeout(_searchTimer);
+          _searchTimer = setTimeout(function () {
+            currentKeyword = quickSearchInput.value;
+            window.currentFilters = window.currentFilters || {};
+            window.currentFilters.keyword = currentKeyword;
+            currentPage = 1;
             selectedRows = [];
             _updateSelectionCounter();
             _loadData();
+          }, 500); // Tự động tìm sau 0.5s
+        });
+
+        searchWrapper.appendChild(quickSearchInput);
+
+        // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
+        btnContainer.style.display = 'flex';
+        btnContainer.style.flexWrap = 'wrap';
+        btnContainer.style.alignItems = 'center';
+
+        btnContainer.appendChild(toolbar);
+        btnContainer.appendChild(searchWrapper); // Nằm ở giữa, đẩy Tùy chọn bảng sang phải
+        btnContainer.appendChild(tabulatorActionWrapper);
+      }
+
+      // Search bar (FilterComponent)
+      var filterContainer = $container.querySelector('#dynamic-filter-container');
+      if (filterContainer && typeof FilterComponent !== 'undefined') {
+        filterContainer.innerHTML = ''; // Xóa placeholder nếu có
+
+        // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
+        var dynamicFilters = globalFormSchema
+          .filter(function (f) { return f.showInFilter; })
+          .map(function (f) {
+            // Chuyển đổi định dạng từ FormEngine sang FilterComponent
+            var filterType = 'text';
+            if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
+            if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
+
+            var filterObj = {
+              id: f.name,
+              label: f.label,
+              type: filterType,
+              placeholder: f.label
+            };
+
+            // Parse DataSource cho trường Select/Dropdown
+            if (f.renderRule === 'sl' || f.renderRule === 'sw') {
+              filterObj.type = 'select';
+              filterObj.options = [];
+              if (f.renderRule === 'sw') {
+                filterObj.options = [{ value: 1, label: 'Có' }, { value: 0, label: 'Không' }];
+              } else if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
+                var parts = f.dataSource.replace('STATIC:', '').split(',');
+                parts.forEach(function (p) {
+                  var kv = p.split('|');
+                  filterObj.options.push({ value: kv[0], label: kv[1] || kv[0] });
+                });
+              } else if (f.dataSource) {
+                filterObj.dataSource = f.dataSource;
+                // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
+                var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
+                ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
+                  var dataList = res.list || res.records || [];
+                  var options = [];
+                  if (dataList && dataList.length > 0) {
+                    var keys = Object.keys(dataList[0]);
+                    var valKey = keys[0];
+                    var labelRegex = /name|tên|ten|label|desc|title/i;
+                    var displayKey = keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0];
+                    dataList.forEach(function (row) {
+                      options.push({ value: row[valKey], label: row[displayKey] });
+                    });
+                  }
+
+                  // Tìm phần tử select tương ứng để cập nhật các option mới tải về
+                  var selectEl = document.getElementById(f.name);
+                  if (selectEl) {
+                    var hasSavedValue = window.currentFilters && window.currentFilters[f.name] !== undefined;
+                    var currentValue = hasSavedValue ? window.currentFilters[f.name] : '';
+
+                    selectEl.innerHTML = '<option value="">-- Tất cả --</option>';
+                    options.forEach(function (opt) {
+                      var optionNode = document.createElement('option');
+                      optionNode.value = opt.value;
+                      optionNode.innerText = opt.label;
+                      if (opt.value == currentValue) optionNode.selected = true;
+                      selectEl.appendChild(optionNode);
+                    });
+
+                    // Tự động chọn kỳ gần nhất nếu chưa có filter được thiết lập
+                    if (!hasSavedValue && options.length > 0 && (f.name.toLowerCase().indexOf('period') >= 0 || f.name.toLowerCase().indexOf('ky') >= 0)) {
+                      var now = new Date();
+                      var cy = now.getFullYear();
+                      var cm = now.getMonth() + 1;
+                      var bestOpt = null;
+                      var minDiff = Infinity;
+
+                      function parseYearMonth(str) {
+                        var clean = String(str);
+                        var m1 = clean.match(/(\d{4})[-_\/\s]?(\d{1,2})/);
+                        if (m1) {
+                          var y = parseInt(m1[1], 10);
+                          var m = parseInt(m1[2], 10);
+                          if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
+                            return { year: y, month: m };
+                          }
+                        }
+                        var m2 = clean.match(/(\d{1,2})[-_\/\s]?(\d{4})/);
+                        if (m2) {
+                          var m = parseInt(m2[1], 10);
+                          var y = parseInt(m2[2], 10);
+                          if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
+                            return { year: y, month: m };
+                          }
+                        }
+                        return null;
+                      }
+
+                      options.forEach(function (opt) {
+                        var parsed = parseYearMonth(opt.value) || parseYearMonth(opt.label);
+                        if (parsed) {
+                          var diff = Math.abs((parsed.year - cy) * 12 + (parsed.month - cm));
+                          if (diff < minDiff) {
+                            minDiff = diff;
+                            bestOpt = opt;
+                          }
+                        }
+                      });
+
+                      if (!bestOpt) {
+                        bestOpt = options[0];
+                      }
+
+                      if (bestOpt) {
+                        currentValue = bestOpt.value;
+                        selectEl.value = currentValue;
+                        if (!window.currentFilters) window.currentFilters = {};
+                        window.currentFilters[f.name] = currentValue;
+                        // Reload data với kỳ mặc định mới chọn
+                        setTimeout(function () {
+                          _loadData();
+                        }, 50);
+                      }
+                    }
+                  }
+                  filterObj.options = options;
+                }).catch(function (err) {
+                  console.error('Lỗi tải dữ liệu lọc cho ' + f.name, err);
+                });
+              }
+            }
+            return filterObj;
           });
-          filterContainer.appendChild(filterNode);
-          filterContainer.style.display = 'none'; // Ẩn mặc định, ấn Lọc mới hiện
+
+        // 2. Gom với cấu hình cứng trong AppModules.js (nếu có)
+        // Lưu ý: Đã đưa 'Từ khóa' ra ngoài thanh công cụ dưới dạng Quick Search Bar
+        var filters = [];
+
+        if (dynamicFilters.length > 0) {
+          filters = filters.concat(dynamicFilters);
+        } else if (MODULE_CONFIG.Filters && MODULE_CONFIG.Filters.length > 0) {
+          filters = filters.concat(MODULE_CONFIG.Filters);
         }
 
-        if (!MODULE_CONFIG.NoAutoLoad) {
-          if (MODULE_CONFIG.IsDetailAdd) {
-            _openModal(false, null);
-          } else if (MODULE_CONFIG.action === 'detail' || MODULE_CONFIG.Action === 'detail') {
-            _openModal(true, MODULE_CONFIG.DetailRowData, true);
-          } else {
-            _loadData();
+        var filterNode = FilterComponent.create(filters, function (values) {
+          console.log('[DynamicFormEngine] Filter values callback received:', values);
+
+          // Lấy giá trị keyword từ ô Quick Search Bar để tránh bị đè mất
+          var quickSearch = document.getElementById('toolbar-quick-search');
+          if (quickSearch) {
+            values.keyword = quickSearch.value;
           }
+
+          // Lưu lại toàn bộ các giá trị filter
+          window.currentFilters = values;
+          currentKeyword = values.keyword || '';
+          currentPage = 1; // Reset về trang 1 khi lọc mới
+          selectedRows = [];
+          _updateSelectionCounter();
+          _loadData();
+        });
+        filterContainer.appendChild(filterNode);
+        filterContainer.style.display = 'none'; // Ẩn mặc định, ấn Lọc mới hiện
+      }
+
+      if (!MODULE_CONFIG.NoAutoLoad) {
+        if (MODULE_CONFIG.IsDetailAdd) {
+          _openModal(false, null);
+        } else if (MODULE_CONFIG.action === 'detail' || MODULE_CONFIG.Action === 'detail') {
+          _openModal(true, MODULE_CONFIG.DetailRowData, true);
+        } else {
+          _loadData();
         }
-      })
+      }
+    })
       .catch(function (err) {
         var prefix = MODULE_CONFIG.TextLoadingError || 'Lỗi tải dữ liệu: ';
         $container.innerHTML = '<div class="p-4 text-danger">' + prefix + err.message + '</div>';
@@ -2439,7 +2431,7 @@ window.DynamicFormEngine = (function () {
       counter.innerHTML = '';
     }
 
-    if (MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' || MODULE_CONFIG.UseSplitLayout) {
+    if (MODULE_CONFIG.UseSplitLayout) {
       _updateDetailView();
     }
   }
@@ -2454,7 +2446,7 @@ window.DynamicFormEngine = (function () {
       if (splitContainer) {
         splitContainer.classList.remove('show-detail');
       }
-      var selectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
+      var selectText = MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết';
       detailContent.innerHTML = '<div class="empty-detail-state">' +
         '<div class="empty-icon-wrapper">' +
         '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
@@ -2464,7 +2456,7 @@ window.DynamicFormEngine = (function () {
         '</div>';
       var detailHeader = $container.querySelector('.detail-header');
       if (detailHeader) {
-        detailHeader.textContent = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
+        detailHeader.textContent = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
       }
       return;
     }
@@ -2490,7 +2482,7 @@ window.DynamicFormEngine = (function () {
 
     var detailHeader = $container.querySelector('.detail-header');
     if (detailHeader) {
-      var defaultDetailTitle = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
+      var defaultDetailTitle = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
       var nameVal = row.PersonName || row.TenPhuCap || row[MODULE_CONFIG.PrimaryKey] || '';
 
       detailHeader.style.display = 'flex';
@@ -2939,8 +2931,8 @@ window.DynamicFormEngine = (function () {
 
         formWrap.appendChild(fieldsGrid);
 
-        var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personinfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personquitfrm';
-        var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
+        var isPersonForm = !!MODULE_CONFIG.isPersonForm;
+        var isCandidateForm = !!MODULE_CONFIG.isCandidateForm;
         if (isPersonForm || isCandidateForm) {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
@@ -2954,7 +2946,7 @@ window.DynamicFormEngine = (function () {
           var img = document.createElement('img');
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
 
-          var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
+          var defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
           var rawContent = '';
           var fileNameVal = '';
           if (row) {
@@ -3019,8 +3011,37 @@ window.DynamicFormEngine = (function () {
                 return;
               }
             }
-            if (img.src !== defaultPhoto) {
-              img.src = defaultPhoto;
+            
+            // Dynamic API fetch fallback
+            if (imgIdVal) {
+                var self = this;
+                var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
+                    ? 'API_CandidateAttach' : 'API_PersonAttach';
+                
+                var fetchPayload = {
+                  List: attachApi,
+                  Func: 'View',
+                  JsonData: JSON.stringify({
+                    CandidateID: imgIdVal,
+                    PersonID: imgIdVal
+                  }),
+                  UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+                };
+      
+                ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+                .then(function(data) {
+                   if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
+                       var b64 = data.records[0].Base64Content;
+                       self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
+                   } else {
+                       if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                   }
+                })
+                .catch(function(err) {
+                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                });
+            } else {
+                if (img.src !== defaultPhoto) img.src = defaultPhoto;
             }
           };
 
@@ -3472,6 +3493,13 @@ window.DynamicFormEngine = (function () {
   }
 
   function _openAddForm() {
+    // Ensure AttachmentApi is configured for Wizard Add Mode
+    var isPersonForm = !!MODULE_CONFIG.isPersonForm;
+    var isCandidateForm = !!MODULE_CONFIG.isCandidateForm;
+    if (isPersonForm || isCandidateForm) {
+      MODULE_CONFIG.AttachmentApi = isCandidateForm ? 'API_CandidateAttach' : 'API_PersonAttach';
+    }
+
     // Neu co WizardSteps -> dung Wizard multi-step, nguoc lai dung detail full page
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
@@ -3701,7 +3729,7 @@ window.DynamicFormEngine = (function () {
                     colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
                     if (field.name === 'PersonID') colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
-                      var keyIdx = keys.findIndex(function(k) { return k.toLowerCase() === 'keyid'; });
+                      var keyIdx = keys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
                     }
                     dataList.forEach(function (d) {
@@ -3923,8 +3951,8 @@ window.DynamicFormEngine = (function () {
       grid.appendChild(ungroupedCard);
     }
 
-    var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personinfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personquitfrm';
-    var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
+    var isPersonForm = !!MODULE_CONFIG.isPersonForm;
+    var isCandidateForm = !!MODULE_CONFIG.isCandidateForm;
     if (isPersonForm || isCandidateForm) {
       console.log('[PHOTO DEBUG] Edit Modal - row:', row);
       var photoBox = document.createElement('div');
@@ -4019,8 +4047,37 @@ window.DynamicFormEngine = (function () {
             return;
           }
         }
-        if (img.src !== defaultPhoto) {
-          img.src = defaultPhoto;
+        
+        // Dynamic API fetch fallback
+        if (imgIdVal) {
+            var self = this;
+            var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
+                ? 'API_CandidateAttach' : 'API_PersonAttach';
+            
+            var fetchPayload = {
+              List: attachApi,
+              Func: 'View',
+              JsonData: JSON.stringify({
+                CandidateID: imgIdVal,
+                PersonID: imgIdVal
+              }),
+              UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+            };
+  
+            ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+            .then(function(data) {
+               if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
+                   var b64 = data.records[0].Base64Content;
+                   self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
+               } else {
+                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
+               }
+            })
+            .catch(function(err) {
+               if (self.src !== defaultPhoto) self.src = defaultPhoto;
+            });
+        } else {
+            if (img.src !== defaultPhoto) img.src = defaultPhoto;
         }
       };
 
@@ -4303,7 +4360,9 @@ window.DynamicFormEngine = (function () {
               }
 
               if (isGateway && Object.keys(dynamicFilters).length > 0) {
-                payload.JsonData = JSON.stringify(dynamicFilters);
+                var existingJson = {};
+                try { existingJson = JSON.parse(payload.JsonData || '{}'); } catch (e) { }
+                payload.JsonData = JSON.stringify(Object.assign({}, existingJson, dynamicFilters));
               }
 
               return ApiClient.post(finalUrl, payload).then(function (res) {
@@ -4320,7 +4379,7 @@ window.DynamicFormEngine = (function () {
                     headers = displayKeys.map(function (k) {
                       if (typeof currentDictionary !== 'undefined') {
                         var kLower = k.toLowerCase();
-                        var matchKey = Object.keys(currentDictionary).find(function(dk) { return dk.toLowerCase() === kLower; });
+                        var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
                         if (matchKey) return currentDictionary[matchKey].CaptionVN;
                       }
                       return k;
@@ -4330,7 +4389,7 @@ window.DynamicFormEngine = (function () {
                     colFilterIndex = displayKey ? displayKeys.indexOf(displayKey) : (displayKeys.length > 1 ? 1 : 0);
                     if (field.name === 'PersonID') colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
-                      var keyIdx = displayKeys.findIndex(function(k) { return k.toLowerCase() === 'keyid'; });
+                      var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
                     }
                     dataList.forEach(function (d) {
@@ -4404,6 +4463,7 @@ window.DynamicFormEngine = (function () {
                 var displayInput = lazyCombo.querySelector('input.ui-input');
                 var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
                 if (matched && displayInput) displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
+                else if (displayInput) displayInput.value = field.value; // Fallback
               }).catch(function (err) {
                 console.error('[DynamicFormEngine] DataComboBox initial fetch error:', err);
                 var displayInput = lazyCombo.querySelector('input.ui-input');
@@ -4642,7 +4702,7 @@ window.DynamicFormEngine = (function () {
     // ── DETAIL TABS (Master-Detail panel) ──────────────────────────────────
     // Khi MODULE_CONFIG.DetailTabs được cấu hình, tự động vẽ thêm tab chi tiết bên dưới form master
     var hasEditableTab = MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.some(function (t) { return t.editable; });
-    if (row && MODULE_CONFIG.FormName !== 'WA_QuanLyNghiPhepNamFrm' && (!MODULE_CONFIG.HideDetailTabsInModal || MODULE_CONFIG.IsFullPageDetail) && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 && (isEdit || hasEditableTab)) {
+    if (row && !MODULE_CONFIG.hideDetailTabsInEditMode && (!MODULE_CONFIG.HideDetailTabsInModal || MODULE_CONFIG.IsFullPageDetail) && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 && (isEdit || hasEditableTab)) {
       var tabsContainer = document.createElement('div');
       tabsContainer.className = 'detail-tabs-container';
       tabsContainer.style.marginTop = '16px';
@@ -4779,54 +4839,37 @@ window.DynamicFormEngine = (function () {
 
             if (fName === 'PersonID') {
               // ComboBox chọn nhân viên
+              var lConf = (tabDef.lookupConfig && tabDef.lookupConfig['PersonID']) || null;
+              var isBH = !!lConf;
+
               var combo = UIControls.createDataComboBox({
                 placeholder: 'Chọn nhân viên...',
-                headers: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
-                  ? ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo']
-                  : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
-                colFilterIndex: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 1 : 0,
+                headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                colFilterIndex: lConf ? lConf.colFilterIndex : 0,
                 onSearch: function (q) {
                   var lookupPayload = {
-                    List: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 'WA_BaoHiemFrm_PersonID' : 'HR_PersonTbl',
+                    List: lConf ? lConf.apiList : 'HR_PersonTbl',
                     Func: 'View',
                     Keyword: q
                   };
-                  if (MODULE_CONFIG.FormName === 'WA_BaoHiemFrm') {
-                    // Lấy BranchID từ form Master
-                    var bNode = document.querySelector('.df-master-wrapper [data-field="BranchID"] input[type="hidden"], .split-master-detail-container [data-field="BranchID"] input[type="hidden"]');
-                    lookupPayload.BranchID = bNode ? bNode.value : '';
-
-                    // Lấy LoaiBaoHiem từ PeriodKeyID (do đã ẩn trường LoaiBaoHiem)
-                    var pkNode = document.querySelector('.df-master-wrapper [data-field="PeriodKeyID"] input[type="hidden"], .split-master-detail-container [data-field="PeriodKeyID"] input[type="hidden"]');
-                    if (pkNode && pkNode.value && pkNode.value.indexOf('_') > -1) {
-                        lookupPayload.LoaiBaoHiem = pkNode.value.split('_')[1];
-                    } else {
-                        lookupPayload.LoaiBaoHiem = '';
-                    }
-                    
-                    // Lấy DocumentID (tránh báo trùng nếu đang sửa chính chứng từ này)
-                    var dNode = document.querySelector('.df-master-wrapper [data-field="DocumentID"] input.ui-input, .split-master-detail-container [data-field="DocumentID"] input.ui-input');
-                    lookupPayload.DocumentID = dNode ? dNode.value : '';
+                  if (lConf && typeof lConf.getPayload === 'function') {
+                    Object.assign(lookupPayload, lConf.getPayload());
                   }
+
                   return ApiClient.post('/api/API_Gateway_Router', lookupPayload).then(function (res) {
                     var list = res.list || res.records || [];
                     var dataList = list.map(function (d) {
-                      return MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
-                        ? [String(d.STT || ''), d.PersonID || '', d.PersonName || '', d.PhongBan || '', String(d.MucDong || 0), d.CanhBao || '']
-                        : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+                      return (lConf && typeof lConf.mapData === 'function') ? lConf.mapData(d) : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
                     });
                     return {
-                      headers: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
-                        ? ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo']
-                        : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                      headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
                       data: dataList,
-                      colFilterIndex: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 1 : 0
+                      colFilterIndex: lConf ? lConf.colFilterIndex : 0
                     };
                   });
                 },
                 onSelect: function (selectedData) {
-                  var isBH = MODULE_CONFIG.FormName === 'WA_BaoHiemFrm';
-                  var selectedPersonID = isBH ? selectedData[1] : selectedData[0];
+                  var selectedPersonID = isBH ? selectedData[lConf.colFilterIndex] : selectedData[0];
 
                   // Kiểm tra trùng lặp trong panel._currentRows
                   var isDuplicate = panel._currentRows.some(function (row, index) {
@@ -4916,37 +4959,10 @@ window.DynamicFormEngine = (function () {
                 currRow[fName] = this.value;
               });
 
-              // Hỗ trợ tính toán bảo hiểm khi MucDong thay đổi
-              if (MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' && fName === 'MucDong') {
+              // Hỗ trợ tính toán động nếu có cấu hình fieldEvents
+              if (tabDef.fieldEvents && tabDef.fieldEvents[fName] && typeof tabDef.fieldEvents[fName].onChange === 'function') {
                 inp.addEventListener('change', function () {
-                  var val = parseFloat(this.value) || 0;
-                  currRow['MucDong'] = val;
-                  var payload = {
-                    List: 'WA_BaoHiemFrm_Calculate',
-                    Func: 'View',
-                    JsonData: JSON.stringify({
-                      PeriodID: row.PeriodID || '',
-                      LoaiBaoHiem: row.LoaiBaoHiem || '',
-                      MucDong: val
-                    })
-                  };
-                  ApiClient.post('/api/API_Gateway_Router', payload).then(function (res) {
-                    var data = res.list || res.records || [];
-                    if (data && data.length > 0) {
-                      var resRow = data[0];
-                      var cols = ['MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD'];
-                      cols.forEach(function (col) {
-                        currRow[col] = resRow[col] !== undefined ? resRow[col] : 0;
-                        var colTd = tr.querySelector('td[data-field="' + col + '"]');
-                        if (colTd) {
-                          var colInp = colTd.querySelector('input');
-                          if (colInp) colInp.value = currRow[col];
-                        }
-                      });
-                    }
-                  }).catch(function (e) {
-                    console.error('[BAOHIEM CALC ERROR]', e);
-                  });
+                  tabDef.fieldEvents[fName].onChange(this.value, currRow, row, tr);
                 });
               }
 
@@ -4964,12 +4980,27 @@ window.DynamicFormEngine = (function () {
           btnDel.style.cssText = 'padding: 4px; border: none; background: transparent; cursor: pointer; border-radius: 4px;';
           btnDel.innerHTML = '<span class="material-symbols-outlined" style="font-size: 20px;">delete</span>';
           btnDel.onclick = function () {
-            var detailPK = 'UserAutoID';
-            if (currRow[detailPK]) {
-              panel._deletedRows.push(currRow);
+            if (typeof ConfirmModal !== 'undefined') {
+              ConfirmModal.show({
+                title: 'Xác nhận xóa',
+                message: 'Bạn có chắc muốn xóa dòng này không?',
+                onConfirm: function () {
+                  var detailPK = 'UserAutoID';
+                  if (currRow[detailPK]) {
+                    panel._deletedRows.push(currRow);
+                  }
+                  panel._currentRows.splice(rIdx, 1);
+                  _renderEditableGrid(tabDef, panel);
+                }
+              });
+            } else {
+              var detailPK = 'UserAutoID';
+              if (currRow[detailPK]) {
+                panel._deletedRows.push(currRow);
+              }
+              panel._currentRows.splice(rIdx, 1);
+              _renderEditableGrid(tabDef, panel);
             }
-            panel._currentRows.splice(rIdx, 1);
-            _renderEditableGrid(tabDef, panel);
           };
 
           tdAction.appendChild(btnDel);
@@ -4997,6 +5028,32 @@ window.DynamicFormEngine = (function () {
             _renderEditableGrid(tabDef, panel);
           };
           panel.appendChild(btnAddRow);
+
+          if (tabDef.customButtons && tabDef.customButtons.length > 0) {
+            tabDef.customButtons.forEach(function (btnDef) {
+              var cBtn = document.createElement('button');
+              cBtn.type = 'button';
+              cBtn.className = 'btn btn-sm ' + (btnDef.className || 'btn-outline-secondary');
+              cBtn.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px; font-weight: 500; font-size: 13px; cursor: pointer; margin-left: 10px;';
+              if (btnDef.icon) {
+                cBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">' + btnDef.icon + '</span> ' + (btnDef.label || '');
+              } else {
+                cBtn.textContent = btnDef.label || '';
+              }
+              cBtn.onclick = function () {
+                if (typeof btnDef.onClick === 'function') {
+                  btnDef.onClick({
+                    panel: panel,
+                    tabDef: tabDef,
+                    row: row,
+                    MODULE_CONFIG: MODULE_CONFIG,
+                    renderGrid: _renderEditableGrid
+                  });
+                }
+              };
+              panel.appendChild(cBtn);
+            });
+          }
         }
       }
 
@@ -5162,7 +5219,12 @@ window.DynamicFormEngine = (function () {
 
       var header = document.createElement('div');
       header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--color-border);';
-      var pageTitle = isViewMode ? (MODULE_CONFIG.TitleView || 'Thông tin cá nhân') : (isEdit ? MODULE_CONFIG.TitleEdit : MODULE_CONFIG.TitleAdd);
+      var defaultTitle = 'Thông tin chi tiết';
+      var baseTitle = MODULE_CONFIG.TitleView || MODULE_CONFIG.FormTitle || defaultTitle;
+      var titleAddFallback = 'Thêm mới ' + baseTitle.toLowerCase();
+      var titleEditFallback = 'Cập nhật ' + baseTitle.toLowerCase();
+
+      var pageTitle = isViewMode ? baseTitle : (isEdit ? (MODULE_CONFIG.TitleEdit || titleEditFallback) : (MODULE_CONFIG.TitleAdd || titleAddFallback));
       header.innerHTML = '<h2 style="margin: 0; font-size: 1.5rem; font-weight: 600; color: var(--color-text);">' + pageTitle + '</h2>';
 
       footer.style.padding = '0';
@@ -5215,7 +5277,12 @@ window.DynamicFormEngine = (function () {
         btnSwitchEdit.onclick = function () { _openModal(true, row, false); };
       }
     } else {
-      var modalTitle = isViewMode ? (MODULE_CONFIG.TitleView || 'Thông tin cá nhân') : (isEdit ? MODULE_CONFIG.TitleEdit : MODULE_CONFIG.TitleAdd);
+      var defaultTitle = 'Thông tin chi tiết';
+      var baseTitle = MODULE_CONFIG.TitleView || MODULE_CONFIG.FormTitle || defaultTitle;
+      var titleAddFallback = 'Thêm mới ' + baseTitle.toLowerCase();
+      var titleEditFallback = 'Cập nhật ' + baseTitle.toLowerCase();
+
+      var modalTitle = isViewMode ? baseTitle : (isEdit ? (MODULE_CONFIG.TitleEdit || titleEditFallback) : (MODULE_CONFIG.TitleAdd || titleAddFallback));
       var modal = UIModal.show({
         title: modalTitle,
         width: MODULE_CONFIG.ModalWidth,
@@ -5499,9 +5566,15 @@ window.DynamicFormEngine = (function () {
     // Helper finalize save
     function _finalizeSave(isEdit, modal) {
       if (window._pendingWizardAvatar) {
+        if (!MODULE_CONFIG.AttachmentApi) {
+          Alert.success('Thành công', 'Cập nhật hồ sơ thành công (chưa cấu hình lưu ảnh)!');
+          modal.closeNow(singlePayload);
+          _postFinalizeSave();
+          return;
+        }
+
         var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
-        var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm')
-          ? 'API_CandidateAttach' : 'API_PersonAttach';
+        var attachApi = MODULE_CONFIG.AttachmentApi;
 
         var avatarPayload = {
           List: attachApi,
@@ -5569,46 +5642,42 @@ window.DynamicFormEngine = (function () {
       .then(function (res) {
         if (res && res.code === 0) {
           // Master save succeeded! Now save/delete details.
-          var detailPromises = [];
+          var detailApiCalls = [];
 
           if (body._detailPanels) {
             body._detailPanels.forEach(function (panel) {
               if (panel._tabDef && panel._tabDef.editable) {
                 var tabDef = panel._tabDef;
-
-                // Get the master key value to use as the foreign key
                 var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
 
                 // 1. Process deleted rows
                 if (panel._deletedRows && panel._deletedRows.length > 0) {
-                  panel._deletedRows.forEach(function (delRow) {
+                  var deletedIds = panel._deletedRows.map(function (r) { return r.UserAutoID; }).filter(Boolean).join(',');
+                  if (deletedIds) {
                     var delPayload = {
                       List: tabDef.api,
                       Func: 'Delete',
-                      Ids: delRow.UserAutoID,
+                      Ids: deletedIds,
                       UserName: _currentUser()
                     };
-                    if (MODULE_CONFIG.ApiSave === '/api/API_Gateway_Router') {
+                    if (MODULE_CONFIG.ApiSave === '/api/API_Gateway_Router' || !MODULE_CONFIG.ApiSave) {
                       delPayload = {
                         List: tabDef.api,
                         Func: 'Delete',
-                        Ids: delRow.UserAutoID,
-                        JsonData: JSON.stringify(delRow),
+                        Ids: deletedIds,
+                        JsonData: JSON.stringify({ Ids: deletedIds }),
                         UserName: _currentUser()
                       };
                     }
-                    detailPromises.push(ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', delPayload));
-                  });
+                    detailApiCalls.push(function () { return ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', delPayload); });
+                  }
                 }
 
                 // 2. Process current (added/modified) rows
                 if (panel._currentRows && panel._currentRows.length > 0) {
                   panel._currentRows.forEach(function (currRow) {
-                    // Sync foreign key
                     currRow[tabDef.filterField] = masterKeyVal;
-
                     var isRowEdit = !!currRow.UserAutoID;
-
                     var rowPayload = Object.assign({}, currRow);
                     rowPayload.UserName = _currentUser();
                     rowPayload.UserCreate = _currentUser();
@@ -5621,15 +5690,24 @@ window.DynamicFormEngine = (function () {
                       UserName: _currentUser()
                     };
 
-                    detailPromises.push(ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', savePayload));
+                    detailApiCalls.push(function () { return ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', savePayload); });
                   });
                 }
               }
             });
           }
 
-          if (detailPromises.length > 0) {
-            Promise.all(detailPromises).then(function (detailResults) {
+          if (detailApiCalls.length > 0) {
+            var detailResults = [];
+            var chain = Promise.resolve();
+            detailApiCalls.forEach(function (apiCall) {
+              chain = chain.then(function () {
+                return apiCall().then(function (res) {
+                  detailResults.push(res);
+                });
+              });
+            });
+            chain.then(function () {
               var allOk = detailResults.every(function (dr) { return dr && dr.code === 0; });
               if (allOk) {
                 _finalizeSave(isEdit, modal);
@@ -5703,15 +5781,20 @@ window.DynamicFormEngine = (function () {
         if (res && res.code === 0) {
           // Main save successful. Check if there's a pending avatar to upload.
           if (window._pendingAvatar) {
-            var personId = originalRow.PersonID || originalRow.CandidateID;
+            if (!MODULE_CONFIG.AttachmentApi) {
+              UIToast.show('Đã cập nhật thông tin thành công (chưa cấu hình lưu ảnh)', 'success');
+              window._pendingAvatar = null;
+              _inlineEditMode = false;
+              _loadData();
+              return;
+            }
 
-            // CHÚ Ý: API lưu đính kèm phải được định nghĩa trong WA_API. 
-            var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm')
-              ? 'API_CandidateAttach' : 'API_PersonAttach';
+            var personId = originalRow.PersonID || originalRow.CandidateID;
+            var attachApi = MODULE_CONFIG.AttachmentApi;
 
             var avatarPayload = {
               List: attachApi,
-              Func: 'Save',
+              Func: 'SaveAvatar',
               JsonData: JSON.stringify({
                 IsEdit: 0,
                 PersonID: personId,

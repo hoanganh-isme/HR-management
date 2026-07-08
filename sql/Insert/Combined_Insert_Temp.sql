@@ -1,23 +1,3 @@
-USE [QLTiec]
-GO
-
--- Xóa các record lỗi (sai cấu trúc)
-DELETE FROM WA_API WHERE list = 'api' AND func = 'API_Report_SalesStats';
-
--- Xóa record cũ nếu có để tạo lại cho chuẩn
-DELETE FROM WA_API WHERE list = 'API_Report_SalesStats' AND func = 'Execute';
-
--- Đăng ký API theo đúng Format của Gateway Router
-INSERT INTO WA_API (list, func, SQL, Para)
-VALUES (
-    'API_Report_SalesStats',
-    'Execute',
-    'API_Report_SalesStats',
-    '@TuNgay=''{TuNgay}'', @DenNgay=''{DenNgay}'''
-);
-GO
-USE [X26DIMTUTAC]
-GO
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_BangPhuCapFrm
@@ -137,8 +117,7 @@ GO
 
 PRINT 'Da thiet lap WA_BangPhuCapFrm thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_BangThamSoFrm
@@ -262,8 +241,7 @@ GO
 
 PRINT 'Da thiet lap WA_BangThamSoFrm (Bang tham so tinh luong) voi MenuID 240102 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_BangThueTNCNFrm
@@ -364,8 +342,7 @@ GO
 
 PRINT 'Da thiet lap WA_BangThueTNCNFrm (Bang muc thue TNCN) voi MenuID 400504 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- 1. Xóa cấu hình cũ của Form WA_BaoCaoLuongReport nếu có để tránh trùng lặp
 DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoLuongReport';
@@ -433,8 +410,7 @@ GO
 
 PRINT 'Da insert tat ca cac cot va WA_API cho WA_BaoCaoLuongReport thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- 1. Xóa cấu hình cũ của Form WA_BaoCaoNghiPhepReport nếu có để tránh trùng lặp
 DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoNghiPhepReport';
@@ -489,8 +465,7 @@ GO
 
 PRINT 'Da insert tat ca cac cot va WA_API cho WA_BaoCaoNghiPhepReport thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_BaoCaoNhanSuReport
@@ -737,8 +712,7 @@ GO
 
 PRINT 'Da cap nhat SY_FormatFields cho WA_BaoCaoNhanSuReport thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA MODULE BẢO HIỂM
@@ -1062,8 +1036,7 @@ GO
 
 PRINT 'Successfully configured WA_BaoHiemFrm configuration metadata!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_CaLamViecFrm
@@ -1254,8 +1227,7 @@ GO
 PRINT 'Da thiet lap WA_CaLamViecFrm (Sap ca lam viec) voi MenuID 2044 thanh cong!';
 GO
 [ignoring loop detection]
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_DanhSachUngVienFrm
@@ -1492,8 +1464,7 @@ GO
 
 PRINT 'Da thiet lap WA_DanhSachUngVienFrm (Danh sach ung vien) voi MenuID 2027 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ
@@ -1924,8 +1895,7 @@ GO
 
 PRINT 'Da thiet lap cau hinh WEB cho WA_KinhPhiCongDoanFrm thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_LuongKhoanFrm
@@ -2050,8 +2020,7 @@ GO
 
 PRINT 'Da thiet lap WA_LuongKhoanFrm (Luong khoan) voi MenuID 240103 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_PayrollFrm
@@ -2600,8 +2569,7 @@ ELSE BEGIN
 END
 
 
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_QuanLyNghiLeFrm
@@ -2713,8 +2681,7 @@ GO
 
 PRINT 'Da thiet lap WA_QuanLyNghiLeFrm (Quan ly nghi le) voi MenuID 2107 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ
@@ -2874,8 +2841,7 @@ GO
 
 PRINT 'Da thiet lap WA_QuanLyNghiPhepNamFrm (Quan ly nghi phep nam - Master/Detail) voi MenuID 2106 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_ShiftListCNFrm
@@ -3032,8 +2998,7 @@ GO
 
 PRINT 'Da thiet lap WA_ShiftListCNFrm (Danh mục Ca làm việc chi nhánh) voi MenuID 7019 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ NẾU CÓ
@@ -3181,8 +3146,7 @@ GO
 
 PRINT 'Da thiet lap WA_TimeSheetCTReport (Bao cao cham cong chi tiet) voi MenuID 2203 thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ
@@ -3342,8 +3306,7 @@ GO
 
 PRINT 'Da thiet la' + 'p WA_TimeSheetDayFrm (Cham cong hang ngay) thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_TimeSheetFrm
@@ -3461,8 +3424,7 @@ GO
 
 PRINT 'Da tao cau hinh WA_TimeSheetFrm su dung Stored Procedure API_BangChamCongTongHop thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ NẾU CÓ
@@ -3607,8 +3569,7 @@ GO
 
 PRINT 'Da thiet lap cau hinh giup menu Bao Cao Cham Cong show full 62 cot chi tiet nhu Desktop App!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ NẾU CÓ
@@ -3751,8 +3712,7 @@ GO
 PRINT 'Da thiet lap cau hinh giup menu WA_TimeSheetTH2Report show full 62 cot chi tiet qua Store API_BaoCaoChamCongTongHop thanh cong!';
 GO
 
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ BÁO CÁO MỚI VÀO BẢNG DANH SÁCH FORM (SY_FrmLstTbl)
@@ -3796,8 +3756,7 @@ GO
 
 PRINT 'Da dang ky Form, TableName, API va Dong bo cot giao dien cho WA_TimeSheetTH2Report thanh cong!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ CRUD CHO: Danh mục Ca Làm Việc (WA_ShiftListFrm)
@@ -3892,8 +3851,7 @@ VALUES
     ('API_PersonFull_T8_Log', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''' ),
     ('API_PersonFull_T8_Log', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''' ),
     ('API_PersonFull_T9_GiayTo', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''' ),
-    ('API_PersonFull_T9_GiayTo', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''' );USE [X26DIMTUTAC]
-GO
+    ('API_PersonFull_T9_GiayTo', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''' );
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -3951,8 +3909,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form CF_BranchListFrm (Danh muc Chi nhanh)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 PRINT '========================================================================';
 PRINT 'BAT DAU DANG KY TOAN BO 12 DANH MUC CUOI CUNG CON LAI';
@@ -4255,8 +4212,7 @@ PRINT '========================================================================'
 PRINT 'DA DANG KY THANH CONG TOAN BO DANG KY CHO 12 DANH MUC TRENE!';
 PRINT '========================================================================';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM SY_Period TRONG SY_FrmLstTbl
@@ -4318,8 +4274,7 @@ GO
 
 PRINT 'Da hoan tat dang ky SY_Period API!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4377,8 +4332,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_BangCapListFrm (Danh muc Bang cap)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. REGISTER CRUD FOR MASTER FORM (WA_BangPhuCapFrm)
@@ -4430,8 +4384,7 @@ GO
 
 PRINT 'Successfully configured WA_BangPhuCapFrm CRUD, HR_PersonTbl, and API_BangPhuCap_Detail CRUD!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4513,8 +4466,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_BangThamSoFrm (Bang tham so tinh luong)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4580,8 +4532,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_BangThueTNCNFrm (Bang muc thue TNCN)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4647,8 +4598,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_BankListFrm (Danh muc Ngan hang)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4710,8 +4660,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_CareerlListFrm (Danh muc Nghe nghiep)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4769,8 +4718,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_DepartmentListFrm (Danh muc Phong ban)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4832,8 +4780,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_EducationListFrm (Danh muc Hoc van)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4895,8 +4842,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_HinhThucNghiListFrm (Danh muc Hinh thuc nghi)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -4962,8 +4908,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_HospitalListFrm (Danh muc Binh vien)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5025,8 +4970,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_JobListFrm (Danh muc Cong viec)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5092,8 +5036,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_NationListFrm (Danh muc Quoc gia)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5167,8 +5110,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_PeopleListFrm (Danh muc Dan toc)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5225,8 +5167,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_PositionListFrm (Danh muc Vi tri)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5292,8 +5233,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_ProvinceListFrm (Danh muc Tinh thanh)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5355,8 +5295,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_ReligionListFrm (Danh muc Ton giao)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5419,8 +5358,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_ShiftListFrm (Danh muc Ca lam viec)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl
@@ -5476,8 +5414,7 @@ GO
 
 PRINT 'Da dang ky thanh cong CRUD dong cho form WA_TitleListFrm (Danh muc Chuc vu)!';
 GO
-USE [X26DIMTUTAC]
-GO
+
 
 -- =========================================================================
 -- 1. ĐĂNG KÝ FORM TRONG SY_FrmLstTbl

@@ -8,7 +8,7 @@ DELETE FROM dbo.SY_FrmOptBtnTbl WHERE FormID IN ('WA_KinhPhiCongDoanFrm');
 DELETE FROM dbo.SY_FrmCtrTbl WHERE FormID IN ('WA_KinhPhiCongDoanFrm');
 DELETE FROM dbo.SY_FrmLstTbl WHERE FormID = 'WA_KinhPhiCongDoanFrm';
 DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_KinhPhiCongDoanFrm';
-DELETE FROM dbo.WA_API WHERE list IN ('WA_KinhPhiCongDoanFrm', 'API_KinhPhiCongDoan_PersonList');
+DELETE FROM dbo.WA_API WHERE list IN ('WA_KinhPhiCongDoanFrm', 'API_Calculate_MucDong_CongDoan');
 GO
 
 -- =========================================================================
@@ -47,7 +47,7 @@ VALUES
 ('WA_KinhPhiCongDoanFrm', 'View',   'API_KinhPhiCongDoan', '@Keyword=N''{Keyword}'',@BranchID=N''{BranchID}'',@User=N''{User}'''),
 ('WA_KinhPhiCongDoanFrm', 'Save',   'API_LuuDong',         '@List=N''WA_KinhPhiCongDoanFrm'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('WA_KinhPhiCongDoanFrm', 'Delete', 'API_XoaDong',          '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_KinhPhiCongDoan_PersonList', 'View', 'API_KinhPhiCongDoan_PersonList', '@Keyword=N''{Keyword}''');
+('API_Calculate_MucDong_CongDoan', 'View', 'API_Calculate_MucDong_CongDoan', '@Keyword=N''{Keyword}''');
 GO
 
 -- =========================================================================
@@ -92,7 +92,7 @@ SET CaptionVN = CASE FieldName
         ELSE 't' -- Định dạng Text
     END,
     DataSource = CASE
-        WHEN FieldName = 'PersonID' THEN N'API_KinhPhiCongDoan_PersonList'
+        WHEN FieldName = 'PersonID' THEN N'API_Calculate_MucDong_CongDoan'
         ELSE NULL
     END,
     FormPosition = CASE 

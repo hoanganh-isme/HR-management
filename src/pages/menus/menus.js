@@ -196,7 +196,7 @@ var MenusPage = (function () {
 
     var nestedEl = UINestedTabs.create(folderRecords, {
       vertical: true,
-      draggable: true, // Cho phép kéo thả bình thường vì cấu trúc giờ đã chuẩn cây 2 cấp
+      draggable: false, // Tắt kéo thả ở sidebar dọc để giao diện gọn gàng như bản cũ
       defaultParentId: defParentId,
       defaultChildId: defChildId,
       onTabChange: function (nodeId, childId) {

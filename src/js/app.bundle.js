@@ -1,4 +1,4 @@
-/* --- mockData.js --- */
+﻿/* --- mockData.js --- */
 /**
  * Mock Data
  * Dữ liệu mẫu dùng chung cho toàn bộ hệ thống trong lúc chờ tích hợp API thật
@@ -81,7 +81,7 @@ var MockData = {
   // Dữ liệu Demo Khảo sát - Yếu tố đặt tiệc
   demoSurveyFactors: [
     { label: 'Không gian sảnh', value: 35 },
-    { label: 'Thực đơn ngon', value: 25 },
+    { label: 'Môi trường tốt', value: 25 },
     { label: 'Giá cả hợp lý', value: 20 },
     { label: 'Khuyến mãi tốt', value: 15 },
     { label: 'Phục vụ', value: 5 }
@@ -133,150 +133,150 @@ var MockData = {
  */
 
 const ApiClient = (function () {
-  // Lấy Base URL từ env.js
-  const getBaseUrl = () => {
-    return window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
-  };
-
-  /**
-   * Cookie helpers (Tương tự Medstand)
-   */
-  function setCookie(name, value, days) {
-    const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    const isSecure = window.location.protocol === 'https:';
-    document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Strict${isSecure ? ';Secure' : ''}`;
-  }
-
-  function getCookie(name) {
-    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-    return match ? decodeURIComponent(match[1]) : '';
-  }
-
-  function deleteCookie(name) {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-  }
-
-  /**
-   * Lấy auth token từ Cookie
-   */
-  function getAuthToken() {
-    return getCookie('auth_token') || null;
-  }
-
-  /**
-   * Hàm gọi API cốt lõi
-   */
-  async function request(endpoint, options = {}) {
-    const baseUrl = getBaseUrl();
-    // Nếu endpoint đã là URL đầy đủ thì không nối BaseUrl nữa
-    const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
-
-    // Thiết lập Headers mặc định
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(options.headers || {})
+    // Lấy Base URL từ env.js
+    const getBaseUrl = () => {
+        return window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
     };
 
-    // Gắn Bearer Token nếu có
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    /**
+     * Cookie helpers (Tương tự Medstand)
+     */
+    function setCookie(name, value, days) {
+        const expires = new Date(Date.now() + days * 864e5).toUTCString();
+        const isSecure = window.location.protocol === 'https:';
+        document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Strict${isSecure ? ';Secure' : ''}`;
     }
 
-    const config = {
-      ...options,
-      headers
-    };
+    function getCookie(name) {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 
-    try {
-      const response = await fetch(url, config);
+    function deleteCookie(name) {
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+    }
 
-      // Xử lý status 401 (Hết hạn token / Chưa đăng nhập)
-      if (response.status === 401) {
-        console.warn('[ApiClient] 401 Unauthorized. Token expired?');
-        if (typeof window.logoutApp === 'function') {
-          window.logoutApp();
-        } else {
-          deleteCookie('auth_token');
-          localStorage.removeItem('pmql_user');
-          window.location.href = 'login.html';
+    /**
+     * Lấy auth token từ Cookie
+     */
+    function getAuthToken() {
+        return getCookie('auth_token') || null;
+    }
+
+    /**
+     * Hàm gọi API cốt lõi
+     */
+    async function request(endpoint, options = {}) {
+        const baseUrl = getBaseUrl();
+        // Nếu endpoint đã là URL đầy đủ thì không nối BaseUrl nữa
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+
+        // Thiết lập Headers mặc định
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(options.headers || {})
+        };
+
+        // Gắn Bearer Token nếu có
+        const token = getAuthToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
         }
-      }
 
-      // Nếu response code không phải 2xx (Tức là bị lỗi Backend trả về)
-      if (!response.ok) {
-        let errorData;
+        const config = {
+            ...options,
+            headers
+        };
+
         try {
-          errorData = await response.json();
-        } catch (e) {
-          errorData = { message: response.statusText || 'Lỗi kết nối Server' };
+            const response = await fetch(url, config);
+
+            // Xử lý status 401 (Hết hạn token / Chưa đăng nhập)
+            if (response.status === 401) {
+                console.warn('[ApiClient] 401 Unauthorized. Token expired?');
+                if (typeof window.logoutApp === 'function') {
+                    window.logoutApp();
+                } else {
+                    deleteCookie('auth_token');
+                    localStorage.removeItem('pmql_user');
+                    window.location.href = 'login.html';
+                }
+            }
+
+            // Nếu response code không phải 2xx (Tức là bị lỗi Backend trả về)
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    errorData = { message: response.statusText || 'Lỗi kết nối Server' };
+                }
+                const error = new Error(errorData.message || 'Lỗi Server');
+                error.status = response.status;
+                error.data = errorData;
+                throw error;
+            }
+
+            // Parse k\u1ebft qu\u1ea3
+            const textResponse = await response.text();
+            try {
+                // Trả về Object nếu JSON hợp lệ
+                return textResponse ? JSON.parse(textResponse) : {};
+            } catch (err) {
+                // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
+                return textResponse;
+            }
+
+        } catch (error) {
+            // Catch error network hoặc error tự throw ở trên
+            console.error(`[API Error] ${options.method || 'GET'} ${url} :`, error);
+            throw error; // Ném lỗi ra ngoài cho component/page xử lý hiện Toast báo lỗi
         }
-        const error = new Error(errorData.message || 'Lỗi Server');
-        error.status = response.status;
-        error.data = errorData;
-        throw error;
-      }
-
-      // Parse k\u1ebft qu\u1ea3
-      const textResponse = await response.text();
-      try {
-        // Trả về Object nếu JSON hợp lệ
-        return textResponse ? JSON.parse(textResponse) : {};
-      } catch (err) {
-        // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
-        return textResponse;
-      }
-
-    } catch (error) {
-      // Catch error network hoặc error tự throw ở trên
-      console.error(`[API Error] ${options.method || 'GET'} ${url} :`, error);
-      throw error; // Ném lỗi ra ngoài cho component/page xử lý hiện Toast báo lỗi
     }
-  }
 
-  return {
-    /**
-     * G\u1eedi request GET
-     */
-    get: function (endpoint, options = {}) {
-      return request(endpoint, { ...options, method: 'GET' });
-    },
+    return {
+        /**
+         * G\u1eedi request GET
+         */
+        get: function (endpoint, options = {}) {
+            return request(endpoint, { ...options, method: 'GET' });
+        },
 
-    /**
-     * G\u1eedi request POST (Dữ liệu truyền vào th\u00f4ng qua body)
-     */
-    post: function (endpoint, data, options = {}) {
-      return request(endpoint, {
-        ...options,
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
-    },
+        /**
+         * G\u1eedi request POST (Dữ liệu truyền vào th\u00f4ng qua body)
+         */
+        post: function (endpoint, data, options = {}) {
+            return request(endpoint, {
+                ...options,
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+        },
 
-    /**
-     * G\u1eedi request PUT (Th\u01b0\u1eddng d\u00f9ng \u0111\u1ec3 update)
-     */
-    put: function (endpoint, data, options = {}) {
-      return request(endpoint, {
-        ...options,
-        method: 'PUT',
-        body: JSON.stringify(data)
-      });
-    },
+        /**
+         * G\u1eedi request PUT (Th\u01b0\u1eddng d\u00f9ng \u0111\u1ec3 update)
+         */
+        put: function (endpoint, data, options = {}) {
+            return request(endpoint, {
+                ...options,
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+        },
 
-    /**
-     * G\u1eedi request DELETE
-     */
-    delete: function (endpoint, options = {}) {
-      return request(endpoint, { ...options, method: 'DELETE' });
-    },
+        /**
+         * G\u1eedi request DELETE
+         */
+        delete: function (endpoint, options = {}) {
+            return request(endpoint, { ...options, method: 'DELETE' });
+        },
 
-    // Expose cookie helpers to be used globally (e.g., in login and logout)
-    setCookie: setCookie,
-    getCookie: getCookie,
-    deleteCookie: deleteCookie
-  };
+        // Expose cookie helpers to be used globally (e.g., in login and logout)
+        setCookie: setCookie,
+        getCookie: getCookie,
+        deleteCookie: deleteCookie
+    };
 })();
 
 // Xuất ra để có thể dùng toàn cục trong file JS khác
@@ -293,11 +293,11 @@ var Permission = (function () {
     var legacyPerms = JSON.parse(localStorage.getItem('app_permissions') || '{}');
     var newPerms = JSON.parse(localStorage.getItem('pmql_permissions') || '{}');
     var perms = Object.keys(newPerms).length > 0 ? newPerms : legacyPerms;
-
+    
     if (Object.keys(perms).length === 0) {
       return { xem: true, them: true, sua: true, xoa: true };
     }
-
+    
     var p = perms[module];
     if (!p) {
       var target = (module || '').toLowerCase();
@@ -309,19 +309,19 @@ var Permission = (function () {
       }
     }
     p = p || {};
-
+    
     return {
-      xem: p.CanView == 1 || p.CanView === '1' || p.CanView === true || p.CanView === 'true' || p.xem == 1 || p.xem === '1' || p.xem === true || p.xem === 'true',
-      them: p.CanAdd == 1 || p.CanAdd === '1' || p.CanAdd === true || p.CanAdd === 'true' || p.them == 1 || p.them === '1' || p.them === true || p.them === 'true',
-      sua: p.CanEdit == 1 || p.CanEdit === '1' || p.CanEdit === true || p.CanEdit === 'true' || p.sua == 1 || p.sua === '1' || p.sua === true || p.sua === 'true',
-      xoa: p.CanDelete == 1 || p.CanDelete === '1' || p.CanDelete === true || p.CanDelete === 'true' || p.xoa == 1 || p.xoa === '1' || p.xoa === true || p.xoa === 'true'
+        xem: p.CanView == 1 || p.CanView === '1' || p.CanView === true || p.CanView === 'true' || p.xem == 1 || p.xem === '1' || p.xem === true || p.xem === 'true',
+        them: p.CanAdd == 1 || p.CanAdd === '1' || p.CanAdd === true || p.CanAdd === 'true' || p.them == 1 || p.them === '1' || p.them === true || p.them === 'true',
+        sua: p.CanEdit == 1 || p.CanEdit === '1' || p.CanEdit === true || p.CanEdit === 'true' || p.sua == 1 || p.sua === '1' || p.sua === true || p.sua === 'true',
+        xoa: p.CanDelete == 1 || p.CanDelete === '1' || p.CanDelete === true || p.CanDelete === 'true' || p.xoa == 1 || p.xoa === '1' || p.xoa === true || p.xoa === 'true'
     };
   }
 
   return {
-    canView: function (module) { return _get(module).xem; },
-    canAdd: function (module) { return _get(module).them; },
-    canEdit: function (module) { return _get(module).sua; },
+    canView:   function (module) { return _get(module).xem; },
+    canAdd:    function (module) { return _get(module).them; },
+    canEdit:   function (module) { return _get(module).sua; },
     canDelete: function (module) { return _get(module).xoa; }
   };
 })();
@@ -439,7 +439,7 @@ var DocumentExportPlugin = (function () {
           errBox.style.textAlign = 'center';
           errBox.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1)';
           errBox.style.fontFamily = '"Inter", system-ui, -apple-system, sans-serif';
-
+          
           var errMsg = document.createElement('p');
           errMsg.innerText = 'Không tìm thấy mẫu hợp đồng nào được cấu hình trong CSDL (bảng HR_HopDongAddfile).';
           errMsg.style.color = '#ef4444';
@@ -447,7 +447,7 @@ var DocumentExportPlugin = (function () {
           errMsg.style.fontWeight = '500';
           errMsg.style.margin = '0 0 16px 0';
           errBox.appendChild(errMsg);
-
+          
           var btnClose = document.createElement('button');
           btnClose.innerText = 'Đóng';
           btnClose.style.padding = '8px 18px';
@@ -527,14 +527,14 @@ var DocumentExportPlugin = (function () {
           label.style.borderRadius = '8px';
           label.style.border = '1px solid #e2e8f0';
           label.style.transition = 'all 0.15s ease';
-
+          
           var radio = document.createElement('input');
           radio.type = 'radio';
           radio.name = 'tplSelect';
           radio.value = tpl.id;
           radio.style.cursor = 'pointer';
           radio.style.margin = '0';
-
+          
           var textSpan = document.createElement('span');
           textSpan.innerText = tpl.name;
           textSpan.style.fontWeight = '500';
@@ -544,7 +544,7 @@ var DocumentExportPlugin = (function () {
             label.style.borderColor = '#3b82f6';
             label.style.backgroundColor = '#eff6ff';
             textSpan.style.color = '#1d4ed8';
-
+            
             var badge = document.createElement('span');
             badge.innerText = 'Đề xuất';
             badge.style.marginLeft = 'auto';
@@ -554,7 +554,7 @@ var DocumentExportPlugin = (function () {
             badge.style.padding = '2px 8px';
             badge.style.borderRadius = '9999px';
             badge.style.fontWeight = '600';
-
+            
             label.appendChild(radio);
             label.appendChild(textSpan);
             label.appendChild(badge);
@@ -631,20 +631,20 @@ var DocumentExportPlugin = (function () {
       .catch(function (err) {
         console.error('[DocumentExportPlugin] Lỗi tải mẫu CSDL:', err);
         overlay.removeChild(loadingText);
-
+        
         // Hiện thông báo lỗi và tự động gỡ overlay
         var errBox = document.createElement('div');
         errBox.style.backgroundColor = '#ffffff';
         errBox.style.padding = '24px';
         errBox.style.borderRadius = '8px';
         errBox.style.textAlign = 'center';
-
+        
         var errMsg = document.createElement('p');
         errMsg.innerText = 'Không thể kết nối đến máy chủ hoặc tải danh sách mẫu từ CSDL.';
         errMsg.style.color = '#ef4444';
         errMsg.style.margin = '0 0 16px 0';
         errBox.appendChild(errMsg);
-
+        
         var btnClose = document.createElement('button');
         btnClose.innerText = 'Đóng';
         btnClose.style.padding = '8px 16px';
@@ -717,8 +717,8 @@ var DocumentExportPlugin = (function () {
         sqlListName: config.sqlListName,
         convertFields: config.convertFields || [],
         // branchId từ localStorage (backend sẽ tự xác thực lại bằng SY_User)
-        branchId: (function () {
-          try { return (JSON.parse(localStorage.getItem('pmql_user') || '{}')).BranchID || null; } catch (e) { return null; }
+        branchId: (function() {
+          try { return (JSON.parse(localStorage.getItem('pmql_user') || '{}')).BranchID || null; } catch(e) { return null; }
         })()
       })
     })
@@ -840,7 +840,7 @@ var FormBuilderPlugin = (function () {
         text: 'Thiết kế Layout',
         icon: 'design_services',
         type: 'tool',
-        onClick: function () { _promptLayoutBuilder(moduleConfig, onReloadFormEngine); }
+        onClick: function() { _promptLayoutBuilder(moduleConfig, onReloadFormEngine); }
       },
       {
         id: 'btn-form-builder-sync',
@@ -1037,7 +1037,7 @@ var FormBuilderPlugin = (function () {
           var fieldNameStr = f.FieldName || f.fieldname || f.FIELDNAME || f.name || '';
           var captionStr = f.CaptionVN || f.captionvn || f.CAPTIONVN || f.label || fieldNameStr;
 
-          var _bool = function (camel, pascal) {
+          var _bool = function(camel, pascal) {
             return String(camel) === '1' || camel === true || String(pascal) === '1' || pascal === true;
           };
 
@@ -1196,12 +1196,12 @@ var FormBuilderPlugin = (function () {
           }
 
           _sendSequentialToDB(saveEndpoint, payloads)
-            .then(function () {
+            .then(function() {
               modalLayout.closeNow();
               Alert.success('Thành công', 'Đã cập nhật xong cấu hình Layout!');
               if (typeof onReloadFormEngine === 'function') onReloadFormEngine();
             })
-            .catch(function (err) {
+            .catch(function(err) {
               console.error(err);
               btn.innerHTML = origTxt;
               btn.disabled = false;
@@ -1217,8 +1217,8 @@ var FormBuilderPlugin = (function () {
 
   // Chạy tuần tự các promises
   function _sendSequentialToDB(endpoint, payloads) {
-    return payloads.reduce(function (promise, payload) {
-      return promise.then(function () {
+    return payloads.reduce(function(promise, payload) {
+      return promise.then(function() {
         var finalPayload = payload;
         if (endpoint === '/api/API_Gateway_Router') {
           finalPayload = {
@@ -1227,8 +1227,8 @@ var FormBuilderPlugin = (function () {
             JsonData: JSON.stringify(payload)
           };
         }
-        return ApiClient.post(endpoint, finalPayload).then(function (res) {
-          if (res && res.code !== 0) throw new Error(res.msg || 'Lỗi lưu trường ' + payload.FieldName);
+        return ApiClient.post(endpoint, finalPayload).then(function(res) {
+            if (res && res.code !== 0) throw new Error(res.msg || 'Lỗi lưu trường ' + payload.FieldName);
         });
       });
     }, Promise.resolve());
@@ -1254,148 +1254,148 @@ var FormBuilderPlugin = (function () {
  */
 var WorkflowTransferPlugin = (function () {
 
-  function _autoClickAdd() {
-    setTimeout(function () {
-      var btnAdd = document.querySelector('button[title*="Thêm bản ghi mới"], button[title="Thêm"], .btn-primary:not(.btn-tool)');
-      if (btnAdd) btnAdd.click();
-    }, 800);
-  }
-
-  // --- CẤU HÌNH CÁC NÚT TRANSFER ---
-  var FORM_CONFIG = {
-    'frmKhachThamQuan': {
-      id: 'btn-transfer-booking',
-      text: 'Tạo Cọc',
-      icon: 'monetization_on',
-      targetHash: '#/booking',
-      storageKey: 'transfer_VisitorToBooking',
-      getTransferData: function (row) {
-        var data = Object.assign({}, row);
-        delete data.Id; delete data.AutoID; delete data.Sohopdong;
-        return data;
-      }
-    },
-    'frmHopDong': {
-      id: 'btn-transfer-checkout',
-      text: 'Quyết Toán',
-      icon: 'receipt_long',
-      targetHash: '#/checkout',
-      storageKey: 'transfer_ContractToCheckout',
-      getTransferData: function (row) {
-        var data = Object.assign({}, row);
-        delete data.Id; delete data.AutoID;
-        return data;
-      }
+    function _autoClickAdd() {
+        setTimeout(function () {
+            var btnAdd = document.querySelector('button[title*="Thêm bản ghi mới"], button[title="Thêm"], .btn-primary:not(.btn-tool)');
+            if (btnAdd) btnAdd.click();
+        }, 800);
     }
-  };
 
-  function getExtraButtons(formName, getSelectedRows) {
-    var config = FORM_CONFIG[formName];
-    if (!config) return [];
+    // --- CẤU HÌNH CÁC NÚT TRANSFER ---
+    var FORM_CONFIG = {
+        'frmKhachThamQuan': {
+            id: 'btn-transfer-booking',
+            text: 'Tạo Cọc',
+            icon: 'monetization_on',
+            targetHash: '#/booking',
+            storageKey: 'transfer_VisitorToBooking',
+            getTransferData: function (row) {
+                var data = Object.assign({}, row);
+                delete data.Id; delete data.AutoID; delete data.Sohopdong;
+                return data;
+            }
+        },
+        'frmHopDong': {
+            id: 'btn-transfer-checkout',
+            text: 'Quyết Toán',
+            icon: 'receipt_long',
+            targetHash: '#/checkout',
+            storageKey: 'transfer_ContractToCheckout',
+            getTransferData: function (row) {
+                var data = Object.assign({}, row);
+                delete data.Id; delete data.AutoID;
+                return data;
+            }
+        }
+    };
 
-    return [{
-      id: config.id,
-      text: config.text,
-      icon: config.icon,
-      type: 'tool',
-      onClick: function () {
-        var selectedRows = getSelectedRows();
-        if (!selectedRows || selectedRows.length !== 1) {
-          if (window.Alert) Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng duy nhất để ' + config.text + '.');
-          else alert('Vui lòng chọn 1 dòng!');
-          return;
+    function getExtraButtons(formName, getSelectedRows) {
+        var config = FORM_CONFIG[formName];
+        if (!config) return [];
+
+        return [{
+            id: config.id,
+            text: config.text,
+            icon: config.icon,
+            type: 'tool',
+            onClick: function () {
+                var selectedRows = getSelectedRows();
+                if (!selectedRows || selectedRows.length !== 1) {
+                    if (window.Alert) Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng duy nhất để ' + config.text + '.');
+                    else alert('Vui lòng chọn 1 dòng!');
+                    return;
+                }
+
+                var transferData = config.getTransferData(selectedRows[0]);
+                sessionStorage.setItem(config.storageKey, JSON.stringify(transferData));
+                window.location.hash = config.targetHash;
+                _autoClickAdd();
+            }
+        }];
+    }
+
+    // --- XỬ LÝ AUTO-FILL KHI MỞ FORM THÊM MỚI ---
+    var _observer = null;
+
+    function _handleAutoFill() {
+        var modalContent = document.querySelector('.modal-content');
+        if (!modalContent) return;
+        var modalTitle = modalContent.querySelector('.modal-title');
+        if (!modalTitle || modalTitle.innerText.indexOf('Thêm') === -1) return;
+
+        var dataV2B = sessionStorage.getItem('transfer_VisitorToBooking');
+        if (dataV2B) {
+            _fillData(JSON.parse(dataV2B), 'Khách Tham Quan');
+            sessionStorage.removeItem('transfer_VisitorToBooking');
+            return;
         }
 
-        var transferData = config.getTransferData(selectedRows[0]);
-        sessionStorage.setItem(config.storageKey, JSON.stringify(transferData));
-        window.location.hash = config.targetHash;
-        _autoClickAdd();
-      }
-    }];
-  }
-
-  // --- XỬ LÝ AUTO-FILL KHI MỞ FORM THÊM MỚI ---
-  var _observer = null;
-
-  function _handleAutoFill() {
-    var modalContent = document.querySelector('.modal-content');
-    if (!modalContent) return;
-    var modalTitle = modalContent.querySelector('.modal-title');
-    if (!modalTitle || modalTitle.innerText.indexOf('Thêm') === -1) return;
-
-    var dataV2B = sessionStorage.getItem('transfer_VisitorToBooking');
-    if (dataV2B) {
-      _fillData(JSON.parse(dataV2B), 'Khách Tham Quan');
-      sessionStorage.removeItem('transfer_VisitorToBooking');
-      return;
-    }
-
-    var dataC2C = sessionStorage.getItem('transfer_ContractToCheckout');
-    if (dataC2C) {
-      _fillData(JSON.parse(dataC2C), 'Hợp Đồng Tiệc');
-      sessionStorage.removeItem('transfer_ContractToCheckout');
-      return;
-    }
-  }
-
-  function _fillData(data, sourceName) {
-    setTimeout(function () {
-      var modalContent = document.querySelector('.modal-content');
-      if (!modalContent) return;
-      var filled = false;
-
-      var tryFill = function (selectors, value) {
-        if (!value) return;
-        var els = modalContent.querySelectorAll(selectors);
-        if (els.length > 0) {
-          els.forEach(function (el) {
-            el.value = value;
-            el.style.backgroundColor = '#f0fdf4';
-            el.style.borderColor = '#10b981';
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-          });
-          filled = true;
+        var dataC2C = sessionStorage.getItem('transfer_ContractToCheckout');
+        if (dataC2C) {
+            _fillData(JSON.parse(dataC2C), 'Hợp Đồng Tiệc');
+            sessionStorage.removeItem('transfer_ContractToCheckout');
+            return;
         }
-      };
+    }
 
-      // Duyệt qua mapping động từ JSON data (keys chính là tên trường của form đích)
-      Object.keys(data).forEach(function (fieldName) {
-        var value = data[fieldName];
-        if (!value) return; // Bỏ qua nếu không có giá trị
+    function _fillData(data, sourceName) {
+        setTimeout(function () {
+            var modalContent = document.querySelector('.modal-content');
+            if (!modalContent) return;
+            var filled = false;
 
-        // Tự động tạo selector thông minh bao phủ input, select, textarea
-        var selector = 'input[name="' + fieldName + '"], ' +
-          'select[name="' + fieldName + '"], ' +
-          'textarea[name="' + fieldName + '"]';
+            var tryFill = function (selectors, value) {
+                if (!value) return;
+                var els = modalContent.querySelectorAll(selectors);
+                if (els.length > 0) {
+                    els.forEach(function (el) {
+                        el.value = value;
+                        el.style.backgroundColor = '#f0fdf4';
+                        el.style.borderColor = '#10b981';
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    filled = true;
+                }
+            };
 
-        tryFill(selector, value);
-      });
+            // Duyệt qua mapping động từ JSON data (keys chính là tên trường của form đích)
+            Object.keys(data).forEach(function (fieldName) {
+                var value = data[fieldName];
+                if (!value) return; // Bỏ qua nếu không có giá trị
 
-      if (filled && window.Toast) {
-        Toast.success('Đã tự động điền thông tin từ ' + sourceName + '!');
-      }
-    }, 300);
-  }
+                // Tự động tạo selector thông minh bao phủ input, select, textarea
+                var selector = 'input[name="' + fieldName + '"], ' +
+                    'select[name="' + fieldName + '"], ' +
+                    'textarea[name="' + fieldName + '"]';
 
-  function init() {
-    if (_observer) _observer.disconnect();
+                tryFill(selector, value);
+            });
 
-    // Chỉ observe để auto-fill (chờ modal xuất hiện)
-    _observer = new MutationObserver(function () {
-      _handleAutoFill();
-    });
+            if (filled && window.Toast) {
+                Toast.success('Đã tự động điền thông tin từ ' + sourceName + '!');
+            }
+        }, 300);
+    }
 
-    _observer.observe(document.body, { childList: true, subtree: true });
-  }
+    function init() {
+        if (_observer) _observer.disconnect();
 
-  // Đăng ký Plugin vào hệ thống
-  window.FormActionPlugins = window.FormActionPlugins || [];
-  window.FormActionPlugins.push({ getExtraButtons: getExtraButtons });
+        // Chỉ observe để auto-fill (chờ modal xuất hiện)
+        _observer = new MutationObserver(function () {
+            _handleAutoFill();
+        });
 
-  // Tự khởi động MutationObserver khi load (giống DocumentExportPlugin)
-  init();
+        _observer.observe(document.body, { childList: true, subtree: true });
+    }
 
-  return { getExtraButtons: getExtraButtons };
+    // Đăng ký Plugin vào hệ thống
+    window.FormActionPlugins = window.FormActionPlugins || [];
+    window.FormActionPlugins.push({ getExtraButtons: getExtraButtons });
+
+    // Tự khởi động MutationObserver khi load (giống DocumentExportPlugin)
+    init();
+
+    return { getExtraButtons: getExtraButtons };
 })();
 
 
@@ -1404,12 +1404,12 @@ var WorkflowTransferPlugin = (function () {
  * Global Event Bus - Lõi Pub/Sub để các component giao tiếp với nhau
  * Giúp đồng bộ dữ liệu toàn hệ thống mà không cần truyền biến phức tạp
  */
-var EventBus = (function () {
+var EventBus = (function() {
   var listeners = {};
 
   return {
     // Đăng ký lắng nghe sự kiện
-    on: function (event, callback) {
+    on: function(event, callback) {
       if (!listeners[event]) {
         listeners[event] = [];
       }
@@ -1417,18 +1417,18 @@ var EventBus = (function () {
     },
 
     // Bỏ đăng ký lắng nghe
-    off: function (event, callback) {
+    off: function(event, callback) {
       if (!listeners[event]) return;
-      listeners[event] = listeners[event].filter(function (cb) {
+      listeners[event] = listeners[event].filter(function(cb) {
         return cb !== callback;
       });
     },
 
     // Phát sự kiện toàn cục kèm theo dữ liệu (nếu có)
-    emit: function (event, data) {
+    emit: function(event, data) {
       console.debug('[EventBus] emit:', event, data ? data : '');
       if (listeners[event]) {
-        listeners[event].forEach(function (callback) {
+        listeners[event].forEach(function(callback) {
           callback(data);
         });
       }
@@ -1640,10 +1640,10 @@ var PrintUtils = (function () {
     }
 
     win.document.write('<html><head><title>' + (title || 'In tài liệu') + '</title>');
-
+    
     // Nạp toàn bộ style hiện tại vào bản in
     var styles = document.querySelectorAll('link[rel="stylesheet"], style');
-    styles.forEach(function (s) {
+    styles.forEach(function(s) {
       win.document.write(s.outerHTML);
     });
 
@@ -1655,7 +1655,7 @@ var PrintUtils = (function () {
     win.document.close();
     win.focus();
 
-    setTimeout(function () {
+    setTimeout(function() {
       win.print();
       win.close();
     }, 500); // Đợi CSS load
@@ -1687,7 +1687,7 @@ var CalendarService = (function () {
   var _legendCache = null;
 
   function getLegend() {
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (_legendCache) {
         return resolve(_legendCache);
       }
@@ -1695,12 +1695,12 @@ var CalendarService = (function () {
         return reject('Missing API_CONFIG.ENDPOINTS.CALENDAR.LEGEND');
       }
       ApiClient.get(API_CONFIG.ENDPOINTS.CALENDAR.LEGEND)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           _legendCache = records;
           resolve(records);
         })
-        .catch(function (err) {
+        .catch(function(err) {
           console.warn('[CalendarService] Lỗi lấy Legend', err);
           resolve([]); // Trả về mảng rỗng nếu API lỗi để không bị crash FE
         });
@@ -1780,7 +1780,7 @@ var CalendarService = (function () {
           _calendarCache[cacheKey] = eventsData;
           resolve(eventsData);
           // Flush pending resolvers
-          _pendingResolvers.forEach(function (p) {
+          _pendingResolvers.forEach(function(p) {
             var cached = _calendarCache[p.cacheKey];
             if (cached) p.resolve(cached); else p.reject('No data');
           });
@@ -1789,7 +1789,7 @@ var CalendarService = (function () {
         .catch(function (err) {
           console.error('[CalendarService] Lỗi khi tải lịch:', err);
           reject(err);
-          _pendingResolvers.forEach(function (p) { p.reject(err); });
+          _pendingResolvers.forEach(function(p) { p.reject(err); });
           _pendingResolvers = [];
         })
         .finally(function () {
@@ -1860,7 +1860,7 @@ var CalendarService = (function () {
  * Lớp Dịch vụ lấy dữ liệu Danh mục dùng chung (Sảnh, Ca Tiệc...)
  * Đảm nhiệm việc fetch dữ liệu API, quản lý In-memory Cache để tái sử dụng
  */
-var SystemDataService = (function () {
+var SystemDataService = (function() {
   var _hallsCache = null;
   var _shiftsCache = null;
   var _isFetchingHalls = false;
@@ -1868,7 +1868,7 @@ var SystemDataService = (function () {
 
   function getHalls(forceRefresh) {
     forceRefresh = forceRefresh || false;
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (!forceRefresh && _hallsCache) {
         return resolve(_hallsCache);
       }
@@ -1880,13 +1880,13 @@ var SystemDataService = (function () {
 
       _isFetchingHalls = true;
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.HALLS)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           _hallsCache = records;
           resolve(records);
         })
         .catch(reject)
-        .finally(function () {
+        .finally(function() {
           _isFetchingHalls = false;
         });
     });
@@ -1894,7 +1894,7 @@ var SystemDataService = (function () {
 
   function getShifts(forceRefresh) {
     forceRefresh = forceRefresh || false;
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (!forceRefresh && _shiftsCache) {
         return resolve(_shiftsCache);
       }
@@ -1906,13 +1906,13 @@ var SystemDataService = (function () {
 
       _isFetchingShifts = true;
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           _shiftsCache = records;
           resolve(records);
         })
         .catch(reject)
-        .finally(function () {
+        .finally(function() {
           _isFetchingShifts = false;
         });
     });
@@ -1920,13 +1920,13 @@ var SystemDataService = (function () {
 
   function getBanquetTypes(forceRefresh) {
     forceRefresh = forceRefresh || false;
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES) {
         return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES');
       }
 
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           resolve(records);
         })
@@ -1935,15 +1935,15 @@ var SystemDataService = (function () {
   }
 
   function getSetupValue(codeId) {
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE) {
         return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE');
       }
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           // Tìm đúng CodeID được yêu cầu
-          var found = records.find(function (r) { return r.CodeID === codeId; });
+          var found = records.find(function(r) { return r.CodeID === codeId; });
           resolve(found ? found.CodeValue : null);
         })
         .catch(reject);
@@ -1998,8 +1998,8 @@ var BookingService = (function () {
       ApiClient.get(endpoint)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
+          if (res && res.records)      data = res.records;
+          else if (res && res.data)    data = res.data;
           else if (Array.isArray(res)) data = res;
           resolve(data);
         })
@@ -2041,7 +2041,7 @@ var BookingService = (function () {
       }
       var payloadObj = { Keyword: keyword || '' };
       var payload = JSON.stringify(payloadObj);
-
+      
       var queryParams = [
         'q=' + encodeURIComponent(payload),
         'limit=' + (limit || 20),
@@ -2150,8 +2150,8 @@ var VisitorService = (function () {
       ApiClient.get(endpoint)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
+          if (res && res.records)      data = res.records;
+          else if (res && res.data)    data = res.data;
           else if (Array.isArray(res)) data = res;
           resolve(data);
         })
@@ -2164,172 +2164,6 @@ var VisitorService = (function () {
 
   return {
     getList: getList
-  };
-})();
-
-
-/* --- ContractService.js --- */
-/**
- * ContractService
- * Quản lý toàn bộ API call liên quan đến Hợp Đồng Tiệc.
- */
-var ContractService = (function () {
-
-  /**
-   * Lấy danh sách hợp đồng
-   * @param {Object} filterParams
-   * @returns {Promise<Array>}
-   */
-  function getList(filterParams) {
-    return new Promise(function (resolve, reject) {
-      var base = (typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.CONTRACT && API_CONFIG.ENDPOINTS.CONTRACT.LIST)
-        ? API_CONFIG.ENDPOINTS.CONTRACT.LIST
-        : '/api/API_Contract_List';
-
-      var payloadString = encodeURIComponent(JSON.stringify(filterParams || {}));
-      var endpoint = base + '?q=' + payloadString;
-
-      ApiClient.get(endpoint)
-        .then(function (res) {
-          var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
-          resolve(data);
-        })
-        .catch(function (err) {
-          console.error('[ContractService] Lỗi getList:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lấy thông tin booking để tự điền form Hợp Đồng
-   * @param {string} bookingId
-   * @returns {Promise<Object|null>}
-   */
-  function getBookingById(bookingId) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.BOOKING && API_CONFIG.ENDPOINTS.BOOKING.LIST)
-        ? API_CONFIG.ENDPOINTS.BOOKING.LIST
-        : '/api/API_Booking_List';
-      var payloadString = encodeURIComponent(JSON.stringify({ Keyword: bookingId }));
-
-      ApiClient.get(endpoint + '?q=' + payloadString)
-        .then(function (res) {
-          var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
-          var booking = records.find(function (b) { return (b.MaChungTu || b.id) == bookingId; });
-          resolve(booking || null);
-        })
-        .catch(function (err) {
-          console.error('[ContractService] Lỗi getBookingById:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lấy danh sách thực đơn
-   * @param {Object} params - { Keyword, PhanLoai, IsChay }
-   * @returns {Promise<Array>}
-   */
-  function getFoods(params) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = API_CONFIG.ENDPOINTS.FOODS.LIST;
-
-      var payloadString = encodeURIComponent(JSON.stringify(params || { Keyword: '', PhanLoai: '', IsChay: -1 }));
-      ApiClient.get(endpoint + '?q=' + payloadString)
-        .then(function (res) {
-          var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
-          resolve(data);
-        })
-        .catch(function (err) {
-          console.error('[ContractService] Lỗi getFoods:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lưu hợp đồng
-   * @param {Object} payload
-   * @returns {Promise}
-   */
-  function save(payload) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.CONTRACT && API_CONFIG.ENDPOINTS.CONTRACT.SAVE)
-        ? API_CONFIG.ENDPOINTS.CONTRACT.SAVE
-        : '/api/API_LuuHopDong';
-
-      ApiClient.post(endpoint, payload)
-        .then(resolve)
-        .catch(function (err) {
-          console.error('[ContractService] Lỗi save:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lấy lịch sử phụ lục hợp đồng
-   * @param {string} sohopdong
-   * @returns {Promise<Array>}
-   */
-  function getPhuLucHistory(sohopdong) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER)
-        ? API_CONFIG.ENDPOINTS.ROUTER
-        : '/api/API_Gateway_Router';
-
-      var payload = {
-        List: 'tbmk_Thaydoi',
-        Func: 'View',
-        Keyword: sohopdong || ''
-      };
-
-      ApiClient.post(endpoint, payload)
-        .then(function (res) {
-          var records = (res && res.records) ? res.records : ((res && res.data) ? res.data : (Array.isArray(res) ? res : []));
-          resolve(records);
-        })
-        .catch(function (err) {
-          console.error('[ContractService] Lỗi getPhuLucHistory:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lưu phụ lục thay đổi bổ sung
-   * @param {Object} payload
-   * @returns {Promise}
-   */
-  function savePhuLuc(payload) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER)
-        ? API_CONFIG.ENDPOINTS.ROUTER
-        : '/api/API_Gateway_Router';
-
-      ApiClient.post(endpoint, payload)
-        .then(resolve)
-        .catch(function (err) {
-          console.error('[ContractService] Lỗi savePhuLuc:', err);
-          reject(err);
-        });
-    });
-  }
-
-  return {
-    getList: getList,
-    getBookingById: getBookingById,
-    getFoods: getFoods,
-    save: save,
-    getPhuLucHistory: getPhuLucHistory,
-    savePhuLuc: savePhuLuc
   };
 })();
 
@@ -2358,9 +2192,9 @@ var CheckoutService = (function () {
       ApiClient.get(endpoint + '?q=' + payloadString)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
+          if (res && res.records)       data = res.records;
+          else if (res && res.data)     data = res.data;
+          else if (Array.isArray(res))  data = res;
           resolve(data);
         })
         .catch(function (err) {
@@ -2388,9 +2222,9 @@ var CheckoutService = (function () {
       ApiClient.get(endpoint + '?q=' + payloadString)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
+          if (res && res.records)       data = res.records;
+          else if (res && res.data)     data = res.data;
+          else if (Array.isArray(res))  data = res;
           // Chỉ lấy hợp đồng chưa quyết toán (IsKetthuc = 0 / TrangThai = 'Đã Ký')
           var filtered = data.filter(function (item) {
             return item.TrangThai !== 'Đã Quyết Toán' && item.TrangThai !== 'Đã Hủy';
@@ -2421,9 +2255,9 @@ var CheckoutService = (function () {
       ApiClient.post(endpoint, payload)
         .then(function (res) {
           var record = null;
-          if (res && res.records && res.records.length > 0) record = res.records[0];
-          else if (res && res.data && res.data.length > 0) record = res.data[0];
-          else if (Array.isArray(res) && res.length > 0) record = res[0];
+          if (res && res.records && res.records.length > 0)  record = res.records[0];
+          else if (res && res.data && res.data.length > 0)   record = res.data[0];
+          else if (Array.isArray(res) && res.length > 0)     record = res[0];
           else record = res;
           resolve(record);
         })
@@ -2435,9 +2269,9 @@ var CheckoutService = (function () {
   }
 
   return {
-    getList: getList,
+    getList:         getList,
     searchContracts: searchContracts,
-    save: save
+    save:            save
   };
 })();
 
@@ -2690,11 +2524,11 @@ var ReportService = (function () {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.REPORTS || !API_CONFIG.ENDPOINTS.REPORTS.REVENUE) {
         return reject('Missing API_CONFIG.ENDPOINTS.REPORTS.REVENUE');
       }
-
+      
       var payload = {};
       if (fromDate) payload.TuNgay = fromDate;
       if (toDate) payload.DenNgay = toDate;
-
+      
       var endpoint = API_CONFIG.ENDPOINTS.REPORTS.REVENUE + '?q=' + encodeURIComponent(JSON.stringify(payload));
 
       ApiClient.get(endpoint)
@@ -2717,11 +2551,11 @@ var ReportService = (function () {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.REPORTS || !API_CONFIG.ENDPOINTS.REPORTS.COST) {
         return reject('Missing API_CONFIG.ENDPOINTS.REPORTS.COST');
       }
-
+      
       var payload = {};
       if (fromDate) payload.TuNgay = fromDate;
       if (toDate) payload.DenNgay = toDate;
-
+      
       var endpoint = API_CONFIG.ENDPOINTS.REPORTS.COST + '?q=' + encodeURIComponent(JSON.stringify(payload));
 
       ApiClient.get(endpoint)
@@ -2748,30 +2582,30 @@ var ReportService = (function () {
 
 /* --- PeriodManager.js --- */
 // Quản lý Kỳ kế toán (Period Manager) - Tích hợp Real DB (SY_Period)
-(function () {
+(function() {
   window.PeriodManager = {
     _cache: {},
-    init: function () {
+    init: function() {
       var _this = this;
       if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER) {
         ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
           List: 'SY_Period',
           Func: 'View'
-        }).then(function (res) {
+        }).then(function(res) {
           var records = res.records || (Array.isArray(res) ? res : []);
-          records.forEach(function (r) {
+          records.forEach(function(r) {
             var m = parseInt(r.PeriodNo);
             var y = parseInt(r.YearID);
             var isLocked = (r.isLock === true || r.isLock === 1 || r.isLock === '1' || r.isLock === 'True');
             if (m && y) _this._cache[m + '/' + y] = isLocked;
           });
-        }).catch(function (e) { console.error('Lỗi tải SY_Period:', e); });
+        }).catch(function(e) { console.error('Lỗi tải SY_Period:', e); });
       }
     },
-    getLockedPeriods: function () {
+    getLockedPeriods: function() {
       return this._cache;
     },
-    setLockedPeriod: function (month, year, isLocked) {
+    setLockedPeriod: function(month, year, isLocked) {
       var m = parseInt(month);
       var y = parseInt(year);
       this._cache[m + '/' + y] = isLocked;
@@ -2785,15 +2619,15 @@ var ReportService = (function () {
             PeriodID: periodId,
             isLock: isLocked ? 1 : 0
           }
-        }).catch(function (e) { console.error('Lỗi update Khóa Kỳ:', e); });
+        }).catch(function(e) { console.error('Lỗi update Khóa Kỳ:', e); });
       }
     },
-    isDateLocked: function (dateString) {
+    isDateLocked: function(dateString) {
       if (!dateString) return false;
       var dateObj = new Date(dateString);
       if (isNaN(dateObj.getTime())) {
         var parts = dateString.split('/');
-        if (parts.length === 3) dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+        if (parts.length === 3) dateObj = new Date(parts[2], parts[1]-1, parts[0]);
       }
       if (isNaN(dateObj.getTime())) return false;
       var month = dateObj.getMonth() + 1;
@@ -2967,7 +2801,7 @@ var MetricCard = (function () {
     var iconWrap = document.createElement('div');
     iconWrap.className = 'metric-card__icon';
     if (opts.iconColor) iconWrap.style.color = opts.iconColor;
-    if (opts.iconBg) iconWrap.style.background = opts.iconBg;
+    if (opts.iconBg)    iconWrap.style.background = opts.iconBg;
 
     var iconEl = document.createElement('span');
     iconEl.className = 'material-symbols-outlined';
@@ -3199,9 +3033,9 @@ var SparklineChart = (function () {
    * @param {number} H - logical height
    */
   function _setupCanvas(canvas, W, H) {
-    canvas.width = W * _dpr;
+    canvas.width  = W * _dpr;
     canvas.height = H * _dpr;
-    canvas.style.width = W + 'px';
+    canvas.style.width  = W + 'px';
     canvas.style.height = H + 'px';
     var ctx = canvas.getContext('2d');
     ctx.scale(_dpr, _dpr);
@@ -3299,9 +3133,9 @@ var KVTable = (function () {
 
   var _COLOR_MAP = {
     success: 'var(--color-success)',
-    danger: 'var(--color-danger)',
+    danger:  'var(--color-danger)',
     warning: 'var(--color-warning)',
-    info: 'var(--color-info)',
+    info:    'var(--color-info)',
     primary: 'var(--color-primary)'
   };
 
@@ -3312,7 +3146,7 @@ var KVTable = (function () {
     var div = document.createElement('div');
     div.className = 'kvtable__row'
       + (row.isHeader ? ' kvtable__row--header' : '')
-      + (row.isTotal ? ' kvtable__row--total' : '');
+      + (row.isTotal  ? ' kvtable__row--total'  : '');
     div.dataset.kvRowIndex = index;
 
     // Label side
@@ -3451,11 +3285,11 @@ var HallGauge = (function () {
    */
   function create(opts) {
     opts = opts || {};
-    var total = opts.total || 0;
-    var done = opts.done || 0;
+    var total   = opts.total   || 0;
+    var done    = opts.done    || 0;
     var ongoing = opts.ongoing || 0;
-    var label = opts.label || 'đang hoạt động';
-    var doneLabel = opts.doneLabel || 'Đã phục vụ xong';
+    var label       = opts.label       || 'đang hoạt động';
+    var doneLabel    = opts.doneLabel    || 'Đã phục vụ xong';
     var ongoingLabel = opts.ongoingLabel || 'Đang phục vụ';
     var color = opts.color || 'var(--color-primary)';
 
@@ -3466,23 +3300,23 @@ var HallGauge = (function () {
 
     wrap.innerHTML =
       '<div class="hall-gauge__title">' +
-      '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
-      (opts.titleText || 'Sảnh tiệc hôm nay') +
+        '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
+        (opts.titleText || 'Sảnh tiệc hôm nay') +
       '</div>' +
       '<div class="hall-gauge__count">' +
-      '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +
-      '<span class="hall-gauge__count-label">' + label + '</span>' +
+        '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +
+        '<span class="hall-gauge__count-label">' + label + '</span>' +
       '</div>' +
       '<div class="hall-gauge__bar-row">' +
-      '<div class="hall-gauge__bar">' +
-      '<div class="hall-gauge__fill" data-hg-fill' +
-      ' style="width:0%; background:' + color + '"></div>' +
-      '</div>' +
-      '<span class="hall-gauge__pct" data-hg-pct style="color:' + color + '">0%</span>' +
+        '<div class="hall-gauge__bar">' +
+          '<div class="hall-gauge__fill" data-hg-fill' +
+            ' style="width:0%; background:' + color + '"></div>' +
+        '</div>' +
+        '<span class="hall-gauge__pct" data-hg-pct style="color:' + color + '">0%</span>' +
       '</div>' +
       '<div class="hall-gauge__sub">' +
-      '<span>' + doneLabel + ': <strong data-hg-done>' + done + '</strong></span>' +
-      '<span>' + ongoingLabel + ': <strong data-hg-ongoing>' + ongoing + '</strong></span>' +
+        '<span>' + doneLabel + ': <strong data-hg-done>' + done + '</strong></span>' +
+        '<span>' + ongoingLabel + ': <strong data-hg-ongoing>' + ongoing + '</strong></span>' +
       '</div>';
 
     // Animate fill sau 1 frame để CSS transition hoạt động
@@ -3504,27 +3338,27 @@ var HallGauge = (function () {
   function update(el, patch) {
     if (!el || !patch) return;
 
-    var total = parseInt(el.querySelector('[data-hg-total]').textContent) || 0;
-    var done = parseInt(el.querySelector('[data-hg-done]').textContent) || 0;
+    var total   = parseInt(el.querySelector('[data-hg-total]').textContent)   || 0;
+    var done    = parseInt(el.querySelector('[data-hg-done]').textContent)    || 0;
     var ongoing = parseInt(el.querySelector('[data-hg-ongoing]').textContent) || 0;
 
-    if (patch.total !== undefined) total = patch.total;
-    if (patch.done !== undefined) done = patch.done;
+    if (patch.total   !== undefined) total   = patch.total;
+    if (patch.done    !== undefined) done    = patch.done;
     if (patch.ongoing !== undefined) ongoing = patch.ongoing;
 
     var activePct = _pct(ongoing, total);
 
-    var totalEl = el.querySelector('[data-hg-total]');
-    var doneEl = el.querySelector('[data-hg-done]');
+    var totalEl   = el.querySelector('[data-hg-total]');
+    var doneEl    = el.querySelector('[data-hg-done]');
     var ongoingEl = el.querySelector('[data-hg-ongoing]');
-    var fillEl = el.querySelector('[data-hg-fill]');
-    var pctEl = el.querySelector('[data-hg-pct]');
+    var fillEl    = el.querySelector('[data-hg-fill]');
+    var pctEl     = el.querySelector('[data-hg-pct]');
 
-    if (totalEl) totalEl.textContent = total;
-    if (doneEl) doneEl.textContent = done;
+    if (totalEl)   totalEl.textContent   = total;
+    if (doneEl)    doneEl.textContent    = done;
     if (ongoingEl) ongoingEl.textContent = ongoing;
-    if (fillEl) fillEl.style.width = activePct + '%';
-    if (pctEl) pctEl.textContent = activePct + '%';
+    if (fillEl)    fillEl.style.width    = activePct + '%';
+    if (pctEl)     pctEl.textContent     = activePct + '%';
   }
 
   return {
@@ -4247,7 +4081,7 @@ var ReportFilterDialog = (function () {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.utils = (function () {
+UIControls.utils = (function() {
   /**
    * Tính toán vụ trí Dropdown thông minh (Tránh tràn màn hình)
    */
@@ -4260,19 +4094,19 @@ UIControls.utils = (function () {
     if (navbar) navbarBottom = navbar.getBoundingClientRect().bottom;
 
     // position:fixed — tọa độ viewport, không bị ảnh hưởng bởi overflow:hidden
-    dropdownElement.style.position = 'fixed';
-    dropdownElement.style.zIndex = '10000000';
+    dropdownElement.style.position   = 'fixed';
+    dropdownElement.style.zIndex     = '10000000';
     dropdownElement.style.transition = 'opacity 0.15s ease, visibility 0.15s ease';
-    dropdownElement.style.minWidth = rect.width + 'px';
+    dropdownElement.style.minWidth   = rect.width + 'px';
 
     var isActive = dropdownElement.classList.contains('active');
     if (!isActive) {
-      dropdownElement.style.maxHeight = '300px';
+      dropdownElement.style.maxHeight  = '300px';
       dropdownElement.style.visibility = 'hidden';
       dropdownElement.classList.add('active');
     }
 
-    var dropWidth = dropdownElement.offsetWidth;
+    var dropWidth  = dropdownElement.offsetWidth;
     var dropHeight = dropdownElement.offsetHeight;
 
     // --- Tính toán Left ---
@@ -4335,10 +4169,10 @@ UIControls.utils = (function () {
    */
   function createDropdownTableHTML(headers, data, colHighlightIndex) {
     var theadHTML = headers.map(h => `<th>${h}</th>`).join('');
-    var tbodyHTML = data.map(function (row, rIdx) {
+    var tbodyHTML = data.map(function(row, rIdx) {
       // Chỉ render số lượng cột bằng với số lượng headers, các cột thừa sẽ bị ẩn (để dùng cho Auto-fill)
       var displayRow = row.slice(0, headers.length);
-      var cells = displayRow.map(function (cell, cIdx) {
+      var cells = displayRow.map(function(cell, cIdx) {
         var cls = (cIdx === colHighlightIndex) ? 'highlight-col' : '';
         return `<td class="${cls}">${cell}</td>`;
       }).join('');
@@ -4360,17 +4194,17 @@ UIControls.utils = (function () {
     /**
      * Setup single row selection for a table
      */
-    setupTableSelection: function (tableBody, onSelect) {
+    setupTableSelection: function(tableBody, onSelect) {
       if (!tableBody) return;
-      tableBody.addEventListener('click', function (e) {
+      tableBody.addEventListener('click', function(e) {
         var tr = e.target.closest('tr');
         if (!tr) return;
-
+        
         var isAlreadyActive = tr.classList.contains('active');
-
+        
         // Remove active from all rows
         Array.from(tableBody.querySelectorAll('tr')).forEach(r => r.classList.remove('active'));
-
+        
         // If it wasn't active, make it active
         if (!isAlreadyActive) {
           tr.classList.add('active');
@@ -4399,20 +4233,20 @@ UIControls.utils = (function () {
      *                                   'name'  → dùng [name="x"]             (DynamicFormEngine)
      *                                   Mặc định: thử data-field-name trước, fallback name
      */
-    applyVisibleRules: function (container, rowSelector, fieldSelector) {
+    applyVisibleRules: function(container, rowSelector, fieldSelector) {
       rowSelector = rowSelector || '[data-visible-rule]';
       var rows = Array.from(container.querySelectorAll(rowSelector));
       if (!rows.length) return;
 
       function _parseRule(ruleStr) {
-        return ruleStr.split('&').map(function (part) {
+        return ruleStr.split('&').map(function(part) {
           part = part.trim();
           var op = part.indexOf('!=') !== -1 ? '!=' : '=';
           var sides = part.split(op === '!=' ? '!=' : '=');
           return {
             field: sides[0].trim(),
             op: op,
-            values: (sides[1] || '').split('|').map(function (v) { return v.trim().toLowerCase(); })
+            values: (sides[1] || '').split('|').map(function(v) { return v.trim().toLowerCase(); })
           };
         });
       }
@@ -4420,12 +4254,12 @@ UIControls.utils = (function () {
       function _getFieldValue(fieldName) {
         // Thử data-field-name trước (ReportFilterDialog), fallback sang name (DynamicFormEngine)
         var el = container.querySelector('[data-field-name="' + fieldName + '"]')
-          || container.querySelector('[name="' + fieldName + '"]');
+               || container.querySelector('[name="' + fieldName + '"]');
         return el ? (el.value || '').toLowerCase() : '';
       }
 
       function _evaluate(ruleStr) {
-        return _parseRule(ruleStr).every(function (cond) {
+        return _parseRule(ruleStr).every(function(cond) {
           var current = _getFieldValue(cond.field);
           var match = cond.values.indexOf(current) !== -1;
           return cond.op === '=' ? match : !match;
@@ -4438,29 +4272,29 @@ UIControls.utils = (function () {
         var visible = _evaluate(rule);
         row.style.display = visible ? '' : 'none';
         // Disable input ẩn để không bị validate và không serialize vào payload
-        row.querySelectorAll('input, select, textarea').forEach(function (inp) {
+        row.querySelectorAll('input, select, textarea').forEach(function(inp) {
           inp.disabled = !visible;
         });
       }
 
       // Áp trạng thái ban đầu
-      rows.forEach(function (row) { _applyRow(row); });
+      rows.forEach(function(row) { _applyRow(row); });
 
       // Tìm trigger fields và đăng ký change listener
       var triggerMap = {};
-      rows.forEach(function (row) {
-        _parseRule(row.dataset.visibleRule || '').forEach(function (cond) {
+      rows.forEach(function(row) {
+        _parseRule(row.dataset.visibleRule || '').forEach(function(cond) {
           if (!triggerMap[cond.field]) triggerMap[cond.field] = [];
           triggerMap[cond.field].push(row);
         });
       });
 
-      Object.keys(triggerMap).forEach(function (fieldName) {
+      Object.keys(triggerMap).forEach(function(fieldName) {
         var triggerEl = container.querySelector('[data-field-name="' + fieldName + '"]')
-          || container.querySelector('[name="' + fieldName + '"]');
+                      || container.querySelector('[name="' + fieldName + '"]');
         if (!triggerEl) return;
-        var handler = function () {
-          triggerMap[fieldName].forEach(function (row) { _applyRow(row); });
+        var handler = function() {
+          triggerMap[fieldName].forEach(function(row) { _applyRow(row); });
         };
         triggerEl.addEventListener('change', handler);
         triggerEl.addEventListener('input', handler);
@@ -4653,8 +4487,8 @@ var Navbar = (function () {
 
         <!-- Brand / Logo -->
         <div class="navbar-brand" onclick="window.location.hash='#/'" style="display:flex; align-items:center;">
-          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
-          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
         </div>
 
         <!-- Desktop Menu with scroll arrows -->
@@ -4718,8 +4552,8 @@ var Navbar = (function () {
       <div class="mobile-drawer" id="mobile-drawer">
         <div class="mobile-drawer-header">
           <div class="mobile-drawer-brand" style="display:flex; align-items:center; justify-content:center; width:100%; margin: 12px 0;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
           </div>
           <button class="mobile-drawer-close" id="mobile-drawer-close">
             <span class="material-symbols-outlined">arrow_back</span>
@@ -4747,8 +4581,8 @@ var Navbar = (function () {
         <aside class="app-sidebar" id="app-sidebar">
           <div class="sidebar-header">
             <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
-              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
+              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
             </div>
             <button class="btn-close-sidebar" id="btn-close-sidebar">
               <span class="material-symbols-outlined">arrow_back</span>
@@ -5211,7 +5045,7 @@ var Navbar = (function () {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.createCheckbox = function (options) {
+UIControls.createCheckbox = function(options) {
   var wrapper = document.createElement('label');
   wrapper.className = 'modern-checkbox-wrapper';
 
@@ -5220,7 +5054,7 @@ UIControls.createCheckbox = function (options) {
   input.className = 'modern-checkbox';
   if (options.checked) input.checked = true;
 
-  input.addEventListener('change', function (e) {
+  input.addEventListener('change', function(e) {
     if (typeof options.onChange === 'function') {
       options.onChange(e.target.checked);
     }
@@ -5242,19 +5076,19 @@ UIControls.createCheckbox = function (options) {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.createRadio = function (options) {
+UIControls.createRadio = function(options) {
   var wrapper = document.createElement('label');
   wrapper.className = 'modern-radio-wrapper';
 
   var input = document.createElement('input');
   input.type = 'radio';
   input.className = 'modern-radio';
-
+  
   if (options.name) input.name = options.name;
   if (options.value) input.value = options.value;
   if (options.checked) input.checked = true;
 
-  input.addEventListener('change', function (e) {
+  input.addEventListener('change', function(e) {
     if (e.target.checked && typeof options.onChange === 'function') {
       options.onChange(e.target.value);
     }
@@ -5262,7 +5096,7 @@ UIControls.createRadio = function (options) {
 
   var span = document.createElement('span');
   if (options.label) {
-    span.innerHTML = options.label; // Use innerHTML to support elements like <span class="count">(51)</span>
+     span.innerHTML = options.label; // Use innerHTML to support elements like <span class="count">(51)</span>
   }
 
   wrapper.appendChild(input);
@@ -5271,13 +5105,13 @@ UIControls.createRadio = function (options) {
   return wrapper;
 };
 
-UIControls.createRadioGroup = function (options) {
+UIControls.createRadioGroup = function(options) {
   var group = document.createElement('div');
   group.className = 'modern-radio-group';
-
+  
   var name = options.name || 'radio-group-' + Math.random().toString(36).substr(2, 9);
-
-  options.items.forEach(function (item) {
+  
+  options.items.forEach(function(item) {
     var radio = UIControls.createRadio({
       name: name,
       label: item.label,
@@ -5287,7 +5121,7 @@ UIControls.createRadioGroup = function (options) {
     });
     group.appendChild(radio);
   });
-
+  
   return group;
 };
 
@@ -5370,7 +5204,7 @@ UIControls.createDataComboBox = function (options) {
   btnAddNew.type = 'button';
   btnAddNew.className = 'dd-footer-add-btn';
   btnAddNew.innerHTML = '<span class="material-symbols-outlined">add</span> Thêm mới';
-
+  
   // Mặc định là ẩn, chỉ hiện khi có yêu cầu từ options
   btnAddNew.style.display = options.showAddNew ? 'flex' : 'none';
 
@@ -5386,7 +5220,7 @@ UIControls.createDataComboBox = function (options) {
   // Pagination Elements
   var currentPage = 1;
   var currentQuery = '';
-
+  
   var paginationWrapper = document.createElement('div');
   paginationWrapper.className = 'dd-pagination';
   paginationWrapper.style.display = 'none';
@@ -5411,12 +5245,12 @@ UIControls.createDataComboBox = function (options) {
   btnNext.style.cssText = 'border:1px solid var(--color-border); background:var(--color-surface); cursor:pointer; border-radius:6px; display:flex; align-items:center; justify-content:center; width:28px; height:28px; color:var(--color-text-secondary); transition:all 0.2s;';
 
   // Hover effects
-  [btnPrev, btnNext].forEach(function (btn) {
-    btn.onmouseover = function () { this.style.borderColor = 'var(--color-primary)'; this.style.color = 'var(--color-primary)'; this.style.background = 'rgba(251, 191, 36, 0.05)'; };
-    btn.onmouseout = function () { this.style.borderColor = 'var(--color-border)'; this.style.color = 'var(--color-text-secondary)'; this.style.background = 'var(--color-surface)'; };
+  [btnPrev, btnNext].forEach(function(btn) {
+    btn.onmouseover = function() { this.style.borderColor = 'var(--color-primary)'; this.style.color = 'var(--color-primary)'; this.style.background = 'rgba(251, 191, 36, 0.05)'; };
+    btn.onmouseout = function() { this.style.borderColor = 'var(--color-border)'; this.style.color = 'var(--color-text-secondary)'; this.style.background = 'var(--color-surface)'; };
   });
 
-  btnPrev.addEventListener('click', function (e) {
+  btnPrev.addEventListener('click', function(e) {
     e.stopPropagation();
     if (currentPage > 1) {
       currentPage--;
@@ -5424,7 +5258,7 @@ UIControls.createDataComboBox = function (options) {
     }
   });
 
-  btnNext.addEventListener('click', function (e) {
+  btnNext.addEventListener('click', function(e) {
     e.stopPropagation();
     currentPage++;
     loadData(currentQuery, currentPage);
@@ -5558,9 +5392,9 @@ UIControls.createDataComboBox = function (options) {
     }
     dropdown.classList.add('active');
     attachScrollListeners();
-    setTimeout(function () {
+    setTimeout(function () { 
       if (document.activeElement !== input) {
-        searchInput.focus();
+        searchInput.focus(); 
       }
     }, 50);
   }
@@ -5688,7 +5522,7 @@ UIControls.createDataComboBox = function (options) {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.createGridDropdown = function (options) {
+UIControls.createGridDropdown = function(options) {
   var wrapper = document.createElement('div');
   wrapper.className = 'grid-cell-dropdown-wrapper';
 
@@ -5696,7 +5530,7 @@ UIControls.createGridDropdown = function (options) {
   input.type = 'text';
   input.className = 'grid-cell-input';
   input.placeholder = options.placeholder || '';
-  if (options.value) input.value = options.value;
+  if(options.value) input.value = options.value;
 
   var dropdown = document.createElement('div');
   dropdown.className = 'data-dropdown-menu';
@@ -5711,12 +5545,12 @@ UIControls.createGridDropdown = function (options) {
       dropdown.innerHTML = UIControls.utils.createDropdownTableHTML(options.headers || [], displayData, options.colHighlightIndex || 0);
       var rows = dropdown.querySelectorAll('tbody tr');
       rows.forEach(row => {
-        row.addEventListener('click', function (e) {
+        row.addEventListener('click', function(e) {
           e.stopPropagation();
           var dataRow = displayData[row.getAttribute('data-index')];
           input.value = dataRow[options.colFilterIndex || 0];
           hideDropdown();
-          if (typeof options.onSelect === 'function') {
+          if(typeof options.onSelect === 'function') {
             options.onSelect(dataRow);
           }
         });
@@ -5734,32 +5568,32 @@ UIControls.createGridDropdown = function (options) {
     }
     dropdown.classList.add('active');
   }
-
+  
   function hideDropdown() {
     dropdown.classList.remove('active');
     if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
   }
 
   input.addEventListener('focus', showDropdown);
-
-  input.addEventListener('input', function (e) {
+  
+  input.addEventListener('input', function(e) {
     var val = e.target.value.toLowerCase();
     dropdown.classList.add('active');
-    if (!val) return renderTable(fullData);
-    var filtered = fullData.filter(function (row) {
+    if(!val) return renderTable(fullData);
+    var filtered = fullData.filter(function(row) {
       return (row[options.colFilterIndex || 0] || '').toString().toLowerCase().includes(val);
     });
     renderTable(filtered);
   });
 
-  document.addEventListener('click', function (e) {
-    if (!wrapper.contains(e.target) && !dropdown.contains(e.target)) hideDropdown();
+  document.addEventListener('click', function(e) {
+    if(!wrapper.contains(e.target) && !dropdown.contains(e.target)) hideDropdown();
   });
 
-  window.addEventListener('scroll', function (e) {
-    if (dropdown.classList.contains('active') && !dropdown.contains(e.target)) {
-      hideDropdown();
-    }
+  window.addEventListener('scroll', function(e) {
+      if (dropdown.classList.contains('active') && !dropdown.contains(e.target)) {
+          hideDropdown();
+      }
   }, true);
 
   wrapper.appendChild(input);
@@ -5871,24 +5705,24 @@ var Alert = (function () {
     toast.innerHTML = html;
     container.appendChild(toast);
 
-    toast.querySelector('.toast-close').addEventListener('click', function () {
+    toast.querySelector('.toast-close').addEventListener('click', function() {
       removeToast(toast);
     });
 
     // Trigger animation
-    setTimeout(function () {
+    setTimeout(function() {
       toast.classList.add('show');
     }, 10);
 
     // Auto remove
-    setTimeout(function () {
+    setTimeout(function() {
       removeToast(toast);
     }, duration);
   }
 
   function removeToast(toast) {
     toast.classList.remove('show');
-    setTimeout(function () {
+    setTimeout(function() {
       if (toast.parentNode) {
         toast.parentNode.removeChild(toast);
       }
@@ -5896,10 +5730,10 @@ var Alert = (function () {
   }
 
   return {
-    success: function (title, message, duration) { show('success', title, message, duration); },
-    error: function (title, message, duration) { show('danger', title, message, duration); },
-    warning: function (title, message, duration) { show('warning', title, message, duration); },
-    info: function (title, message, duration) { show('info', title, message, duration); }
+    success: function(title, message, duration) { show('success', title, message, duration); },
+    error: function(title, message, duration) { show('danger', title, message, duration); },
+    warning: function(title, message, duration) { show('warning', title, message, duration); },
+    info: function(title, message, duration) { show('info', title, message, duration); }
   };
 })();
 
@@ -6012,7 +5846,7 @@ window.addEventListener('popstate', function (e) {
  * Mở các Pop-up Window Nhập liệu / Báo cáo không cần code cứng HTML
  */
 var UIModal = (function () {
-
+  
   /**
    * Mở một form Modal bất kỳ
    * @param {Object} config - { id, title, width, content (Node/String), footer (Node), onClose }
@@ -6100,7 +5934,7 @@ var UIModal = (function () {
 window.addEventListener('popstate', function (e) {
   // Chỉ đóng modal nếu state KHÔNG phải là modal (tránh xóa khi router hashchange)
   if (!e.state || !e.state.modalId) {
-    document.querySelectorAll('#modal-container .modal-overlay').forEach(function (m) {
+    document.querySelectorAll('#modal-container .modal-overlay').forEach(function(m) {
       m.remove();
     });
   }
@@ -6142,7 +5976,7 @@ var Pagination = (function () {
       opt.value = val;
       opt.text = label;
       if (val === options.itemsPerPage || (val === 100000 && options.itemsPerPage >= 100000)) {
-        opt.selected = true;
+         opt.selected = true;
       }
       select.appendChild(opt);
     });
@@ -6445,15 +6279,15 @@ var FilterComponent = (function () {
           inp.style.borderRadius = '6px';
           inp.style.outline = 'none';
           inp.style.transition = 'border-color 0.2s, box-shadow 0.2s';
-
+          
           // Hiệu ứng focus
-          inp.addEventListener('focus', function () {
-            this.style.borderColor = 'var(--color-primary, #3b82f6)';
-            this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+          inp.addEventListener('focus', function() {
+              this.style.borderColor = 'var(--color-primary, #3b82f6)';
+              this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
           });
-          inp.addEventListener('blur', function () {
-            this.style.borderColor = 'var(--color-border, #cbd5e1)';
-            this.style.boxShadow = 'none';
+          inp.addEventListener('blur', function() {
+              this.style.borderColor = 'var(--color-border, #cbd5e1)';
+              this.style.boxShadow = 'none';
           });
         }
 
@@ -6499,8 +6333,8 @@ var FilterComponent = (function () {
     btnReset.className = 'btn btn-light';
     btnReset.innerText = 'Xóa bộ lọc';
     btnReset.style.cssText = 'font-weight: 500; border: 1px solid var(--color-border, #e2e8f0); border-radius: 6px; padding: 8px 16px; background: var(--color-surface, #fff); color: var(--color-text-secondary, #64748b); cursor: pointer; transition: all 0.2s;';
-    btnReset.onmouseover = function () { this.style.background = 'var(--color-surface-elevated, #f8fafc)'; this.style.color = 'var(--color-text, #0f172a)'; };
-    btnReset.onmouseout = function () { this.style.background = 'var(--color-surface, #fff)'; this.style.color = 'var(--color-text-secondary, #64748b)'; };
+    btnReset.onmouseover = function() { this.style.background = 'var(--color-surface-elevated, #f8fafc)'; this.style.color = 'var(--color-text, #0f172a)'; };
+    btnReset.onmouseout = function() { this.style.background = 'var(--color-surface, #fff)'; this.style.color = 'var(--color-text-secondary, #64748b)'; };
     btnReset.onclick = function () {
       for (var key in inputs) {
         inputs[key].value = '';
@@ -6578,7 +6412,7 @@ var FilterComponent = (function () {
         var clientWidth = document.documentElement.clientWidth || window.innerWidth;
 
         // Chống tràn màn hình bên phải
-        var maxLeft = clientWidth - panelWidth - 10;
+        var maxLeft = clientWidth - panelWidth - 10; 
         if (panelLeft > maxLeft) panelLeft = maxLeft;
 
         // Chống tràn màn hình bên trái
@@ -6588,7 +6422,7 @@ var FilterComponent = (function () {
 
         // Căn mũi tên chĩa đúng tâm nút bấm
         var arrowPos = centerBtnX - panelLeft;
-
+        
         // Chặn không cho mũi tên bay ra khỏi ranh giới của popup
         if (arrowPos < 20) arrowPos = 20;
         if (arrowPos > panelWidth - 20) arrowPos = panelWidth - 20;
@@ -6611,7 +6445,7 @@ var FilterComponent = (function () {
           if (parent.style.display !== 'none') {
             backdrop.style.display = 'block';
             wrapper.style.display = 'flex';
-            setTimeout(function () {
+            setTimeout(function() {
               backdrop.style.opacity = '1';
               wrapper.style.opacity = '1';
               wrapper.style.transform = 'translateY(0)';
@@ -6625,7 +6459,7 @@ var FilterComponent = (function () {
             backdrop.style.opacity = '0';
             wrapper.style.opacity = '0';
             wrapper.style.transform = 'translateY(-10px)';
-            setTimeout(function () {
+            setTimeout(function() {
               if (parent.style.display === 'none') {
                 backdrop.style.display = 'none';
                 wrapper.style.display = 'none';
@@ -6700,13 +6534,13 @@ var UIInput = (function () {
     input.className = 'ui-input';
     if (config.id) input.id = config.id;
     if (config.name) input.name = config.name;
-
+    
     var finalPlaceholder = config.placeholder;
     if (!finalPlaceholder && config.label && inputType !== 'checkbox' && inputType !== 'radio' && inputType !== 'date') {
       finalPlaceholder = 'Nhập ' + config.label.toLowerCase() + '...';
     }
     if (finalPlaceholder) input.placeholder = finalPlaceholder;
-
+    
     if (config.value !== undefined) input.value = config.value;
     if (config.disabled) input.disabled = true;
     if (config.readonly) input.readOnly = true;
@@ -6774,28 +6608,28 @@ var UIInput = (function () {
     obj.wrapper.classList.add('modern-checkbox-wrapper');
     obj.input.className = 'modern-checkbox';
     obj.input.style.cursor = 'pointer';
-
+    
     // Checkbox uses checked instead of value
     if (config.value === '1' || config.value === 1 || config.value === true || String(config.value).toLowerCase() === 'true') {
-      obj.input.checked = true;
+        obj.input.checked = true;
     }
-
+    
     // Thêm giá trị thực vào dataset để tự động serialize thành 1/0
     obj.input.value = obj.input.checked ? 1 : 0;
-    obj.input.onchange = function () {
-      this.value = this.checked ? 1 : 0;
+    obj.input.onchange = function() {
+        this.value = this.checked ? 1 : 0;
     };
-
+    
     // Đảo ngược thứ tự input và label cho đẹp
     var label = obj.wrapper.querySelector('label');
     if (label) {
-      // Xóa class cũ
-      label.className = '';
-      label.style.cursor = 'pointer';
-      // Đảo ngược thứ tự: input trước, label sau
-      obj.wrapper.insertBefore(obj.input, label);
+        // Xóa class cũ
+        label.className = '';
+        label.style.cursor = 'pointer';
+        // Đảo ngược thứ tự: input trước, label sau
+        obj.wrapper.insertBefore(obj.input, label);
     }
-
+    
     return obj.wrapper;
   }
 
@@ -6829,7 +6663,7 @@ var UIInput = (function () {
     eyeBtn.title = 'Hiện mật khẩu';
 
     var isVisible = false;
-    eyeBtn.addEventListener('click', function () {
+    eyeBtn.addEventListener('click', function() {
       isVisible = !isVisible;
       input.type = isVisible ? 'text' : 'password';
       eyeBtn.querySelector('.material-symbols-outlined').textContent = isVisible ? 'visibility' : 'visibility_off';
@@ -6838,8 +6672,8 @@ var UIInput = (function () {
     });
 
     // Hover effect
-    eyeBtn.addEventListener('mouseenter', function () { this.style.color = 'var(--color-text)'; });
-    eyeBtn.addEventListener('mouseleave', function () { this.style.color = 'var(--color-text-secondary)'; });
+    eyeBtn.addEventListener('mouseenter', function() { this.style.color = 'var(--color-text)'; });
+    eyeBtn.addEventListener('mouseleave', function() { this.style.color = 'var(--color-text-secondary)'; });
 
     inputWrap.appendChild(eyeBtn);
 
@@ -6876,12 +6710,12 @@ var UIInput = (function () {
     defaultOpt.innerText = '-- Vui lòng chọn --';
     select.appendChild(defaultOpt);
 
-    (options || []).forEach(function (opt) {
-      var o = document.createElement('option');
-      o.value = opt.value;
-      o.innerText = opt.label;
-      if (config.value == opt.value) o.selected = true;
-      select.appendChild(o);
+    (options || []).forEach(function(opt) {
+        var o = document.createElement('option');
+        o.value = opt.value;
+        o.innerText = opt.label;
+        if (config.value == opt.value) o.selected = true;
+        select.appendChild(o);
     });
 
     wrapper.appendChild(select);
@@ -6898,7 +6732,7 @@ var UIInput = (function () {
     var onIncrease = config.onIncrease || '';
     var onChange = config.onChange || '';
     var stopPropagation = config.stopPropagation ? 'event.stopPropagation(); ' : '';
-
+    
     var h = config.height || 32;
     var w = config.width || 96;
     var btnW = config.btnWidth || 30;
@@ -6958,7 +6792,7 @@ var UIInput = (function () {
    */
   function setupMoneyInput(inputEl, textEl) {
     if (!inputEl) return;
-
+    
     function refresh() {
       var raw = parseInt(inputEl.value.replace(/\D/g, ''), 10) || 0;
       inputEl.value = raw === 0 ? '' : raw.toLocaleString('vi-VN');
@@ -6969,14 +6803,14 @@ var UIInput = (function () {
       var pos = this.selectionStart;
       var oldLen = this.value.length;
       var raw = parseInt(this.value.replace(/\D/g, ''), 10) || 0;
-
+      
       this.value = raw === 0 ? '' : raw.toLocaleString('vi-VN');
-
+      
       var diff = this.value.length - oldLen;
       if (pos !== null) {
         this.setSelectionRange(pos + diff, pos + diff);
       }
-
+      
       if (textEl) textEl.innerText = raw === 0 ? '' : docSoTienVN(raw);
     });
 
@@ -7016,13 +6850,13 @@ var UIButton = (function () {
   function create(config) {
     var btn = document.createElement('button');
     btn.type = 'button'; // Prevent form submission
-
+    
     // Base class
     var typeClass = config.type ? 'btn-' + config.type : 'btn-primary';
     if (config.type === 'tool') typeClass = 'btn-tool'; // Special case for toolbar
-
+    
     btn.className = 'btn ' + typeClass + (config.className ? ' ' + config.className : '');
-
+    
     if (config.id) btn.id = config.id;
     if (config.disabled) btn.disabled = true;
     if (config.tooltip) btn.title = config.tooltip;
@@ -7051,7 +6885,7 @@ var UIButton = (function () {
 
     // Gắn sự kiện
     if (typeof config.onClick === 'function') {
-      btn.addEventListener('click', function (e) {
+      btn.addEventListener('click', function(e) {
         if (!btn.disabled) {
           config.onClick(e);
         }
@@ -7071,7 +6905,7 @@ var UIButton = (function () {
     // btn-bar-desktop: bi class CSS ẩn trên mobile
     bar.className = 'button-bar btn-bar-desktop';
 
-    buttonsConfig.forEach(function (cfg) {
+    buttonsConfig.forEach(function(cfg) {
       if (cfg === '|') {
         var div = document.createElement('div');
         div.className = 'divider';
@@ -7086,7 +6920,7 @@ var UIButton = (function () {
     var panel = document.createElement('div');
     panel.className = 'mobile-action-panel';
 
-    buttonsConfig.forEach(function (cfg) {
+    buttonsConfig.forEach(function(cfg) {
       if (cfg === '|' || !cfg.text) return;
       var item = document.createElement('button');
       item.type = 'button';
@@ -7095,7 +6929,7 @@ var UIButton = (function () {
       item.innerHTML =
         (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
         '<span>' + cfg.text + '</span>';
-      item.addEventListener('click', function (e) {
+      item.addEventListener('click', function(e) {
         closePanel();
         if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
       });
@@ -7111,7 +6945,7 @@ var UIButton = (function () {
         document.body.appendChild(overlay);
         document.body.appendChild(panel);
       } else {
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
           document.body.appendChild(overlay);
           document.body.appendChild(panel);
         });
@@ -7124,10 +6958,10 @@ var UIButton = (function () {
       panel.classList.add('open');
       overlay.classList.add('open');
       trigger.classList.add('active');
-
+      
       var rect = trigger.getBoundingClientRect();
       var panelRect = panel.getBoundingClientRect();
-
+      
       var top = rect.bottom + 4;
       if (top + panelRect.height > window.innerHeight && rect.top > panelRect.height) {
         top = rect.top - panelRect.height - 4; // pop upwards
@@ -7135,9 +6969,9 @@ var UIButton = (function () {
       } else {
         panel.style.transformOrigin = 'top left';
       }
-
+      
       panel.style.top = top + 'px';
-
+      
       // Smart positioning for left/right
       if (rect.left < window.innerWidth / 2) {
         // Button is on the left, anchor to the left
@@ -7168,7 +7002,7 @@ var UIButton = (function () {
       '<span class="material-symbols-outlined">settings</span>' +
       '<span>Thao tác</span>' +
       '<span class="material-symbols-outlined mobile-action-chevron">expand_more</span>';
-    trigger.addEventListener('click', function (e) {
+    trigger.addEventListener('click', function(e) {
       e.stopPropagation();
       panel.classList.contains('open') ? closePanel() : openPanel();
     });
@@ -7180,7 +7014,7 @@ var UIButton = (function () {
     wrapper.appendChild(trigger);
 
     // API công khai: cho phép thêm button config vào action sheet sau khi tạo
-    wrapper.addToMobilePanel = function (cfg, insertFirst) {
+    wrapper.addToMobilePanel = function(cfg, insertFirst) {
       // Thêm vào desktop bar
       var btn = create(cfg);
       if (insertFirst) {
@@ -7197,7 +7031,7 @@ var UIButton = (function () {
       item.innerHTML =
         (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
         '<span>' + cfg.text + '</span>';
-      item.addEventListener('click', function (e) {
+      item.addEventListener('click', function(e) {
         closePanel();
         if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
       });
@@ -7218,21 +7052,21 @@ var UIButton = (function () {
   function createHTML(config) {
     var typeClass = config.type ? 'btn-' + config.type : 'btn-primary';
     if (config.type === 'tool') typeClass = 'btn-tool';
-
+    
     var className = 'btn ' + typeClass + (config.className ? ' ' + config.className : '');
     var idAttr = config.id ? ` id="${config.id}"` : '';
     var disabledAttr = config.disabled ? ' disabled' : '';
     var titleAttr = config.tooltip ? ` title="${config.tooltip}"` : '';
     var onClickAttr = config.onClick ? ` onclick="${config.onClick}"` : '';
     var styleAttr = config.style ? ` style="${config.style}"` : '';
-
+    
     var dataAttrs = '';
     if (config.data) {
       for (var key in config.data) {
         dataAttrs += ` data-${key}="${config.data[key]}"`;
       }
     }
-
+    
     var innerHTML = '';
     if (config.icon) {
       var iconStyle = config.iconStyle ? ` style="${config.iconStyle}"` : '';
@@ -7260,7 +7094,7 @@ var UIButton = (function () {
  * Quản lý và render Icon (Hỗ trợ cả Material Symbols và Icon font riêng biệt)
  */
 var UIIcon = (function () {
-
+  
   /**
    * Sinh ra mã HTML của Icon
    * @param {string} iconName - Tên icon (VD: 'home', 'bar_chart', 'icon-grid')
@@ -7272,7 +7106,7 @@ var UIIcon = (function () {
     var styleAttr = style ? ' style="' + style + '"' : '';
     var extraClass = className ? ' ' + className : '';
     var onClickAttr = onClick ? ' onclick="' + onClick + '"' : '';
-
+    
     // Nếu có chứa "icon-" hoặc dấu cách, hoặc dấu gạch ngang -> Dùng thẻ <i> cho Icon font
     if (iconName.indexOf('icon-') >= 0 || iconName.indexOf(' ') >= 0 || iconName.indexOf('-') > 0) {
       return '<i class="' + iconName + extraClass + '"' + styleAttr + onClickAttr + '></i>';
@@ -7322,14 +7156,14 @@ var UIActionToolbar = (function () {
    */
   function create(actions) {
     actions = actions || {};
-
+    
     var buttons = [
-      { text: 'Thêm', icon: 'add', type: 'tool', onClick: actions.onAdd, attrs: 'data-tooltip="Thêm bản ghi mới (Ins)"' },
-      { text: 'Sửa', icon: 'edit', type: 'tool', onClick: actions.onEdit, attrs: 'data-tooltip="Sửa bản ghi đã chọn (F2)"' },
-      { text: 'Xóa', icon: 'delete', type: 'tool', onClick: actions.onDelete, attrs: 'data-tooltip="Xóa bản ghi đã chọn (Del)"' },
-      { text: 'Lọc', icon: 'filter_alt', type: 'tool', onClick: actions.onFilter, attrs: 'data-tooltip="Lọc / Tìm kiếm dữ liệu"' },
-      { text: 'In', icon: 'print', type: 'tool', onClick: actions.onPrint, attrs: 'data-tooltip="In danh sách (Ctrl+P)"' },
-      { text: 'Đóng', icon: 'close', type: 'tool', onClick: actions.onClose, attrs: 'data-tooltip="Đóng trang hiện tại"' }
+      { text: 'Thêm',  icon: 'add',        type: 'tool', onClick: actions.onAdd,    attrs: 'data-tooltip="Thêm bản ghi mới (Ins)"' },
+      { text: 'Sửa',   icon: 'edit',       type: 'tool', onClick: actions.onEdit,   attrs: 'data-tooltip="Sửa bản ghi đã chọn (F2)"' },
+      { text: 'Xóa',   icon: 'delete',     type: 'tool', onClick: actions.onDelete, attrs: 'data-tooltip="Xóa bản ghi đã chọn (Del)"' },
+      { text: 'Lọc',   icon: 'filter_alt', type: 'tool', onClick: actions.onFilter, attrs: 'data-tooltip="Lọc / Tìm kiếm dữ liệu"' },
+      { text: 'In',    icon: 'print',      type: 'tool', onClick: actions.onPrint,  attrs: 'data-tooltip="In danh sách (Ctrl+P)"' },
+      { text: 'Đóng',  icon: 'close',      type: 'tool', onClick: actions.onClose,  attrs: 'data-tooltip="Đóng trang hiện tại"' }
     ];
 
     if (actions.extras && Array.isArray(actions.extras)) {
@@ -7339,11 +7173,11 @@ var UIActionToolbar = (function () {
     }
 
     var filteredButtons = [];
-    buttons.forEach(function (b) {
+    buttons.forEach(function(b) {
       if (b.onClick === false) return; // Hide button
       if (b.onClick === 'DISABLED' || b.onClick === 'disabled') {
         b.disabled = true;
-        b.onClick = function () {
+        b.onClick = function() {
           if (typeof Alert !== 'undefined') Alert.warning('Từ chối', 'Bạn không có quyền thao tác chức năng này!');
         };
       }
@@ -7378,7 +7212,7 @@ var UICard = (function () {
     if (config.title || config.rightElement) {
       var header = document.createElement('div');
       header.className = 'card-header';
-
+      
       var titleSpan = document.createElement('span');
       titleSpan.innerText = config.title || '';
       header.appendChild(titleSpan);
@@ -7392,7 +7226,7 @@ var UICard = (function () {
     // Body
     var body = document.createElement('div');
     body.className = 'card-body';
-
+    
     if (config.bodyContent) {
       if (typeof config.bodyContent === 'string') {
         body.innerHTML = config.bodyContent;
@@ -8543,7 +8377,7 @@ var UINestedTabs = (function () {
 
     // ── 2. Active mặc định ──────────────────────────────────────
     var defaultParentId = options.defaultParentId || parents[0].id;
-    var activeParent = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
+    var activeParent    = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
 
     // ── 3. Wrapper ───────────────────────────────────────────────
     var wrapper = document.createElement('div');
@@ -8560,7 +8394,7 @@ var UINestedTabs = (function () {
     // ── 6. Render mỗi parent ────────────────────────────────────
     parents.forEach(function (parentItem) {
       var isParentActive = (parentItem.id === activeParent.id);
-      var children = childrenMap[parentItem.id] || [];
+      var children       = childrenMap[parentItem.id] || [];
 
       // ─ Parent button ─
       var pBtn = _buildParentBtn(parentItem, isParentActive, children.length, isDraggable);
@@ -8572,12 +8406,12 @@ var UINestedTabs = (function () {
       childSection.dataset.sectionId = parentItem.id;
 
       if (children.length > 0) {
-        var defaultChildId = isParentActive ? (options.defaultChildId || children[0].id) : children[0].id;
+        var defaultChildId  = isParentActive ? (options.defaultChildId || children[0].id) : children[0].id;
 
-        var childBar = document.createElement('div');
-        childBar.className = 'ui-nested-tabs__child-bar';
+        var childBar        = document.createElement('div');
+        childBar.className  = 'ui-nested-tabs__child-bar';
 
-        var panelArea = document.createElement('div');
+        var panelArea       = document.createElement('div');
         panelArea.className = 'ui-nested-tabs__panel-area';
 
         children.forEach(function (childItem) {
@@ -8644,12 +8478,12 @@ var UINestedTabs = (function () {
   function createFromDB(dbRows, options) {
     var records = (dbRows || []).map(function (row) {
       return {
-        id: row.MenuID || row.id || row.menuId,
-        parent: row.Parent || row.parent || row.parentId || '',
-        label: row.VN || row.label || row.name || row.Label || '(Không tên)',
-        labelEN: row.EN || row.en || '',
-        icon: row.IconClass || row.icon || '',
-        formName: row.FormName || row.formName || ''
+        id:       row.MenuID   || row.id       || row.menuId,
+        parent:   row.Parent   || row.parent   || row.parentId || '',
+        label:    row.VN       || row.label    || row.name || row.Label || '(Không tên)',
+        labelEN:  row.EN       || row.en       || '',
+        icon:     row.IconClass || row.icon    || '',
+        formName: row.FormName  || row.formName || ''
       };
     });
     return create(records, options);
@@ -8694,7 +8528,7 @@ var UINestedTabs = (function () {
   function _buildChildBtn(childItem, parentItem, isActive, isDraggable) {
     var btn = document.createElement('button');
     btn.className = 'ui-nested-tab-child-btn' + (isActive ? ' active' : '');
-    btn.dataset.childId = childItem.id;
+    btn.dataset.childId  = childItem.id;
     btn.dataset.parentId = parentItem.id;
 
     if (isDraggable) {
@@ -8770,7 +8604,7 @@ var UINestedTabs = (function () {
    * @param {Object}  options      - options của component
    */
   function _attachDragToBar(bar, panelArea, type, parentId, options) {
-    var dragging = null;  // phần tử đang kéo
+    var dragging    = null;  // phần tử đang kéo
     var placeholder = null;  // dải chỉ vị trí thả
 
     // Selector của các btn trong bar
@@ -8808,7 +8642,7 @@ var UINestedTabs = (function () {
       }
 
       // Xác định thả vào trước hay sau
-      var rect = target.getBoundingClientRect();
+      var rect   = target.getBoundingClientRect();
       var offset = (type === 'parent')
         ? e.clientX - rect.left    // ngang
         : e.clientX - rect.left;   // ngang (child bar cũng ngang)
@@ -8884,7 +8718,7 @@ var UINestedTabs = (function () {
     var btns = Array.from(childBar.querySelectorAll(btnSelector));
     btns.forEach(function (btn) {
       var childId = btn.dataset.childId;
-      var panel = panelArea.querySelector('#nested-panel-' + childId);
+      var panel   = panelArea.querySelector('#nested-panel-' + childId);
       if (panel) panelArea.appendChild(panel); // appendChild tự move về cuối → đúng thứ tự
     });
   }
@@ -8896,14 +8730,14 @@ var UINestedTabs = (function () {
   function _defaultPanelHTML(item, parentItem) {
     return [
       '<div class="ui-nested-tab-default-content">',
-      UIIcon.renderHtml(item.icon || 'folder_open', 'font-size:40px;opacity:0.2;display:block;margin-bottom:12px'),
-      '<div style="font-weight:600;font-size:15px;margin-bottom:6px">', item.label || item.id, '</div>',
-      parentItem
-        ? '<div style="font-size:12px;opacity:0.5">Thuộc nhóm: ' + parentItem.label + ' (' + parentItem.id + ')</div>'
-        : '',
-      item.formName
-        ? '<code style="font-size:11px;opacity:0.5;display:block;margin-top:8px">' + item.formName + '</code>'
-        : '',
+        UIIcon.renderHtml(item.icon || 'folder_open', 'font-size:40px;opacity:0.2;display:block;margin-bottom:12px'),
+        '<div style="font-weight:600;font-size:15px;margin-bottom:6px">', item.label || item.id, '</div>',
+        parentItem
+          ? '<div style="font-size:12px;opacity:0.5">Thuộc nhóm: ' + parentItem.label + ' (' + parentItem.id + ')</div>'
+          : '',
+        item.formName
+          ? '<code style="font-size:11px;opacity:0.5;display:block;margin-top:8px">' + item.formName + '</code>'
+          : '',
       '</div>'
     ].join('');
   }
@@ -8916,8 +8750,8 @@ var UINestedTabs = (function () {
     var isDraggable = options.draggable !== false;
 
     var defaultParentId = options.defaultParentId || parents[0].id;
-    var activeParent = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
-    var defaultChildId = options.defaultChildId || null;
+    var activeParent    = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
+    var defaultChildId  = options.defaultChildId  || null;
 
     var initChildren = childrenMap[activeParent.id] || [];
     var activeChildId = defaultChildId || (initChildren.length > 0 ? initChildren[0].id : null);
@@ -8950,9 +8784,9 @@ var UINestedTabs = (function () {
       pBtn.dataset.nodeId = node.id;
       pBtn.dataset.parentId = node.parent || '';
       if (!isRoot) {
-        pBtn.dataset.childId = node.id;
+          pBtn.dataset.childId = node.id; 
       }
-
+      
       if (level > 0) {
         pBtn.style.paddingLeft = (16 + level * 20) + 'px';
       }
@@ -8961,8 +8795,8 @@ var UINestedTabs = (function () {
         var handle = UIIcon.create('drag_indicator', 'ui-nested-drag-handle' + (isRoot ? '' : ' ui-nested-drag-handle--child'));
         pBtn.appendChild(handle);
         if (!isRoot) {
-          pBtn.draggable = true;
-          pBtn.dataset.dragType = 'child';
+            pBtn.draggable = true;
+            pBtn.dataset.dragType = 'child';
         }
       }
 
@@ -9008,10 +8842,10 @@ var UINestedTabs = (function () {
         childList.className = 'ui-nested-tabs__child-list' + (shouldOpen ? ' open' : '');
 
         children.forEach(function (childItem) {
-          var childIsActive = isNodeActive && (childItem.id === activeChildId);
-          var childShouldOpen = childIsActive;
-          var cRes = _buildSidebarNode(childItem, level + 1, childIsActive, childShouldOpen);
-          childList.appendChild(cRes.group);
+           var childIsActive = isNodeActive && (childItem.id === activeChildId);
+           var childShouldOpen = childIsActive;
+           var cRes = _buildSidebarNode(childItem, level + 1, childIsActive, childShouldOpen);
+           childList.appendChild(cRes.group);
         });
 
         parentGroup.appendChild(childList);
@@ -9037,17 +8871,17 @@ var UINestedTabs = (function () {
 
         var isPanelActive = parentPanel.classList.contains('active');
 
-        allSidebarBtns.forEach(function (b) { b.classList.remove('active'); });
-        allContentPanels.forEach(function (p) { p.classList.remove('active'); });
+        allSidebarBtns.forEach(function(b) { b.classList.remove('active'); });
+        allContentPanels.forEach(function(p) { p.classList.remove('active'); });
 
         pBtn.classList.add('active');
 
         if (!isPanelActive) {
           parentPanel.classList.add('active');
           if (childList) childList.classList.add('open');
-
+          
           var curr = parentGroup.parentElement;
-          while (curr && curr.classList.contains('ui-nested-tabs__child-list')) {
+          while(curr && curr.classList.contains('ui-nested-tabs__child-list')) {
             curr.classList.add('open');
             curr = curr.parentElement.parentElement;
           }
@@ -9098,18 +8932,18 @@ var UINestedTabs = (function () {
       resizer.classList.add('is-resizing');
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
-
+      
       var onMouseMove = function (e) {
         if (!isResizing) return;
-
+        
         // Tính toán độ rộng mới dựa trên vị trí chuột
         var containerRect = sidebar.parentElement.getBoundingClientRect();
         var newWidth = e.clientX - containerRect.left;
-
+        
         // Giới hạn width từ 180px đến 600px
         if (newWidth < 180) newWidth = 180;
         if (newWidth > 600) newWidth = 600;
-
+        
         sidebar.style.width = newWidth + 'px';
       };
 
@@ -9129,7 +8963,7 @@ var UINestedTabs = (function () {
 
   // ── Drag dọc cho child list ──────────────────────────────
   function _attachVerticalDrag(childList, contentArea, parentId, options) {
-    var dragging = null;
+    var dragging    = null;
     var placeholder = null;
 
     childList.addEventListener('dragstart', function (e) {
@@ -9149,7 +8983,7 @@ var UINestedTabs = (function () {
       var target = e.target.closest('.ui-nested-tabs__sidebar-parent');
       if (!target || target === dragging || target.parentElement !== childList) return;
       if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
-      var rect = target.getBoundingClientRect();
+      var rect   = target.getBoundingClientRect();
       var isUpper = (e.clientY - rect.top) < rect.height / 2;
       if (isUpper) childList.insertBefore(placeholder, target);
       else { var nx = target.nextSibling; if (nx) childList.insertBefore(placeholder, nx); else childList.appendChild(placeholder); }
@@ -9167,10 +9001,10 @@ var UINestedTabs = (function () {
       if (!dragging || !placeholder || !placeholder.parentNode) return;
       childList.insertBefore(dragging, placeholder);
       placeholder.parentNode.removeChild(placeholder);
-
+      
       // Sync panel order for UI (if needed, but panels are all flat in contentArea)
       // Array.from(childList.children).forEach(...) is possible, but contentArea order doesn't break CSS rendering.
-
+      
       if (typeof options.onReorder === 'function') {
         var ids = Array.from(childList.querySelectorAll(':scope > .ui-nested-tabs__sidebar-parent > .ui-nested-tab-child-btn--v')).map(function (b) { return b.dataset.childId || b.dataset.nodeId; });
         options.onReorder('child', ids, parentId);
@@ -9178,7 +9012,7 @@ var UINestedTabs = (function () {
       _vCleanup();
     });
 
-    childList.addEventListener('dragend', function (e) { e.stopPropagation(); _vCleanup(); });
+    childList.addEventListener('dragend', function(e) { e.stopPropagation(); _vCleanup(); });
 
     function _vCleanup() {
       if (dragging) { dragging.classList.remove('ui-nested-dragging'); dragging = null; }
@@ -9189,7 +9023,7 @@ var UINestedTabs = (function () {
 
   // ── Drag dọc cho parent groups ───────────────────────────
   function _attachVerticalDragParent(sidebar, options) {
-    var dragging = null;
+    var dragging    = null;
     var placeholder = null;
 
     sidebar.addEventListener('dragstart', function (e) {
@@ -9210,7 +9044,7 @@ var UINestedTabs = (function () {
       var target = e.target.closest('.ui-nested-tabs__sidebar-parent');
       if (!target || target === dragging || target.parentElement !== sidebar) return;
       if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
-      var rect = target.getBoundingClientRect();
+      var rect   = target.getBoundingClientRect();
       var isUpper = (e.clientY - rect.top) < rect.height / 2;
       if (isUpper) sidebar.insertBefore(placeholder, target);
       else { var nx = target.nextSibling; if (nx) sidebar.insertBefore(placeholder, nx); else sidebar.appendChild(placeholder); }
@@ -9237,7 +9071,7 @@ var UINestedTabs = (function () {
       _vpCleanup();
     });
 
-    sidebar.addEventListener('dragend', function (e) { e.stopPropagation(); _vpCleanup(); });
+    sidebar.addEventListener('dragend', function(e) { e.stopPropagation(); _vpCleanup(); });
 
     function _vpCleanup() {
       if (dragging) { dragging.classList.remove('ui-nested-dragging'); dragging = null; }
@@ -9250,7 +9084,7 @@ var UINestedTabs = (function () {
   //  EXPORTS
   // ════════════════════════════════════════════════════════════
   return {
-    create: create,
+    create:       create,
     createFromDB: createFromDB
   };
 
@@ -9271,7 +9105,7 @@ var UITotalBar = (function () {
   function create(config) {
     var bar = document.createElement('div');
     bar.className = 'total-bar ' + (config.className || '');
-
+    
     var label = document.createElement('div');
     label.className = 'total-bar-label';
     label.innerText = config.label || 'Tổng cộng';
@@ -9350,13 +9184,13 @@ var UIChart = (function () {
 
     var chartContainer = document.createElement('div');
     chartContainer.className = 'chart-container';
-
+    
     var canvas = document.createElement('canvas');
     chartContainer.appendChild(canvas);
     wrapper.appendChild(chartContainer);
 
     // Kích hoạt chart mượt sau khi insert vào DOM
-    setTimeout(function () {
+    setTimeout(function() {
       if (typeof Chart !== 'undefined') {
         new Chart(canvas, {
           type: config.type || 'bar',
@@ -9392,14 +9226,14 @@ var UIStepper = (function () {
    */
   function create(steps, currentStepIndex) {
     currentStepIndex = currentStepIndex || 0;
-
+    
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-stepper';
 
-    steps.forEach(function (step, index) {
+    steps.forEach(function(step, index) {
       var stepDiv = document.createElement('div');
       stepDiv.className = 'ui-step';
-
+      
       if (index < currentStepIndex) {
         stepDiv.classList.add('completed');
       } else if (index === currentStepIndex) {
@@ -9409,7 +9243,7 @@ var UIStepper = (function () {
       // Allow clicking if callback is provided
       if (step.onClick) {
         stepDiv.style.cursor = 'pointer';
-        stepDiv.addEventListener('click', function () {
+        stepDiv.addEventListener('click', function() {
           step.onClick(index);
         });
       }
@@ -9420,9 +9254,9 @@ var UIStepper = (function () {
         circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">check</span>';
       } else {
         if (step.icon) {
-          circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;">' + step.icon + '</span>';
+            circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;">' + step.icon + '</span>';
         } else {
-          circle.innerText = (index + 1);
+            circle.innerText = (index + 1);
         }
       }
 
@@ -9459,7 +9293,7 @@ var UITimeline = (function () {
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-timeline';
 
-    events.forEach(function (ev) {
+    events.forEach(function(ev) {
       var item = document.createElement('div');
       item.className = 'timeline-item ' + (ev.type || '');
 
@@ -9624,20 +9458,20 @@ var UIFileUpload = (function () {
     wrapper.appendChild(hint);
 
     // Xử lý sự kiện Drag & Drop css ảo diệu
-    wrapper.addEventListener('dragover', function (e) {
+    wrapper.addEventListener('dragover', function(e) {
       wrapper.classList.add('dragover');
     });
 
-    wrapper.addEventListener('dragleave', function (e) {
+    wrapper.addEventListener('dragleave', function(e) {
       wrapper.classList.remove('dragover');
     });
 
-    wrapper.addEventListener('drop', function (e) {
+    wrapper.addEventListener('drop', function(e) {
       wrapper.classList.remove('dragover');
     });
 
     if (typeof config.onChange === 'function') {
-      input.addEventListener('change', function (e) {
+      input.addEventListener('change', function(e) {
         if (e.target.files && e.target.files.length > 0) {
           config.onChange(e.target.files[0]);
         }
@@ -9659,7 +9493,7 @@ var UIFileUpload = (function () {
  * Bắt sự kiện Click Chuột Phải -> Hiện Menu thả xuống tùy chỉnh (Ví dụ: Tick/Bỏ Tick dòng, Đổi trạng thái)
  */
 var UIContextMenu = (function () {
-
+  
   var currentMenu = null;
   var activeTrigger = null;
 
@@ -9687,13 +9521,13 @@ var UIContextMenu = (function () {
 
     var menu = document.createElement('div');
     menu.className = 'ui-context-menu';
-
+    
     // Đặt visibility hidden và vị trí 0 để đo kích thước chuẩn, tránh bị trình duyệt ép nhỏ khi đặt ở sát mép phải
     menu.style.visibility = 'hidden';
     menu.style.top = '0px';
     menu.style.left = '0px';
 
-    items.forEach(function (item) {
+    items.forEach(function(item) {
       if (item === '|') {
         var div = document.createElement('div');
         div.className = 'context-menu-divider';
@@ -9701,11 +9535,11 @@ var UIContextMenu = (function () {
       } else {
         var btn = document.createElement('div');
         btn.className = 'context-menu-item';
-
+        
         var iconHtml = item.icon ? '<span class="material-symbols-outlined">' + item.icon + '</span>' : '';
         btn.innerHTML = iconHtml + '<span style="white-space: nowrap;">' + item.label + '</span>';
-
-        btn.onclick = function () {
+        
+        btn.onclick = function() {
           hide();
           if (typeof item.onClick === 'function') item.onClick();
         };
@@ -9718,7 +9552,7 @@ var UIContextMenu = (function () {
     currentMenu = menu;
 
     // Tính toán và điều chỉnh vị trí để không bị khuất màn hình (Edge detection)
-    requestAnimationFrame(function () {
+    requestAnimationFrame(function() {
       var rect = menu.getBoundingClientRect();
       var left, top;
 
@@ -9753,12 +9587,12 @@ var UIContextMenu = (function () {
       // Tràn lề dưới (trừ khi trang rất dài, thì tính theo scroll)
       if (top - window.scrollY + rect.height > window.innerHeight) {
         if (e && e.type === 'contextmenu') {
-          top = e.pageY - rect.height; // Lật lên trên con trỏ chuột
+           top = e.pageY - rect.height; // Lật lên trên con trỏ chuột
         } else if (activeTrigger) {
-          var triggerRect = activeTrigger.getBoundingClientRect();
-          top = triggerRect.top + window.scrollY - rect.height - 8; // Lật lên trên nút
+           var triggerRect = activeTrigger.getBoundingClientRect();
+           top = triggerRect.top + window.scrollY - rect.height - 8; // Lật lên trên nút
         } else if (e) {
-          top = e.pageY - rect.height - 8; // Lật lên trên con trỏ chuột
+           top = e.pageY - rect.height - 8; // Lật lên trên con trỏ chuột
         }
       }
 
@@ -9836,7 +9670,7 @@ var UIAccordion = (function () {
     wrapper.appendChild(header);
     wrapper.appendChild(body);
 
-    header.addEventListener('click', function () {
+    header.addEventListener('click', function() {
       wrapper.classList.toggle('open');
     });
 
@@ -9862,9 +9696,9 @@ var UITreeView = (function () {
   function buildNodes(nodes) {
     var ul = document.createElement('ul');
 
-    nodes.forEach(function (node) {
+    nodes.forEach(function(node) {
       var li = document.createElement('li');
-
+      
       var nodeWrapper = document.createElement('div');
       nodeWrapper.className = 'ui-tree-node';
 
@@ -9893,7 +9727,7 @@ var UITreeView = (function () {
         li.appendChild(childUl);
 
         // Click to toggle
-        nodeWrapper.addEventListener('click', function () {
+        nodeWrapper.addEventListener('click', function() {
           childUl.classList.toggle('open');
           toggle.innerText = childUl.classList.contains('open') ? 'expand_more' : 'chevron_right';
           icon.innerText = childUl.classList.contains('open') ? 'folder_open' : 'folder';
@@ -9913,7 +9747,7 @@ var UITreeView = (function () {
   function create(data) {
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-tree';
-
+    
     var rootUl = buildNodes(data);
     rootUl.style.display = 'block'; // Root luôn mở
     rootUl.style.paddingLeft = '0'; // Xoá padding thừa của root
@@ -9954,7 +9788,7 @@ var UICalendar = (function () {
       // Header
       var header = document.createElement('div');
       header.className = 'calendar-header';
-
+      
       var titleContainer = document.createElement('div');
       titleContainer.className = 'calendar-month-picker';
 
@@ -9969,9 +9803,9 @@ var UICalendar = (function () {
       icon.style.color = 'var(--color-text-secondary)';
       titleContainer.appendChild(icon);
 
-      titleContainer.onclick = function () {
+      titleContainer.onclick = function() {
         if (document.getElementById('custom-month-picker-overlay')) return;
-
+        
         var overlay = document.createElement('div');
         overlay.id = 'custom-month-picker-overlay';
         overlay.style.position = 'fixed';
@@ -9980,44 +9814,44 @@ var UICalendar = (function () {
         overlay.style.width = '100%';
         overlay.style.height = '100%';
         overlay.style.zIndex = '9999';
-
+        
         var dropdown = document.createElement('div');
         dropdown.className = 'calendar-dropdown-picker';
         var rect = titleContainer.getBoundingClientRect();
         dropdown.style.top = (rect.bottom + 8) + 'px';
         dropdown.style.left = rect.left + 'px';
-        dropdown.onclick = function (ev) { ev.stopPropagation(); };
-
+        dropdown.onclick = function(ev) { ev.stopPropagation(); };
+        
         var yearHeader = document.createElement('div');
         yearHeader.className = 'calendar-dropdown-header';
-
+        
         var btnPrevYear = document.createElement('button');
         btnPrevYear.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
         btnPrevYear.style.width = '32px'; btnPrevYear.style.height = '32px';
         btnPrevYear.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>';
-
+        
         var yearLabel = document.createElement('div');
         yearLabel.className = 'calendar-dropdown-year-label';
         yearLabel.innerText = year;
-
+        
         var btnNextYear = document.createElement('button');
         btnNextYear.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
         btnNextYear.style.width = '32px'; btnNextYear.style.height = '32px';
         btnNextYear.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>';
-
+        
         var tempYear = year;
-
-        btnPrevYear.onclick = function () { tempYear--; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
-        btnNextYear.onclick = function () { tempYear++; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
-
+        
+        btnPrevYear.onclick = function() { tempYear--; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
+        btnNextYear.onclick = function() { tempYear++; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
+        
         yearHeader.appendChild(btnPrevYear);
         yearHeader.appendChild(yearLabel);
         yearHeader.appendChild(btnNextYear);
         dropdown.appendChild(yearHeader);
-
+        
         var monthsGrid = document.createElement('div');
         monthsGrid.className = 'calendar-dropdown-months-grid';
-
+        
         function renderMonths() {
           monthsGrid.innerHTML = '';
           var monthNames = ['Thg 1', 'Thg 2', 'Thg 3', 'Thg 4', 'Thg 5', 'Thg 6', 'Thg 7', 'Thg 8', 'Thg 9', 'Thg 10', 'Thg 11', 'Thg 12'];
@@ -10032,7 +9866,7 @@ var UICalendar = (function () {
               dot.className = 'month-event-dot';
               mBtn.appendChild(dot);
             }
-            mBtn.onclick = function () {
+            mBtn.onclick = function() {
               document.body.removeChild(overlay);
               currentYear = tempYear;
               currentMonth = m;
@@ -10046,7 +9880,7 @@ var UICalendar = (function () {
         // Load summary for current tempYear when navigating years
         function loadSummaryAndRender() {
           if (config.monthSummary && !config.monthSummary[tempYear] && typeof config.onLoadYearSummary === 'function') {
-            config.onLoadYearSummary(tempYear).then(function (s) {
+            config.onLoadYearSummary(tempYear).then(function(s) {
               config.monthSummary[tempYear] = s;
               renderMonths();
             });
@@ -10054,26 +9888,26 @@ var UICalendar = (function () {
             renderMonths();
           }
         }
-
+        
         loadSummaryAndRender();
         dropdown.appendChild(monthsGrid);
         overlay.appendChild(dropdown);
-        overlay.onclick = function () { document.body.removeChild(overlay); };
+        overlay.onclick = function() { document.body.removeChild(overlay); };
         document.body.appendChild(overlay);
       };
 
       header.appendChild(titleContainer);
-
+      
       var controls = document.createElement('div');
       controls.className = 'd-flex align-items-center gap-2';
-
+      
       var btnPrev = document.createElement('button');
       btnPrev.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
       btnPrev.style.width = '36px';
       btnPrev.style.height = '36px';
       btnPrev.title = 'Tháng trước';
       btnPrev.innerHTML = '<span class="material-symbols-outlined fs-5">chevron_left</span>';
-      btnPrev.onclick = function () {
+      btnPrev.onclick = function() {
         var m = month - 1;
         var y = year;
         if (m < 0) { m = 11; y--; }
@@ -10085,7 +9919,7 @@ var UICalendar = (function () {
       var btnToday = document.createElement('button');
       btnToday.className = 'btn btn-outline px-3 py-1 fw-bold rounded-pill';
       btnToday.innerText = 'Hôm nay';
-      btnToday.onclick = function () {
+      btnToday.onclick = function() {
         var y = today.getFullYear();
         var m = today.getMonth();
         currentYear = y; currentMonth = m;
@@ -10099,7 +9933,7 @@ var UICalendar = (function () {
       btnNext.style.height = '36px';
       btnNext.title = 'Tháng sau';
       btnNext.innerHTML = '<span class="material-symbols-outlined fs-5">chevron_right</span>';
-      btnNext.onclick = function () {
+      btnNext.onclick = function() {
         var m = month + 1;
         var y = year;
         if (m > 11) { m = 0; y++; }
@@ -10118,7 +9952,7 @@ var UICalendar = (function () {
       var daysHeader = document.createElement('div');
       daysHeader.className = 'calendar-days-header';
 
-      ['TH 2', 'TH 3', 'TH 4', 'TH 5', 'TH 6', 'TH 7', 'CN'].forEach(function (d) {
+      ['TH 2', 'TH 3', 'TH 4', 'TH 5', 'TH 6', 'TH 7', 'CN'].forEach(function(d) {
         var dDiv = document.createElement('div');
         dDiv.className = 'calendar-day-header';
         if (d === 'CN') dDiv.classList.add('sunday');
@@ -10136,7 +9970,7 @@ var UICalendar = (function () {
       var firstDay = jsFirstDay === 0 ? 6 : jsFirstDay - 1;
       var daysInMonth = new Date(year, month + 1, 0).getDate();
       var daysInPrevMonth = new Date(year, month, 0).getDate();
-
+      
       var cellIndex = 0;
 
       // Helper function to generate Lunar date HTML using native Intl API
@@ -10145,7 +9979,7 @@ var UICalendar = (function () {
           var formatter = new Intl.DateTimeFormat('vi-VN-u-ca-chinese', { day: 'numeric', month: 'numeric' });
           var parts = formatter.formatToParts(new Date(y, m, d));
           var lDay = '', lMonth = '';
-          parts.forEach(function (p) {
+          parts.forEach(function(p) {
             if (p.type === 'day') lDay = p.value;
             if (p.type === 'month') lMonth = p.value;
           });
@@ -10168,7 +10002,7 @@ var UICalendar = (function () {
         var empty = document.createElement('div');
         empty.className = 'calendar-day empty-day animate-pop';
         empty.style.animationDelay = (cellIndex * 0.015) + 's';
-
+        
         var dNum = document.createElement('div');
         dNum.className = 'calendar-day-number';
         var prevDateNum = daysInPrevMonth - firstDay + i + 1;
@@ -10177,9 +10011,9 @@ var UICalendar = (function () {
         if (prevM < 0) { prevM = 11; prevY--; }
         dNum.innerHTML = '<span class="solar-date">' + prevDateNum + '</span>' + _getLunarDateHTML(prevY, prevM, prevDateNum);
         empty.appendChild(dNum);
-
-        empty.onclick = (function (d, pY, pM) {
-          return function () {
+        
+        empty.onclick = (function(d, pY, pM) {
+          return function() {
             if (typeof config.onSelect === 'function') {
               var dateStr = pY + '-' + (pM + 1).toString().padStart(2, '0') + '-' + d.toString().padStart(2, '0');
               config.onSelect(dateStr, null);
@@ -10196,7 +10030,7 @@ var UICalendar = (function () {
         var dayCell = document.createElement('div');
         dayCell.className = 'calendar-day animate-pop';
         dayCell.style.animationDelay = (cellIndex * 0.015) + 's';
-
+        
         if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === i) {
           dayCell.classList.add('today');
         }
@@ -10209,53 +10043,53 @@ var UICalendar = (function () {
         // Thêm events
         var evtDiv = document.createElement('div');
         evtDiv.className = 'calendar-events';
-
+        
         var dayEvents = config.events ? config.events[i] : null;
-
+        
         if (dayEvents && dayEvents.length > 0) {
-          var cocCount = 0;
-          var hdCount = 0;
+           var cocCount = 0;
+           var hdCount = 0;
+           
+           dayEvents.forEach(function(e) {
+              if (e.rawData) {
+                 var lp = e.rawData.LoaiPhieu !== undefined ? e.rawData.LoaiPhieu : e.rawData.loaiPhieu;
+                 if (lp === 1) cocCount++;
+                 else hdCount++;
+              }
+           });
 
-          dayEvents.forEach(function (e) {
-            if (e.rawData) {
-              var lp = e.rawData.LoaiPhieu !== undefined ? e.rawData.LoaiPhieu : e.rawData.loaiPhieu;
-              if (lp === 1) cocCount++;
-              else hdCount++;
-            }
-          });
+           // Render Desktop Summary Labels với chấm tròn chỉ thị
+           if (cocCount > 0) {
+              var cocLabel = document.createElement('div');
+              cocLabel.className = 'calendar-event-label success';
+              cocLabel.title = 'Có ' + cocCount + ' Biên nhận cọc chỗ';
+              cocLabel.innerHTML = '<span class="dot"></span><span>' + cocCount + ' Cọc Chỗ</span>';
+              evtDiv.appendChild(cocLabel);
+           }
+           if (hdCount > 0) {
+              var hdLabel = document.createElement('div');
+              hdLabel.className = 'calendar-event-label primary';
+              hdLabel.title = 'Có ' + hdCount + ' Hợp đồng';
+              hdLabel.innerHTML = '<span class="dot"></span><span>' + hdCount + ' Hợp Đồng</span>';
+              evtDiv.appendChild(hdLabel);
+           }
 
-          // Render Desktop Summary Labels với chấm tròn chỉ thị
-          if (cocCount > 0) {
-            var cocLabel = document.createElement('div');
-            cocLabel.className = 'calendar-event-label success';
-            cocLabel.title = 'Có ' + cocCount + ' Biên nhận cọc chỗ';
-            cocLabel.innerHTML = '<span class="dot"></span><span>' + cocCount + ' Cọc Chỗ</span>';
-            evtDiv.appendChild(cocLabel);
-          }
-          if (hdCount > 0) {
-            var hdLabel = document.createElement('div');
-            hdLabel.className = 'calendar-event-label primary';
-            hdLabel.title = 'Có ' + hdCount + ' Hợp đồng';
-            hdLabel.innerHTML = '<span class="dot"></span><span>' + hdCount + ' Hợp Đồng</span>';
-            evtDiv.appendChild(hdLabel);
-          }
-
-          // Render Mobile Dots
-          if (cocCount > 0) {
-            var dotCoc = document.createElement('div');
-            dotCoc.className = 'calendar-event-dot success';
-            dayCell.appendChild(dotCoc);
-          }
-          if (hdCount > 0) {
-            var dotHd = document.createElement('div');
-            dotHd.className = 'calendar-event-dot primary';
-            dayCell.appendChild(dotHd);
-          }
+           // Render Mobile Dots
+           if (cocCount > 0) {
+              var dotCoc = document.createElement('div');
+              dotCoc.className = 'calendar-event-dot success';
+              dayCell.appendChild(dotCoc);
+           }
+           if (hdCount > 0) {
+              var dotHd = document.createElement('div');
+              dotHd.className = 'calendar-event-dot primary';
+              dayCell.appendChild(dotHd);
+           }
         }
         dayCell.appendChild(evtDiv);
 
-        dayCell.onclick = (function (d, evts) {
-          return function () {
+        dayCell.onclick = (function(d, evts) {
+          return function() {
             if (typeof config.onSelect === 'function') {
               var dateStr = year + '-' + (month + 1).toString().padStart(2, '0') + '-' + d.toString().padStart(2, '0');
               config.onSelect(dateStr, evts);
@@ -10274,7 +10108,7 @@ var UICalendar = (function () {
         var emptyEnd = document.createElement('div');
         emptyEnd.className = 'calendar-day empty-day animate-pop';
         emptyEnd.style.animationDelay = (cellIndex * 0.015) + 's';
-
+        
         var dNumEnd = document.createElement('div');
         dNumEnd.className = 'calendar-day-number';
         var nextDateNum = i + 1;
@@ -10283,9 +10117,9 @@ var UICalendar = (function () {
         if (nextM > 11) { nextM = 0; nextY++; }
         dNumEnd.innerHTML = '<span class="solar-date">' + nextDateNum + '</span>' + _getLunarDateHTML(nextY, nextM, nextDateNum);
         emptyEnd.appendChild(dNumEnd);
-
-        emptyEnd.onclick = (function (d, nY, nM) {
-          return function () {
+        
+        emptyEnd.onclick = (function(d, nY, nM) {
+          return function() {
             if (typeof config.onSelect === 'function') {
               var dateStr = nY + '-' + (nM + 1).toString().padStart(2, '0') + '-' + d.toString().padStart(2, '0');
               config.onSelect(dateStr, null);
@@ -10301,12 +10135,12 @@ var UICalendar = (function () {
     }
 
     render(currentYear, currentMonth);
-
-    wrapper.updateEvents = function (newEvents) {
+    
+    wrapper.updateEvents = function(newEvents) {
       config.events = newEvents;
       render(currentYear, currentMonth);
     };
-
+    
     return wrapper;
   }
 
@@ -10341,7 +10175,7 @@ var UISlider = (function () {
 
     var valDisplay = document.createElement('div');
     valDisplay.className = 'ui-slider-value';
-
+    
     function updateDisplay(val) {
       if (typeof config.formatValue === 'function') {
         valDisplay.innerText = config.formatValue(val);
@@ -10354,12 +10188,12 @@ var UISlider = (function () {
     wrapper.appendChild(slider);
     wrapper.appendChild(valDisplay);
 
-    slider.addEventListener('input', function (e) {
+    slider.addEventListener('input', function(e) {
       updateDisplay(e.target.value);
     });
 
     if (typeof config.onChange === 'function') {
-      slider.addEventListener('change', function (e) {
+      slider.addEventListener('change', function(e) {
         config.onChange(e.target.value);
       });
     }
@@ -10382,7 +10216,7 @@ var UIToast = (function () {
 
   // Auto-init container
   var container = null;
-  document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('DOMContentLoaded', function() {
     if (!document.getElementById('ui-toast-container')) {
       container = document.createElement('div');
       container.id = 'ui-toast-container';
@@ -10423,15 +10257,15 @@ var UIToast = (function () {
     container.appendChild(toast);
 
     // Trigger animate in
-    requestAnimationFrame(function () {
+    requestAnimationFrame(function() {
       toast.classList.add('show');
     });
 
     // Tự động tắt sau 3 giây
-    setTimeout(function () {
+    setTimeout(function() {
       toast.classList.remove('show');
       // Đợi animation chạy xong rồi xóa node
-      setTimeout(function () {
+      setTimeout(function() {
         if (toast.parentNode) toast.remove();
       }, 300);
     }, 3000);
@@ -10449,7 +10283,7 @@ var UIToast = (function () {
  * Một khung form nổi lên nhỏ gọn nằm cạnh Nút được bấm (Ví dụ: Form nhập nhanh số lượng)
  */
 var UIPopover = (function () {
-
+  
   var currentPopover = null;
 
   /**
@@ -10490,18 +10324,18 @@ var UIPopover = (function () {
     // Tránh tràn viền
     if (left < 10) left = 10;
     if (left + pWidth > window.innerWidth - 10) left = window.innerWidth - pWidth - 10;
-
+    
     popover.style.left = left + 'px';
 
     // Show animation
-    requestAnimationFrame(function () {
+    requestAnimationFrame(function() {
       popover.classList.add('show');
     });
 
     currentPopover = popover;
 
     // Click outside to hide
-    setTimeout(function () { // Delay xíu để không bắt nhầm sự kiện click hiện tại
+    setTimeout(function() { // Delay xíu để không bắt nhầm sự kiện click hiện tại
       document.addEventListener('click', hideOnOutsideClick);
     }, 10);
   }
@@ -10533,7 +10367,7 @@ var UIPopover = (function () {
  * Cấu trúc thanh Header trên cùng
  */
 var Header = (function () {
-
+  
   function render(containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
@@ -10587,7 +10421,7 @@ var Header = (function () {
     var $sidebarOverlay = document.getElementById('sidebar-overlay');
 
     if ($btnHamburger) {
-      $btnHamburger.addEventListener('click', function () {
+      $btnHamburger.addEventListener('click', function() {
         if ($sidebar) $sidebar.classList.add('open');
         if ($sidebarOverlay) $sidebarOverlay.classList.add('active');
       });
@@ -10737,8 +10571,8 @@ var Sidebar = (function () {
       <aside class="app-sidebar" id="app-sidebar">
         <div class="sidebar-header">
           <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
           </div>
           <!-- Nút đóng Sidebar trên Mobile -->
           <button class="btn-close-sidebar" id="btn-close-sidebar">
@@ -10830,7 +10664,7 @@ UIControls.createSearchDropdown = function (options) {
 
   var dropdown = document.createElement('div');
   dropdown.className = 'ui-search-dropdown-menu';
-
+  
   wrapper.appendChild(input);
   wrapper.appendChild(btn);
   wrapper.appendChild(dropdown);
@@ -10874,13 +10708,13 @@ UIControls.createSearchDropdown = function (options) {
     }
     dropdown.innerHTML = '<div class="p-3 text-center text-secondary">Đang tìm kiếm...</div>';
     showDropdown();
-
+    
     if (typeof options.onSearch === 'function') {
       options.onSearch(keyword, renderResults, hideDropdown);
     }
   });
 
-  input.addEventListener('keydown', function (e) {
+  input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
       btn.click();
@@ -10902,14 +10736,14 @@ UIControls.createSearchDropdown = function (options) {
  */
 var UISidePanel = (function () {
   function SidePanel(selectorOrElement) {
-    this.panel = typeof selectorOrElement === 'string'
-      ? document.querySelector(selectorOrElement)
+    this.panel = typeof selectorOrElement === 'string' 
+      ? document.querySelector(selectorOrElement) 
       : selectorOrElement;
-
+      
     if (!this.panel) return;
 
     this.panel.classList.add('ui-side-panel');
-
+    
     // Ensure initial state is off-screen and display:none
     this.panel.style.display = 'none';
     this.panel.style.right = '-1000px';
@@ -10923,37 +10757,37 @@ var UISidePanel = (function () {
     }
 
     var self = this;
-
+    
     // Bind close buttons
     var closeBtns = this.panel.querySelectorAll('[data-dismiss="side-panel"]');
-    closeBtns.forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
+    closeBtns.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
         e.preventDefault();
         self.hide();
       });
     });
 
-    this.overlay.addEventListener('click', function () {
+    this.overlay.addEventListener('click', function() {
       self.hide();
     });
   }
 
-  SidePanel.prototype.show = function () {
+  SidePanel.prototype.show = function() {
     var self = this;
     this.panel.style.display = 'flex';
     this.overlay.classList.add('show');
     // Tiny delay to allow display:flex to register before animation
-    setTimeout(function () {
+    setTimeout(function() {
       self.panel.classList.add('show');
     }, 10);
   };
 
-  SidePanel.prototype.hide = function () {
+  SidePanel.prototype.hide = function() {
     var self = this;
     this.overlay.classList.remove('show');
     this.panel.classList.remove('show');
     // Wait for transition to finish before display:none
-    setTimeout(function () {
+    setTimeout(function() {
       if (!self.panel.classList.contains('show')) {
         self.panel.style.display = 'none';
         self.panel.style.right = '-1000px';
@@ -10978,7 +10812,7 @@ var ScreenCapture = (function () {
   var currentRect = null;
   var currentCallback = null;
   var ww = 0, wh = 0;
-
+  
   var mode = 'select'; // 'select' | 'draw'
   var shapes = []; // {left, top, width, height}
   var shapeStartX = 0, shapeStartY = 0;
@@ -10989,10 +10823,10 @@ var ScreenCapture = (function () {
 
   function initOverlay() {
     if (overlayCanvas) return;
-
+    
     ww = window.innerWidth;
     wh = window.innerHeight;
-
+    
     mode = 'select';
     shapes = [];
     currentRect = null;
@@ -11004,19 +10838,19 @@ var ScreenCapture = (function () {
     overlayCanvas.className = 'screen-capture-canvas';
     overlayCanvas.width = ww;
     overlayCanvas.height = wh;
-
+    
     overlayCanvas.style.position = 'fixed';
     overlayCanvas.style.top = '0';
     overlayCanvas.style.left = '0';
     overlayCanvas.style.zIndex = '999990';
     overlayCanvas.style.cursor = 'crosshair';
-
+    
     ctx = overlayCanvas.getContext('2d');
-
+    
     document.body.appendChild(overlayCanvas);
-
-    drawMask(0, 0, 0, 0);
-
+    
+    drawMask(0, 0, 0, 0); 
+    
     overlayCanvas.addEventListener('mousedown', onMouseDown);
     overlayCanvas.addEventListener('mousemove', onMouseMove);
     overlayCanvas.addEventListener('mouseup', onMouseUp);
@@ -11054,8 +10888,8 @@ var ScreenCapture = (function () {
     btn.style.justifyContent = 'center';
     btn.style.color = '#374151';
     btn.style.borderRadius = '4px';
-    btn.onmouseover = function () { if (!btn.classList.contains('active')) btn.style.background = '#F3F4F6'; };
-    btn.onmouseout = function () { if (!btn.classList.contains('active')) btn.style.background = 'transparent'; };
+    btn.onmouseover = function() { if(!btn.classList.contains('active')) btn.style.background = '#F3F4F6'; };
+    btn.onmouseout = function() { if(!btn.classList.contains('active')) btn.style.background = 'transparent'; };
     btn.onclick = onClick;
     return btn;
   }
@@ -11072,25 +10906,25 @@ var ScreenCapture = (function () {
       toolbar.style.display = 'flex';
       toolbar.style.gap = '2px';
       toolbar.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)';
-
-      var btnRect = createToolbarBtn('crop_square', 'Vẽ khung đỏ', function () {
+      
+      var btnRect = createToolbarBtn('crop_square', 'Vẽ khung đỏ', function() {
         isShapeModeActive = true;
         btnRect.style.background = '#E0E7FF';
         btnRect.style.color = '#4F46E5';
         btnRect.classList.add('active');
         overlayCanvas.style.cursor = 'crosshair';
       });
-
-      var btnCopy = createToolbarBtn('content_copy', 'Copy (Ctrl+C)', function () {
+      
+      var btnCopy = createToolbarBtn('content_copy', 'Copy (Ctrl+C)', function() {
         captureAndAction();
       });
       btnCopy.style.color = '#10B981';
 
-      var btnClose = createToolbarBtn('close', 'Hủy (ESC)', function () {
+      var btnClose = createToolbarBtn('close', 'Hủy (ESC)', function() {
         destroyOverlay();
       });
       btnClose.style.color = '#F43F5E';
-
+      
       toolbar.appendChild(btnRect);
       var divider = document.createElement('div');
       divider.style.width = '1px';
@@ -11099,18 +10933,18 @@ var ScreenCapture = (function () {
       toolbar.appendChild(divider);
       toolbar.appendChild(btnCopy);
       toolbar.appendChild(btnClose);
-
+      
       document.body.appendChild(toolbar);
     }
-
+    
     toolbar.style.display = 'flex';
-
+    
     // Position toolbar at bottom right of the selection
     var tLeft = currentRect.left + currentRect.width - 120;
     var tTop = currentRect.top + currentRect.height + 10;
     if (tLeft < 10) tLeft = 10;
     if (tTop + 50 > wh) tTop = currentRect.top - 50;
-
+    
     toolbar.style.left = tLeft + 'px';
     toolbar.style.top = tTop + 'px';
   }
@@ -11128,7 +10962,7 @@ var ScreenCapture = (function () {
 
   function drawMask(x, y, w, h) {
     if (!ctx) return;
-
+    
     ctx.clearRect(0, 0, ww, wh); // Xóa sạch canvas
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, ww, wh);
@@ -11141,14 +10975,14 @@ var ScreenCapture = (function () {
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(x, y, w, h);
       }
-
+      
       if (!isDrawing && w === 0) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(ww / 2 - 150, 20, 300, 40);
+        ctx.fillRect(ww/2 - 150, 20, 300, 40);
         ctx.fillStyle = '#ffffff';
         ctx.font = '14px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Nhấn và kéo chuột để chọn vùng', ww / 2, 45);
+        ctx.fillText('Nhấn và kéo chuột để chọn vùng', ww/2, 45);
       }
     } else if (mode === 'draw') {
       ctx.clearRect(currentRect.left, currentRect.top, currentRect.width, currentRect.height);
@@ -11156,14 +10990,14 @@ var ScreenCapture = (function () {
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       ctx.strokeRect(currentRect.left, currentRect.top, currentRect.width, currentRect.height);
-
+      
       ctx.strokeStyle = '#EF4444'; // Red
       ctx.lineWidth = 3;
-
-      shapes.forEach(function (s) {
+      
+      shapes.forEach(function(s) {
         ctx.strokeRect(s.left, s.top, s.width, s.height);
       });
-
+      
       if (isDrawing && currentShape && isShapeModeActive) {
         ctx.strokeRect(currentShape.left, currentShape.top, currentShape.width, currentShape.height);
       }
@@ -11178,13 +11012,13 @@ var ScreenCapture = (function () {
       drawMask(startX, startY, 0, 0);
     } else if (mode === 'draw') {
       if (!isShapeModeActive) return; // Không cho vẽ nếu chưa click nút hình
-
+      
       var cx = e.clientX;
       var cy = e.clientY;
-
+      
       // Chỉ cho phép vẽ bên trong vùng đã chọn
       if (cx >= currentRect.left && cx <= currentRect.left + currentRect.width &&
-        cy >= currentRect.top && cy <= currentRect.top + currentRect.height) {
+          cy >= currentRect.top && cy <= currentRect.top + currentRect.height) {
         isDrawing = true;
         shapeStartX = cx;
         shapeStartY = cy;
@@ -11201,7 +11035,7 @@ var ScreenCapture = (function () {
     var currentY = e.clientY;
 
     if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(function () {
+    rafId = requestAnimationFrame(function() {
       if (mode === 'select') {
         var left = Math.min(startX, currentX);
         var top = Math.min(startY, currentY);
@@ -11210,16 +11044,16 @@ var ScreenCapture = (function () {
         drawMask(left, top, width, height);
       } else if (mode === 'draw') {
         if (!isShapeModeActive) return;
-
+        
         // Giới hạn trong currentRect
         var limitedX = Math.max(currentRect.left, Math.min(currentX, currentRect.left + currentRect.width));
         var limitedY = Math.max(currentRect.top, Math.min(currentY, currentRect.top + currentRect.height));
-
+        
         var sLeft = Math.min(shapeStartX, limitedX);
         var sTop = Math.min(shapeStartY, limitedY);
         var sWidth = Math.abs(limitedX - shapeStartX);
         var sHeight = Math.abs(limitedY - shapeStartY);
-
+        
         currentShape = { left: sLeft, top: sTop, width: sWidth, height: sHeight };
         drawMask();
       }
@@ -11229,7 +11063,7 @@ var ScreenCapture = (function () {
   function onMouseUp(e) {
     if (!isDrawing) return;
     isDrawing = false;
-
+    
     if (mode === 'select') {
       var endX = e.clientX;
       var endY = e.clientY;
@@ -11245,7 +11079,7 @@ var ScreenCapture = (function () {
         drawMask();
         showToolbar();
       } else {
-        destroyOverlay();
+        destroyOverlay(); 
       }
     } else if (mode === 'draw') {
       if (currentShape && currentShape.width > 5 && currentShape.height > 5) {
@@ -11276,7 +11110,7 @@ var ScreenCapture = (function () {
     shapeContainer.style.pointerEvents = 'none';
     shapeContainer.style.zIndex = '999998';
 
-    shapes.forEach(function (s) {
+    shapes.forEach(function(s) {
       var div = document.createElement('div');
       div.style.position = 'absolute';
       div.style.left = (s.left + window.scrollX) + 'px';
@@ -11290,11 +11124,11 @@ var ScreenCapture = (function () {
     document.body.appendChild(shapeContainer);
 
     destroyOverlay(); // Xóa canvas
-
+    
     if (typeof UIToast !== 'undefined') UIToast.show('Đang xử lý ảnh...', 'info');
 
     var isDone = false;
-    var timeoutId = setTimeout(function () {
+    var timeoutId = setTimeout(function() {
       if (!isDone) {
         if (typeof UIToast !== 'undefined') UIToast.show('Xử lý ảnh quá lâu!', 'error');
         if (shapeContainer.parentNode) document.body.removeChild(shapeContainer);
@@ -11312,11 +11146,11 @@ var ScreenCapture = (function () {
         scale: 1,
         logging: false,
         backgroundColor: null
-      }).then(function (canvas) {
+      }).then(function(canvas) {
         if (isDone) return;
         isDone = true;
         clearTimeout(timeoutId);
-
+        
         if (shapeContainer.parentNode) document.body.removeChild(shapeContainer);
 
         if (currentCallback) {
@@ -11333,23 +11167,23 @@ var ScreenCapture = (function () {
           if (typeof UIToast !== 'undefined') UIToast.show('Đã lưu ảnh về máy!', 'success');
         }
 
-        canvas.toBlob(function (blob) {
+        canvas.toBlob(function(blob) {
           if (!blob) return fallbackDownload();
           if (navigator.clipboard && window.ClipboardItem) {
-            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function () {
+            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function() {
               if (typeof UIToast !== 'undefined') UIToast.show('Đã copy ảnh!', 'success');
-            }).catch(function () { fallbackDownload(); });
+            }).catch(function() { fallbackDownload(); });
           } else {
             fallbackDownload();
           }
         });
-      }).catch(function () {
+      }).catch(function() {
         if (isDone) return;
         isDone = true;
         clearTimeout(timeoutId);
         if (shapeContainer.parentNode) document.body.removeChild(shapeContainer);
       });
-    } catch (err) {
+    } catch(err) {
       if (isDone) return;
       isDone = true;
       clearTimeout(timeoutId);
@@ -11390,18 +11224,18 @@ var ScreenCapture = (function () {
       formNameContainer.style.display = 'flex';
       formNameContainer.style.gap = '10px';
       formNameContainer.style.alignItems = 'center';
-
+      
       var lblForm = document.createElement('label');
       lblForm.innerText = 'Lấy danh sách cột từ Form:';
       lblForm.style.fontWeight = '500';
       lblForm.style.whiteSpace = 'nowrap';
-
+      
       var txtFormName = document.createElement('input');
       txtFormName.className = 'ui-input';
       txtFormName.placeholder = 'Ví dụ: frmCustomer';
       txtFormName.value = targetFormName;
       txtFormName.style.flex = '1';
-
+      
       var btnLoadFieldsWrapper = document.createElement('div');
       btnLoadFieldsWrapper.innerHTML = UIButton.createHTML({ text: 'Tải Cột', type: 'secondary', icon: 'sync' });
       var btnLoadFields = btnLoadFieldsWrapper.firstElementChild;
@@ -11419,47 +11253,47 @@ var ScreenCapture = (function () {
 
       var fields = []; // Tên các cột của form đích
 
-      var fetchFields = function (formName) {
+      var fetchFields = function(formName) {
         if (!formName) return;
         if (typeof ApiClient !== 'undefined') {
           btnLoadFields.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang tải...';
           ApiClient.post('/api/API_DanhSachTruongGiaoDien', { FormName: formName, Username: 'admin', Limit: 1000 })
-            .then(function (res) {
+            .then(function(res) {
               btnLoadFields.innerHTML = '<span class="material-symbols-outlined">sync</span> Tải Cột';
               fields = res.list || res.records || res.data || res || [];
               if (Array.isArray(fields) && fields.length > 0) {
                 var allSelects = conditionsList.querySelectorAll('select.field-select');
-                allSelects.forEach(function (sel) { populateFieldSelect(sel, fields); });
+                allSelects.forEach(function(sel) { populateFieldSelect(sel, fields); });
                 txtFormName.style.borderColor = 'var(--color-success)';
               } else {
                 txtFormName.style.borderColor = 'var(--color-danger)';
                 Alert.warning('Lỗi', 'Không tìm thấy cột nào cho form: ' + formName);
               }
-            }).catch(function (e) {
+            }).catch(function(e) { 
               btnLoadFields.innerHTML = '<span class="material-symbols-outlined">sync</span> Tải Cột';
-              console.error('Lỗi load cột', e);
+              console.error('Lỗi load cột', e); 
             });
         }
       };
 
-      btnLoadFields.onclick = function () { fetchFields(txtFormName.value.trim()); };
+      btnLoadFields.onclick = function() { fetchFields(txtFormName.value.trim()); };
 
       // Phân tích cú pháp rule hiện tại
-      var parseRule = function (ruleStr) {
+      var parseRule = function(ruleStr) {
         if (!ruleStr) return [];
         var isOr = ruleStr.includes('|');
         var parts = ruleStr.split(isOr ? '|' : '&');
-        return parts.map(function (p) {
+        return parts.map(function(p) {
           var operator = p.includes('!=') ? '!=' : '=';
           var kv = p.split(operator);
           return { field: kv[0], operator: operator, value: kv[1] || '' };
-        }).filter(function (r) { return r.field !== ''; });
+        }).filter(function(r) { return r.field !== ''; });
       };
 
       var rules = parseRule(currentRule);
       if (rules.length === 0) rules.push({ field: '', operator: '=', value: '' });
 
-      var renderRow = function (r) {
+      var renderRow = function(r) {
         var row = document.createElement('div');
         row.style.display = 'flex';
         row.style.gap = '10px';
@@ -11481,7 +11315,7 @@ var ScreenCapture = (function () {
         opSelect.className = 'ui-input';
         opSelect.style.flex = '3';
         opSelect.innerHTML = '<option value="=" ' + (r.operator === '=' ? 'selected' : '') + '>Bằng (=)</option>' +
-          '<option value="!=" ' + (r.operator === '!=' ? 'selected' : '') + '>Khác (!=)</option>';
+                             '<option value="!=" ' + (r.operator === '!=' ? 'selected' : '') + '>Khác (!=)</option>';
 
         // Value
         var valInput = document.createElement('input');
@@ -11495,7 +11329,7 @@ var ScreenCapture = (function () {
         var delBtnWrapper = document.createElement('div');
         delBtnWrapper.innerHTML = UIButton.createHTML({ text: '', type: 'danger', icon: 'delete', className: 'btn-icon-only' });
         var delBtn = delBtnWrapper.firstElementChild;
-        delBtn.onclick = function () { conditionsList.removeChild(row); };
+        delBtn.onclick = function() { conditionsList.removeChild(row); };
 
         row.appendChild(fieldSelect);
         row.appendChild(opSelect);
@@ -11506,21 +11340,21 @@ var ScreenCapture = (function () {
         return fieldSelect;
       };
 
-      rules.forEach(function (r) { renderRow(r); });
+      rules.forEach(function(r) { renderRow(r); });
 
       var addBtnWrapper = document.createElement('div');
       addBtnWrapper.innerHTML = UIButton.createHTML({ text: 'Thêm điều kiện', type: 'secondary', icon: 'add' });
       var addBtn = addBtnWrapper.firstElementChild;
       addBtn.style.width = '100%';
-      addBtn.onclick = function () {
+      addBtn.onclick = function() {
         var fs = renderRow({ field: '', operator: '=', value: '' });
         populateFieldSelect(fs, fields);
       };
       body.appendChild(addBtn);
 
-      var populateFieldSelect = function (selectEl, fieldData) {
+      var populateFieldSelect = function(selectEl, fieldData) {
         selectEl.innerHTML = '<option value="">-- Chọn cột --</option>';
-        fieldData.forEach(function (f) {
+        fieldData.forEach(function(f) {
           var selected = (selectEl.dataset.val === f.FieldName) ? 'selected' : '';
           selectEl.innerHTML += '<option value="' + f.FieldName + '" ' + selected + '>' + f.FieldName + ' (' + f.CaptionVN + ')</option>';
         });
@@ -11528,7 +11362,7 @@ var ScreenCapture = (function () {
 
       // Tự động load nếu có sẵn tên form
       if (targetFormName) {
-        fetchFields(targetFormName);
+         fetchFields(targetFormName);
       }
 
       // Footer
@@ -11543,18 +11377,18 @@ var ScreenCapture = (function () {
       logicSelectWrapper.style.alignItems = 'center';
       logicSelectWrapper.style.gap = '10px';
       logicSelectWrapper.innerHTML = '<span style="font-weight: 500;">Nối bằng:</span>';
-
+      
       var logicSelect = document.createElement('select');
       logicSelect.className = 'ui-input';
       logicSelect.style.width = '140px';
       logicSelect.innerHTML = '<option value="&">VÀ (AND)</option><option value="|">HOẶC (OR)</option>';
       if (currentRule.includes('|')) logicSelect.value = '|';
       logicSelectWrapper.appendChild(logicSelect);
-
+      
       var actionGroup = document.createElement('div');
       actionGroup.style.display = 'flex';
       actionGroup.style.gap = '10px';
-      actionGroup.innerHTML =
+      actionGroup.innerHTML = 
         UIButton.createHTML({ text: 'Hủy', type: 'secondary', className: 'btn-cancel-rule' }) +
         UIButton.createHTML({ text: 'Lưu Quy Tắc', type: 'primary', icon: 'save', className: 'btn-save-rule' });
 
@@ -11570,14 +11404,14 @@ var ScreenCapture = (function () {
       });
 
       // Gắn sự kiện cho các nút footer
-      footer.querySelector('.btn-cancel-rule').onclick = function () {
+      footer.querySelector('.btn-cancel-rule').onclick = function() {
         ruleModal.closeNow();
       };
 
-      footer.querySelector('.btn-save-rule').onclick = function () {
+      footer.querySelector('.btn-save-rule').onclick = function() {
         var finalRules = [];
         var rows = conditionsList.children;
-        for (var i = 0; i < rows.length; i++) {
+        for(var i=0; i<rows.length; i++) {
           var fld = rows[i].children[0].value;
           var op = rows[i].children[1].value;
           var val = rows[i].children[2].value;
@@ -11587,7 +11421,7 @@ var ScreenCapture = (function () {
         }
         var joiner = logicSelect.value;
         var resultString = finalRules.join(joiner);
-
+        
         if (onSave) onSave(resultString);
         ruleModal.closeNow();
       };
@@ -11621,21 +11455,7 @@ var ScreenCapture = (function () {
  */
 var WizardForm = (function () {
 
-  // ── Bảng tên hiển thị chi nhánh (BranchID → tên tiếng Việt)
-  // Sync với bảng CASE/WHEN trong SP [HR_MaNVTuTangTheoBranch]
-  var BRANCH_DISPLAY = {
-    'COBI': 'COBI',
-    'DONGDU': 'Đông Du',
-    'ESTELLA': 'Estella',
-    'HOANGHAI': 'Hoàng Hải',
-    'HUNGVUONG': 'Hùng Vương',
-    'NAMVINH': 'Nam Vinh',
-    'SGCENTER': 'SG Center',
-    'THANHDA': 'Thành Đa',
-    'TRANHUNGDAO': 'Trần Hưng Đạo',
-    'VANPHONG': 'Văn Phòng',
-    // ── Thêm chi nhánh mới vào đây khi DB được cập nhật ──────────
-  };
+  // ── BRANCH_DISPLAY removed (moved to config if needed) ──
 
   // ── CSS Inject (chỉ inject 1 lần) ───────────────────────────────────────
   var _cssInjected = false;
@@ -11693,8 +11513,8 @@ var WizardForm = (function () {
       /* ── Section divider trong form ─────────────────────────────── */
       '.wz-section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-secondary); padding:4px 0; margin-bottom:4px; border-bottom:1px solid var(--color-border); width:100%; }',
 
-      /* ── Fields Grid 2 cột ───────────────────────────────────────── */
-      '.wz-fields-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }',
+      /* ── Fields Grid Responsive ───────────────────────────────────────── */
+      '.wz-fields-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px 20px; }',
       '.wz-fields-grid .df-col-12 { grid-column:1 / -1; }',
       '.wz-fields-grid .df-col-6 { grid-column:span 1; }',
       '.wz-fields-grid .df-section { grid-column:1 / -1; }',
@@ -11755,78 +11575,45 @@ var WizardForm = (function () {
       '.wz-no-branch .material-symbols-outlined { font-size:40px; display:block; margin-bottom:8px; opacity:0.4; }',
 
       /* ── Form group compact ─────────────────────────────────────── */
-      '.wz-fields-grid .form-group { margin-bottom:0; }',
+      '.wz-fields-grid .form-group { margin-bottom:0; width:100% !important; }',
+      '.wz-fields-grid > div { width:100% !important; min-width:0; }',
+      '.wz-fields-grid .form-control, .wz-fields-grid input, .wz-fields-grid select, .wz-fields-grid textarea { width:100% !important; box-sizing:border-box; }',
+      '.wz-fields-grid .combo-box-wrapper, .wz-fields-grid .select2-container { width:100% !important; }',
+
+      /* ── Avatar Layout ───────────────────────────────────────────── */
+      '.wz-step-body-wrapper { display:flex; gap:24px; align-items:flex-start; margin-top:16px; }',
+      '.wz-avatar-col { width:120px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
+      '.wz-avatar-frame { width:104px; height:104px; border-radius:50%; overflow:hidden; border:2px solid var(--color-primary,#4338ca); box-shadow:0 4px 12px rgba(67,56,202,0.12); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:transform 0.2s ease; }',
+      '.wz-avatar-frame:hover { transform:scale(1.05); }',
+      '.wz-avatar-btn { border-radius:16px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
+      '.wz-avatar-btn:hover { background-color:var(--color-primary,#4338ca); color:#fff; }',
+
+      /* ── Mobile Responsive Overrides ────────────────────────────── */
+      '@media (max-width:768px) {',
+      '  .wz-header { overflow-x:auto; padding-bottom:8px; scrollbar-width:none; -ms-overflow-style:none; }',
+      '  .wz-header::-webkit-scrollbar { display:none; }',
+      '  .wz-stepper { min-width:560px; }',
+      '  .wz-step-body-wrapper { flex-direction:column; align-items:center; gap:20px; }',
+      '  .wz-avatar-col { margin-bottom:0; width:100%; max-width:140px; }',
+      '  .wz-avatar-frame { width:112px; height:112px; }',
+      '}'
     ].join('\n');
     document.head.appendChild(style);
   }
 
-  // Prefix map — đồng bộ với CASE/WHEN trong SP [HR_MaNVTuTangTheoBranch]
-  var BRANCH_PREFIX_MAP = {
-    'COBI': 'COBI',
-    'DONGDU': 'DD',
-    'ESTELLA': 'ETL',
-    'HOANGHAI': 'HH',
-    'HUNGVUONG': 'HV',
-    'NAMVINH': 'NV',
-    'SGCENTER': 'SGCT',
-    'THANHDA': 'TD',
-    'TRANHUNGDAO': 'THD',
-    'VANPHONG': 'VP',
-    // ── Thêm chi nhánh mới vào đây khi DB cập nhật ──────────────────
-  };
-
   /**
-   * Lấy PersonID tiếp theo theo logic gap-fill:
-   * 1. SELECT tất cả PersonID có prefix của chi nhánh từ DB
-   * 2. Tìm số thứ tự nhỏ nhất còn trống (VD: có 018,020,021 → cấp 019)
-   * 3. Nếu không có gap → lấy MAX+1
-   *
-   * @param {string}   branchId    - BranchID trong DB: 'VANPHONG', 'THANHDA'...
-   * @param {string}   apiUrl      - endpoint API_Gateway_Router
    * @param {string}   currentUser
+   * @param {Object}   moduleConfig
    * @param {Function} cb          - callback(personID: string, maVietTat: string, error?)
    */
-  function _resolveNextPersonID(branchId, apiUrl, currentUser, cb) {
-    var prefix = BRANCH_PREFIX_MAP[branchId.toUpperCase()] || branchId;
-
-    // Query danh sách nhân viên hiện có theo prefix
-    ApiClient.post(apiUrl, {
-      List: 'WA_PersonFullFrm',
-      FormName: 'WA_PersonFullFrm',
-      Func: 'View',
-      Limit: 9999,
-      UserName: currentUser,
-      JsonData: JSON.stringify({ PersonIDPrefix: prefix })
-    }).then(function (res) {
-      var list = res.list || res.records || res.data || [];
-
-      // Trích số thứ tự: "VP018" → 18, "TD003" → 3
-      var nums = [];
-      list.forEach(function (r) {
-        var pid = (r.PersonID || r.personID || '').toUpperCase();
-        if (!pid.startsWith(prefix.toUpperCase())) return;
-        var numStr = pid.substring(prefix.length);
-        var n = parseInt(numStr, 10);
-        if (!isNaN(n) && n > 0) nums.push(n);
-      });
-
-      nums.sort(function (a, b) { return a - b; });
-
-      // Tìm gap nhỏ nhất bắt đầu từ 1
-      var next = 1;
-      for (var i = 0; i < nums.length; i++) {
-        if (nums[i] === next) { next++; }
-        else if (nums[i] > next) { break; } // gap found
-      }
-
-      // Zero-pad 3 chữ số: VP001, TD019, SGCT075...
-      var padded = String(next).padStart(3, '0');
-      var personID = prefix + padded;
-      cb(personID, prefix, null);
-
-    }).catch(function (err) {
-      cb('', '', err);
-    });
+  function _resolveNextPersonID(branchId, apiUrl, currentUser, moduleConfig, cb) {
+    if (moduleConfig && moduleConfig.wizardHooks && typeof moduleConfig.wizardHooks.resolveAutoId === 'function') {
+      moduleConfig.wizardHooks.resolveAutoId(branchId, apiUrl, currentUser, cb);
+    } else {
+      // Fallback
+      var timestampId = 'ID' + new Date().getTime().toString().slice(-6);
+      cb(timestampId, branchId, null);
+    }
   }
 
 
@@ -11899,7 +11686,7 @@ var WizardForm = (function () {
     btnClose.type = 'button';
     btnClose.title = 'Đóng (Esc)';
     btnClose.innerHTML = '<span class="material-symbols-outlined" style="font-size:22px;">close</span>';
-    btnClose.onclick = _close;
+    btnClose.onclick = function() { _close(false); };
 
     titleRow.appendChild(titleLeft);
     titleRow.appendChild(btnClose);
@@ -11909,8 +11696,9 @@ var WizardForm = (function () {
     var stepperEl = document.createElement('div');
     stepperEl.className = 'wz-stepper';
 
-    // Thêm step "Chi Nhánh" ở đầu (step index -1 trong flow, index 0 trong UI)
-    var allStepDefs = [
+    // Thêm step "Chi Nhánh" ở đầu nếu không bị ẩn
+    var hideBranch = moduleConfig.HideBranchStep === true;
+    var allStepDefs = hideBranch ? steps : [
       { label: 'Chi Nhánh', icon: 'location_city', description: 'Chọn chi nhánh & mã nhân viên' }
     ].concat(steps);
     var totalUISteps = allStepDefs.length;
@@ -12007,7 +11795,7 @@ var WizardForm = (function () {
         // Thu thập data hiện tại
         _collect();
         var hasData = currentStep > 0 || Object.keys(formState).length > 0;
-
+        
         if (hasData) {
           if (typeof ConfirmModal !== 'undefined') {
             ConfirmModal.show({
@@ -12015,8 +11803,10 @@ var WizardForm = (function () {
               message: 'Bạn đang có dữ liệu chưa lưu. Bạn có chắc chắn muốn thoát và hủy bỏ toàn bộ các thay đổi này không?',
               confirmText: 'Đồng ý thoát',
               confirmClass: 'btn-danger',
-              onConfirm: function () { _close(true); }
+              onConfirm: function() { _close(true); }
             });
+            var confirmEl = document.getElementById('confirm-modal-overlay');
+            if (confirmEl) confirmEl.style.zIndex = '10005';
             return; // Dừng lại chờ confirm
           } else {
             if (!confirm('Bạn đang có dữ liệu chưa lưu. Bạn có chắc chắn muốn thoát và hủy bỏ toàn bộ các thay đổi này không?')) {
@@ -12025,7 +11815,7 @@ var WizardForm = (function () {
           }
         }
       }
-
+      
       overlay.style.opacity = '0';
       overlay.style.transition = 'opacity 0.18s';
       setTimeout(function () {
@@ -12041,12 +11831,12 @@ var WizardForm = (function () {
     }
 
     function _validate() {
-      // Step 0 UI → chọn chi nhánh
-      var uiStep = currentStep; // 0 = branch picker, 1..n = wizard steps
-      if (uiStep === 0) {
+      // Step 0 UI
+      var uiStep = currentStep;
+      if (!hideBranch && uiStep === 0) {
         return selectedBranch ? [] : ['Chi nhánh'];
       }
-      var step = steps[uiStep - 1]; // map về steps gốc
+      var step = hideBranch ? steps[uiStep] : steps[uiStep - 1]; // map về steps gốc
       if (!step || !step.fields || !step.fields.length) return [];
       var missing = [];
       step.fields.forEach(function (fn) {
@@ -12092,9 +11882,11 @@ var WizardForm = (function () {
       btnBack.style.display = currentStep === 0 ? 'none' : '';
       var isLastUI = currentStep === totalUISteps - 1;
       if (isLastUI) {
-        btnNext.className = 'btn btn-success';
+        btnNext.className = 'btn btn-primary';
+        btnNext.style.backgroundColor = 'var(--color-success, #10b981)';
+        btnNext.style.borderColor = 'var(--color-success, #10b981)';
         btnNext.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;">check_circle</span> Hoàn tất & Lưu';
-      } else if (currentStep === 0) {
+      } else if (!hideBranch && currentStep === 0) {
         btnNext.className = 'btn btn-primary';
         btnNext.innerHTML = 'Tiếp theo <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;">arrow_forward</span>';
         if (!selectedBranch) {
@@ -12189,6 +11981,7 @@ var WizardForm = (function () {
             branch.id,   // VD: 'VANPHONG', 'THANHDA', 'SGCENTER'...
             apiUrl,
             currentUser,
+            moduleConfig,
             function (nextCode, maVietTat, err) {
               if (err || !nextCode) {
                 _showIDError(branch);
@@ -12287,12 +12080,12 @@ var WizardForm = (function () {
     // ── Render field steps ───────────────────────────────────────────
     function _renderStep(uiIdx) {
       body.innerHTML = '';
-      if (uiIdx === 0) {
+      if (!hideBranch && uiIdx === 0) {
         _renderBranchStep();
         return;
       }
 
-      var step = steps[uiIdx - 1];
+      var step = hideBranch ? steps[uiIdx] : steps[uiIdx - 1];
       var content = document.createElement('div');
       content.className = 'wz-step-content';
 
@@ -12319,12 +12112,178 @@ var WizardForm = (function () {
 
       // Bỏ hiển thị mã NV đã chọn ở banner để tránh rườm rà theo yêu cầu
 
-      // Last step → Review
       var isLastWiz = !step.fields || step.fields.length === 0;
       if (isLastWiz) {
         _renderReview(content);
       } else {
-        _renderFields(content, step.fields);
+        // Only show avatar on the very first data step (step 0 if no branch, step 1 if branch is present)
+        var isFirstDataStep = hideBranch ? (uiIdx === 0) : (uiIdx === 1);
+        
+        if (isFirstDataStep && moduleConfig.AttachmentApi) {
+          var bodyWrapper = document.createElement('div');
+          bodyWrapper.className = 'wz-step-body-wrapper';
+          
+          // Render photo box on the left
+          var photoArea = document.createElement('div');
+          photoArea.className = 'wz-avatar-col';
+
+          var frame = document.createElement('div');
+          frame.className = 'wz-avatar-frame';
+          
+          var img = document.createElement('img');
+          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+          var defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
+          var mimeType = 'image/jpeg';
+          var fileExt = formState.FileName ? formState.FileName.split('.').pop().toLowerCase() : '';
+          if (fileExt === 'png') mimeType = 'image/png';
+          else if (fileExt === 'gif') mimeType = 'image/gif';
+          else if (fileExt === 'webp') mimeType = 'image/webp';
+
+          var rawContent = formState.Base64Content || formState.Content || formState.HinhAnh;
+
+          if (rawContent && typeof rawContent === 'string' && rawContent.length > 10) {
+            if (/^0x/i.test(rawContent)) {
+              var hexStr = rawContent.replace(/^0x/i, '').replace(/\s/g, '');
+              var bytes = new Uint8Array(hexStr.length / 2);
+              for (var bi = 0; bi < bytes.length; bi++) {
+                bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
+              }
+              var blob = new Blob([bytes], { type: mimeType });
+              img.src = URL.createObjectURL(blob);
+            } else if (rawContent.startsWith('http') || rawContent.startsWith('/')) {
+              img.src = rawContent;
+            } else {
+              img.src = 'data:' + mimeType + ';base64,' + rawContent;
+            }
+          } else {
+            var pkField = formSchema.PrimaryKey || 'PersonID';
+            var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
+            if (pkVal) {
+              var subFolder = (formState['CandidateID']) ? 'UngVien' : 'NhanVien';
+              img.src = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/Images/' + subFolder + '/' + pkVal + '.jpg';
+            } else {
+              img.src = defaultAvatar;
+            }
+          }
+          
+          img.onerror = function () { 
+            var self = this;
+            var pkField = formSchema.PrimaryKey || 'PersonID';
+            var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
+            
+            if (!pkVal || !moduleConfig.AttachmentApi) {
+              self.src = defaultAvatar;
+              return;
+            }
+
+            var attachApi = moduleConfig.AttachmentApi;
+            var fetchPayload = {
+              List: attachApi,
+              Func: 'View',
+              JsonData: JSON.stringify({
+                CandidateID: pkVal,
+                PersonID: pkVal
+              }),
+              UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+            };
+
+            var apiUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
+            fetch(apiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(fetchPayload)
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+               if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
+                   var b64 = data.records[0].Base64Content;
+                   if (b64.startsWith('/9j/')) {
+                     self.src = 'data:image/jpeg;base64,' + b64;
+                   } else {
+                     self.src = b64;
+                   }
+               } else {
+                   self.src = defaultAvatar;
+               }
+            })
+            .catch(function(err) {
+               self.src = defaultAvatar;
+            });
+          };
+          frame.appendChild(img);
+
+          var photoInput = document.createElement('input');
+          photoInput.type = 'hidden';
+          photoInput.name = 'HinhAnh';
+          photoInput.value = formState.HinhAnh || '';
+
+          var btnUpload = document.createElement('button');
+          btnUpload.className = 'btn btn-outline btn-sm w-100 wz-avatar-btn';
+          btnUpload.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">photo_camera</span> Tải ảnh lên';
+          
+          var handleUploadClick = function () {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = function (e) {
+              var file = e.target.files[0];
+              if (file) {
+                var reader = new FileReader();
+                reader.onload = function (re) {
+                  img.src = re.target.result;
+                  photoInput.value = re.target.result; 
+
+                  var dataUrl = re.target.result;
+                  var base64Content = dataUrl.split(',')[1] || dataUrl;
+
+                  var abReader = new FileReader();
+                  abReader.onload = function (e_ab) {
+                    var arrayBuffer = e_ab.target.result;
+                    var hexStr = '';
+                    var bytes = new Uint8Array(arrayBuffer);
+                    for (var i = 0; i < bytes.byteLength; i++) {
+                      var hex = bytes[i].toString(16);
+                      hexStr += (hex.length === 1 ? '0' + hex : hex);
+                    }
+                    formState.FileName = file.name;
+                    formState.HinhAnh = '0x' + hexStr;
+                    formState.Base64Content = base64Content;
+                    formState.Content = '0x' + hexStr;
+                    
+                    window._pendingWizardAvatar = {
+                      file: file,
+                      base64Content: base64Content,
+                      hexStr: '0x' + hexStr
+                    };
+                  };
+                  abReader.readAsArrayBuffer(file);
+                };
+                reader.readAsDataURL(file);
+              }
+            };
+            input.click();
+          };
+          
+          btnUpload.onclick = handleUploadClick;
+          frame.onclick = handleUploadClick;
+
+          photoArea.appendChild(frame);
+          photoArea.appendChild(photoInput);
+          photoArea.appendChild(btnUpload);
+
+          var fieldsArea = document.createElement('div');
+          fieldsArea.className = 'wz-fields-col';
+          fieldsArea.style.cssText = 'flex: 1; min-width: 0;';
+          
+          bodyWrapper.appendChild(photoArea);
+          bodyWrapper.appendChild(fieldsArea);
+          
+          content.appendChild(bodyWrapper);
+          
+          _renderFields(fieldsArea, step.fields);
+        } else {
+          _renderFields(content, step.fields);
+        }
       }
 
       body.appendChild(content);
@@ -12361,7 +12320,7 @@ var WizardForm = (function () {
                 if (pidInput) pidInput.value = 'Đang tính toán...';
 
                 var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
-                _resolveNextPersonID(newBranch, apiUrl, currentUser, function (nextCode, maVietTat, err) {
+                _resolveNextPersonID(newBranch, apiUrl, currentUser, moduleConfig, function (nextCode, maVietTat, err) {
                   if (err || !nextCode) {
                     if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
                     if (pidInput) pidInput.value = formState['PersonID'] || '';
@@ -12420,6 +12379,14 @@ var WizardForm = (function () {
         var wrapper = document.createElement('div');
         wrapper.className = colClass;
         wrapper.style.animation = 'wz-fadein 0.16s ease';
+        
+        // Loại bỏ placeholder để UI thoáng hơn, tránh rối mắt khi form dài
+        var inputs = inputEl.querySelectorAll('input, textarea');
+        for (var i = 0; i < inputs.length; i++) {
+          inputs[i].removeAttribute('placeholder');
+          inputs[i].placeholder = '';
+        }
+        
         wrapper.appendChild(inputEl);
         grid.appendChild(wrapper);
       });
@@ -12629,8 +12596,13 @@ var WizardForm = (function () {
       _collect();
       var missing = _validate();
       if (missing.length) {
-        if (window.UIToast) UIToast.show('Vui lòng điền: ' + missing.join(', '), 'warning');
-        else alert('Vui lòng điền: ' + missing.join(', '));
+        if (typeof Alert !== 'undefined') {
+          Alert.warning('Bắt buộc', 'Vui lòng điền đầy đủ các trường sau: ' + missing.join(', '));
+        } else if (window.UIToast) {
+          UIToast.show('Vui lòng điền: ' + missing.join(', '), 'warning');
+        } else {
+          alert('Vui lòng điền: ' + missing.join(', '));
+        }
         return;
       }
 
@@ -12662,8 +12634,8 @@ var WizardForm = (function () {
         });
 
         var fakeModal = {
-          closeNow: function () { _close(); },
-          close: function () { _close(); }
+          closeNow: function () { _close(true); },
+          close: function () { _close(true); }
         };
         saveData(false, {}, fakeModal, fakeBody, btnNext);
       }
@@ -12691,6 +12663,18 @@ var WizardForm = (function () {
     // ── Khởi tạo ──────────────────────────────────────────────────────
     document.getElementById('modal-container').appendChild(overlay);
     history.pushState({ wizardOpen: true }, null, window.location.href);
+    
+    if (hideBranch) {
+      // Tự động resolve ID khi bỏ qua bước chọn chi nhánh
+      var pkName = moduleConfig.PrimaryKey || 'PersonID';
+      _resolveNextPersonID('', apiUrl, currentUser, moduleConfig, function (nextCode, maVietTat, err) {
+        if (nextCode) {
+          formState[pkName] = nextCode;
+          resolvedPersonID = nextCode;
+        }
+      });
+    }
+
     _renderStep(0);
     _updateUI();
 
@@ -12847,7 +12831,8 @@ var WizardForm = (function () {
 
       var wrapper = document.createElement('div');
 
-      if (tab.label === 'Cá nhân') {
+      var lbl = tab.label ? tab.label.toLowerCase() : '';
+      if (lbl.indexOf('cá nhân') > -1 || lbl.indexOf('ứng viên') > -1) {
         wrapper.className = 'resume-layout';
 
         var fieldsArea = document.createElement('div');
@@ -12893,7 +12878,55 @@ var WizardForm = (function () {
             img.src = defaultAvatar;
           }
         }
-        img.onerror = function () { this.src = defaultAvatar; };
+        
+        img.onerror = function () { 
+          // Nếu ảnh tĩnh lỗi (chưa cấu hình backend /Images/), ta thử gọi API để lấy Base64 Content từ Database
+          var self = this;
+          var pkField = formSchema.PrimaryKey || 'PersonID';
+          var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
+          
+          if (!pkVal || !MODULE_CONFIG.AttachmentApi) {
+            self.src = defaultAvatar;
+            return;
+          }
+
+          var attachApi = MODULE_CONFIG.AttachmentApi;
+          
+          var fetchPayload = {
+            List: attachApi,
+            Func: 'View',
+            JsonData: JSON.stringify({
+              CandidateID: pkVal,
+              PersonID: pkVal
+            }),
+            UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+          };
+
+          var apiUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
+          
+          fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fetchPayload)
+          })
+          .then(res => res.json())
+          .then(data => {
+             // API_Gateway_Router usually returns { code, msg, records: [...] }
+             if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
+                 var b64 = data.records[0].Base64Content;
+                 if (b64.startsWith('/9j/')) {
+                   self.src = 'data:image/jpeg;base64,' + b64;
+                 } else {
+                   self.src = b64;
+                 }
+             } else {
+                 self.src = defaultAvatar;
+             }
+          })
+          .catch(err => {
+             self.src = defaultAvatar;
+          });
+        };
         frame.appendChild(img);
 
         var photoInput = document.createElement('input');
@@ -12973,15 +13006,15 @@ var WizardForm = (function () {
     var btnCancel = document.createElement('button');
     btnCancel.className = 'btn btn-outline';
     btnCancel.innerText = 'Hủy bỏ';
-    btnCancel.onclick = function () {
+    btnCancel.onclick = function() {
       if (!isViewMode && config.isViewMode) {
         // Was opened in view mode, but now in edit mode. Revert!
         isViewMode = true;
         formState = Object.assign({}, rowData); // Revert data
-
+        
         var titleText = moduleConfig.TitleView || 'Thông tin cá nhân';
         title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">person</span> ' + titleText;
-
+        
         btnSave.innerHTML = '<span class="material-symbols-outlined">edit</span> Sửa';
         btnSave.onclick = function () {
           isViewMode = false;
@@ -12991,7 +13024,7 @@ var WizardForm = (function () {
           btnSave.onclick = _onSaveData;
           _renderTabContent();
         };
-
+        
         _renderTabContent();
       } else {
         btnClose.click();
@@ -13081,7 +13114,7 @@ var WizardForm = (function () {
                 if (pidInput) pidInput.value = 'Đang tính toán...';
 
                 var apiUrl = moduleConfig.ApiSearch || ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router');
-                _resolveNextPersonID(newBranch, apiUrl, currentUser, function (nextCode, maVietTat, err) {
+                _resolveNextPersonID(newBranch, apiUrl, currentUser, moduleConfig, function (nextCode, maVietTat, err) {
                   if (err || !nextCode) {
                     if (window.UIToast) UIToast.show('Lỗi tính mã nhân viên mới: ' + (err ? err.message : ''), 'error');
                     if (pidInput) pidInput.value = state['PersonID'] || '';
@@ -14012,20 +14045,12 @@ window.DynamicFormEngine = (function () {
           var fieldName = item.name || item.FieldName;
           var isReadOnlyEditVal = _bool(item.isReadOnlyEdit, item.IsReadOnlyEdit);
           var isReadOnlyAddVal = _bool(item.isReadOnlyAdd, item.IsReadOnlyAdd);
-          if (MODULE_CONFIG.FormName === 'WA_KinhPhiCongDoanFrm' && ['PersonName', 'ChucDanhChuyenMon', 'BranchID'].includes(fieldName)) {
-            isReadOnlyEditVal = true;
-            isReadOnlyAddVal = true;
-          }
-
-          if (['WA_PersonFullFrm'].includes(MODULE_CONFIG.FormName)) {
-            if (['PersonID', 'NewPersonID'].includes(fieldName)) {
-              isReadOnlyEditVal = true;
-              isReadOnlyAddVal = true; // Không cho sửa mã vì đã gen
-            }
-            if (['PersonName', 'PersonStatus'].includes(fieldName)) {
-              item.required = true;
-              item.IsRequired = true;
-            }
+          if (MODULE_CONFIG.fieldOverrides && MODULE_CONFIG.fieldOverrides[fieldName]) {
+            var overrides = MODULE_CONFIG.fieldOverrides[fieldName];
+            if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
+            if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
+            if (overrides.required !== undefined) item.required = overrides.required;
+            if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
           }
 
           globalFormSchema.push({
@@ -14056,9 +14081,9 @@ window.DynamicFormEngine = (function () {
         console.warn('API Dictionary fetch failed or empty', resConfig);
       }
       // Tự động sinh mã HTML (Không cần file .html rời nữa)
-      if ((MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' || MODULE_CONFIG.UseSplitLayout) && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
-        var defaultDetailTitle = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
-        var defaultSelectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
+      if (MODULE_CONFIG.UseSplitLayout && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
+        var defaultDetailTitle = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
+        var defaultSelectText = MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết';
         var detailWidth = MODULE_CONFIG.SplitLayoutDetailWidth || '450px';
         $container.innerHTML = `
           <div id="dynamic-btn-container" style="display:none;"></div>
@@ -14684,396 +14709,396 @@ window.DynamicFormEngine = (function () {
           }));
         }
 
-          tabulatorActionWrapper.appendChild(tabulatorActionBtn);
-          // Append menu to body to avoid overflow hidden clipping from parents
-          document.body.appendChild(tabulatorActionMenu);
+        tabulatorActionWrapper.appendChild(tabulatorActionBtn);
+        // Append menu to body to avoid overflow hidden clipping from parents
+        document.body.appendChild(tabulatorActionMenu);
 
-          // Bật/tắt menu
-          tabulatorActionBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            var isVisible = tabulatorActionMenu.style.display === 'block';
-            document.querySelectorAll('.dropdown-menu-custom').forEach(function (el) { el.style.display = 'none'; });
+        // Bật/tắt menu
+        tabulatorActionBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var isVisible = tabulatorActionMenu.style.display === 'block';
+          document.querySelectorAll('.dropdown-menu-custom').forEach(function (el) { el.style.display = 'none'; });
 
-            if (!isVisible) {
-              var rect = tabulatorActionBtn.getBoundingClientRect();
-              tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
-              // Đẩy sang trái một chút nếu nút nằm ở góc phải
-              tabulatorActionMenu.style.left = (rect.right - 200) + 'px';
-              // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
-              if (parseInt(tabulatorActionMenu.style.left) < 10) {
-                tabulatorActionMenu.style.left = '10px';
-              }
-              tabulatorActionMenu.style.display = 'block';
-            } else {
-              tabulatorActionMenu.style.display = 'none';
+          if (!isVisible) {
+            var rect = tabulatorActionBtn.getBoundingClientRect();
+            tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
+            // Đẩy sang trái một chút nếu nút nằm ở góc phải
+            tabulatorActionMenu.style.left = (rect.right - 200) + 'px';
+            // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
+            if (parseInt(tabulatorActionMenu.style.left) < 10) {
+              tabulatorActionMenu.style.left = '10px';
             }
-          });
-
-          // Đóng menu khi click bên ngoài
-          document.addEventListener('click', function (e) {
-            if (!tabulatorActionWrapper.contains(e.target) && !tabulatorActionMenu.contains(e.target)) {
-              tabulatorActionMenu.style.display = 'none';
-            }
-          });
-
-
-          var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
-          var isReport = formNameLower.endsWith('report');
-          var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
-
-          var toolbar = UIActionToolbar.create({
-            onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
-            onEdit: (isFrm && !MODULE_CONFIG.HideEditBtn) ? (_hasPermission('EDIT') ? function () {
-              if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectEdit);
-
-              // CHẶN CHỈNH SỬA NẾU HỢP ĐỒNG ĐÃ CHỐT
-              var hasSigned = selectedRows.find(function (r) {
-                var st = (r.TrangThai || '').toString().toLowerCase();
-                return st.includes('đã ký');
-              });
-              if (hasSigned) {
-                return Alert.warning('Bị khóa', 'Không thể sửa hợp đồng/phiếu đã chốt (Đã ký). Vui lòng dùng chức năng Phụ lục nếu muốn thay đổi!');
-              }
-
-              if (selectedRows.length > 1) {
-                _openBulkEditForm();
-              } else {
-                _openEditForm(selectedRows[0]);
-              }
-            } : 'DISABLED') : false,
-            onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
-              if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
-
-              // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
-              var hasSigned = selectedRows.find(function (r) {
-                var st = (r.TrangThai || '').toString().toLowerCase();
-                return st.includes('đã ký') || st.includes('quyết toán') || st === 'signed' || st === 'completed';
-              });
-              if (hasSigned) {
-                return Alert.warning('Bị khóa', 'Tuyệt đối không được xóa hợp đồng/phiếu đã chốt (Đã ký / Đã quyết toán). Hệ thống yêu cầu lưu trữ chứng từ pháp lý!');
-              }
-
-              // Hàm thực thi xóa gọi API
-              var performDelete = function () {
-                if (!MODULE_CONFIG.ApiDelete) {
-                  return Alert.info(MODULE_CONFIG.AlertTitleInfo, MODULE_CONFIG.InfoDeleteDev);
-                }
-
-                // Xử lý từng dòng một (Vì API Gateway C# map JSON sang Model, thiếu field sẽ bị NULL update)
-                var deletePromises = selectedRows.map(function (row) {
-                  var payload = {
-                    List: MODULE_CONFIG.FormName,
-                    Func: 'Delete',
-                    UserName: _currentUser()
-                  };
-
-                  // Bơm toàn bộ dữ liệu gốc của row vào để C# binding không bị mất các cột Not Null (như Ngaytochuc)
-                  var rowData = Object.assign({}, row);
-                  rowData.IsDeleted = 1; // Flag xóa mềm
-
-                  payload.JsonData = JSON.stringify(rowData);
-
-                  return ApiClient.post(MODULE_CONFIG.ApiDelete, payload);
-                });
-
-                Promise.all(deletePromises).then(function (results) {
-                  var allSuccess = results.every(function (res) { return res && res.code === 0; });
-                  if (allSuccess) {
-                    if (typeof UIToast !== 'undefined') UIToast.show(MODULE_CONFIG.ToastDelete, 'success');
-                    selectedRows = [];
-                    if (_isFormBuilder()) window._uiConfigCache = {};
-                    _updateSelectionCounter();
-                    _loadData();
-                  } else {
-                    Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertDeleteFailed);
-                  }
-                }).catch(function (err) {
-                  Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
-                });
-              };
-
-              // Xóa hàng loạt
-              if (selectedRows.length > 1) {
-                if (typeof ConfirmModal !== 'undefined') {
-                  ConfirmModal.show({
-                    title: MODULE_CONFIG.AlertTitleConfirm,
-                    message: `Bạn có chắc muốn xóa ${selectedRows.length} dòng đã chọn?`,
-                    onConfirm: performDelete
-                  });
-                }
-              } else {
-                var deleteName = selectedRows[0][MODULE_CONFIG.RowNameField] || MODULE_CONFIG.TextDeleteFallback;
-                if (typeof ConfirmModal !== 'undefined') {
-                  ConfirmModal.show({
-                    title: MODULE_CONFIG.AlertTitleConfirm,
-                    message: MODULE_CONFIG.ConfirmDelete.replace('{0}', deleteName),
-                    onConfirm: performDelete
-                  });
-                }
-              }
-            } : false) : false,
-            onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
-              var filterContainer = $container.querySelector('#dynamic-filter-container');
-              if (filterContainer) {
-                if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
-                  filterContainer.style.display = 'flex';
-                  var inputKeyword = filterContainer.querySelector('#keyword');
-                  if (inputKeyword) inputKeyword.focus();
-                } else {
-                  filterContainer.style.display = 'none';
-                }
-              }
-            },
-            onPrint: false, // Ẩn nút In theo yêu cầu UX
-            onClose: false,
-            extras: extraBtns
-          });
-          toolbar.style.display = 'inline-flex';
-          toolbar.style.width = 'auto';
-
-          // // Custom Buttons
-          // var hasAdd = _hasPermission('ADD');
-          // if (isFrm && !MODULE_CONFIG.HideAddBtn) {
-          //   var bulkAddConfig = {
-          //     text: 'Thêm nhiều',
-          //     icon: 'post_add',
-          //     type: 'tool',
-          //     disabled: !hasAdd,
-          //     onClick: function () {
-          //       if (!hasAdd) return typeof Alert !== 'undefined' ? Alert.warning('Từ chối', 'Bạn không có quyền thao tác chức năng này!') : null;
-          //       var emptyRows = [];
-          //       for (var i = 0; i < 3; i++) emptyRows.push({});
-          //       _openBulkGridEditForm(emptyRows, true);
-          //     }
-          //   };
-          //   // Dùng API addToMobilePanel để thêm vào cả desktop bar lẫn mobile action sheet
-          //   if (typeof toolbar.addToMobilePanel === 'function') {
-          //     toolbar.addToMobilePanel(bulkAddConfig, true); // insertFirst = true
-          //   } else {
-          //     // Fallback: chèn trực tiếp vào bar (trường hợp không dùng mobile wrapper)
-          //     var btnBulkAdd = UIButton.create(bulkAddConfig);
-          //     toolbar.insertBefore(btnBulkAdd, toolbar.firstChild);
-          //   }
-          // }
-
-          // Thanh tìm kiếm nhanh (Quick Search) trên Toolbar
-          var searchWrapper = document.createElement('div');
-          searchWrapper.className = 'quick-search-wrapper';
-          searchWrapper.style.cssText = 'flex: 1; display: flex; justify-content: flex-end; margin: 0 16px; min-width: 200px;';
-
-          var quickSearchInput = document.createElement('input');
-          quickSearchInput.type = 'text';
-          quickSearchInput.className = 'ui-input';
-          quickSearchInput.id = 'toolbar-quick-search';
-          quickSearchInput.placeholder = MODULE_CONFIG.SearchPlaceholder || 'Tìm kiếm...';
-          quickSearchInput.style.cssText = `width: 100%; max-width: 350px; padding: 8px 16px 8px 36px; border-radius: 20px; border: 1px solid var(--color-border, #e2e8f0); outline: none; transition: all 0.2s; font-size: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E") no-repeat 12px center var(--color-surface, #fff);`;
-
-          quickSearchInput.addEventListener('focus', function () {
-            this.style.borderColor = 'var(--color-primary, #3b82f6)';
-            this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-          });
-          quickSearchInput.addEventListener('blur', function () {
-            this.style.borderColor = 'var(--color-border, #e2e8f0)';
-            this.style.boxShadow = 'none';
-          });
-
-          var _searchTimer = null;
-          quickSearchInput.addEventListener('input', function () {
-            clearTimeout(_searchTimer);
-            _searchTimer = setTimeout(function () {
-              currentKeyword = quickSearchInput.value;
-              window.currentFilters = window.currentFilters || {};
-              window.currentFilters.keyword = currentKeyword;
-              currentPage = 1;
-              selectedRows = [];
-              _updateSelectionCounter();
-              _loadData();
-            }, 500); // Tự động tìm sau 0.5s
-          });
-
-          searchWrapper.appendChild(quickSearchInput);
-
-          // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
-          btnContainer.style.display = 'flex';
-          btnContainer.style.flexWrap = 'wrap';
-          btnContainer.style.alignItems = 'center';
-
-          btnContainer.appendChild(toolbar);
-          btnContainer.appendChild(searchWrapper); // Nằm ở giữa, đẩy Tùy chọn bảng sang phải
-          btnContainer.appendChild(tabulatorActionWrapper);
-        }
-
-        // Search bar (FilterComponent)
-        var filterContainer = $container.querySelector('#dynamic-filter-container');
-        if (filterContainer && typeof FilterComponent !== 'undefined') {
-          filterContainer.innerHTML = ''; // Xóa placeholder nếu có
-
-          // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-          var dynamicFilters = globalFormSchema
-            .filter(function (f) { return f.showInFilter; })
-            .map(function (f) {
-              // Chuyển đổi định dạng từ FormEngine sang FilterComponent
-              var filterType = 'text';
-              if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
-              if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
-
-              var filterObj = {
-                id: f.name,
-                label: f.label,
-                type: filterType,
-                placeholder: f.label
-              };
-
-              // Parse DataSource cho trường Select/Dropdown
-              if (f.renderRule === 'sl' || f.renderRule === 'sw') {
-                filterObj.type = 'select';
-                filterObj.options = [];
-                if (f.renderRule === 'sw') {
-                  filterObj.options = [{ value: 1, label: 'Có' }, { value: 0, label: 'Không' }];
-                } else if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
-                  var parts = f.dataSource.replace('STATIC:', '').split(',');
-                  parts.forEach(function (p) {
-                    var kv = p.split('|');
-                    filterObj.options.push({ value: kv[0], label: kv[1] || kv[0] });
-                  });
-                } else if (f.dataSource) {
-                  filterObj.dataSource = f.dataSource;
-                  // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
-                  var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
-                  ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
-                    var dataList = res.list || res.records || [];
-                    var options = [];
-                    if (dataList && dataList.length > 0) {
-                      var keys = Object.keys(dataList[0]);
-                      var valKey = keys[0];
-                      var labelRegex = /name|tên|ten|label|desc|title/i;
-                      var displayKey = keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0];
-                      dataList.forEach(function (row) {
-                        options.push({ value: row[valKey], label: row[displayKey] });
-                      });
-                    }
-
-                    // Tìm phần tử select tương ứng để cập nhật các option mới tải về
-                    var selectEl = document.getElementById(f.name);
-                    if (selectEl) {
-                      var hasSavedValue = window.currentFilters && window.currentFilters[f.name] !== undefined;
-                      var currentValue = hasSavedValue ? window.currentFilters[f.name] : '';
-
-                      selectEl.innerHTML = '<option value="">-- Tất cả --</option>';
-                      options.forEach(function (opt) {
-                        var optionNode = document.createElement('option');
-                        optionNode.value = opt.value;
-                        optionNode.innerText = opt.label;
-                        if (opt.value == currentValue) optionNode.selected = true;
-                        selectEl.appendChild(optionNode);
-                      });
-
-                      // Tự động chọn kỳ gần nhất nếu chưa có filter được thiết lập
-                      if (!hasSavedValue && options.length > 0 && (f.name.toLowerCase().indexOf('period') >= 0 || f.name.toLowerCase().indexOf('ky') >= 0)) {
-                        var now = new Date();
-                        var cy = now.getFullYear();
-                        var cm = now.getMonth() + 1;
-                        var bestOpt = null;
-                        var minDiff = Infinity;
-
-                        function parseYearMonth(str) {
-                          var clean = String(str);
-                          var m1 = clean.match(/(\d{4})[-_\/\s]?(\d{1,2})/);
-                          if (m1) {
-                            var y = parseInt(m1[1], 10);
-                            var m = parseInt(m1[2], 10);
-                            if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
-                              return { year: y, month: m };
-                            }
-                          }
-                          var m2 = clean.match(/(\d{1,2})[-_\/\s]?(\d{4})/);
-                          if (m2) {
-                            var m = parseInt(m2[1], 10);
-                            var y = parseInt(m2[2], 10);
-                            if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
-                              return { year: y, month: m };
-                            }
-                          }
-                          return null;
-                        }
-
-                        options.forEach(function (opt) {
-                          var parsed = parseYearMonth(opt.value) || parseYearMonth(opt.label);
-                          if (parsed) {
-                            var diff = Math.abs((parsed.year - cy) * 12 + (parsed.month - cm));
-                            if (diff < minDiff) {
-                              minDiff = diff;
-                              bestOpt = opt;
-                            }
-                          }
-                        });
-
-                        if (!bestOpt) {
-                          bestOpt = options[0];
-                        }
-
-                        if (bestOpt) {
-                          currentValue = bestOpt.value;
-                          selectEl.value = currentValue;
-                          if (!window.currentFilters) window.currentFilters = {};
-                          window.currentFilters[f.name] = currentValue;
-                          // Reload data với kỳ mặc định mới chọn
-                          setTimeout(function () {
-                            _loadData();
-                          }, 50);
-                        }
-                      }
-                    }
-                    filterObj.options = options;
-                  }).catch(function (err) {
-                    console.error('Lỗi tải dữ liệu lọc cho ' + f.name, err);
-                  });
-                }
-              }
-              return filterObj;
-            });
-
-          // 2. Gom với cấu hình cứng trong AppModules.js (nếu có)
-          // Lưu ý: Đã đưa 'Từ khóa' ra ngoài thanh công cụ dưới dạng Quick Search Bar
-          var filters = [];
-
-          if (dynamicFilters.length > 0) {
-            filters = filters.concat(dynamicFilters);
-          } else if (MODULE_CONFIG.Filters && MODULE_CONFIG.Filters.length > 0) {
-            filters = filters.concat(MODULE_CONFIG.Filters);
+            tabulatorActionMenu.style.display = 'block';
+          } else {
+            tabulatorActionMenu.style.display = 'none';
           }
+        });
 
-          var filterNode = FilterComponent.create(filters, function (values) {
-            console.log('[DynamicFormEngine] Filter values callback received:', values);
+        // Đóng menu khi click bên ngoài
+        document.addEventListener('click', function (e) {
+          if (!tabulatorActionWrapper.contains(e.target) && !tabulatorActionMenu.contains(e.target)) {
+            tabulatorActionMenu.style.display = 'none';
+          }
+        });
 
-            // Lấy giá trị keyword từ ô Quick Search Bar để tránh bị đè mất
-            var quickSearch = document.getElementById('toolbar-quick-search');
-            if (quickSearch) {
-              values.keyword = quickSearch.value;
+
+        var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
+        var isReport = formNameLower.endsWith('report');
+        var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
+
+        var toolbar = UIActionToolbar.create({
+          onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
+          onEdit: (isFrm && !MODULE_CONFIG.HideEditBtn) ? (_hasPermission('EDIT') ? function () {
+            if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectEdit);
+
+            // CHẶN CHỈNH SỬA NẾU HỢP ĐỒNG ĐÃ CHỐT
+            var hasSigned = selectedRows.find(function (r) {
+              var st = (r.TrangThai || '').toString().toLowerCase();
+              return st.includes('đã ký');
+            });
+            if (hasSigned) {
+              return Alert.warning('Bị khóa', 'Không thể sửa hợp đồng/phiếu đã chốt (Đã ký). Vui lòng dùng chức năng Phụ lục nếu muốn thay đổi!');
             }
 
-            // Lưu lại toàn bộ các giá trị filter
-            window.currentFilters = values;
-            currentKeyword = values.keyword || '';
-            currentPage = 1; // Reset về trang 1 khi lọc mới
+            if (selectedRows.length > 1) {
+              _openBulkEditForm();
+            } else {
+              _openEditForm(selectedRows[0]);
+            }
+          } : 'DISABLED') : false,
+          onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
+            if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
+
+            // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
+            var hasSigned = selectedRows.find(function (r) {
+              var st = (r.TrangThai || '').toString().toLowerCase();
+              return st.includes('đã ký') || st.includes('quyết toán') || st === 'signed' || st === 'completed';
+            });
+            if (hasSigned) {
+              return Alert.warning('Bị khóa', 'Tuyệt đối không được xóa hợp đồng/phiếu đã chốt (Đã ký / Đã quyết toán). Hệ thống yêu cầu lưu trữ chứng từ pháp lý!');
+            }
+
+            // Hàm thực thi xóa gọi API
+            var performDelete = function () {
+              if (!MODULE_CONFIG.ApiDelete) {
+                return Alert.info(MODULE_CONFIG.AlertTitleInfo, MODULE_CONFIG.InfoDeleteDev);
+              }
+
+              // Xử lý từng dòng một (Vì API Gateway C# map JSON sang Model, thiếu field sẽ bị NULL update)
+              var deletePromises = selectedRows.map(function (row) {
+                var payload = {
+                  List: MODULE_CONFIG.FormName,
+                  Func: 'Delete',
+                  UserName: _currentUser()
+                };
+
+                // Bơm toàn bộ dữ liệu gốc của row vào để C# binding không bị mất các cột Not Null (như Ngaytochuc)
+                var rowData = Object.assign({}, row);
+                rowData.IsDeleted = 1; // Flag xóa mềm
+
+                payload.JsonData = JSON.stringify(rowData);
+
+                return ApiClient.post(MODULE_CONFIG.ApiDelete, payload);
+              });
+
+              Promise.all(deletePromises).then(function (results) {
+                var allSuccess = results.every(function (res) { return res && res.code === 0; });
+                if (allSuccess) {
+                  if (typeof UIToast !== 'undefined') UIToast.show(MODULE_CONFIG.ToastDelete, 'success');
+                  selectedRows = [];
+                  if (_isFormBuilder()) window._uiConfigCache = {};
+                  _updateSelectionCounter();
+                  _loadData();
+                } else {
+                  Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertDeleteFailed);
+                }
+              }).catch(function (err) {
+                Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
+              });
+            };
+
+            // Xóa hàng loạt
+            if (selectedRows.length > 1) {
+              if (typeof ConfirmModal !== 'undefined') {
+                ConfirmModal.show({
+                  title: MODULE_CONFIG.AlertTitleConfirm,
+                  message: `Bạn có chắc muốn xóa ${selectedRows.length} dòng đã chọn?`,
+                  onConfirm: performDelete
+                });
+              }
+            } else {
+              var deleteName = selectedRows[0][MODULE_CONFIG.RowNameField] || MODULE_CONFIG.TextDeleteFallback;
+              if (typeof ConfirmModal !== 'undefined') {
+                ConfirmModal.show({
+                  title: MODULE_CONFIG.AlertTitleConfirm,
+                  message: MODULE_CONFIG.ConfirmDelete.replace('{0}', deleteName),
+                  onConfirm: performDelete
+                });
+              }
+            }
+          } : false) : false,
+          onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
+            var filterContainer = $container.querySelector('#dynamic-filter-container');
+            if (filterContainer) {
+              if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
+                filterContainer.style.display = 'flex';
+                var inputKeyword = filterContainer.querySelector('#keyword');
+                if (inputKeyword) inputKeyword.focus();
+              } else {
+                filterContainer.style.display = 'none';
+              }
+            }
+          },
+          onPrint: false, // Ẩn nút In theo yêu cầu UX
+          onClose: false,
+          extras: extraBtns
+        });
+        toolbar.style.display = 'inline-flex';
+        toolbar.style.width = 'auto';
+
+        // // Custom Buttons
+        // var hasAdd = _hasPermission('ADD');
+        // if (isFrm && !MODULE_CONFIG.HideAddBtn) {
+        //   var bulkAddConfig = {
+        //     text: 'Thêm nhiều',
+        //     icon: 'post_add',
+        //     type: 'tool',
+        //     disabled: !hasAdd,
+        //     onClick: function () {
+        //       if (!hasAdd) return typeof Alert !== 'undefined' ? Alert.warning('Từ chối', 'Bạn không có quyền thao tác chức năng này!') : null;
+        //       var emptyRows = [];
+        //       for (var i = 0; i < 3; i++) emptyRows.push({});
+        //       _openBulkGridEditForm(emptyRows, true);
+        //     }
+        //   };
+        //   // Dùng API addToMobilePanel để thêm vào cả desktop bar lẫn mobile action sheet
+        //   if (typeof toolbar.addToMobilePanel === 'function') {
+        //     toolbar.addToMobilePanel(bulkAddConfig, true); // insertFirst = true
+        //   } else {
+        //     // Fallback: chèn trực tiếp vào bar (trường hợp không dùng mobile wrapper)
+        //     var btnBulkAdd = UIButton.create(bulkAddConfig);
+        //     toolbar.insertBefore(btnBulkAdd, toolbar.firstChild);
+        //   }
+        // }
+
+        // Thanh tìm kiếm nhanh (Quick Search) trên Toolbar
+        var searchWrapper = document.createElement('div');
+        searchWrapper.className = 'quick-search-wrapper';
+        searchWrapper.style.cssText = 'flex: 1; display: flex; justify-content: flex-end; margin: 0 16px; min-width: 200px;';
+
+        var quickSearchInput = document.createElement('input');
+        quickSearchInput.type = 'text';
+        quickSearchInput.className = 'ui-input';
+        quickSearchInput.id = 'toolbar-quick-search';
+        quickSearchInput.placeholder = MODULE_CONFIG.SearchPlaceholder || 'Tìm kiếm...';
+        quickSearchInput.style.cssText = `width: 100%; max-width: 350px; padding: 8px 16px 8px 36px; border-radius: 20px; border: 1px solid var(--color-border, #e2e8f0); outline: none; transition: all 0.2s; font-size: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E") no-repeat 12px center var(--color-surface, #fff);`;
+
+        quickSearchInput.addEventListener('focus', function () {
+          this.style.borderColor = 'var(--color-primary, #3b82f6)';
+          this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+        });
+        quickSearchInput.addEventListener('blur', function () {
+          this.style.borderColor = 'var(--color-border, #e2e8f0)';
+          this.style.boxShadow = 'none';
+        });
+
+        var _searchTimer = null;
+        quickSearchInput.addEventListener('input', function () {
+          clearTimeout(_searchTimer);
+          _searchTimer = setTimeout(function () {
+            currentKeyword = quickSearchInput.value;
+            window.currentFilters = window.currentFilters || {};
+            window.currentFilters.keyword = currentKeyword;
+            currentPage = 1;
             selectedRows = [];
             _updateSelectionCounter();
             _loadData();
+          }, 500); // Tự động tìm sau 0.5s
+        });
+
+        searchWrapper.appendChild(quickSearchInput);
+
+        // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
+        btnContainer.style.display = 'flex';
+        btnContainer.style.flexWrap = 'wrap';
+        btnContainer.style.alignItems = 'center';
+
+        btnContainer.appendChild(toolbar);
+        btnContainer.appendChild(searchWrapper); // Nằm ở giữa, đẩy Tùy chọn bảng sang phải
+        btnContainer.appendChild(tabulatorActionWrapper);
+      }
+
+      // Search bar (FilterComponent)
+      var filterContainer = $container.querySelector('#dynamic-filter-container');
+      if (filterContainer && typeof FilterComponent !== 'undefined') {
+        filterContainer.innerHTML = ''; // Xóa placeholder nếu có
+
+        // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
+        var dynamicFilters = globalFormSchema
+          .filter(function (f) { return f.showInFilter; })
+          .map(function (f) {
+            // Chuyển đổi định dạng từ FormEngine sang FilterComponent
+            var filterType = 'text';
+            if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
+            if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
+
+            var filterObj = {
+              id: f.name,
+              label: f.label,
+              type: filterType,
+              placeholder: f.label
+            };
+
+            // Parse DataSource cho trường Select/Dropdown
+            if (f.renderRule === 'sl' || f.renderRule === 'sw') {
+              filterObj.type = 'select';
+              filterObj.options = [];
+              if (f.renderRule === 'sw') {
+                filterObj.options = [{ value: 1, label: 'Có' }, { value: 0, label: 'Không' }];
+              } else if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
+                var parts = f.dataSource.replace('STATIC:', '').split(',');
+                parts.forEach(function (p) {
+                  var kv = p.split('|');
+                  filterObj.options.push({ value: kv[0], label: kv[1] || kv[0] });
+                });
+              } else if (f.dataSource) {
+                filterObj.dataSource = f.dataSource;
+                // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
+                var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
+                ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
+                  var dataList = res.list || res.records || [];
+                  var options = [];
+                  if (dataList && dataList.length > 0) {
+                    var keys = Object.keys(dataList[0]);
+                    var valKey = keys[0];
+                    var labelRegex = /name|tên|ten|label|desc|title/i;
+                    var displayKey = keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0];
+                    dataList.forEach(function (row) {
+                      options.push({ value: row[valKey], label: row[displayKey] });
+                    });
+                  }
+
+                  // Tìm phần tử select tương ứng để cập nhật các option mới tải về
+                  var selectEl = document.getElementById(f.name);
+                  if (selectEl) {
+                    var hasSavedValue = window.currentFilters && window.currentFilters[f.name] !== undefined;
+                    var currentValue = hasSavedValue ? window.currentFilters[f.name] : '';
+
+                    selectEl.innerHTML = '<option value="">-- Tất cả --</option>';
+                    options.forEach(function (opt) {
+                      var optionNode = document.createElement('option');
+                      optionNode.value = opt.value;
+                      optionNode.innerText = opt.label;
+                      if (opt.value == currentValue) optionNode.selected = true;
+                      selectEl.appendChild(optionNode);
+                    });
+
+                    // Tự động chọn kỳ gần nhất nếu chưa có filter được thiết lập
+                    if (!hasSavedValue && options.length > 0 && (f.name.toLowerCase().indexOf('period') >= 0 || f.name.toLowerCase().indexOf('ky') >= 0)) {
+                      var now = new Date();
+                      var cy = now.getFullYear();
+                      var cm = now.getMonth() + 1;
+                      var bestOpt = null;
+                      var minDiff = Infinity;
+
+                      function parseYearMonth(str) {
+                        var clean = String(str);
+                        var m1 = clean.match(/(\d{4})[-_\/\s]?(\d{1,2})/);
+                        if (m1) {
+                          var y = parseInt(m1[1], 10);
+                          var m = parseInt(m1[2], 10);
+                          if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
+                            return { year: y, month: m };
+                          }
+                        }
+                        var m2 = clean.match(/(\d{1,2})[-_\/\s]?(\d{4})/);
+                        if (m2) {
+                          var m = parseInt(m2[1], 10);
+                          var y = parseInt(m2[2], 10);
+                          if (y >= 2000 && y <= 2100 && m >= 1 && m <= 12) {
+                            return { year: y, month: m };
+                          }
+                        }
+                        return null;
+                      }
+
+                      options.forEach(function (opt) {
+                        var parsed = parseYearMonth(opt.value) || parseYearMonth(opt.label);
+                        if (parsed) {
+                          var diff = Math.abs((parsed.year - cy) * 12 + (parsed.month - cm));
+                          if (diff < minDiff) {
+                            minDiff = diff;
+                            bestOpt = opt;
+                          }
+                        }
+                      });
+
+                      if (!bestOpt) {
+                        bestOpt = options[0];
+                      }
+
+                      if (bestOpt) {
+                        currentValue = bestOpt.value;
+                        selectEl.value = currentValue;
+                        if (!window.currentFilters) window.currentFilters = {};
+                        window.currentFilters[f.name] = currentValue;
+                        // Reload data với kỳ mặc định mới chọn
+                        setTimeout(function () {
+                          _loadData();
+                        }, 50);
+                      }
+                    }
+                  }
+                  filterObj.options = options;
+                }).catch(function (err) {
+                  console.error('Lỗi tải dữ liệu lọc cho ' + f.name, err);
+                });
+              }
+            }
+            return filterObj;
           });
-          filterContainer.appendChild(filterNode);
-          filterContainer.style.display = 'none'; // Ẩn mặc định, ấn Lọc mới hiện
+
+        // 2. Gom với cấu hình cứng trong AppModules.js (nếu có)
+        // Lưu ý: Đã đưa 'Từ khóa' ra ngoài thanh công cụ dưới dạng Quick Search Bar
+        var filters = [];
+
+        if (dynamicFilters.length > 0) {
+          filters = filters.concat(dynamicFilters);
+        } else if (MODULE_CONFIG.Filters && MODULE_CONFIG.Filters.length > 0) {
+          filters = filters.concat(MODULE_CONFIG.Filters);
         }
 
-        if (!MODULE_CONFIG.NoAutoLoad) {
-          if (MODULE_CONFIG.IsDetailAdd) {
-            _openModal(false, null);
-          } else if (MODULE_CONFIG.action === 'detail' || MODULE_CONFIG.Action === 'detail') {
-            _openModal(true, MODULE_CONFIG.DetailRowData, true);
-          } else {
-            _loadData();
+        var filterNode = FilterComponent.create(filters, function (values) {
+          console.log('[DynamicFormEngine] Filter values callback received:', values);
+
+          // Lấy giá trị keyword từ ô Quick Search Bar để tránh bị đè mất
+          var quickSearch = document.getElementById('toolbar-quick-search');
+          if (quickSearch) {
+            values.keyword = quickSearch.value;
           }
+
+          // Lưu lại toàn bộ các giá trị filter
+          window.currentFilters = values;
+          currentKeyword = values.keyword || '';
+          currentPage = 1; // Reset về trang 1 khi lọc mới
+          selectedRows = [];
+          _updateSelectionCounter();
+          _loadData();
+        });
+        filterContainer.appendChild(filterNode);
+        filterContainer.style.display = 'none'; // Ẩn mặc định, ấn Lọc mới hiện
+      }
+
+      if (!MODULE_CONFIG.NoAutoLoad) {
+        if (MODULE_CONFIG.IsDetailAdd) {
+          _openModal(false, null);
+        } else if (MODULE_CONFIG.action === 'detail' || MODULE_CONFIG.Action === 'detail') {
+          _openModal(true, MODULE_CONFIG.DetailRowData, true);
+        } else {
+          _loadData();
         }
-      })
+      }
+    })
       .catch(function (err) {
         var prefix = MODULE_CONFIG.TextLoadingError || 'Lỗi tải dữ liệu: ';
         $container.innerHTML = '<div class="p-4 text-danger">' + prefix + err.message + '</div>';
@@ -15691,7 +15716,7 @@ window.DynamicFormEngine = (function () {
       counter.innerHTML = '';
     }
 
-    if (MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' || MODULE_CONFIG.UseSplitLayout) {
+    if (MODULE_CONFIG.UseSplitLayout) {
       _updateDetailView();
     }
   }
@@ -15706,7 +15731,7 @@ window.DynamicFormEngine = (function () {
       if (splitContainer) {
         splitContainer.classList.remove('show-detail');
       }
-      var selectText = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Vui lòng chọn nhân viên để xem chi tiết' : (MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết');
+      var selectText = MODULE_CONFIG.SplitLayoutSelectText || 'Vui lòng chọn dòng để xem chi tiết';
       detailContent.innerHTML = '<div class="empty-detail-state">' +
         '<div class="empty-icon-wrapper">' +
         '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>' +
@@ -15716,7 +15741,7 @@ window.DynamicFormEngine = (function () {
         '</div>';
       var detailHeader = $container.querySelector('.detail-header');
       if (detailHeader) {
-        detailHeader.textContent = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
+        detailHeader.textContent = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
       }
       return;
     }
@@ -15742,7 +15767,7 @@ window.DynamicFormEngine = (function () {
 
     var detailHeader = $container.querySelector('.detail-header');
     if (detailHeader) {
-      var defaultDetailTitle = MODULE_CONFIG.FormName === 'WA_QuanLyNghiPhepNamFrm' ? 'Chi tiết phép năm' : (MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết');
+      var defaultDetailTitle = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
       var nameVal = row.PersonName || row.TenPhuCap || row[MODULE_CONFIG.PrimaryKey] || '';
 
       detailHeader.style.display = 'flex';
@@ -16191,8 +16216,8 @@ window.DynamicFormEngine = (function () {
 
         formWrap.appendChild(fieldsGrid);
 
-        var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personinfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personquitfrm';
-        var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
+        var isPersonForm = !!MODULE_CONFIG.isPersonForm;
+        var isCandidateForm = !!MODULE_CONFIG.isCandidateForm;
         if (isPersonForm || isCandidateForm) {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
@@ -16206,7 +16231,7 @@ window.DynamicFormEngine = (function () {
           var img = document.createElement('img');
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
 
-          var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
+          var defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
           var rawContent = '';
           var fileNameVal = '';
           if (row) {
@@ -16271,8 +16296,37 @@ window.DynamicFormEngine = (function () {
                 return;
               }
             }
-            if (img.src !== defaultPhoto) {
-              img.src = defaultPhoto;
+            
+            // Dynamic API fetch fallback
+            if (imgIdVal) {
+                var self = this;
+                var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
+                    ? 'API_CandidateAttach' : 'API_PersonAttach';
+                
+                var fetchPayload = {
+                  List: attachApi,
+                  Func: 'View',
+                  JsonData: JSON.stringify({
+                    CandidateID: imgIdVal,
+                    PersonID: imgIdVal
+                  }),
+                  UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+                };
+      
+                ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+                .then(function(data) {
+                   if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
+                       var b64 = data.records[0].Base64Content;
+                       self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
+                   } else {
+                       if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                   }
+                })
+                .catch(function(err) {
+                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                });
+            } else {
+                if (img.src !== defaultPhoto) img.src = defaultPhoto;
             }
           };
 
@@ -16724,6 +16778,13 @@ window.DynamicFormEngine = (function () {
   }
 
   function _openAddForm() {
+    // Ensure AttachmentApi is configured for Wizard Add Mode
+    var isPersonForm = !!MODULE_CONFIG.isPersonForm;
+    var isCandidateForm = !!MODULE_CONFIG.isCandidateForm;
+    if (isPersonForm || isCandidateForm) {
+      MODULE_CONFIG.AttachmentApi = isCandidateForm ? 'API_CandidateAttach' : 'API_PersonAttach';
+    }
+
     // Neu co WizardSteps -> dung Wizard multi-step, nguoc lai dung detail full page
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
@@ -16952,6 +17013,10 @@ window.DynamicFormEngine = (function () {
                     var displayKey = keys.find(function (k) { return labelRegex.test(k); });
                     colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
                     if (field.name === 'PersonID') colFilterIndex = 0;
+                    if (field.name === 'PeriodKeyID') {
+                      var keyIdx = keys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
+                      if (keyIdx > -1) colFilterIndex = keyIdx;
+                    }
                     dataList.forEach(function (d) {
                       var rd = [];
                       keys.forEach(function (k) { rd.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
@@ -17171,8 +17236,8 @@ window.DynamicFormEngine = (function () {
       grid.appendChild(ungroupedCard);
     }
 
-    var isPersonForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personfullfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personinfrm' || String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_personquitfrm';
-    var isCandidateForm = String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm';
+    var isPersonForm = !!MODULE_CONFIG.isPersonForm;
+    var isCandidateForm = !!MODULE_CONFIG.isCandidateForm;
     if (isPersonForm || isCandidateForm) {
       console.log('[PHOTO DEBUG] Edit Modal - row:', row);
       var photoBox = document.createElement('div');
@@ -17267,8 +17332,37 @@ window.DynamicFormEngine = (function () {
             return;
           }
         }
-        if (img.src !== defaultPhoto) {
-          img.src = defaultPhoto;
+        
+        // Dynamic API fetch fallback
+        if (imgIdVal) {
+            var self = this;
+            var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
+                ? 'API_CandidateAttach' : 'API_PersonAttach';
+            
+            var fetchPayload = {
+              List: attachApi,
+              Func: 'View',
+              JsonData: JSON.stringify({
+                CandidateID: imgIdVal,
+                PersonID: imgIdVal
+              }),
+              UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+            };
+  
+            ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+            .then(function(data) {
+               if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
+                   var b64 = data.records[0].Base64Content;
+                   self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
+               } else {
+                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
+               }
+            })
+            .catch(function(err) {
+               if (self.src !== defaultPhoto) self.src = defaultPhoto;
+            });
+        } else {
+            if (img.src !== defaultPhoto) img.src = defaultPhoto;
         }
       };
 
@@ -17551,7 +17645,9 @@ window.DynamicFormEngine = (function () {
               }
 
               if (isGateway && Object.keys(dynamicFilters).length > 0) {
-                payload.JsonData = JSON.stringify(dynamicFilters);
+                var existingJson = {};
+                try { existingJson = JSON.parse(payload.JsonData || '{}'); } catch (e) { }
+                payload.JsonData = JSON.stringify(Object.assign({}, existingJson, dynamicFilters));
               }
 
               return ApiClient.post(finalUrl, payload).then(function (res) {
@@ -17568,7 +17664,7 @@ window.DynamicFormEngine = (function () {
                     headers = displayKeys.map(function (k) {
                       if (typeof currentDictionary !== 'undefined') {
                         var kLower = k.toLowerCase();
-                        var matchKey = Object.keys(currentDictionary).find(function(dk) { return dk.toLowerCase() === kLower; });
+                        var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
                         if (matchKey) return currentDictionary[matchKey].CaptionVN;
                       }
                       return k;
@@ -17577,6 +17673,10 @@ window.DynamicFormEngine = (function () {
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
                     colFilterIndex = displayKey ? displayKeys.indexOf(displayKey) : (displayKeys.length > 1 ? 1 : 0);
                     if (field.name === 'PersonID') colFilterIndex = 0;
+                    if (field.name === 'PeriodKeyID') {
+                      var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
+                      if (keyIdx > -1) colFilterIndex = keyIdx;
+                    }
                     dataList.forEach(function (d) {
                       var rowData = [];
                       keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
@@ -17648,6 +17748,7 @@ window.DynamicFormEngine = (function () {
                 var displayInput = lazyCombo.querySelector('input.ui-input');
                 var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
                 if (matched && displayInput) displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
+                else if (displayInput) displayInput.value = field.value; // Fallback
               }).catch(function (err) {
                 console.error('[DynamicFormEngine] DataComboBox initial fetch error:', err);
                 var displayInput = lazyCombo.querySelector('input.ui-input');
@@ -17886,7 +17987,7 @@ window.DynamicFormEngine = (function () {
     // ── DETAIL TABS (Master-Detail panel) ──────────────────────────────────
     // Khi MODULE_CONFIG.DetailTabs được cấu hình, tự động vẽ thêm tab chi tiết bên dưới form master
     var hasEditableTab = MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.some(function (t) { return t.editable; });
-    if (row && MODULE_CONFIG.FormName !== 'WA_QuanLyNghiPhepNamFrm' && (!MODULE_CONFIG.HideDetailTabsInModal || MODULE_CONFIG.IsFullPageDetail) && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 && (isEdit || hasEditableTab)) {
+    if (row && !MODULE_CONFIG.hideDetailTabsInEditMode && (!MODULE_CONFIG.HideDetailTabsInModal || MODULE_CONFIG.IsFullPageDetail) && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0 && (isEdit || hasEditableTab)) {
       var tabsContainer = document.createElement('div');
       tabsContainer.className = 'detail-tabs-container';
       tabsContainer.style.marginTop = '16px';
@@ -18023,41 +18124,37 @@ window.DynamicFormEngine = (function () {
 
             if (fName === 'PersonID') {
               // ComboBox chọn nhân viên
+              var lConf = (tabDef.lookupConfig && tabDef.lookupConfig['PersonID']) || null;
+              var isBH = !!lConf;
+
               var combo = UIControls.createDataComboBox({
                 placeholder: 'Chọn nhân viên...',
-                headers: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
-                  ? ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo']
-                  : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
-                colFilterIndex: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 1 : 0,
+                headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                colFilterIndex: lConf ? lConf.colFilterIndex : 0,
                 onSearch: function (q) {
                   var lookupPayload = {
-                    List: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 'WA_BaoHiemFrm_PersonID' : 'HR_PersonTbl',
+                    List: lConf ? lConf.apiList : 'HR_PersonTbl',
                     Func: 'View',
                     Keyword: q
                   };
-                  if (MODULE_CONFIG.FormName === 'WA_BaoHiemFrm') {
-                    lookupPayload.BranchID = row.BranchID || '';
-                    lookupPayload.LoaiBaoHiem = row.LoaiBaoHiem || '';
+                  if (lConf && typeof lConf.getPayload === 'function') {
+                    Object.assign(lookupPayload, lConf.getPayload());
                   }
+
                   return ApiClient.post('/api/API_Gateway_Router', lookupPayload).then(function (res) {
                     var list = res.list || res.records || [];
                     var dataList = list.map(function (d) {
-                      return MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
-                        ? [String(d.STT || ''), d.PersonID || '', d.PersonName || '', d.PhongBan || '', String(d.MucDong || 0), d.CanhBao || '']
-                        : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+                      return (lConf && typeof lConf.mapData === 'function') ? lConf.mapData(d) : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
                     });
                     return {
-                      headers: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm'
-                        ? ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo']
-                        : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                      headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
                       data: dataList,
-                      colFilterIndex: MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' ? 1 : 0
+                      colFilterIndex: lConf ? lConf.colFilterIndex : 0
                     };
                   });
                 },
                 onSelect: function (selectedData) {
-                  var isBH = MODULE_CONFIG.FormName === 'WA_BaoHiemFrm';
-                  var selectedPersonID = isBH ? selectedData[1] : selectedData[0];
+                  var selectedPersonID = isBH ? selectedData[lConf.colFilterIndex] : selectedData[0];
 
                   // Kiểm tra trùng lặp trong panel._currentRows
                   var isDuplicate = panel._currentRows.some(function (row, index) {
@@ -18147,37 +18244,10 @@ window.DynamicFormEngine = (function () {
                 currRow[fName] = this.value;
               });
 
-              // Hỗ trợ tính toán bảo hiểm khi MucDong thay đổi
-              if (MODULE_CONFIG.FormName === 'WA_BaoHiemFrm' && fName === 'MucDong') {
+              // Hỗ trợ tính toán động nếu có cấu hình fieldEvents
+              if (tabDef.fieldEvents && tabDef.fieldEvents[fName] && typeof tabDef.fieldEvents[fName].onChange === 'function') {
                 inp.addEventListener('change', function () {
-                  var val = parseFloat(this.value) || 0;
-                  currRow['MucDong'] = val;
-                  var payload = {
-                    List: 'WA_BaoHiemFrm_Calculate',
-                    Func: 'View',
-                    JsonData: JSON.stringify({
-                      PeriodID: row.PeriodID || '',
-                      LoaiBaoHiem: row.LoaiBaoHiem || '',
-                      MucDong: val
-                    })
-                  };
-                  ApiClient.post('/api/API_Gateway_Router', payload).then(function (res) {
-                    var data = res.list || res.records || [];
-                    if (data && data.length > 0) {
-                      var resRow = data[0];
-                      var cols = ['MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD'];
-                      cols.forEach(function (col) {
-                        currRow[col] = resRow[col] !== undefined ? resRow[col] : 0;
-                        var colTd = tr.querySelector('td[data-field="' + col + '"]');
-                        if (colTd) {
-                          var colInp = colTd.querySelector('input');
-                          if (colInp) colInp.value = currRow[col];
-                        }
-                      });
-                    }
-                  }).catch(function (e) {
-                    console.error('[BAOHIEM CALC ERROR]', e);
-                  });
+                  tabDef.fieldEvents[fName].onChange(this.value, currRow, row, tr);
                 });
               }
 
@@ -18195,12 +18265,27 @@ window.DynamicFormEngine = (function () {
           btnDel.style.cssText = 'padding: 4px; border: none; background: transparent; cursor: pointer; border-radius: 4px;';
           btnDel.innerHTML = '<span class="material-symbols-outlined" style="font-size: 20px;">delete</span>';
           btnDel.onclick = function () {
-            var detailPK = 'UserAutoID';
-            if (currRow[detailPK]) {
-              panel._deletedRows.push(currRow);
+            if (typeof ConfirmModal !== 'undefined') {
+              ConfirmModal.show({
+                title: 'Xác nhận xóa',
+                message: 'Bạn có chắc muốn xóa dòng này không?',
+                onConfirm: function () {
+                  var detailPK = 'UserAutoID';
+                  if (currRow[detailPK]) {
+                    panel._deletedRows.push(currRow);
+                  }
+                  panel._currentRows.splice(rIdx, 1);
+                  _renderEditableGrid(tabDef, panel);
+                }
+              });
+            } else {
+              var detailPK = 'UserAutoID';
+              if (currRow[detailPK]) {
+                panel._deletedRows.push(currRow);
+              }
+              panel._currentRows.splice(rIdx, 1);
+              _renderEditableGrid(tabDef, panel);
             }
-            panel._currentRows.splice(rIdx, 1);
-            _renderEditableGrid(tabDef, panel);
           };
 
           tdAction.appendChild(btnDel);
@@ -18228,6 +18313,32 @@ window.DynamicFormEngine = (function () {
             _renderEditableGrid(tabDef, panel);
           };
           panel.appendChild(btnAddRow);
+
+          if (tabDef.customButtons && tabDef.customButtons.length > 0) {
+            tabDef.customButtons.forEach(function (btnDef) {
+              var cBtn = document.createElement('button');
+              cBtn.type = 'button';
+              cBtn.className = 'btn btn-sm ' + (btnDef.className || 'btn-outline-secondary');
+              cBtn.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px; font-weight: 500; font-size: 13px; cursor: pointer; margin-left: 10px;';
+              if (btnDef.icon) {
+                cBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">' + btnDef.icon + '</span> ' + (btnDef.label || '');
+              } else {
+                cBtn.textContent = btnDef.label || '';
+              }
+              cBtn.onclick = function () {
+                if (typeof btnDef.onClick === 'function') {
+                  btnDef.onClick({
+                    panel: panel,
+                    tabDef: tabDef,
+                    row: row,
+                    MODULE_CONFIG: MODULE_CONFIG,
+                    renderGrid: _renderEditableGrid
+                  });
+                }
+              };
+              panel.appendChild(cBtn);
+            });
+          }
         }
       }
 
@@ -18393,7 +18504,12 @@ window.DynamicFormEngine = (function () {
 
       var header = document.createElement('div');
       header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--color-border);';
-      var pageTitle = isViewMode ? (MODULE_CONFIG.TitleView || 'Thông tin cá nhân') : (isEdit ? MODULE_CONFIG.TitleEdit : MODULE_CONFIG.TitleAdd);
+      var defaultTitle = 'Thông tin chi tiết';
+      var baseTitle = MODULE_CONFIG.TitleView || MODULE_CONFIG.FormTitle || defaultTitle;
+      var titleAddFallback = 'Thêm mới ' + baseTitle.toLowerCase();
+      var titleEditFallback = 'Cập nhật ' + baseTitle.toLowerCase();
+
+      var pageTitle = isViewMode ? baseTitle : (isEdit ? (MODULE_CONFIG.TitleEdit || titleEditFallback) : (MODULE_CONFIG.TitleAdd || titleAddFallback));
       header.innerHTML = '<h2 style="margin: 0; font-size: 1.5rem; font-weight: 600; color: var(--color-text);">' + pageTitle + '</h2>';
 
       footer.style.padding = '0';
@@ -18446,7 +18562,12 @@ window.DynamicFormEngine = (function () {
         btnSwitchEdit.onclick = function () { _openModal(true, row, false); };
       }
     } else {
-      var modalTitle = isViewMode ? (MODULE_CONFIG.TitleView || 'Thông tin cá nhân') : (isEdit ? MODULE_CONFIG.TitleEdit : MODULE_CONFIG.TitleAdd);
+      var defaultTitle = 'Thông tin chi tiết';
+      var baseTitle = MODULE_CONFIG.TitleView || MODULE_CONFIG.FormTitle || defaultTitle;
+      var titleAddFallback = 'Thêm mới ' + baseTitle.toLowerCase();
+      var titleEditFallback = 'Cập nhật ' + baseTitle.toLowerCase();
+
+      var modalTitle = isViewMode ? baseTitle : (isEdit ? (MODULE_CONFIG.TitleEdit || titleEditFallback) : (MODULE_CONFIG.TitleAdd || titleAddFallback));
       var modal = UIModal.show({
         title: modalTitle,
         width: MODULE_CONFIG.ModalWidth,
@@ -18730,9 +18851,15 @@ window.DynamicFormEngine = (function () {
     // Helper finalize save
     function _finalizeSave(isEdit, modal) {
       if (window._pendingWizardAvatar) {
+        if (!MODULE_CONFIG.AttachmentApi) {
+          Alert.success('Thành công', 'Cập nhật hồ sơ thành công (chưa cấu hình lưu ảnh)!');
+          modal.closeNow(singlePayload);
+          _postFinalizeSave();
+          return;
+        }
+
         var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
-        var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm')
-          ? 'API_CandidateAttach' : 'API_PersonAttach';
+        var attachApi = MODULE_CONFIG.AttachmentApi;
 
         var avatarPayload = {
           List: attachApi,
@@ -18800,46 +18927,42 @@ window.DynamicFormEngine = (function () {
       .then(function (res) {
         if (res && res.code === 0) {
           // Master save succeeded! Now save/delete details.
-          var detailPromises = [];
+          var detailApiCalls = [];
 
           if (body._detailPanels) {
             body._detailPanels.forEach(function (panel) {
               if (panel._tabDef && panel._tabDef.editable) {
                 var tabDef = panel._tabDef;
-
-                // Get the master key value to use as the foreign key
                 var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
 
                 // 1. Process deleted rows
                 if (panel._deletedRows && panel._deletedRows.length > 0) {
-                  panel._deletedRows.forEach(function (delRow) {
+                  var deletedIds = panel._deletedRows.map(function (r) { return r.UserAutoID; }).filter(Boolean).join(',');
+                  if (deletedIds) {
                     var delPayload = {
                       List: tabDef.api,
                       Func: 'Delete',
-                      Ids: delRow.UserAutoID,
+                      Ids: deletedIds,
                       UserName: _currentUser()
                     };
-                    if (MODULE_CONFIG.ApiSave === '/api/API_Gateway_Router') {
+                    if (MODULE_CONFIG.ApiSave === '/api/API_Gateway_Router' || !MODULE_CONFIG.ApiSave) {
                       delPayload = {
                         List: tabDef.api,
                         Func: 'Delete',
-                        Ids: delRow.UserAutoID,
-                        JsonData: JSON.stringify(delRow),
+                        Ids: deletedIds,
+                        JsonData: JSON.stringify({ Ids: deletedIds }),
                         UserName: _currentUser()
                       };
                     }
-                    detailPromises.push(ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', delPayload));
-                  });
+                    detailApiCalls.push(function () { return ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', delPayload); });
+                  }
                 }
 
                 // 2. Process current (added/modified) rows
                 if (panel._currentRows && panel._currentRows.length > 0) {
                   panel._currentRows.forEach(function (currRow) {
-                    // Sync foreign key
                     currRow[tabDef.filterField] = masterKeyVal;
-
                     var isRowEdit = !!currRow.UserAutoID;
-
                     var rowPayload = Object.assign({}, currRow);
                     rowPayload.UserName = _currentUser();
                     rowPayload.UserCreate = _currentUser();
@@ -18852,15 +18975,24 @@ window.DynamicFormEngine = (function () {
                       UserName: _currentUser()
                     };
 
-                    detailPromises.push(ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', savePayload));
+                    detailApiCalls.push(function () { return ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', savePayload); });
                   });
                 }
               }
             });
           }
 
-          if (detailPromises.length > 0) {
-            Promise.all(detailPromises).then(function (detailResults) {
+          if (detailApiCalls.length > 0) {
+            var detailResults = [];
+            var chain = Promise.resolve();
+            detailApiCalls.forEach(function (apiCall) {
+              chain = chain.then(function () {
+                return apiCall().then(function (res) {
+                  detailResults.push(res);
+                });
+              });
+            });
+            chain.then(function () {
               var allOk = detailResults.every(function (dr) { return dr && dr.code === 0; });
               if (allOk) {
                 _finalizeSave(isEdit, modal);
@@ -18934,15 +19066,20 @@ window.DynamicFormEngine = (function () {
         if (res && res.code === 0) {
           // Main save successful. Check if there's a pending avatar to upload.
           if (window._pendingAvatar) {
-            var personId = originalRow.PersonID || originalRow.CandidateID;
+            if (!MODULE_CONFIG.AttachmentApi) {
+              UIToast.show('Đã cập nhật thông tin thành công (chưa cấu hình lưu ảnh)', 'success');
+              window._pendingAvatar = null;
+              _inlineEditMode = false;
+              _loadData();
+              return;
+            }
 
-            // CHÚ Ý: API lưu đính kèm phải được định nghĩa trong WA_API. 
-            var attachApi = (String(MODULE_CONFIG.FormName).toLowerCase() === 'wa_danhsachungvienfrm')
-              ? 'API_CandidateAttach' : 'API_PersonAttach';
+            var personId = originalRow.PersonID || originalRow.CandidateID;
+            var attachApi = MODULE_CONFIG.AttachmentApi;
 
             var avatarPayload = {
               List: attachApi,
-              Func: 'Save',
+              Func: 'SaveAvatar',
               JsonData: JSON.stringify({
                 IsEdit: 0,
                 PersonID: personId,
@@ -19029,21 +19166,21 @@ document.addEventListener('DOMContentLoaded', function () {
   // 0.6 Khởi tạo hệ thống Phân quyền (RBAC)
   window.AppPermissions = {
     _cache: null,
-
-    _init: function () {
+    
+    _init: function() {
       try {
         var navCache = JSON.parse(sessionStorage.getItem('pmql_nav_cache') || 'null');
         var userCache = JSON.parse(localStorage.getItem('pmql_user') || 'null');
-
+        
         var isAdmin = (userCache && (userCache.UserGroupID === 'Admin' || userCache.userGroupID === 'Admin'));
-
+        
         this._cache = {
           isAdmin: isAdmin,
           dict: {}
         };
 
         if (navCache && navCache.rawRecords) {
-          navCache.rawRecords.forEach(function (r) {
+          navCache.rawRecords.forEach(function(r) {
             if (r.formName) {
               this._cache.dict[r.formName.toLowerCase()] = r;
             }
@@ -19053,17 +19190,17 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Error init AppPermissions', e);
       }
     },
-
-    hasPermission: function (formName, action) {
+    
+    hasPermission: function(formName, action) {
       if (!this._cache) this._init();
       if (!this._cache) return false;
-
+      
       if (this._cache.isAdmin) return true; // Admin bypass
-
+      
       if (!formName) return true; // Các module ko định danh thì cho phép qua
       var perm = this._cache.dict[formName.toLowerCase()];
       if (!perm) return false; // Không có trong phân quyền thì tịt
-
+      
       // action có thể là 'IsAdd', 'IsUpdate', 'IsDelete', 'IsRun', v.v.
       return (perm[action] == 1 || perm[action] === true);
     }
@@ -19136,9 +19273,12 @@ document.addEventListener('DOMContentLoaded', function () {
     FormName: 'WA_QuanLyNghiPhepNamFrm',
     PrimaryKey: 'PersonID',
     ModalWidth: '960px',
+    hideDetailTabsInEditMode: true,
+    UseSplitLayout: true,
+    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem chi tiết',
     DetailTabs: [
       {
-        label: 'Phép năm',
+        label: 'Chi tiết phép năm',
         api: 'API_QuanLyNghiPhepNam_ChiTiet',
         filterField: 'PersonID',
         fields: [
@@ -19160,11 +19300,60 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     ]
   };
+  window.APP_MODULES['WA_KINHPHICONGDOANFRM'] = {
+    FormName: 'WA_KinhPhiCongDoanFrm',
+    PrimaryKey: 'UserAutoID'
+  };
 
   window.APP_MODULES['WA_PERSONFULLFRM'] = {
     FormName: 'WA_PersonFullFrm',
     PrimaryKey: 'PersonID',
     IsFullPageDetail: false,
+    isPersonForm: true,
+    fieldOverrides: {
+      PersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
+      NewPersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
+      PersonName: { required: true, IsRequired: true },
+      PersonStatus: { required: true, IsRequired: true }
+    },
+    wizardHooks: {
+      resolveAutoId: function (branchId, apiUrl, currentUser, cb) {
+        var BRANCH_PREFIX_MAP = {
+          'COBI': 'COBI', 'DONGDU': 'DD', 'ESTELLA': 'ETL', 'HOANGHAI': 'HH',
+          'HUNGVUONG': 'HV', 'NAMVINH': 'NV', 'SGCENTER': 'SGCT',
+          'THANHDA': 'TD', 'TRANHUNGDAO': 'THD', 'VANPHONG': 'VP'
+        };
+        var prefix = BRANCH_PREFIX_MAP[branchId.toUpperCase()] || branchId;
+        ApiClient.post(apiUrl, {
+          List: 'WA_PersonFullFrm',
+          FormName: 'WA_PersonFullFrm',
+          Func: 'View',
+          Limit: 9999,
+          UserName: currentUser,
+          JsonData: JSON.stringify({ PersonIDPrefix: prefix })
+        }).then(function (res) {
+          var list = res.list || res.records || res.data || [];
+          var nums = [];
+          list.forEach(function (r) {
+            var pid = (r.PersonID || r.personID || '').toUpperCase();
+            if (!pid.startsWith(prefix.toUpperCase())) return;
+            var numStr = pid.substring(prefix.length);
+            var n = parseInt(numStr, 10);
+            if (!isNaN(n) && n > 0) nums.push(n);
+          });
+          nums.sort(function (a, b) { return a - b; });
+          var next = 1;
+          for (var i = 0; i < nums.length; i++) {
+            if (nums[i] === next) { next++; }
+            else if (nums[i] > next) { break; }
+          }
+          var nextCode = prefix + String(next).padStart(3, '0');
+          cb(nextCode, prefix, null);
+        }).catch(function (e) {
+          cb(null, prefix, e);
+        });
+      }
+    },
     UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem hồ sơ chi tiết',
     SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
@@ -19330,6 +19519,22 @@ document.addEventListener('DOMContentLoaded', function () {
     FormName: 'WA_DanhSachUngVienFrm',
     PrimaryKey: 'CandidateID',
     ModalWidth: '960px',
+    isCandidateForm: true,
+    useCandidateAttachmentApi: true,
+    HideBranchStep: true,
+    wizardHooks: {
+      resolveAutoId: function(branchId, apiUrl, currentUser, cb) {
+        // Sinh mã ứng viên: UV + 6 số ngẫu nhiên theo thời gian
+        var candidateId = 'UV' + new Date().getTime().toString().slice(-6);
+        cb(candidateId, 'UV', null);
+      }
+    },
+    WizardSteps: [
+      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch', fields: ['CandidateID', 'FullName', 'GioiTinh', 'NgaySinh', 'SoCCCD', 'NgayCap', 'NoiCap', 'TinhTrangHonNhan', 'SoDienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienTai', 'LinkedIn'] },
+      { label: 'Thông tin ứng tuyển', icon: 'work', description: 'Vị trí và phòng ban', fields: ['ViTriUngTuyen', 'PhongBan', 'NguonUngTuyen', 'NgayUngTuyen', 'MucLuongMongMuon', 'NgayCoTheDiLam'] },
+      { label: 'Kỹ năng', icon: 'star', description: 'Chuyên môn & Mềm', fields: ['KyNangChuyenMon', 'KyNangMem', 'NgoaiNgu', 'TinHoc'] },
+      { label: 'Đánh giá & Kết quả', icon: 'fact_check', description: 'Nhận xét của HR', fields: ['TrangThaiHR', 'NguoiPhuTrach', 'DiemDanhGia', 'NhanXetHR', 'MucLuongDeXuat', 'KetQuaCuoiCung', 'NgayOnboard', 'GhiChuChung'] }
+    ],
     DetailTabs: [
       {
         label: 'Phỏng vấn',
@@ -19443,7 +19648,9 @@ document.addEventListener('DOMContentLoaded', function () {
       { name: 'DocumentDate', label: 'Ngày lập', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 2, renderRule: 'dt' },
       { name: 'BranchID', label: 'Chi nhánh', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 3, renderRule: 'sl', dataSource: 'CF_BranchListFrm' },
       { name: 'PeriodKeyID', label: 'Kỳ đóng bảo hiểm', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 4, renderRule: 'sl', dataSource: 'HR_BangThamSoTbl' },
-      { name: 'Notes', label: 'Ghi chú', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 5 }
+      { name: 'LoaiBaoHiem', label: 'Loại bảo hiểm', required: false, showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, position: 'form', orderNo: 5 },
+      { name: 'PeriodID', label: 'Kỳ', required: false, showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, position: 'form', orderNo: 6 },
+      { name: 'Notes', label: 'Ghi chú', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 7 }
     ],
     DetailTabs: [
       {
@@ -19451,7 +19658,271 @@ document.addEventListener('DOMContentLoaded', function () {
         api: 'API_BaoHiem_Detail',
         filterField: 'DocumentID',
         editable: true,
+        customButtons: [
+          {
+            id: 'btn-multi-select',
+            label: 'Chọn nhiều nhân viên',
+            icon: 'checklist',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var bNode = document.querySelector('.df-master-wrapper input[name="BranchID"], .split-master-detail-container input[name="BranchID"]');
+              var branchID = bNode ? bNode.value : '';
+              var pkNode = document.querySelector('.df-master-wrapper input[name="PeriodKeyID"], .split-master-detail-container input[name="PeriodKeyID"]');
+              var loaiBaoHiem = (pkNode && pkNode.value && pkNode.value.indexOf('_') > -1) ? pkNode.value.split('_')[1] : '';
+              var dNode = document.querySelector('.df-master-wrapper input[name="DocumentID"], .split-master-detail-container input[name="DocumentID"]');
+              var docID = dNode ? dNode.value : (ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '');
+
+              if (!branchID || !loaiBaoHiem) {
+                if (typeof UIToast !== 'undefined') UIToast.show('Vui lòng chọn Chi nhánh và Mã số (Kỳ/Loại BH) trước.', 'warning');
+                else alert('Vui lòng chọn Chi nhánh và Mã số (Kỳ/Loại BH) trước.');
+                return;
+              }
+
+              var lookupPayload = { 
+                List: 'WA_BaoHiemFrm_PersonID', 
+                Func: 'View', 
+                Keyword: '', 
+                JsonData: JSON.stringify({ BranchID: branchID, LoaiBaoHiem: loaiBaoHiem, DocumentID: docID })
+              };
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', lookupPayload).then(function (res) {
+                if (loadingMsg) loadingMsg.close();
+                var dataList = res.list || res.records || [];
+                _showMultiSelectModal(dataList, ctx);
+              }).catch(function (err) {
+                if (loadingMsg) loadingMsg.close();
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
+                else alert('Lỗi khi tải danh sách');
+              });
+
+              function _showMultiSelectModal(dataList, ctx) {
+                var mWrap = document.createElement('div');
+                mWrap.className = 'ui-modal-overlay';
+                mWrap.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 99999; display: flex; align-items: center; justify-content: center;';
+
+                var mBox = document.createElement('div');
+                mBox.className = 'ui-modal-content';
+                mBox.style.cssText = 'background: #fff; width: 900px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
+
+                var mHeader = document.createElement('div');
+                mHeader.style.cssText = 'padding: 16px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); border-radius: 8px 8px 0 0;';
+                mHeader.innerHTML = '<h3 style="margin: 0; font-size: 16px;">Chọn nhân viên tham gia bảo hiểm</h3><button type="button" class="btn-close" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>';
+                mHeader.querySelector('.btn-close').onclick = function () { document.body.removeChild(mWrap); };
+
+                var mBody = document.createElement('div');
+                mBody.style.cssText = 'padding: 16px; overflow-y: auto; flex: 1;';
+
+                var tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+                tableHTML += '<thead style="background: var(--color-surface-elevated);"><tr style="border-bottom: 2px solid var(--color-border);">';
+                tableHTML += '<th style="padding: 10px; text-align: center; width: 40px;"><input type="checkbox" id="chkAllMulti" /></th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Mã NV</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Họ Tên</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Chức danh</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Bộ phận</th>';
+                tableHTML += '<th style="padding: 10px; text-align: right;">Mức đóng</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Cảnh báo</th>';
+                tableHTML += '</tr></thead><tbody>';
+
+                dataList.forEach(function (rData, idx) {
+                  var isDuplicate = ctx.panel._currentRows.some(function (r) { return r['PersonID'] === rData.PersonID; });
+                  var chkDisabled = isDuplicate ? 'disabled' : '';
+                  var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : '';
+                  var warningText = rData.CanhBao || (isDuplicate ? 'Đã có trên form' : '');
+                  var warningStyle = warningText ? 'color: red;' : '';
+
+                  tableHTML += '<tr style="border-bottom: 1px solid var(--color-border); ' + styleClass + '">';
+                  tableHTML += '<td style="padding: 8px; text-align: center;"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.PersonID || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.PersonName || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.ChucDanhChuyenMon || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.PhongBan || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px; text-align: right;">' + (rData.MucDong || '0') + '</td>';
+                  tableHTML += '<td style="padding: 8px; ' + warningStyle + '">' + warningText + '</td>';
+                  tableHTML += '</tr>';
+                });
+                tableHTML += '</tbody></table>';
+
+                mBody.innerHTML = tableHTML;
+
+                var mFooter = document.createElement('div');
+                mFooter.style.cssText = 'padding: 16px; border-top: 1px solid var(--color-border); text-align: right; background: var(--color-surface); border-radius: 0 0 8px 8px;';
+
+                var btnCancel = document.createElement('button');
+                btnCancel.type = 'button';
+                btnCancel.className = 'btn btn-light';
+                btnCancel.textContent = 'Đóng';
+                btnCancel.style.marginRight = '8px';
+                btnCancel.onclick = function () { document.body.removeChild(mWrap); };
+
+                var btnSelect = document.createElement('button');
+                btnSelect.type = 'button';
+                btnSelect.className = 'btn btn-primary';
+                btnSelect.textContent = 'Chọn & tiếp tục';
+                btnSelect.onclick = function () {
+                  var chks = mBody.querySelectorAll('.chk-item-multi:checked');
+                  var added = 0;
+                  var pNode = document.querySelector('.df-master-wrapper input[name="PeriodID"], .split-master-detail-container input[name="PeriodID"]');
+                  var lNode = document.querySelector('.df-master-wrapper input[name="LoaiBaoHiem"], .split-master-detail-container input[name="LoaiBaoHiem"]');
+                  var masterPeriodID = pNode ? pNode.value : (ctx.row.PeriodID || '');
+                  var masterLoaiBaoHiem = lNode ? lNode.value : (ctx.row.LoaiBaoHiem || '');
+                  
+                  var calcCache = {};
+                  var promises = [];
+                  var tempRows = [];
+
+                  chks.forEach(function (chk) {
+                    var idx = parseInt(chk.getAttribute('data-idx'));
+                    var rowData = dataList[idx];
+                    if (rowData) {
+                      var newRow = {};
+                      newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                      newRow['PersonID'] = rowData.PersonID;
+                      newRow['PersonName'] = rowData.PersonName;
+                      newRow['ChucDanhChuyenMon'] = rowData.ChucDanhChuyenMon;
+                      newRow['PhongBan'] = rowData.PhongBan;
+                      var mDong = parseFloat(rowData.MucDong) || 0;
+                      newRow['MucDong'] = mDong;
+                      newRow['PeriodID'] = masterPeriodID;
+                      newRow['LoaiBaoHiem'] = masterLoaiBaoHiem;
+                      
+                      tempRows.push(newRow);
+
+                      if (mDong > 0) {
+                        if (!calcCache[mDong]) {
+                           calcCache[mDong] = 'pending';
+                           var p = ApiClient.post('/api/API_Gateway_Router', {
+                             List: 'WA_BaoHiemFrm_Calculate',
+                             Func: 'View',
+                             JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: mDong })
+                           }).then(function(res) {
+                              var data = res.list || res.records || [];
+                              if (data && data.length > 0) {
+                                var resRow = data[0];
+                                calcCache[mDong] = {
+                                  MucDongBHXHNLD: resRow.MucDongBHXHNLD || 0,
+                                  MucDongBHXHNSDLD: resRow.MucDongBHXHNSDLD || 0,
+                                  MucDongBHYTNLD: resRow.MucDongBHYTNLD || 0,
+                                  MucDongBHYTNSDLD: resRow.MucDongBHYTNSDLD || 0,
+                                  MucDongBHTNNLD: resRow.MucDongBHTNNLD || 0,
+                                  MucDongBHTNNSDLD: resRow.MucDongBHTNNSDLD || 0
+                                };
+                              } else {
+                                calcCache[mDong] = null;
+                              }
+                           }).catch(function() {
+                              calcCache[mDong] = null;
+                           });
+                           promises.push(p);
+                        }
+                      }
+                    }
+                  });
+
+                  var finalizeAdd = function() {
+                    tempRows.forEach(function(row) {
+                      if (row.MucDong > 0 && calcCache[row.MucDong] && calcCache[row.MucDong] !== 'pending') {
+                        Object.assign(row, calcCache[row.MucDong]);
+                      }
+                      ctx.panel._currentRows.push(row);
+                      added++;
+                    });
+
+                    if (added > 0) {
+                      ctx.renderGrid(ctx.tabDef, ctx.panel);
+                      if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                    }
+                    document.body.removeChild(mWrap);
+                  };
+
+                  if (promises.length > 0) {
+                    btnSelect.innerText = 'Đang tính toán...';
+                    btnSelect.disabled = true;
+                    Promise.all(promises).then(finalizeAdd).catch(finalizeAdd);
+                  } else {
+                    finalizeAdd();
+                  }
+                };
+
+
+                mFooter.appendChild(btnCancel);
+                mFooter.appendChild(btnSelect);
+
+                mBox.appendChild(mHeader);
+                mBox.appendChild(mBody);
+                mBox.appendChild(mFooter);
+                mWrap.appendChild(mBox);
+                document.body.appendChild(mWrap);
+
+                var chkAll = mBody.querySelector('#chkAllMulti');
+                if (chkAll) {
+                  chkAll.onchange = function () {
+                    var chks = mBody.querySelectorAll('.chk-item-multi:not([disabled])');
+                    var isChecked = this.checked;
+                    chks.forEach(function (chk) { chk.checked = isChecked; });
+                  };
+                }
+              }
+            }
+          }
+        ],
         fields: ['PersonID', 'PersonName', 'ChucDanhChuyenMon', 'PhongBan', 'MucDong', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD', 'GhiChu'],
+        lookupConfig: {
+          PersonID: {
+            headers: ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo'],
+            colFilterIndex: 1,
+            apiList: 'WA_BaoHiemFrm_PersonID',
+            getPayload: function() {
+              var bNode = document.querySelector('.df-master-wrapper input[name="BranchID"], .split-master-detail-container input[name="BranchID"]');
+              var pkNode = document.querySelector('.df-master-wrapper input[name="PeriodKeyID"], .split-master-detail-container input[name="PeriodKeyID"]');
+              var dNode = document.querySelector('.df-master-wrapper input[name="DocumentID"], .split-master-detail-container input[name="DocumentID"]');
+              
+              var branchID = bNode ? bNode.value : '';
+              var loaiBaoHiem = (pkNode && pkNode.value && pkNode.value.indexOf('_') > -1) ? pkNode.value.split('_')[1] : '';
+              var docID = dNode ? dNode.value : '';
+              
+              return {
+                JsonData: JSON.stringify({ BranchID: branchID, LoaiBaoHiem: loaiBaoHiem, DocumentID: docID })
+              };
+            },
+            mapData: function(d) {
+              return [String(d.STT || ''), d.PersonID || '', d.PersonName || '', d.PhongBan || '', String(d.MucDong || 0), d.CanhBao || ''];
+            }
+          }
+        },
+        fieldEvents: {
+          MucDong: {
+            onChange: function(val, currRow, row, tr) {
+              var v = parseFloat(val) || 0;
+              currRow['MucDong'] = v;
+              var pNode = document.querySelector('.df-master-wrapper input[name="PeriodID"], .split-master-detail-container input[name="PeriodID"]');
+              var lNode = document.querySelector('.df-master-wrapper input[name="LoaiBaoHiem"], .split-master-detail-container input[name="LoaiBaoHiem"]');
+              var masterPeriodID = pNode ? pNode.value : (row.PeriodID || '');
+              var masterLoaiBaoHiem = lNode ? lNode.value : (row.LoaiBaoHiem || '');
+              var payload = {
+                List: 'WA_BaoHiemFrm_Calculate',
+                Func: 'View',
+                JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: v })
+              };
+              ApiClient.post('/api/API_Gateway_Router', payload).then(function (res) {
+                var data = res.list || res.records || [];
+                if (data && data.length > 0) {
+                  var resRow = data[0];
+                  var cols = ['MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD'];
+                  cols.forEach(function (col) {
+                    currRow[col] = resRow[col] !== undefined ? resRow[col] : 0;
+                    var colTd = tr.querySelector('td[data-field="' + col + '"]');
+                    if (colTd) {
+                      var colInp = colTd.querySelector('input');
+                      if (colInp) colInp.value = currRow[col];
+                    }
+                  });
+                }
+              });
+            }
+          }
+        },
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ Tên',

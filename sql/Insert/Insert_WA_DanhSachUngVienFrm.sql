@@ -1,10 +1,8 @@
-[ignoring loop detection]
-USE [X26DIMTUTAC]
-GO
+-- =========================================================================
+-- SCRIPT KHỞI TẠO CẤU HÌNH WEB CHO DANH SÁCH ỨNG VIÊN (WA_DanhSachUngVienFrm)
+-- =========================================================================
 
--- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA FORM WA_DanhSachUngVienFrm
--- =========================================================================
 DELETE FROM dbo.SY_FrmCfg WHERE FID IN ('WA_DanhSachUngVienFrm');
 DELETE FROM dbo.SY_FrmDrdwTbl WHERE FormID IN ('WA_DanhSachUngVienFrm');
 DELETE FROM dbo.SY_FrmExpTbl WHERE FormID IN ('WA_DanhSachUngVienFrm');
@@ -23,18 +21,14 @@ DELETE FROM dbo.WA_API WHERE list = 'API_QuanLyUngVien_ChungChi';
 DELETE FROM dbo.WA_Menu WHERE FormName = 'WA_DanhSachUngVienFrm';
 GO
 
--- =========================================================================
 -- 2. ĐĂNG KÝ FORM CHÍNH (SY_FrmLstTbl)
--- =========================================================================
 INSERT INTO dbo.SY_FrmLstTbl 
     ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey], [CaptionCH])  
 VALUES 
     (N'WA_DanhSachUngVienFrm', N'EDIT', N'Danh sách ứng viên', N'Candidate List', N'HR_UngVienTbl', N'CandidateID', N'Danh sách ứng viên');
 GO
 
--- =========================================================================
 -- 3. CẤU HÌNH THUỘC TÍNH MASTER-DETAIL (SY_FrmCfg)
--- =========================================================================
 INSERT INTO dbo.SY_FrmCfg ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID])  
 VALUES 
 -- Master Table
@@ -63,12 +57,13 @@ VALUES
 (NEWID(), N'WA_DanhSachUngVienFrm', N'T4', N'DCP', N'Chứng chỉ', N'', GETDATE(), N'');
 GO
 
--- =========================================================================
 -- 4. KHAI BÁO CẤU HÌNH ĐỊNH TUYẾN WEB (WA_API)
--- =========================================================================
 -- API View chính (danh sách ứng viên)
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES ('WA_DanhSachUngVienFrm', 'View', 'API_QuanLyUngVien', '@Keyword=N''{Keyword}''');
+VALUES 
+('WA_DanhSachUngVienFrm', 'View',   'API_QuanLyUngVien', '@Keyword=N''{Keyword}'''),
+('WA_DanhSachUngVienFrm', 'Save',   'API_LuuDong',       '@List=N''WA_DanhSachUngVienFrm'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('WA_DanhSachUngVienFrm', 'Delete', 'API_XoaDong',       '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 
 -- API Detail tab 1: Phỏng vấn
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
@@ -87,17 +82,13 @@ INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES ('API_QuanLyUngVien_ChungChi', 'View', 'API_QuanLyUngVien_ChungChi', '@CandidateID=N''{CandidateID}''');
 GO
 
--- =========================================================================
 -- 5. ĐỒNG BỘ CỘT GIAO DIỆN TỪ STORED PROCEDURE (API_QuanLyUngVien)
--- =========================================================================
 EXEC [dbo].[API_DongBoTruongGiaoDien]
     @FormName = 'WA_DanhSachUngVienFrm',
     @ObjectName = 'API_QuanLyUngVien';
 GO
 
--- =========================================================================
 -- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields)
--- =========================================================================
 UPDATE dbo.SY_FormatFields 
 SET CaptionVN = CASE FieldName
         WHEN 'CandidateID' THEN N'Mã ứng viên'
@@ -235,5 +226,28 @@ SET CaptionVN = CASE FieldName
 WHERE FormName = 'WA_DanhSachUngVienFrm';
 GO
 
-PRINT 'Da thiet lap WA_DanhSachUngVienFrm (Danh sach ung vien) voi MenuID 2027 thanh cong!';
+PRINT 'Da thiet lap WA_DanhSachUngVienFrm (Danh sach ung vien) thanh cong!';
+GO
+
+-- =========================================================================
+-- ĐĂNG KÝ VIEW CHO API_CandidateAttach
+-- =========================================================================
+IF NOT EXISTS (SELECT 1 FROM dbo.SY_FrmLstTbl WHERE FormID = 'API_CandidateAttach')
+BEGIN
+    INSERT INTO dbo.SY_FrmLstTbl (FormID, TableName, PrimaryKey)
+    VALUES ('API_CandidateAttach', 'HR_CandidateAttachTbl', 'UserAutoID');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = 'API_CandidateAttach' AND func = 'View')
+BEGIN
+    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+    VALUES ('API_CandidateAttach', 'View', 'API_TruyVanDong', '@List=''{List}'', @Keyword=N''{Keyword}'', @SortColumn=''{SortColumn}'', @SortDir=''{SortDir}'', @Data=N''{JsonData}''');
+END
+ELSE
+BEGIN
+    UPDATE dbo.WA_API
+    SET [SQL] = 'API_TruyVanDong', Para = '@List=''{List}'', @Keyword=N''{Keyword}'', @SortColumn=''{SortColumn}'', @SortDir=''{SortDir}'', @Data=N''{JsonData}'''
+    WHERE list = 'API_CandidateAttach' AND func = 'View';
+END
 GO

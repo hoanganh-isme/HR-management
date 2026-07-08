@@ -489,20 +489,6 @@
         <p class="hero-desc">
           Hệ thống quản lý nhân sự toàn diện.
         </p>
-        <div class="hero-stats">
-          <div class="hero-stat">
-            <span class="hero-stat-val">500+</span>
-            <span class="hero-stat-label">Nhân viên</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-val">12</span>
-            <span class="hero-stat-label">Sảnh tiệc</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-val">98%</span>
-            <span class="hero-stat-label">Hài lòng</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -711,7 +697,7 @@
                   localStorage.removeItem('remember_pw');
                 }
                 localStorage.setItem('pmql_user', JSON.stringify(res));
-                window.location.href = 'index.html';
+                window.location.href = 'index.html#/2010';
               } else {
                 throw new Error(res.msg || 'Tên đăng nhập hoặc mật khẩu không đúng');
               }

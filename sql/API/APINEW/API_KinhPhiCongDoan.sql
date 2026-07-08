@@ -15,7 +15,7 @@ BEGIN
 
     -- 2. Truy vấn dữ liệu chính trả về cho Grid trên Web
     SELECT 
-        KP.[UserAutoID]
+        KP.[UserAutoID],
         KP.[PersonID],
         KP.[PersonName],
         KP.[ChucDanhChuyenMon],
@@ -40,10 +40,11 @@ END
 GO
 
 -- =========================================================================
--- Helper API: Lấy danh sách nhân viên kèm Mức đóng BH, Chức danh, Chi nhánh
+-- Helper API: Lấy danh sách nhân viên kèm tính toán Kinh Phí Công Đoàn
 -- Dùng để làm nguồn dữ liệu (DataSource) tìm kiếm chọn nhân viên cho Form
+-- Tự động trả về các trường tính toán để Frontend tự động map vào Form
 -- =========================================================================
-CREATE OR ALTER PROCEDURE [dbo].[API_KinhPhiCongDoan_PersonList]
+CREATE OR ALTER PROCEDURE [dbo].[API_Calculate_MucDong_CongDoan]
     @Keyword NVARCHAR(200) = ''
 AS
 BEGIN
@@ -54,7 +55,11 @@ BEGIN
         PV.PersonName, 
         BHCT.MucDong, 
         ISNULL(HD.ChucDanhChuyenMonHD, PV.ChucDanhChuyenMon) AS ChucDanhChuyenMon, 
-        PV.BranchID
+        PV.BranchID,
+        -- Tính toán các trường tự động
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 AS DECIMAL(18,2)) AS KinhPhiNopCongDoanVN,
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 * 0.25 AS DECIMAL(18,2)) AS CongDoanVN,
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 * 0.75 AS DECIMAL(18,2)) AS CongDoanCTY
     FROM [dbo].[HR_PersonView] PV 
     LEFT JOIN [dbo].[HR_BaoHiemChiTietTbl] BHCT ON PV.PersonID = BHCT.PersonID 
     LEFT JOIN [dbo].[HR_HopDongTbl] HD ON PV.PersonID = HD.PersonID

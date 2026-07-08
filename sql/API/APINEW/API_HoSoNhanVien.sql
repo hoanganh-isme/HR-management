@@ -454,6 +454,114 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = 'API_PersonAttach' AND func = 'SaveAvatar')
 BEGIN
-    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-    VALUES ('API_PersonAttach', 'SaveAvatar', 'API_PersonAttach_SaveAvatar', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+    SELECT 
+        UserAutoID,
+        PersonID,
+        PhongBan,
+        TitleName,
+        PostionName,
+        Quanly,
+        ShiftID,
+        NgayThayDoi,
+        UserName
+    FROM dbo.HR_LichSuCongTacTbl
+    WHERE PersonID = @PersonID
+    ORDER BY NgayThayDoi DESC;
 END
+GO
+
+-- =========================================================================
+-- 9. Detail API Tab 8: Lá»‹ch sá»­ cÃ´ng viá»‡c (HR_PersonLogTbl)
+-- =========================================================================
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T8_Log
+(
+    @PersonID NVARCHAR(50) = ''
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        UserAutoID,
+        PersonID,
+        UserName,
+        LogDate,
+        BranchID,
+        StatusID,
+        Notes
+    FROM dbo.HR_PersonLogTbl
+    WHERE PersonID = @PersonID
+    ORDER BY LogDate DESC;
+END
+GO
+
+-- =========================================================================
+-- 10. Detail API Tab 9: Giáº¥y tá»  (HR_PersonGiayToTbl)
+-- =========================================================================
+CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T9_GiayTo
+(
+    @PersonID NVARCHAR(50) = ''
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT 
+        DocumentID,
+        PersonID,
+        LoaiGiayTo,
+        TuNgay,
+        DenNgay,
+        Notes
+    FROM dbo.HR_PersonGiayToTbl
+    WHERE PersonID = @PersonID
+    ORDER BY DocumentID DESC;
+END
+GO
+
+
+CREATE OR ALTER PROCEDURE [dbo].[API_PersonAttach_SaveAvatar]
+    @List VARCHAR(50),
+    @Data NVARCHAR(MAX),
+    @UserName VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        -- TrÃ­ch xuáº¥t PersonID hoáº·c CandidateID tá»« chuá»—i JSON
+        DECLARE @PersonID VARCHAR(50) = JSON_VALUE(@Data, '$.PersonID');
+        DECLARE @CandidateID VARCHAR(50) = JSON_VALUE(@Data, '$.CandidateID');
+        DECLARE @FileType INT = CAST(JSON_VALUE(@Data, '$.FileType') AS INT);
+        
+        DECLARE @TargetID VARCHAR(50) = ISNULL(@PersonID, @CandidateID);
+        
+        IF @TargetID IS NULL OR @TargetID = ''
+        BEGIN
+            SELECT -1 AS code, N'Lá»—i: KhÃ´ng tÃ¬m tháº¥y mÃ£ nhÃ¢n viÃªn/á»©ng viÃªn!' AS msg;
+            RETURN;
+        END
+
+        -- Náº¿u lÃ  táº£i áº£nh Ä‘áº¡i diá»‡n (FileType = 1) -> TÃ¬m ID áº£nh cÅ© Ä‘á»ƒ ghi Ä‘Ã¨ (UPDATE)
+        IF @FileType = 1 
+        BEGIN
+            DECLARE @ExistingID VARCHAR(50);
+            SELECT TOP 1 @ExistingID = UserAutoID 
+            FROM HR_PersonAttachTbl 
+            WHERE (PersonID = @TargetID) AND FileType = 1;
+
+            IF @ExistingID IS NOT NULL
+            BEGIN
+                -- Náº¿u Ä‘Ã£ tá»“n táº¡i áº£nh -> BÆ¡m UserAutoID vÃ  o JSON vÃ  Ä‘á»•i IsEdit = 1
+                SET @Data = JSON_MODIFY(@Data, '$.UserAutoID', @ExistingID);
+                SET @Data = JSON_MODIFY(@Data, '$.IsEdit', 1);
+            END
+        END
+        
+        -- Uá»· quyá» n láº¡i cho hÃ m lÃµi API_LuuDong xá»­ lÃ½ JSON chuáº©n
+        EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
+        
+    END TRY
+    BEGIN CATCH
+        SELECT -1 AS code, ERROR_MESSAGE() AS msg;
+    END CATCH
+END
+GO
+GO

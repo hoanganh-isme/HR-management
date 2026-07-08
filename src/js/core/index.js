@@ -134,9 +134,12 @@ document.addEventListener('DOMContentLoaded', function () {
     FormName: 'WA_QuanLyNghiPhepNamFrm',
     PrimaryKey: 'PersonID',
     ModalWidth: '960px',
+    hideDetailTabsInEditMode: true,
+    UseSplitLayout: true,
+    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem chi tiết',
     DetailTabs: [
       {
-        label: 'Phép năm',
+        label: 'Chi tiết phép năm',
         api: 'API_QuanLyNghiPhepNam_ChiTiet',
         filterField: 'PersonID',
         fields: [
@@ -158,11 +161,60 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     ]
   };
+  window.APP_MODULES['WA_KINHPHICONGDOANFRM'] = {
+    FormName: 'WA_KinhPhiCongDoanFrm',
+    PrimaryKey: 'UserAutoID'
+  };
 
   window.APP_MODULES['WA_PERSONFULLFRM'] = {
     FormName: 'WA_PersonFullFrm',
     PrimaryKey: 'PersonID',
     IsFullPageDetail: false,
+    isPersonForm: true,
+    fieldOverrides: {
+      PersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
+      NewPersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
+      PersonName: { required: true, IsRequired: true },
+      PersonStatus: { required: true, IsRequired: true }
+    },
+    wizardHooks: {
+      resolveAutoId: function (branchId, apiUrl, currentUser, cb) {
+        var BRANCH_PREFIX_MAP = {
+          'COBI': 'COBI', 'DONGDU': 'DD', 'ESTELLA': 'ETL', 'HOANGHAI': 'HH',
+          'HUNGVUONG': 'HV', 'NAMVINH': 'NV', 'SGCENTER': 'SGCT',
+          'THANHDA': 'TD', 'TRANHUNGDAO': 'THD', 'VANPHONG': 'VP'
+        };
+        var prefix = BRANCH_PREFIX_MAP[branchId.toUpperCase()] || branchId;
+        ApiClient.post(apiUrl, {
+          List: 'WA_PersonFullFrm',
+          FormName: 'WA_PersonFullFrm',
+          Func: 'View',
+          Limit: 9999,
+          UserName: currentUser,
+          JsonData: JSON.stringify({ PersonIDPrefix: prefix })
+        }).then(function (res) {
+          var list = res.list || res.records || res.data || [];
+          var nums = [];
+          list.forEach(function (r) {
+            var pid = (r.PersonID || r.personID || '').toUpperCase();
+            if (!pid.startsWith(prefix.toUpperCase())) return;
+            var numStr = pid.substring(prefix.length);
+            var n = parseInt(numStr, 10);
+            if (!isNaN(n) && n > 0) nums.push(n);
+          });
+          nums.sort(function (a, b) { return a - b; });
+          var next = 1;
+          for (var i = 0; i < nums.length; i++) {
+            if (nums[i] === next) { next++; }
+            else if (nums[i] > next) { break; }
+          }
+          var nextCode = prefix + String(next).padStart(3, '0');
+          cb(nextCode, prefix, null);
+        }).catch(function (e) {
+          cb(null, prefix, e);
+        });
+      }
+    },
     UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem hồ sơ chi tiết',
     SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
@@ -328,6 +380,22 @@ document.addEventListener('DOMContentLoaded', function () {
     FormName: 'WA_DanhSachUngVienFrm',
     PrimaryKey: 'CandidateID',
     ModalWidth: '960px',
+    isCandidateForm: true,
+    useCandidateAttachmentApi: true,
+    HideBranchStep: true,
+    wizardHooks: {
+      resolveAutoId: function(branchId, apiUrl, currentUser, cb) {
+        // Sinh mã ứng viên: UV + 6 số ngẫu nhiên theo thời gian
+        var candidateId = 'UV' + new Date().getTime().toString().slice(-6);
+        cb(candidateId, 'UV', null);
+      }
+    },
+    WizardSteps: [
+      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch', fields: ['CandidateID', 'FullName', 'GioiTinh', 'NgaySinh', 'SoCCCD', 'NgayCap', 'NoiCap', 'TinhTrangHonNhan', 'SoDienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienTai', 'LinkedIn'] },
+      { label: 'Thông tin ứng tuyển', icon: 'work', description: 'Vị trí và phòng ban', fields: ['ViTriUngTuyen', 'PhongBan', 'NguonUngTuyen', 'NgayUngTuyen', 'MucLuongMongMuon', 'NgayCoTheDiLam'] },
+      { label: 'Kỹ năng', icon: 'star', description: 'Chuyên môn & Mềm', fields: ['KyNangChuyenMon', 'KyNangMem', 'NgoaiNgu', 'TinHoc'] },
+      { label: 'Đánh giá & Kết quả', icon: 'fact_check', description: 'Nhận xét của HR', fields: ['TrangThaiHR', 'NguoiPhuTrach', 'DiemDanhGia', 'NhanXetHR', 'MucLuongDeXuat', 'KetQuaCuoiCung', 'NgayOnboard', 'GhiChuChung'] }
+    ],
     DetailTabs: [
       {
         label: 'Phỏng vấn',
@@ -441,7 +509,9 @@ document.addEventListener('DOMContentLoaded', function () {
       { name: 'DocumentDate', label: 'Ngày lập', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 2, renderRule: 'dt' },
       { name: 'BranchID', label: 'Chi nhánh', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 3, renderRule: 'sl', dataSource: 'CF_BranchListFrm' },
       { name: 'PeriodKeyID', label: 'Kỳ đóng bảo hiểm', required: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 4, renderRule: 'sl', dataSource: 'HR_BangThamSoTbl' },
-      { name: 'Notes', label: 'Ghi chú', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 5 }
+      { name: 'LoaiBaoHiem', label: 'Loại bảo hiểm', required: false, showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, position: 'form', orderNo: 5 },
+      { name: 'PeriodID', label: 'Kỳ', required: false, showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, position: 'form', orderNo: 6 },
+      { name: 'Notes', label: 'Ghi chú', required: false, showInAdd: true, showInEdit: true, isReadOnlyEdit: false, position: 'grid', orderNo: 7 }
     ],
     DetailTabs: [
       {
@@ -449,7 +519,271 @@ document.addEventListener('DOMContentLoaded', function () {
         api: 'API_BaoHiem_Detail',
         filterField: 'DocumentID',
         editable: true,
+        customButtons: [
+          {
+            id: 'btn-multi-select',
+            label: 'Chọn nhiều nhân viên',
+            icon: 'checklist',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var bNode = document.querySelector('.df-master-wrapper input[name="BranchID"], .split-master-detail-container input[name="BranchID"]');
+              var branchID = bNode ? bNode.value : '';
+              var pkNode = document.querySelector('.df-master-wrapper input[name="PeriodKeyID"], .split-master-detail-container input[name="PeriodKeyID"]');
+              var loaiBaoHiem = (pkNode && pkNode.value && pkNode.value.indexOf('_') > -1) ? pkNode.value.split('_')[1] : '';
+              var dNode = document.querySelector('.df-master-wrapper input[name="DocumentID"], .split-master-detail-container input[name="DocumentID"]');
+              var docID = dNode ? dNode.value : (ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '');
+
+              if (!branchID || !loaiBaoHiem) {
+                if (typeof UIToast !== 'undefined') UIToast.show('Vui lòng chọn Chi nhánh và Mã số (Kỳ/Loại BH) trước.', 'warning');
+                else alert('Vui lòng chọn Chi nhánh và Mã số (Kỳ/Loại BH) trước.');
+                return;
+              }
+
+              var lookupPayload = { 
+                List: 'WA_BaoHiemFrm_PersonID', 
+                Func: 'View', 
+                Keyword: '', 
+                JsonData: JSON.stringify({ BranchID: branchID, LoaiBaoHiem: loaiBaoHiem, DocumentID: docID })
+              };
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', lookupPayload).then(function (res) {
+                if (loadingMsg) loadingMsg.close();
+                var dataList = res.list || res.records || [];
+                _showMultiSelectModal(dataList, ctx);
+              }).catch(function (err) {
+                if (loadingMsg) loadingMsg.close();
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
+                else alert('Lỗi khi tải danh sách');
+              });
+
+              function _showMultiSelectModal(dataList, ctx) {
+                var mWrap = document.createElement('div');
+                mWrap.className = 'ui-modal-overlay';
+                mWrap.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 99999; display: flex; align-items: center; justify-content: center;';
+
+                var mBox = document.createElement('div');
+                mBox.className = 'ui-modal-content';
+                mBox.style.cssText = 'background: #fff; width: 900px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
+
+                var mHeader = document.createElement('div');
+                mHeader.style.cssText = 'padding: 16px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); border-radius: 8px 8px 0 0;';
+                mHeader.innerHTML = '<h3 style="margin: 0; font-size: 16px;">Chọn nhân viên tham gia bảo hiểm</h3><button type="button" class="btn-close" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>';
+                mHeader.querySelector('.btn-close').onclick = function () { document.body.removeChild(mWrap); };
+
+                var mBody = document.createElement('div');
+                mBody.style.cssText = 'padding: 16px; overflow-y: auto; flex: 1;';
+
+                var tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+                tableHTML += '<thead style="background: var(--color-surface-elevated);"><tr style="border-bottom: 2px solid var(--color-border);">';
+                tableHTML += '<th style="padding: 10px; text-align: center; width: 40px;"><input type="checkbox" id="chkAllMulti" /></th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Mã NV</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Họ Tên</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Chức danh</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Bộ phận</th>';
+                tableHTML += '<th style="padding: 10px; text-align: right;">Mức đóng</th>';
+                tableHTML += '<th style="padding: 10px; text-align: left;">Cảnh báo</th>';
+                tableHTML += '</tr></thead><tbody>';
+
+                dataList.forEach(function (rData, idx) {
+                  var isDuplicate = ctx.panel._currentRows.some(function (r) { return r['PersonID'] === rData.PersonID; });
+                  var chkDisabled = isDuplicate ? 'disabled' : '';
+                  var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : '';
+                  var warningText = rData.CanhBao || (isDuplicate ? 'Đã có trên form' : '');
+                  var warningStyle = warningText ? 'color: red;' : '';
+
+                  tableHTML += '<tr style="border-bottom: 1px solid var(--color-border); ' + styleClass + '">';
+                  tableHTML += '<td style="padding: 8px; text-align: center;"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.PersonID || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.PersonName || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.ChucDanhChuyenMon || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px;">' + (rData.PhongBan || '') + '</td>';
+                  tableHTML += '<td style="padding: 8px; text-align: right;">' + (rData.MucDong || '0') + '</td>';
+                  tableHTML += '<td style="padding: 8px; ' + warningStyle + '">' + warningText + '</td>';
+                  tableHTML += '</tr>';
+                });
+                tableHTML += '</tbody></table>';
+
+                mBody.innerHTML = tableHTML;
+
+                var mFooter = document.createElement('div');
+                mFooter.style.cssText = 'padding: 16px; border-top: 1px solid var(--color-border); text-align: right; background: var(--color-surface); border-radius: 0 0 8px 8px;';
+
+                var btnCancel = document.createElement('button');
+                btnCancel.type = 'button';
+                btnCancel.className = 'btn btn-light';
+                btnCancel.textContent = 'Đóng';
+                btnCancel.style.marginRight = '8px';
+                btnCancel.onclick = function () { document.body.removeChild(mWrap); };
+
+                var btnSelect = document.createElement('button');
+                btnSelect.type = 'button';
+                btnSelect.className = 'btn btn-primary';
+                btnSelect.textContent = 'Chọn & tiếp tục';
+                btnSelect.onclick = function () {
+                  var chks = mBody.querySelectorAll('.chk-item-multi:checked');
+                  var added = 0;
+                  var pNode = document.querySelector('.df-master-wrapper input[name="PeriodID"], .split-master-detail-container input[name="PeriodID"]');
+                  var lNode = document.querySelector('.df-master-wrapper input[name="LoaiBaoHiem"], .split-master-detail-container input[name="LoaiBaoHiem"]');
+                  var masterPeriodID = pNode ? pNode.value : (ctx.row.PeriodID || '');
+                  var masterLoaiBaoHiem = lNode ? lNode.value : (ctx.row.LoaiBaoHiem || '');
+                  
+                  var calcCache = {};
+                  var promises = [];
+                  var tempRows = [];
+
+                  chks.forEach(function (chk) {
+                    var idx = parseInt(chk.getAttribute('data-idx'));
+                    var rowData = dataList[idx];
+                    if (rowData) {
+                      var newRow = {};
+                      newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                      newRow['PersonID'] = rowData.PersonID;
+                      newRow['PersonName'] = rowData.PersonName;
+                      newRow['ChucDanhChuyenMon'] = rowData.ChucDanhChuyenMon;
+                      newRow['PhongBan'] = rowData.PhongBan;
+                      var mDong = parseFloat(rowData.MucDong) || 0;
+                      newRow['MucDong'] = mDong;
+                      newRow['PeriodID'] = masterPeriodID;
+                      newRow['LoaiBaoHiem'] = masterLoaiBaoHiem;
+                      
+                      tempRows.push(newRow);
+
+                      if (mDong > 0) {
+                        if (!calcCache[mDong]) {
+                           calcCache[mDong] = 'pending';
+                           var p = ApiClient.post('/api/API_Gateway_Router', {
+                             List: 'WA_BaoHiemFrm_Calculate',
+                             Func: 'View',
+                             JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: mDong })
+                           }).then(function(res) {
+                              var data = res.list || res.records || [];
+                              if (data && data.length > 0) {
+                                var resRow = data[0];
+                                calcCache[mDong] = {
+                                  MucDongBHXHNLD: resRow.MucDongBHXHNLD || 0,
+                                  MucDongBHXHNSDLD: resRow.MucDongBHXHNSDLD || 0,
+                                  MucDongBHYTNLD: resRow.MucDongBHYTNLD || 0,
+                                  MucDongBHYTNSDLD: resRow.MucDongBHYTNSDLD || 0,
+                                  MucDongBHTNNLD: resRow.MucDongBHTNNLD || 0,
+                                  MucDongBHTNNSDLD: resRow.MucDongBHTNNSDLD || 0
+                                };
+                              } else {
+                                calcCache[mDong] = null;
+                              }
+                           }).catch(function() {
+                              calcCache[mDong] = null;
+                           });
+                           promises.push(p);
+                        }
+                      }
+                    }
+                  });
+
+                  var finalizeAdd = function() {
+                    tempRows.forEach(function(row) {
+                      if (row.MucDong > 0 && calcCache[row.MucDong] && calcCache[row.MucDong] !== 'pending') {
+                        Object.assign(row, calcCache[row.MucDong]);
+                      }
+                      ctx.panel._currentRows.push(row);
+                      added++;
+                    });
+
+                    if (added > 0) {
+                      ctx.renderGrid(ctx.tabDef, ctx.panel);
+                      if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                    }
+                    document.body.removeChild(mWrap);
+                  };
+
+                  if (promises.length > 0) {
+                    btnSelect.innerText = 'Đang tính toán...';
+                    btnSelect.disabled = true;
+                    Promise.all(promises).then(finalizeAdd).catch(finalizeAdd);
+                  } else {
+                    finalizeAdd();
+                  }
+                };
+
+
+                mFooter.appendChild(btnCancel);
+                mFooter.appendChild(btnSelect);
+
+                mBox.appendChild(mHeader);
+                mBox.appendChild(mBody);
+                mBox.appendChild(mFooter);
+                mWrap.appendChild(mBox);
+                document.body.appendChild(mWrap);
+
+                var chkAll = mBody.querySelector('#chkAllMulti');
+                if (chkAll) {
+                  chkAll.onchange = function () {
+                    var chks = mBody.querySelectorAll('.chk-item-multi:not([disabled])');
+                    var isChecked = this.checked;
+                    chks.forEach(function (chk) { chk.checked = isChecked; });
+                  };
+                }
+              }
+            }
+          }
+        ],
         fields: ['PersonID', 'PersonName', 'ChucDanhChuyenMon', 'PhongBan', 'MucDong', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD', 'GhiChu'],
+        lookupConfig: {
+          PersonID: {
+            headers: ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo'],
+            colFilterIndex: 1,
+            apiList: 'WA_BaoHiemFrm_PersonID',
+            getPayload: function() {
+              var bNode = document.querySelector('.df-master-wrapper input[name="BranchID"], .split-master-detail-container input[name="BranchID"]');
+              var pkNode = document.querySelector('.df-master-wrapper input[name="PeriodKeyID"], .split-master-detail-container input[name="PeriodKeyID"]');
+              var dNode = document.querySelector('.df-master-wrapper input[name="DocumentID"], .split-master-detail-container input[name="DocumentID"]');
+              
+              var branchID = bNode ? bNode.value : '';
+              var loaiBaoHiem = (pkNode && pkNode.value && pkNode.value.indexOf('_') > -1) ? pkNode.value.split('_')[1] : '';
+              var docID = dNode ? dNode.value : '';
+              
+              return {
+                JsonData: JSON.stringify({ BranchID: branchID, LoaiBaoHiem: loaiBaoHiem, DocumentID: docID })
+              };
+            },
+            mapData: function(d) {
+              return [String(d.STT || ''), d.PersonID || '', d.PersonName || '', d.PhongBan || '', String(d.MucDong || 0), d.CanhBao || ''];
+            }
+          }
+        },
+        fieldEvents: {
+          MucDong: {
+            onChange: function(val, currRow, row, tr) {
+              var v = parseFloat(val) || 0;
+              currRow['MucDong'] = v;
+              var pNode = document.querySelector('.df-master-wrapper input[name="PeriodID"], .split-master-detail-container input[name="PeriodID"]');
+              var lNode = document.querySelector('.df-master-wrapper input[name="LoaiBaoHiem"], .split-master-detail-container input[name="LoaiBaoHiem"]');
+              var masterPeriodID = pNode ? pNode.value : (row.PeriodID || '');
+              var masterLoaiBaoHiem = lNode ? lNode.value : (row.LoaiBaoHiem || '');
+              var payload = {
+                List: 'WA_BaoHiemFrm_Calculate',
+                Func: 'View',
+                JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: v })
+              };
+              ApiClient.post('/api/API_Gateway_Router', payload).then(function (res) {
+                var data = res.list || res.records || [];
+                if (data && data.length > 0) {
+                  var resRow = data[0];
+                  var cols = ['MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD'];
+                  cols.forEach(function (col) {
+                    currRow[col] = resRow[col] !== undefined ? resRow[col] : 0;
+                    var colTd = tr.querySelector('td[data-field="' + col + '"]');
+                    if (colTd) {
+                      var colInp = colTd.querySelector('input');
+                      if (colInp) colInp.value = currRow[col];
+                    }
+                  });
+                }
+              });
+            }
+          }
+        },
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ Tên',
