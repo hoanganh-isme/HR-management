@@ -12,9 +12,9 @@ DELETE FROM dbo.SY_FrmGrdActTbl WHERE FormID IN ('WA_CaLamViecFrm');
 DELETE FROM dbo.SY_FrmMstActTbl WHERE FormID IN ('WA_CaLamViecFrm');
 DELETE FROM dbo.SY_FrmOptBtnTbl WHERE FormID IN ('WA_CaLamViecFrm');
 DELETE FROM dbo.SY_FrmCtrTbl WHERE FormID IN ('WA_CaLamViecFrm');
-DELETE FROM dbo.SY_FrmLstTbl WHERE FormID = 'WA_CaLamViecFrm';
-DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_CaLamViecFrm';
-DELETE FROM dbo.WA_API WHERE list = 'WA_CaLamViecFrm';
+DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN ('WA_CaLamViecFrm', 'API_CaLamViec_NhanVien');
+DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_CaLamViecFrm', 'API_CaLamViec_NhanVien');
+DELETE FROM dbo.WA_API WHERE list IN ('WA_CaLamViecFrm', 'API_CaLamViec_NhanVien');
 DELETE FROM dbo.WA_Menu WHERE FormName = 'WA_CaLamViecFrm';
 GO
 
@@ -25,6 +25,13 @@ INSERT INTO dbo.SY_FrmLstTbl
     ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey], [CaptionCH])  
 VALUES 
     (N'WA_CaLamViecFrm', N'EDIT', N'Sắp ca làm việc', N'Shift Scheduling', N'HR_SapCaTbl', N'SapCaID', N'Sắp ca làm việc');
+GO
+
+-- Đăng ký Detail Form: Nhân viên sắp ca (giống pattern API_BaoHiem_Detail)
+INSERT INTO dbo.SY_FrmLstTbl 
+    ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey], [CaptionCH])  
+VALUES 
+    (N'API_CaLamViec_NhanVien', N'EDIT', N'Nhân viên sắp ca', N'Shift Employees', N'HR_SapCaNhanVienTbl', N'UserAutoID', N'Nhân viên sắp ca');
 GO
 
 -- =========================================================================
@@ -49,34 +56,35 @@ VALUES
 (NEWID(), N'WA_CaLamViecFrm', N'T2', N'FKA1', N'PersonID', N'', GETDATE(), N''),
 (NEWID(), N'WA_CaLamViecFrm', N'T2', N'FKB1', N'PersonID', N'', GETDATE(), N''),
 (NEWID(), N'WA_CaLamViecFrm', N'T2', N'TN1', N'HR_PersonTbl', N'', GETDATE(), N''),
-(NEWID(), N'WA_CaLamViecFrm', N'T2', N'SE1', N'A.PersonName, A.PhongBan, A.BranchID', N'', GETDATE(), N''),
-
--- Custom Command Button: Sắp ca tự động
-(NEWID(), N'WA_CaLamViecFrm', N'LYS1', N'CommandButtonCtl', N'Sắp ca tự động', N'BT', GETDATE(), N''),
-(NEWID(), N'WA_CaLamViecFrm', N'LYS1', N'CommandButtonCtl', N'HR_CaLamViec_SapCaStp ''{0}''', N'C4', GETDATE(), N''),
-(NEWID(), N'WA_CaLamViecFrm', N'LYS1', N'CommandButtonCtl', N'SapCaID', N'P1', GETDATE(), N'');
+(NEWID(), N'WA_CaLamViecFrm', N'T2', N'SE1', N'A.PersonName, A.PhongBan, A.BranchID', N'', GETDATE(), N'');
 GO
 
 -- =========================================================================
 -- 4. KHAI BÁO CẤU HÌNH ĐỊNH TUYẾN WEB (WA_API)
 -- =========================================================================
--- API View
+-- API View / Save / Delete cho form chính
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES ('WA_CaLamViecFrm', 'View', 'API_CaLamViec', '@Keyword=N''{Keyword}''');
+VALUES ('WA_CaLamViecFrm', 'View',   'API_CaLamViec',  '@Keyword=N''{Keyword}''');
 
--- API Execute cho nút bấm "Sắp ca tự động"
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES ('WA_CaLamViecFrm', 'HR_CaLamViec_SapCaStp', 'HR_CaLamViec_SapCaStp', '@SapCaID=N''{SapCaID}''');
+VALUES ('WA_CaLamViecFrm', 'Save',   'API_LuuDong',    '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 
+INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+VALUES ('WA_CaLamViecFrm', 'Delete', 'API_XoaDong',    '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+
+-- (API Sắp ca tự động được gọi trực tiếp qua /api/HR_CaLamViec_SapCaStp nên không cần khai báo WA_API)
 -- API Dropdowns cho Shift lists
 DELETE FROM dbo.WA_API WHERE list = 'API_HR_DropdownShifts' AND func = 'View';
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES ('API_HR_DropdownShifts', 'View', 'API_HR_DropdownShifts', '');
 
--- API Tab chi tiết: Nhân viên
+-- API Tab chi tiết: Nhân viên (View / Save / Delete)
 DELETE FROM dbo.WA_API WHERE list = 'API_CaLamViec_NhanVien';
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES ('API_CaLamViec_NhanVien', 'View', 'API_CaLamViec_NhanVien', '@SapCaID=N''{SapCaID}''');
+VALUES
+('API_CaLamViec_NhanVien', 'View',   'API_CaLamViec_NhanVien', '@SapCaID=N''{SapCaID}'''),
+('API_CaLamViec_NhanVien', 'Save',   'API_LuuDong',            '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_CaLamViec_NhanVien', 'Delete', 'API_XoaDong',            '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 
 -- API Tab chi tiết: Bảng ca chi tiết
 DELETE FROM dbo.WA_API WHERE list = 'API_CaLamViec_ChiTiet';

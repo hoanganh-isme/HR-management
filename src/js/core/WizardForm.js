@@ -383,6 +383,7 @@ var WizardForm = (function () {
       
       overlay.style.opacity = '0';
       overlay.style.transition = 'opacity 0.18s';
+      if (typeof _onKeydown === 'function') document.removeEventListener('keydown', _onKeydown);
       setTimeout(function () {
         overlay.remove();
         if (history.state && history.state.wizardOpen) history.back();
@@ -405,7 +406,7 @@ var WizardForm = (function () {
       if (!step || !step.fields || !step.fields.length) return [];
       var missing = [];
       step.fields.forEach(function (fn) {
-        var schema = formSchema.find(function (f) { return f.name === fn; });
+        var schema = formSchema.find(function (f) { return (f.name || '').toLowerCase() === (fn || '').toLowerCase(); });
         if (!schema || !schema.required) return;
         var show = String(schema.showInAdd) === '1' || schema.showInAdd === true;
         if (!show) return;
@@ -760,16 +761,21 @@ var WizardForm = (function () {
             })
             .then(function(res) { return res.json(); })
             .then(function(data) {
-               if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                   var b64 = data.records[0].Base64Content;
-                   if (b64.startsWith('/9j/')) {
-                     self.src = 'data:image/jpeg;base64,' + b64;
-                   } else {
+             if (data && data.code === 0 && data.records && data.records.length > 0) {
+                 var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                 if (b64 && b64.length > 10) {
+                   if (b64.startsWith('data:image')) {
                      self.src = b64;
+                   } else {
+                     var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                     self.src = 'data:' + mimeType + ';base64,' + b64;
                    }
-               } else {
+                 } else {
                    self.src = defaultAvatar;
-               }
+                 }
+             } else {
+                 self.src = defaultAvatar;
+             }
             })
             .catch(function(err) {
                self.src = defaultAvatar;
@@ -865,7 +871,7 @@ var WizardForm = (function () {
       grid.className = 'wz-fields-grid';
 
       fieldNames.forEach(function (fn) {
-        var field = formSchema.find(function (f) { return f.name === fn; });
+        var field = formSchema.find(function (f) { return (f.name || '').toLowerCase() === (fn || '').toLowerCase(); });
         if (!field) return;
 
         // Restore giá trị đã nhập ở bước trước
@@ -1019,26 +1025,46 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
+            
+            // Lọc bớt cột nếu field có cấu hình hiddenColumns
+            var displayKeys = keys;
+            if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+              var hcols = field.hiddenColumns.map(function(c){ return c.toUpperCase(); });
+              displayKeys = keys.filter(function(k){ return hcols.indexOf(k.toUpperCase()) === -1; });
+            }
+
             list.forEach(function (d) {
               var rowData = [];
-              keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+              displayKeys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
               comboData.push(rowData);
             });
 
             var labelRegex = /name|tên|ten|label|desc|title/i;
-            var displayKey = keys.find(function (k) { return labelRegex.test(k); });
-            var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+            var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
+            var colFilterIndex;
+            if (displayKey) {
+              colFilterIndex = displayKeys.indexOf(displayKey);
+            } else {
+              var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+              var validIdx = -1;
+              for (var i = 1; i < displayKeys.length; i++) {
+                if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+              }
+              colFilterIndex = validIdx !== -1 ? validIdx : 0;
+            }
 
             return {
-              headers: keys,
+              headers: displayKeys,
               data: comboData,
-              colFilterIndex: colFilterIndex
+              colFilterIndex: colFilterIndex,
+              forceMultiColumn: displayKeys.length > 1
             };
           });
         };
 
         var lazyCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
+          showAddNew: (typeof moduleConfig !== 'undefined' && moduleConfig.HideAddNewInDropdowns) ? false : true,
           headers: ['Mã', 'Tên'],
           disabled: field.readOnly,
           onSearch: searchApiCall,
@@ -1102,7 +1128,7 @@ var WizardForm = (function () {
         var cells = [];
 
         step.fields.forEach(function (fn) {
-          var schema = formSchema.find(function (f) { return f.name === fn; });
+          var schema = formSchema.find(function (f) { return (f.name || '').toLowerCase() === (fn || '').toLowerCase(); });
           if (!schema) return;
           var val = formState[fn] || '';
           if (!val) return;
@@ -1215,7 +1241,6 @@ var WizardForm = (function () {
     function _onKeydown(e) {
       if (e.key === 'Escape') {
         _close();
-        document.removeEventListener('keydown', _onKeydown);
       }
       if (e.key === 'Enter' && !e.shiftKey) {
         var active = document.activeElement;
@@ -1450,12 +1475,12 @@ var WizardForm = (function () {
           var pkField = formSchema.PrimaryKey || 'PersonID';
           var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
           
-          if (!pkVal || !MODULE_CONFIG.AttachmentApi) {
+          if (!pkVal || !moduleConfig.AttachmentApi) {
             self.src = defaultAvatar;
             return;
           }
 
-          var attachApi = MODULE_CONFIG.AttachmentApi;
+          var attachApi = moduleConfig.AttachmentApi;
           
           var fetchPayload = {
             List: attachApi,
@@ -1477,12 +1502,17 @@ var WizardForm = (function () {
           .then(res => res.json())
           .then(data => {
              // API_Gateway_Router usually returns { code, msg, records: [...] }
-             if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                 var b64 = data.records[0].Base64Content;
-                 if (b64.startsWith('/9j/')) {
-                   self.src = 'data:image/jpeg;base64,' + b64;
+             if (data && data.code === 0 && data.records && data.records.length > 0) {
+                 var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                 if (b64 && b64.length > 10) {
+                   if (b64.startsWith('data:image')) {
+                     self.src = b64;
+                   } else {
+                     var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                     self.src = 'data:' + mimeType + ';base64,' + b64;
+                   }
                  } else {
-                   self.src = b64;
+                   self.src = defaultAvatar;
                  }
              } else {
                  self.src = defaultAvatar;
@@ -1794,26 +1824,45 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
+            
+            var displayKeys = keys;
+            if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+              var hcols = field.hiddenColumns.map(function(c){ return c.toUpperCase(); });
+              displayKeys = keys.filter(function(k){ return hcols.indexOf(k.toUpperCase()) === -1; });
+            }
+
             list.forEach(function (d) {
               var rowData = [];
-              keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+              displayKeys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
               comboData.push(rowData);
             });
 
             var labelRegex = /name|tên|ten|label|desc|title/i;
-            var displayKey = keys.find(function (k) { return labelRegex.test(k); });
-            var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+            var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
+            var colFilterIndex;
+            if (displayKey) {
+              colFilterIndex = displayKeys.indexOf(displayKey);
+            } else {
+              var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+              var validIdx = -1;
+              for (var i = 1; i < displayKeys.length; i++) {
+                if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+              }
+              colFilterIndex = validIdx !== -1 ? validIdx : 0;
+            }
 
             return {
-              headers: keys,
+              headers: displayKeys,
               data: comboData,
-              colFilterIndex: colFilterIndex
+              colFilterIndex: colFilterIndex,
+              forceMultiColumn: displayKeys.length > 1
             };
           });
         };
 
         var lazyCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
+          showAddNew: (typeof moduleConfig !== 'undefined' && moduleConfig.HideAddNewInDropdowns) ? false : true,
           headers: ['Mã', 'Tên'],
           disabled: field.readOnly,
           onSearch: searchApiCall,

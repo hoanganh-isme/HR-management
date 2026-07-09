@@ -4081,7 +4081,7 @@ var ReportFilterDialog = (function () {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.utils = (function() {
+UIControls.utils = (function () {
   /**
    * Tính toán vụ trí Dropdown thông minh (Tránh tràn màn hình)
    */
@@ -4094,19 +4094,19 @@ UIControls.utils = (function() {
     if (navbar) navbarBottom = navbar.getBoundingClientRect().bottom;
 
     // position:fixed — tọa độ viewport, không bị ảnh hưởng bởi overflow:hidden
-    dropdownElement.style.position   = 'fixed';
-    dropdownElement.style.zIndex     = '10000000';
+    dropdownElement.style.position = 'fixed';
+    dropdownElement.style.zIndex = '10000000';
     dropdownElement.style.transition = 'opacity 0.15s ease, visibility 0.15s ease';
-    dropdownElement.style.minWidth   = rect.width + 'px';
+    dropdownElement.style.minWidth = rect.width + 'px';
 
     var isActive = dropdownElement.classList.contains('active');
     if (!isActive) {
-      dropdownElement.style.maxHeight  = '300px';
+      dropdownElement.style.maxHeight = '300px';
       dropdownElement.style.visibility = 'hidden';
       dropdownElement.classList.add('active');
     }
 
-    var dropWidth  = dropdownElement.offsetWidth;
+    var dropWidth = dropdownElement.offsetWidth;
     var dropHeight = dropdownElement.offsetHeight;
 
     // --- Tính toán Left ---
@@ -4167,44 +4167,215 @@ UIControls.utils = (function() {
   /**
    * Sinh HTML cho Dropdown Table List
    */
-  function createDropdownTableHTML(headers, data, colHighlightIndex) {
-    var theadHTML = headers.map(h => `<th>${h}</th>`).join('');
-    var tbodyHTML = data.map(function(row, rIdx) {
-      // Chỉ render số lượng cột bằng với số lượng headers, các cột thừa sẽ bị ẩn (để dùng cho Auto-fill)
-      var displayRow = row.slice(0, headers.length);
-      var cells = displayRow.map(function(cell, cIdx) {
-        var cls = (cIdx === colHighlightIndex) ? 'highlight-col' : '';
-        return `<td class="${cls}">${cell}</td>`;
+  function createDropdownTableHTML(headers, data, colHighlightIndex, options) {
+    options = options || {};
+    var visibleIndexes = [];
+    var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+
+    // Bước 1: Lọc bỏ tất cả các cột rác (ghi chú, mô tả...)
+    headers.forEach(function (h, idx) {
+      if (hideRegex.test(h)) return;
+      visibleIndexes.push(idx);
+    });
+
+    // Bước 2: Ép về giao diện 1 cột chuẩn Mobile List (Trừ khi cấu hình yêu cầu giữ nguyên bảng nhiều cột)
+    if (visibleIndexes.length > 1 && !options.forceMultiColumn) {
+      // Cố gắng giữ lại cột Highlight (do DynamicFormEngine.js chọn) nếu nó không bị loại
+      var highlightValid = visibleIndexes.indexOf(colHighlightIndex) !== -1;
+
+      if (highlightValid && colHighlightIndex !== 0) {
+        // Nếu Highlight hợp lệ và không phải cột Mã (0)
+        visibleIndexes = [colHighlightIndex];
+      } else {
+        // Mặc định bỏ cột Mã (index 0) đi nếu còn cột khác
+        var withoutZero = visibleIndexes.filter(function (i) { return i !== 0; });
+        if (withoutZero.length > 0) {
+          visibleIndexes = [withoutZero[0]];
+        } else {
+          visibleIndexes = [visibleIndexes[0]];
+        }
+      }
+    }
+
+    // Bước 3: Fallback an toàn nếu tất cả bị loại
+    if (visibleIndexes.length === 0) {
+      var firstValid = headers.findIndex(function (h) { return !hideRegex.test(h); });
+      visibleIndexes.push(firstValid !== -1 ? firstValid : 0);
+    }
+
+    var theadHTML = visibleIndexes.map(idx => `<th>${headers[idx]}</th>`).join('');
+    var tbodyHTML = data.map(function (row, rIdx) {
+      var cells = visibleIndexes.map(function (idx) {
+        var cls = (idx === colHighlightIndex && visibleIndexes.length > 1) ? 'highlight-col' : '';
+        return `<td class="${cls}">${row[idx] || ''}</td>`;
       }).join('');
       return `<tr data-index="${rIdx}">${cells}</tr>`;
     }).join('');
 
+    var isSingleCol = visibleIndexes.length <= 1;
+    var headerStyle = isSingleCol ? ' style="display:none;"' : '';
+    var tblClass = isSingleCol ? 'dropdown-table single-column' : 'dropdown-table';
+
     return `
-      <table class="dropdown-table">
-        <thead><tr>${theadHTML}</tr></thead>
+      <table class="${tblClass}">
+        <thead${headerStyle}><tr>${theadHTML}</tr></thead>
         <tbody>${tbodyHTML}</tbody>
       </table>
     `;
   }
 
+  /**
+   * Hiển thị modal chọn nhiều dòng cho grid
+   * @param {Object} options 
+   * - title: Tiêu đề modal
+   * - dataList: Mảng dữ liệu
+   * - headers: Mảng tiêu đề cột ['Mã', 'Tên', ...]
+   * - fields: Mảng key tương ứng ['PersonID', 'PersonName', ...]
+   * - keyField: Field dùng để check trùng (ví dụ 'PersonID')
+   * - ctx: Context của detail grid (ctx.panel, ctx.row, ctx.tabDef, ctx.MODULE_CONFIG)
+   * - onRowRender(rData, isDuplicate): Callback (tùy chọn) trả về { styleClass, warningText, warningStyle }
+   * - mapRow(rData): Hàm trả về object chứa dữ liệu dòng mới để add vào lưới
+   * - onConfirm(selectedRows): Callback (tùy chọn) chạy trước khi đóng modal
+   */
+  function showMultiSelectGridModal(options) {
+    var dataList = options.dataList || [];
+    var ctx = options.ctx;
+
+    var mWrap = document.createElement('div');
+    mWrap.className = 'ui-modal-overlay';
+    mWrap.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 99999; display: flex; align-items: center; justify-content: center;';
+
+    var mBox = document.createElement('div');
+    mBox.className = 'ui-modal-content';
+    mBox.style.cssText = 'background: #fff; width: 900px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
+
+    var mHeader = document.createElement('div');
+    mHeader.style.cssText = 'padding: 16px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); border-radius: 8px 8px 0 0;';
+    mHeader.innerHTML = '<h3 style="margin: 0; font-size: 16px;">' + (options.title || 'Chọn dữ liệu') + '</h3><button type="button" class="btn-close" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>';
+    mHeader.querySelector('.btn-close').onclick = function () { document.body.removeChild(mWrap); };
+
+    var mBody = document.createElement('div');
+    mBody.style.cssText = 'padding: 16px; overflow-y: auto; flex: 1;';
+
+    var tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
+    tableHTML += '<thead style="background: var(--color-surface-elevated);"><tr style="border-bottom: 2px solid var(--color-border);">';
+    tableHTML += '<th style="padding: 10px; text-align: center; width: 40px;"><input type="checkbox" id="chkAllMulti" /></th>';
+    options.headers.forEach(function (h) {
+      tableHTML += '<th style="padding: 10px; text-align: left;">' + h + '</th>';
+    });
+    tableHTML += '</tr></thead><tbody>';
+
+    dataList.forEach(function (rData, idx) {
+      var isDuplicate = ctx.panel._currentRows.some(function (r) { return r[options.keyField] === rData[options.keyField]; });
+      var chkDisabled = isDuplicate ? 'disabled' : '';
+      var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : '';
+      var warningText = isDuplicate ? 'Đã có trên form' : '';
+      var warningStyle = isDuplicate ? 'color: red;' : '';
+
+      if (typeof options.onRowRender === 'function') {
+        var rowRender = options.onRowRender(rData, isDuplicate);
+        if (rowRender) {
+          if (rowRender.styleClass) styleClass = rowRender.styleClass;
+          if (rowRender.warningText) warningText = rowRender.warningText;
+          if (rowRender.warningStyle) warningStyle = rowRender.warningStyle;
+        }
+      }
+
+      tableHTML += '<tr style="border-bottom: 1px solid var(--color-border); ' + styleClass + '">';
+      tableHTML += '<td style="padding: 8px; text-align: center;"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
+      options.fields.forEach(function (f) {
+        if (f === '_warning_') {
+          tableHTML += '<td style="padding: 8px; ' + warningStyle + '">' + warningText + '</td>';
+        } else {
+          tableHTML += '<td style="padding: 8px;">' + (rData[f] || '') + '</td>';
+        }
+      });
+      tableHTML += '</tr>';
+    });
+    tableHTML += '</tbody></table>';
+
+    mBody.innerHTML = tableHTML;
+
+    var mFooter = document.createElement('div');
+    mFooter.style.cssText = 'padding: 16px; border-top: 1px solid var(--color-border); text-align: right; background: var(--color-surface); border-radius: 0 0 8px 8px;';
+
+    var btnCancel = document.createElement('button');
+    btnCancel.type = 'button';
+    btnCancel.className = 'btn btn-light';
+    btnCancel.textContent = 'Đóng';
+    btnCancel.style.marginRight = '8px';
+    btnCancel.onclick = function () { document.body.removeChild(mWrap); };
+
+    var btnSelect = document.createElement('button');
+    btnSelect.type = 'button';
+    btnSelect.className = 'btn btn-primary';
+    btnSelect.textContent = 'Chọn & tiếp tục';
+    btnSelect.onclick = function () {
+      var chks = mBody.querySelectorAll('.chk-item-multi:checked');
+      var selectedRows = [];
+      chks.forEach(function (chk) {
+        var idx = parseInt(chk.getAttribute('data-idx'));
+        var rowData = dataList[idx];
+        if (rowData) selectedRows.push(rowData);
+      });
+
+      if (typeof options.onConfirm === 'function') {
+        options.onConfirm(selectedRows);
+      } else {
+        var added = false;
+        selectedRows.forEach(function (rowData) {
+          if (typeof options.mapRow === 'function') {
+            var newRow = options.mapRow(rowData);
+            ctx.panel._currentRows.push(newRow);
+            added = true;
+          }
+        });
+        if (added && typeof ctx.renderGrid === 'function') {
+          ctx.renderGrid(options.ctx.tabDef, options.ctx.panel);
+        }
+      }
+      document.body.removeChild(mWrap);
+    };
+
+    mFooter.appendChild(btnCancel);
+    mFooter.appendChild(btnSelect);
+
+    mBox.appendChild(mHeader);
+    mBox.appendChild(mBody);
+    mBox.appendChild(mFooter);
+    mWrap.appendChild(mBox);
+
+    document.body.appendChild(mWrap);
+
+    var chkAll = mBody.querySelector('#chkAllMulti');
+    if (chkAll) {
+      chkAll.onclick = function () {
+        var chks = mBody.querySelectorAll('.chk-item-multi:not([disabled])');
+        var isChecked = this.checked;
+        chks.forEach(function (chk) { chk.checked = isChecked; });
+      };
+    }
+  }
+
   return {
+    showMultiSelectGridModal: showMultiSelectGridModal,
     computeDropdownPosition: computeDropdownPosition,
     getScrollableAncestors: getScrollableAncestors,
     createDropdownTableHTML: createDropdownTableHTML,
     /**
      * Setup single row selection for a table
      */
-    setupTableSelection: function(tableBody, onSelect) {
+    setupTableSelection: function (tableBody, onSelect) {
       if (!tableBody) return;
-      tableBody.addEventListener('click', function(e) {
+      tableBody.addEventListener('click', function (e) {
         var tr = e.target.closest('tr');
         if (!tr) return;
-        
+
         var isAlreadyActive = tr.classList.contains('active');
-        
+
         // Remove active from all rows
         Array.from(tableBody.querySelectorAll('tr')).forEach(r => r.classList.remove('active'));
-        
+
         // If it wasn't active, make it active
         if (!isAlreadyActive) {
           tr.classList.add('active');
@@ -4233,20 +4404,20 @@ UIControls.utils = (function() {
      *                                   'name'  → dùng [name="x"]             (DynamicFormEngine)
      *                                   Mặc định: thử data-field-name trước, fallback name
      */
-    applyVisibleRules: function(container, rowSelector, fieldSelector) {
+    applyVisibleRules: function (container, rowSelector, fieldSelector) {
       rowSelector = rowSelector || '[data-visible-rule]';
       var rows = Array.from(container.querySelectorAll(rowSelector));
       if (!rows.length) return;
 
       function _parseRule(ruleStr) {
-        return ruleStr.split('&').map(function(part) {
+        return ruleStr.split('&').map(function (part) {
           part = part.trim();
           var op = part.indexOf('!=') !== -1 ? '!=' : '=';
           var sides = part.split(op === '!=' ? '!=' : '=');
           return {
             field: sides[0].trim(),
             op: op,
-            values: (sides[1] || '').split('|').map(function(v) { return v.trim().toLowerCase(); })
+            values: (sides[1] || '').split('|').map(function (v) { return v.trim().toLowerCase(); })
           };
         });
       }
@@ -4254,12 +4425,12 @@ UIControls.utils = (function() {
       function _getFieldValue(fieldName) {
         // Thử data-field-name trước (ReportFilterDialog), fallback sang name (DynamicFormEngine)
         var el = container.querySelector('[data-field-name="' + fieldName + '"]')
-               || container.querySelector('[name="' + fieldName + '"]');
+          || container.querySelector('[name="' + fieldName + '"]');
         return el ? (el.value || '').toLowerCase() : '';
       }
 
       function _evaluate(ruleStr) {
-        return _parseRule(ruleStr).every(function(cond) {
+        return _parseRule(ruleStr).every(function (cond) {
           var current = _getFieldValue(cond.field);
           var match = cond.values.indexOf(current) !== -1;
           return cond.op === '=' ? match : !match;
@@ -4272,29 +4443,29 @@ UIControls.utils = (function() {
         var visible = _evaluate(rule);
         row.style.display = visible ? '' : 'none';
         // Disable input ẩn để không bị validate và không serialize vào payload
-        row.querySelectorAll('input, select, textarea').forEach(function(inp) {
+        row.querySelectorAll('input, select, textarea').forEach(function (inp) {
           inp.disabled = !visible;
         });
       }
 
       // Áp trạng thái ban đầu
-      rows.forEach(function(row) { _applyRow(row); });
+      rows.forEach(function (row) { _applyRow(row); });
 
       // Tìm trigger fields và đăng ký change listener
       var triggerMap = {};
-      rows.forEach(function(row) {
-        _parseRule(row.dataset.visibleRule || '').forEach(function(cond) {
+      rows.forEach(function (row) {
+        _parseRule(row.dataset.visibleRule || '').forEach(function (cond) {
           if (!triggerMap[cond.field]) triggerMap[cond.field] = [];
           triggerMap[cond.field].push(row);
         });
       });
 
-      Object.keys(triggerMap).forEach(function(fieldName) {
+      Object.keys(triggerMap).forEach(function (fieldName) {
         var triggerEl = container.querySelector('[data-field-name="' + fieldName + '"]')
-                      || container.querySelector('[name="' + fieldName + '"]');
+          || container.querySelector('[name="' + fieldName + '"]');
         if (!triggerEl) return;
-        var handler = function() {
-          triggerMap[fieldName].forEach(function(row) { _applyRow(row); });
+        var handler = function () {
+          triggerMap[fieldName].forEach(function (row) { _applyRow(row); });
         };
         triggerEl.addEventListener('change', handler);
         triggerEl.addEventListener('input', handler);
@@ -5140,7 +5311,7 @@ UIControls.createDataComboBox = function (options) {
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'ui-input';
-  input.placeholder = options.placeholder || '';
+  input.placeholder = (options.placeholder !== undefined) ? options.placeholder : 'Tìm kiếm...';
   if (options.id) input.id = options.id;
 
   // Actions block – chỉ giữ nút mũi tên
@@ -5281,7 +5452,7 @@ UIControls.createDataComboBox = function (options) {
   function renderTable(displayData) {
     if (UIControls.utils) {
       tableWrapper.innerHTML = UIControls.utils.createDropdownTableHTML(
-        options.headers || [], displayData, options.colHighlightIndex !== undefined ? options.colHighlightIndex : (options.colFilterIndex || 0), options.colGroupIndex
+        options.headers || [], displayData, options.colHighlightIndex !== undefined ? options.colHighlightIndex : (options.colFilterIndex || 0), options
       );
       var rows = tableWrapper.querySelectorAll('tbody tr');
       var currentInputVal = input.value.trim().toLowerCase();
@@ -5344,6 +5515,7 @@ UIControls.createDataComboBox = function (options) {
         if (result && !Array.isArray(result) && result.data) {
           if (result.headers) options.headers = result.headers;
           if (result.colFilterIndex !== undefined) options.colFilterIndex = result.colFilterIndex;
+          if (result.forceMultiColumn !== undefined) options.forceMultiColumn = result.forceMultiColumn;
           result = result.data;
         }
         if (Array.isArray(result)) {
@@ -5830,6 +6002,8 @@ var ConfirmModal = (function () {
     hide: hide
   };
 })();
+
+window.ConfirmModal = ConfirmModal;
 
 // Xử lý nút Back của trình duyệt/điện thoại
 window.addEventListener('popstate', function (e) {
@@ -6536,9 +6710,7 @@ var UIInput = (function () {
     if (config.name) input.name = config.name;
     
     var finalPlaceholder = config.placeholder;
-    if (!finalPlaceholder && config.label && inputType !== 'checkbox' && inputType !== 'radio' && inputType !== 'date') {
-      finalPlaceholder = 'Nhập ' + config.label.toLowerCase() + '...';
-    }
+    // Removed auto-placeholder generation to clean up UI as requested by user
     if (finalPlaceholder) input.placeholder = finalPlaceholder;
     
     if (config.value !== undefined) input.value = config.value;
@@ -6589,7 +6761,45 @@ var UIInput = (function () {
         config.value = rawVal.split(' ')[0];
       }
     }
-    return _createBaseWrapper(config, 'date').wrapper;
+    var obj = _createBaseWrapper(config, 'text');
+    if (config.value) {
+      obj.input.value = config.value;
+    }
+
+    // Thêm icon lịch (tùy chọn)
+    var icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined';
+    icon.innerText = 'calendar_today';
+    icon.style.position = 'absolute';
+    icon.style.right = '10px';
+    icon.style.top = '36px'; // canh giữa theo height của input
+    icon.style.color = 'var(--color-text-secondary)';
+    icon.style.pointerEvents = 'none';
+    icon.style.fontSize = '18px';
+    
+    // Đảm bảo wrapper là relative để canh vị trí icon
+    obj.wrapper.style.position = 'relative';
+    
+    // Ẩn icon nếu đang dùng label inline hoặc config khác
+    if (!config.label) icon.style.top = '10px';
+    obj.wrapper.appendChild(icon);
+
+    if (typeof window.flatpickr !== 'undefined') {
+      window.flatpickr(obj.input, {
+        altInput: true,
+        altFormat: "d/m/Y",
+        dateFormat: "Y-m-d",
+        defaultDate: config.value ? new Date(config.value) : null,
+        locale: "vn",
+        allowInput: true
+      });
+    } else {
+      // Fallback nếu không có flatpickr
+      obj.input.type = 'date';
+      if (config.value) obj.input.value = config.value;
+    }
+
+    return obj.wrapper;
   }
 
   /**
@@ -6707,7 +6917,7 @@ var UIInput = (function () {
 
     var defaultOpt = document.createElement('option');
     defaultOpt.value = '';
-    defaultOpt.innerText = '-- Vui lòng chọn --';
+    defaultOpt.innerText = '';
     select.appendChild(defaultOpt);
 
     (options || []).forEach(function(opt) {
@@ -7159,6 +7369,7 @@ var UIActionToolbar = (function () {
     
     var buttons = [
       { text: 'Thêm',  icon: 'add',        type: 'tool', onClick: actions.onAdd,    attrs: 'data-tooltip="Thêm bản ghi mới (Ins)"' },
+      { text: 'Xem',   icon: 'visibility', type: 'tool', onClick: actions.onView,   attrs: 'data-tooltip="Xem chi tiết bản ghi đã chọn"' },
       { text: 'Sửa',   icon: 'edit',       type: 'tool', onClick: actions.onEdit,   attrs: 'data-tooltip="Sửa bản ghi đã chọn (F2)"' },
       { text: 'Xóa',   icon: 'delete',     type: 'tool', onClick: actions.onDelete, attrs: 'data-tooltip="Xóa bản ghi đã chọn (Del)"' },
       { text: 'Lọc',   icon: 'filter_alt', type: 'tool', onClick: actions.onFilter, attrs: 'data-tooltip="Lọc / Tìm kiếm dữ liệu"' },
@@ -11818,6 +12029,7 @@ var WizardForm = (function () {
       
       overlay.style.opacity = '0';
       overlay.style.transition = 'opacity 0.18s';
+      if (typeof _onKeydown === 'function') document.removeEventListener('keydown', _onKeydown);
       setTimeout(function () {
         overlay.remove();
         if (history.state && history.state.wizardOpen) history.back();
@@ -11840,7 +12052,7 @@ var WizardForm = (function () {
       if (!step || !step.fields || !step.fields.length) return [];
       var missing = [];
       step.fields.forEach(function (fn) {
-        var schema = formSchema.find(function (f) { return f.name === fn; });
+        var schema = formSchema.find(function (f) { return (f.name || '').toLowerCase() === (fn || '').toLowerCase(); });
         if (!schema || !schema.required) return;
         var show = String(schema.showInAdd) === '1' || schema.showInAdd === true;
         if (!show) return;
@@ -12195,16 +12407,21 @@ var WizardForm = (function () {
             })
             .then(function(res) { return res.json(); })
             .then(function(data) {
-               if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                   var b64 = data.records[0].Base64Content;
-                   if (b64.startsWith('/9j/')) {
-                     self.src = 'data:image/jpeg;base64,' + b64;
-                   } else {
+             if (data && data.code === 0 && data.records && data.records.length > 0) {
+                 var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                 if (b64 && b64.length > 10) {
+                   if (b64.startsWith('data:image')) {
                      self.src = b64;
+                   } else {
+                     var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                     self.src = 'data:' + mimeType + ';base64,' + b64;
                    }
-               } else {
+                 } else {
                    self.src = defaultAvatar;
-               }
+                 }
+             } else {
+                 self.src = defaultAvatar;
+             }
             })
             .catch(function(err) {
                self.src = defaultAvatar;
@@ -12300,7 +12517,7 @@ var WizardForm = (function () {
       grid.className = 'wz-fields-grid';
 
       fieldNames.forEach(function (fn) {
-        var field = formSchema.find(function (f) { return f.name === fn; });
+        var field = formSchema.find(function (f) { return (f.name || '').toLowerCase() === (fn || '').toLowerCase(); });
         if (!field) return;
 
         // Restore giá trị đã nhập ở bước trước
@@ -12454,26 +12671,46 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
+            
+            // Lọc bớt cột nếu field có cấu hình hiddenColumns
+            var displayKeys = keys;
+            if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+              var hcols = field.hiddenColumns.map(function(c){ return c.toUpperCase(); });
+              displayKeys = keys.filter(function(k){ return hcols.indexOf(k.toUpperCase()) === -1; });
+            }
+
             list.forEach(function (d) {
               var rowData = [];
-              keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+              displayKeys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
               comboData.push(rowData);
             });
 
             var labelRegex = /name|tên|ten|label|desc|title/i;
-            var displayKey = keys.find(function (k) { return labelRegex.test(k); });
-            var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+            var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
+            var colFilterIndex;
+            if (displayKey) {
+              colFilterIndex = displayKeys.indexOf(displayKey);
+            } else {
+              var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+              var validIdx = -1;
+              for (var i = 1; i < displayKeys.length; i++) {
+                if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+              }
+              colFilterIndex = validIdx !== -1 ? validIdx : 0;
+            }
 
             return {
-              headers: keys,
+              headers: displayKeys,
               data: comboData,
-              colFilterIndex: colFilterIndex
+              colFilterIndex: colFilterIndex,
+              forceMultiColumn: displayKeys.length > 1
             };
           });
         };
 
         var lazyCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
+          showAddNew: (typeof moduleConfig !== 'undefined' && moduleConfig.HideAddNewInDropdowns) ? false : true,
           headers: ['Mã', 'Tên'],
           disabled: field.readOnly,
           onSearch: searchApiCall,
@@ -12537,7 +12774,7 @@ var WizardForm = (function () {
         var cells = [];
 
         step.fields.forEach(function (fn) {
-          var schema = formSchema.find(function (f) { return f.name === fn; });
+          var schema = formSchema.find(function (f) { return (f.name || '').toLowerCase() === (fn || '').toLowerCase(); });
           if (!schema) return;
           var val = formState[fn] || '';
           if (!val) return;
@@ -12650,7 +12887,6 @@ var WizardForm = (function () {
     function _onKeydown(e) {
       if (e.key === 'Escape') {
         _close();
-        document.removeEventListener('keydown', _onKeydown);
       }
       if (e.key === 'Enter' && !e.shiftKey) {
         var active = document.activeElement;
@@ -12885,12 +13121,12 @@ var WizardForm = (function () {
           var pkField = formSchema.PrimaryKey || 'PersonID';
           var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
           
-          if (!pkVal || !MODULE_CONFIG.AttachmentApi) {
+          if (!pkVal || !moduleConfig.AttachmentApi) {
             self.src = defaultAvatar;
             return;
           }
 
-          var attachApi = MODULE_CONFIG.AttachmentApi;
+          var attachApi = moduleConfig.AttachmentApi;
           
           var fetchPayload = {
             List: attachApi,
@@ -12912,12 +13148,17 @@ var WizardForm = (function () {
           .then(res => res.json())
           .then(data => {
              // API_Gateway_Router usually returns { code, msg, records: [...] }
-             if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                 var b64 = data.records[0].Base64Content;
-                 if (b64.startsWith('/9j/')) {
-                   self.src = 'data:image/jpeg;base64,' + b64;
+             if (data && data.code === 0 && data.records && data.records.length > 0) {
+                 var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                 if (b64 && b64.length > 10) {
+                   if (b64.startsWith('data:image')) {
+                     self.src = b64;
+                   } else {
+                     var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                     self.src = 'data:' + mimeType + ';base64,' + b64;
+                   }
                  } else {
-                   self.src = b64;
+                   self.src = defaultAvatar;
                  }
              } else {
                  self.src = defaultAvatar;
@@ -13229,26 +13470,45 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
+            
+            var displayKeys = keys;
+            if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+              var hcols = field.hiddenColumns.map(function(c){ return c.toUpperCase(); });
+              displayKeys = keys.filter(function(k){ return hcols.indexOf(k.toUpperCase()) === -1; });
+            }
+
             list.forEach(function (d) {
               var rowData = [];
-              keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+              displayKeys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
               comboData.push(rowData);
             });
 
             var labelRegex = /name|tên|ten|label|desc|title/i;
-            var displayKey = keys.find(function (k) { return labelRegex.test(k); });
-            var colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+            var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
+            var colFilterIndex;
+            if (displayKey) {
+              colFilterIndex = displayKeys.indexOf(displayKey);
+            } else {
+              var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+              var validIdx = -1;
+              for (var i = 1; i < displayKeys.length; i++) {
+                if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+              }
+              colFilterIndex = validIdx !== -1 ? validIdx : 0;
+            }
 
             return {
-              headers: keys,
+              headers: displayKeys,
               data: comboData,
-              colFilterIndex: colFilterIndex
+              colFilterIndex: colFilterIndex,
+              forceMultiColumn: displayKeys.length > 1
             };
           });
         };
 
         var lazyCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
+          showAddNew: (typeof moduleConfig !== 'undefined' && moduleConfig.HideAddNewInDropdowns) ? false : true,
           headers: ['Mã', 'Tên'],
           disabled: field.readOnly,
           onSearch: searchApiCall,
@@ -14045,34 +14305,100 @@ window.DynamicFormEngine = (function () {
           var fieldName = item.name || item.FieldName;
           var isReadOnlyEditVal = _bool(item.isReadOnlyEdit, item.IsReadOnlyEdit);
           var isReadOnlyAddVal = _bool(item.isReadOnlyAdd, item.IsReadOnlyAdd);
-          if (MODULE_CONFIG.fieldOverrides && MODULE_CONFIG.fieldOverrides[fieldName]) {
-            var overrides = MODULE_CONFIG.fieldOverrides[fieldName];
-            if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
-            if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
-            if (overrides.required !== undefined) item.required = overrides.required;
-            if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
+          var hiddenColsVal = [];
+
+          var finalPosition = item.FormPosition || item.formPosition || item.position || 'grid';
+          var finalRenderRule = (item.renderRule || '').toLowerCase().trim();
+          var finalLabel = item.label || item.CaptionVN;
+
+          if (MODULE_CONFIG.fieldOverrides) {
+            var overrideKey = Object.keys(MODULE_CONFIG.fieldOverrides).find(function (k) {
+              return k.toLowerCase() === fieldName.toLowerCase();
+            });
+            if (overrideKey) {
+              var overrides = MODULE_CONFIG.fieldOverrides[overrideKey];
+              if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
+              if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
+              if (overrides.required !== undefined) item.required = overrides.required;
+              if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
+              if (overrides.hiddenColumns !== undefined) hiddenColsVal = overrides.hiddenColumns;
+              if (overrides.renderRule !== undefined) finalRenderRule = overrides.renderRule.toLowerCase().trim();
+              if (overrides.dataSource !== undefined) item.dataSource = overrides.dataSource;
+              if (overrides.position !== undefined) finalPosition = overrides.position;
+              if (overrides.label !== undefined) finalLabel = overrides.label;
+            }
+          }
+
+          if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+            var ff = MODULE_CONFIG.FormFields.find(function (f) { return f.name.toLowerCase() === fieldName.toLowerCase(); });
+            if (ff) {
+              if (ff.isReadOnlyEdit !== undefined) isReadOnlyEditVal = ff.isReadOnlyEdit;
+              if (ff.isReadOnlyAdd !== undefined) isReadOnlyAddVal = ff.isReadOnlyAdd;
+              if (ff.required !== undefined) item.required = ff.required;
+              if (ff.IsRequired !== undefined) item.IsRequired = ff.IsRequired;
+              if (ff.hiddenColumns !== undefined) hiddenColsVal = ff.hiddenColumns;
+              if (ff.renderRule !== undefined) finalRenderRule = ff.renderRule.toLowerCase().trim();
+              if (ff.dataSource !== undefined) item.dataSource = ff.dataSource;
+              if (ff.position !== undefined) finalPosition = ff.position;
+              if (ff.label !== undefined) finalLabel = ff.label;
+              if (ff.html !== undefined) item.html = ff.html;
+            }
           }
 
           globalFormSchema.push({
             name: fieldName,
-            label: item.label || item.CaptionVN,
+            label: finalLabel,
             required: _bool(item.required, item.IsRequired),
             showInAdd: _bool(item.showInAdd, item.ShowInAdd),
             showInEdit: _bool(item.showInEdit, item.ShowInEdit),
             showInFilter: _bool(item.showInFilter, item.ShowInFilter),
             isReadOnlyEdit: isReadOnlyEditVal,
             isReadOnlyAdd: isReadOnlyAddVal,
-            position: item.FormPosition || item.formPosition || item.position || 'grid',
+            position: finalPosition,
             orderNo: item.OrderNo || item.orderNo || 0,
-            renderRule: (item.renderRule || '').toLowerCase().trim(),
+            renderRule: finalRenderRule,
             dataSource: (item.dataSource || item.DataSource || '').trim(),
             validateRule: rawValidate,
             dependsOn: (item.dependsOn || item.DependsOn || '').trim(),
             visibleRule: rawVisible,
             formulaRule: formulaMatch ? formulaMatch[1].trim() : '',
-            triggerApi: triggerMatch ? triggerMatch[1].trim() : ''
+            triggerApi: triggerMatch ? triggerMatch[1].trim() : '',
+            hiddenColumns: hiddenColsVal,
+            html: item.html
           });
         });
+
+        // Hỗ trợ CHÈN THÊM TRƯỜNG TỰ DO (ví dụ nút bấm) từ FormFields (Chỉ chèn những trường chưa có trong DB)
+        if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+          MODULE_CONFIG.FormFields.forEach(function (cf) {
+            if (!globalFormSchema.find(function (sf) { return sf.name.toLowerCase() === cf.name.toLowerCase(); })) {
+              globalFormSchema.push({
+                name: cf.name,
+                label: cf.label || '',
+                required: cf.required || false,
+                showInAdd: true,
+                showInEdit: true,
+                showInFilter: false,
+                isReadOnlyEdit: cf.isReadOnlyEdit || false,
+                isReadOnlyAdd: cf.isReadOnlyAdd || false,
+                position: cf.position || 'grid',
+                orderNo: 999, // Xếp cuối theo mặc định
+                renderRule: (cf.renderRule || '').toLowerCase().trim(),
+                dataSource: cf.dataSource || '',
+                html: cf.html || ''
+              });
+            }
+          });
+
+          // Sắp xếp lại globalFormSchema đúng theo thứ tự khai báo trong FormFields
+          globalFormSchema.sort(function (a, b) {
+            var idxA = MODULE_CONFIG.FormFields.findIndex(function (f) { return f.name.toLowerCase() === a.name.toLowerCase(); });
+            var idxB = MODULE_CONFIG.FormFields.findIndex(function (f) { return f.name.toLowerCase() === b.name.toLowerCase(); });
+            if (idxA === -1) idxA = 9999;
+            if (idxB === -1) idxB = 9999;
+            return idxA - idxB;
+          });
+        }
 
         if (Object.keys(globalDictionary).length === 0) {
           console.warn('API returned no fields for FormName:', MODULE_CONFIG.FormName);
@@ -14748,6 +15074,11 @@ window.DynamicFormEngine = (function () {
 
         var toolbar = UIActionToolbar.create({
           onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
+          onView: (isFrm && !MODULE_CONFIG.HideViewBtn) ? function () {
+            if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Vui lòng chọn dữ liệu cần xem');
+            if (selectedRows.length > 1) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Chỉ có thể xem chi tiết từng dòng một.');
+            _openViewForm(selectedRows[0]);
+          } : false,
           onEdit: (isFrm && !MODULE_CONFIG.HideEditBtn) ? (_hasPermission('EDIT') ? function () {
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectEdit);
 
@@ -14761,7 +15092,7 @@ window.DynamicFormEngine = (function () {
             }
 
             if (selectedRows.length > 1) {
-              _openBulkEditForm();
+              return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Chỉ có thể sửa chi tiết từng dòng một.');
             } else {
               _openEditForm(selectedRows[0]);
             }
@@ -15122,7 +15453,7 @@ window.DynamicFormEngine = (function () {
     }
 
     if (MODULE_CONFIG.IsFullPageDetail && MODULE_CONFIG.DetailRowData) {
-      _openModal(true, MODULE_CONFIG.DetailRowData, true);
+      _openModal(true, MODULE_CONFIG.DetailRowData, !MODULE_CONFIG.IsDetailForceEdit);
       return;
     }
 
@@ -15348,10 +15679,217 @@ window.DynamicFormEngine = (function () {
           // Tìm key trong data có chữ hoa/thường khớp với fieldName (case-insensitive search)
           var actualField = rowKeys.find(function (k) { return k.toLowerCase() === fieldName.toLowerCase(); }) || fieldName;
 
+          var isDateField = actualField.toLowerCase().indexOf('ngay') >= 0 || actualField.toLowerCase().indexOf('date') >= 0 || f.renderRule === 'dt' || f.renderRule === 'date' || f.renderRule === 'd';
+
+          var customDateEditor = function (cell, onRendered, success, cancel) {
+            var cellValue = cell.getValue();
+            var input = document.createElement("input");
+            input.type = "text";
+            input.style.padding = "4px";
+            input.style.width = "100%";
+            input.style.boxSizing = "border-box";
+            input.style.border = "none";
+            input.style.outline = "none";
+            input.style.background = "transparent";
+
+            var parsedDate = null;
+            if (cellValue) {
+              if (typeof cellValue === 'string' && cellValue.indexOf('/') === 2) {
+                var parts = cellValue.split(/[\s/]/);
+                if (parts.length >= 3) {
+                  parsedDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                }
+              } else if (typeof cellValue === 'string' && cellValue.length >= 10 && cellValue.indexOf('-') === 4) {
+                var parts = cellValue.substring(0, 10).split('-');
+                parsedDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+              } else {
+                var d = new Date(cellValue);
+                if (!isNaN(d.getTime())) parsedDate = d;
+              }
+            }
+
+            onRendered(function () {
+              if (typeof window.flatpickr !== 'undefined') {
+                var fp = window.flatpickr(input, {
+                  defaultDate: parsedDate,
+                  dateFormat: "d/m/Y",
+                  allowInput: true,
+                  onClose: function (selectedDates, dateStr, instance) {
+                    if (dateStr !== cellValue) {
+                      success(dateStr);
+                    } else {
+                      cancel();
+                    }
+                  }
+                });
+                setTimeout(function () { fp.open(); }, 10);
+              } else {
+                // Fallback
+                input.type = "date";
+                if (parsedDate && !isNaN(parsedDate.getTime())) {
+                  var y = parsedDate.getFullYear();
+                  var m = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
+                  var d = parsedDate.getDate().toString().padStart(2, '0');
+                  input.value = y + '-' + m + '-' + d;
+                }
+                input.focus();
+                input.addEventListener("blur", function () {
+                  var v = input.value;
+                  if (v) {
+                    var p = v.split('-');
+                    if (p.length === 3) v = p[2] + '/' + p[1] + '/' + p[0];
+                    if (v !== cellValue) success(v); else cancel();
+                  } else {
+                    if (cellValue !== "") success(""); else cancel();
+                  }
+                });
+              }
+            });
+
+            return input;
+          };
+
+          var hasCombo = f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
+
+          var customComboEditor = function (cell, onRendered, success, cancel) {
+            var cellValue = cell.getValue();
+            var rowData = cell.getRow().getData();
+
+            var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
+            var maxCols = 4;
+            if (endpointRaw.indexOf('|') > -1) {
+              var dsParts = endpointRaw.split('|');
+              endpointRaw = dsParts[0];
+              var parsedCols = parseInt(dsParts[1], 10);
+              if (!isNaN(parsedCols) && parsedCols > 0) maxCols = parsedCols;
+            }
+            var finalUrl;
+            var fetchPayload = {};
+            if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
+              finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
+              fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View' };
+            } else {
+              var endpoint = endpointRaw.startsWith('http') ? endpointRaw : ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + endpointRaw);
+              finalUrl = endpoint;
+              if (endpoint.indexOf('?') > -1) {
+                var parts = endpoint.split('?');
+                finalUrl = parts[0];
+                var searchParams = new URLSearchParams(parts[1]);
+                searchParams.forEach(function (value, key) { fetchPayload[key] = value; });
+              }
+            }
+            if (!fetchPayload.UserName) fetchPayload.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
+
+            var searchApiCall = function (q, page) {
+              var payload = Object.assign({}, fetchPayload);
+              var isGateway = finalUrl.indexOf('API_Gateway_Router') > -1;
+              var dynamicFilters = {};
+              if (f.dependsOn) {
+                var parents = f.dependsOn.split(',').map(function (p) { return p.trim(); });
+                parents.forEach(function (p) {
+                  if (rowData[p] !== undefined && rowData[p] !== null) {
+                    dynamicFilters[p] = rowData[p];
+                  }
+                });
+              }
+              if (isGateway) dynamicFilters = Object.assign(dynamicFilters, dynamicFilters);
+              else payload = Object.assign(payload, dynamicFilters);
+
+              if (q) {
+                payload.Keyword = q;
+                if (isGateway) dynamicFilters.Keyword = q;
+              }
+              if (isGateway && Object.keys(dynamicFilters).length > 0) {
+                var existingJson = {};
+                try { existingJson = JSON.parse(payload.JsonData || '{}'); } catch (e) { }
+                payload.JsonData = JSON.stringify(Object.assign({}, existingJson, dynamicFilters));
+              }
+
+              return ApiClient.post(finalUrl, payload).then(function (res) {
+                var comboData = [];
+                var dataList = res.list || res.records;
+                var headers = ['Mã', 'Tên'];
+                var colFilterIndex = 1;
+                if (dataList && dataList.length > 0) {
+                  var keys = Object.keys(dataList[0]);
+                  if (keys.length > 0) {
+                    var displayKeysFull = keys;
+                    if (f.hiddenColumns && Array.isArray(f.hiddenColumns)) {
+                      var hcols = f.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                    }
+                    var displayKeys = displayKeysFull.slice(0, maxCols);
+                    headers = displayKeys.map(function (k) {
+                      if (typeof globalDictionary !== 'undefined') {
+                        var kLower = k.toLowerCase();
+                        var matchKey = Object.keys(globalDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
+                        if (matchKey) return globalDictionary[matchKey].CaptionVN;
+                      }
+                      return k;
+                    });
+                    var labelRegex = /name|tên|ten|label|desc|title/i;
+                    var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
+                    if (displayKey) {
+                      colFilterIndex = displayKeys.indexOf(displayKey);
+                    } else {
+                      var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+                      var validIdx = -1;
+                      for (var i = 1; i < displayKeys.length; i++) {
+                        if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+                      }
+                      colFilterIndex = validIdx !== -1 ? validIdx : 0;
+                    }
+                    if (f.name === 'PersonID') colFilterIndex = 0;
+                    if (f.name === 'PeriodKeyID') {
+                      var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
+                      if (keyIdx > -1) colFilterIndex = keyIdx;
+                    }
+                    dataList.forEach(function (d) {
+                      var rData = [];
+                      displayKeysFull.forEach(function (k) { rData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                      comboData.push(rData);
+                    });
+                  } else {
+                    dataList.forEach(function (d) { comboData.push(['', '']); });
+                  }
+                }
+                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex };
+              });
+            };
+
+            var lazyCombo = UIControls.createDataComboBox({
+              placeholder: '-- Chọn --',
+              headers: ['Mã', 'Tên'],
+              showAddNew: false,
+              onSearch: searchApiCall,
+              onChange: function (val) { },
+              onSelect: function (row) {
+                success(lazyCombo.querySelector('.ui-input').value);
+              }
+            });
+
+            lazyCombo.style.margin = "0";
+            lazyCombo.style.width = "100%";
+            var inputEl = lazyCombo.querySelector('.ui-input');
+            inputEl.style.border = "none";
+            inputEl.style.background = "transparent";
+            inputEl.style.padding = "4px";
+            inputEl.value = cellValue || '';
+
+            onRendered(function () {
+              inputEl.focus();
+              inputEl.click();
+            });
+
+            return lazyCombo;
+          };
+
           var colDef = {
             title: dictionary[fieldName] || fieldName,
             field: actualField,
-            editor: "input" // Cho phép chỉnh sửa trực tiếp
+            editor: isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input"),
+            maxWidth: 400, // UX: Giới hạn độ rộng tối đa để text dài (như Mô tả) không đẩy vỡ khung Grid
+            tooltip: true  // UX: Cho phép xem đầy đủ text khi hover chuột vào ô bị cắt chữ (...)
             // Đã loại bỏ headerFilter: "input" để header gọn gàng, người dùng sẽ xài Popup lọc dữ liệu thay thế
           };
 
@@ -16296,37 +16834,46 @@ window.DynamicFormEngine = (function () {
                 return;
               }
             }
-            
+
             // Dynamic API fetch fallback
             if (imgIdVal) {
-                var self = this;
-                var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
-                    ? 'API_CandidateAttach' : 'API_PersonAttach';
-                
-                var fetchPayload = {
-                  List: attachApi,
-                  Func: 'View',
-                  JsonData: JSON.stringify({
-                    CandidateID: imgIdVal,
-                    PersonID: imgIdVal
-                  }),
-                  UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
-                };
-      
-                ApiClient.post('/api/API_Gateway_Router', fetchPayload)
-                .then(function(data) {
-                   if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                       var b64 = data.records[0].Base64Content;
-                       self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
-                   } else {
-                       if (self.src !== defaultPhoto) self.src = defaultPhoto;
-                   }
+              var self = this;
+              var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
+                ? 'API_CandidateAttach' : 'API_PersonAttach';
+
+              var fetchPayload = {
+                List: attachApi,
+                Func: 'View',
+                JsonData: JSON.stringify({
+                  CandidateID: imgIdVal,
+                  PersonID: imgIdVal
+                }),
+                UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+              };
+
+              ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+                .then(function (data) {
+                  if (data && data.code === 0 && data.records && data.records.length > 0) {
+                    var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                    if (b64 && b64.length > 10) {
+                      if (b64.startsWith('data:image')) {
+                        self.src = b64;
+                      } else {
+                        var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                        self.src = 'data:' + mimeType + ';base64,' + b64;
+                      }
+                    } else {
+                      if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                    }
+                  } else {
+                    if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                  }
                 })
-                .catch(function(err) {
-                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                .catch(function (err) {
+                  if (self.src !== defaultPhoto) self.src = defaultPhoto;
                 });
             } else {
-                if (img.src !== defaultPhoto) img.src = defaultPhoto;
+              if (img.src !== defaultPhoto) img.src = defaultPhoto;
             }
           };
 
@@ -16814,9 +17361,25 @@ window.DynamicFormEngine = (function () {
       // Save row data to session storage for faster and accurate load
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
       // Redirect to detail page
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]);
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]) + '&action=edit';
     } else {
       _openModal(true, row, false);
+    }
+  }
+
+  function _openViewForm(row) {
+    if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
+      _openModal(true, row, true);
+      return;
+    }
+
+    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+      // Save row data to session storage for faster and accurate load
+      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
+      // Redirect to detail page without &action=edit to trigger View mode
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]);
+    } else {
+      _openModal(true, row, true); // true for forceDetail (view mode)
     }
   }
 
@@ -17008,25 +17571,30 @@ window.DynamicFormEngine = (function () {
                 if (dataList && dataList.length > 0) {
                   var keys = Object.keys(dataList[0]);
                   if (keys.length > 0) {
-                    headers = keys;
+                    var displayKeysFull = keys;
+                    if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+                      var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                    }
+                    headers = displayKeysFull;
                     var labelRegex = /name|tên|ten|label|desc|title/i;
-                    var displayKey = keys.find(function (k) { return labelRegex.test(k); });
-                    colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+                    var displayKey = displayKeysFull.find(function (k) { return labelRegex.test(k); });
+                    colFilterIndex = displayKey ? displayKeysFull.indexOf(displayKey) : (displayKeysFull.length > 1 ? 1 : 0);
                     if (field.name === 'PersonID') colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
-                      var keyIdx = keys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
+                      var keyIdx = displayKeysFull.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
                     }
                     dataList.forEach(function (d) {
                       var rd = [];
-                      keys.forEach(function (k) { rd.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                      displayKeysFull.forEach(function (k) { rd.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
                       comboData.push(rd);
                     });
                   }
                 }
                 var newCombo = UIControls.createDataComboBox({
                   placeholder: '-- Chọn --', headers: headers, data: comboData, colFilterIndex: colFilterIndex,
-                  showAddNew: true, // Bật nút Thêm mới
+                  showAddNew: (typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns) ? false : true,
                   onF2: function () {
                     newCombo.querySelector('.ui-input').focus();
                   },
@@ -17332,37 +17900,46 @@ window.DynamicFormEngine = (function () {
             return;
           }
         }
-        
+
         // Dynamic API fetch fallback
         if (imgIdVal) {
-            var self = this;
-            var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
-                ? 'API_CandidateAttach' : 'API_PersonAttach';
-            
-            var fetchPayload = {
-              List: attachApi,
-              Func: 'View',
-              JsonData: JSON.stringify({
-                CandidateID: imgIdVal,
-                PersonID: imgIdVal
-              }),
-              UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
-            };
-  
-            ApiClient.post('/api/API_Gateway_Router', fetchPayload)
-            .then(function(data) {
-               if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                   var b64 = data.records[0].Base64Content;
-                   self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
-               } else {
-                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
-               }
+          var self = this;
+          var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
+            ? 'API_CandidateAttach' : 'API_PersonAttach';
+
+          var fetchPayload = {
+            List: attachApi,
+            Func: 'View',
+            JsonData: JSON.stringify({
+              CandidateID: imgIdVal,
+              PersonID: imgIdVal
+            }),
+            UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+          };
+
+          ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+            .then(function (data) {
+              if (data && data.code === 0 && data.records && data.records.length > 0) {
+                var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                if (b64 && b64.length > 10) {
+                  if (b64.startsWith('data:image')) {
+                    self.src = b64;
+                  } else {
+                    var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                    self.src = 'data:' + mimeType + ';base64,' + b64;
+                  }
+                } else {
+                  if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                }
+              } else {
+                if (self.src !== defaultPhoto) self.src = defaultPhoto;
+              }
             })
-            .catch(function(err) {
-               if (self.src !== defaultPhoto) self.src = defaultPhoto;
+            .catch(function (err) {
+              if (self.src !== defaultPhoto) self.src = defaultPhoto;
             });
         } else {
-            if (img.src !== defaultPhoto) img.src = defaultPhoto;
+          if (img.src !== defaultPhoto) img.src = defaultPhoto;
         }
       };
 
@@ -17659,8 +18236,13 @@ window.DynamicFormEngine = (function () {
                   var keys = Object.keys(dataList[0]);
                   comboLoading.dataset.lastKeys = JSON.stringify(keys); // Lưu lại keys để dùng cho auto-fill
                   if (keys.length > 0) {
+                    var displayKeysFull = keys;
+                    if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+                      var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                    }
                     // Dùng từ điển hiện tại của form để dịch tiêu đề lưới (nếu có), CHỈ HIỆN MAX CỘT ĐƯỢC CHỈ ĐỊNH (mặc định 4)
-                    var displayKeys = keys.slice(0, maxCols);
+                    var displayKeys = displayKeysFull.slice(0, maxCols);
                     headers = displayKeys.map(function (k) {
                       if (typeof currentDictionary !== 'undefined') {
                         var kLower = k.toLowerCase();
@@ -17671,7 +18253,16 @@ window.DynamicFormEngine = (function () {
                     });
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
-                    colFilterIndex = displayKey ? displayKeys.indexOf(displayKey) : (displayKeys.length > 1 ? 1 : 0);
+                    if (displayKey) {
+                      colFilterIndex = displayKeys.indexOf(displayKey);
+                    } else {
+                      var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+                      var validIdx = -1;
+                      for (var i = 1; i < displayKeys.length; i++) {
+                        if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+                      }
+                      colFilterIndex = validIdx !== -1 ? validIdx : 0;
+                    }
                     if (field.name === 'PersonID') colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
                       var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
@@ -17679,14 +18270,14 @@ window.DynamicFormEngine = (function () {
                     }
                     dataList.forEach(function (d) {
                       var rowData = [];
-                      keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                      displayKeysFull.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
                       comboData.push(rowData);
                     });
                   } else {
                     dataList.forEach(function (d) { comboData.push(['', '']); });
                   }
                 }
-                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex };
+                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex, forceMultiColumn: displayKeysFull.length > 1 };
               });
             };
 
@@ -17694,7 +18285,7 @@ window.DynamicFormEngine = (function () {
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
-              showAddNew: true, // Bật nút Thêm mới
+              showAddNew: (typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns) ? false : true,
               onF2: function () {
                 lazyCombo.querySelector('.ui-input').focus();
               },
@@ -17833,6 +18424,11 @@ window.DynamicFormEngine = (function () {
         flexDiv.appendChild(btn);
         wrapper.appendChild(flexDiv);
         inputEl = wrapper;
+      } else if (field.renderRule === 'html') {
+        var htmlWrapper = document.createElement('div');
+        htmlWrapper.style.width = '100%';
+        htmlWrapper.innerHTML = field.html || '';
+        inputEl = htmlWrapper;
       } else {
         inputEl = UIInput.createText(field);
       }
@@ -17857,7 +18453,7 @@ window.DynamicFormEngine = (function () {
         span = '6';
       }
       if (span === 'body') span = '12';
-      if (!['12', '8', '6', '4', '3'].includes(span)) span = '12';
+      if (!['12', '8', '6', '4', '3', '2', '1-7'].includes(span)) span = '12';
 
       var wrapper = document.createElement('div');
       wrapper.className = 'df-col-' + span;
@@ -18122,97 +18718,122 @@ window.DynamicFormEngine = (function () {
           keys.forEach(function (fName) {
             var td = cellMap[fName];
 
-            if (fName === 'PersonID') {
-              // ComboBox chọn nhân viên
-              var lConf = (tabDef.lookupConfig && tabDef.lookupConfig['PersonID']) || null;
-              var isBH = !!lConf;
+            var lConf = (tabDef.lookupConfig && tabDef.lookupConfig[fName]) || null;
+
+            if (lConf) {
+              // isBH: BaoHiem có cột STT ở đầu nên PersonID nằm ở colFilterIndex=1.
+              // Các form khác (CaLamViec, ...) PersonID nằm ở colFilterIndex=0.
+              // Dùng colFilterIndex để xác định thay vì hardcode fName === 'PersonID'
+              var isBH = (fName === 'PersonID' && (lConf.colFilterIndex || 0) === 1);
 
               var combo = UIControls.createDataComboBox({
-                placeholder: 'Chọn nhân viên...',
-                headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
-                colFilterIndex: lConf ? lConf.colFilterIndex : 0,
+                placeholder: 'Chọn...',
+                headers: lConf.headers || ['Mã', 'Tên'],
+                colFilterIndex: lConf.colFilterIndex || 0,
+                forceMultiColumn: lConf.forceMultiColumn !== false,
                 onSearch: function (q) {
                   var lookupPayload = {
-                    List: lConf ? lConf.apiList : 'HR_PersonTbl',
+                    List: lConf.apiList,
                     Func: 'View',
                     Keyword: q
                   };
-                  if (lConf && typeof lConf.getPayload === 'function') {
+                  if (typeof lConf.getPayload === 'function') {
                     Object.assign(lookupPayload, lConf.getPayload());
                   }
 
                   return ApiClient.post('/api/API_Gateway_Router', lookupPayload).then(function (res) {
-                    var list = res.list || res.records || [];
+                    var list = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
                     var dataList = list.map(function (d) {
-                      return (lConf && typeof lConf.mapData === 'function') ? lConf.mapData(d) : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+                      return (typeof lConf.mapData === 'function') ? lConf.mapData(d, {}, true) : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
                     });
+                    // For legacy WA_BaoHiemFrm that didn't define mapData:
+                    if (fName === 'PersonID' && typeof lConf.mapData !== 'function') {
+                      dataList = list.map(function (d) {
+                        return [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+                      });
+                    }
+
                     return {
-                      headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                      headers: lConf.headers || ['Mã', 'Tên'],
                       data: dataList,
-                      colFilterIndex: lConf ? lConf.colFilterIndex : 0
+                      colFilterIndex: lConf.colFilterIndex || 0
                     };
                   });
                 },
                 onSelect: function (selectedData) {
-                  var selectedPersonID = isBH ? selectedData[lConf.colFilterIndex] : selectedData[0];
+                  var selectedVal = selectedData[lConf.colFilterIndex || 0];
 
-                  // Kiểm tra trùng lặp trong panel._currentRows
+                  // Kiểm tra trùng lặp
                   var isDuplicate = panel._currentRows.some(function (row, index) {
-                    return index !== rIdx && row['PersonID'] === selectedPersonID;
+                    return index !== rIdx && row[fName] === selectedVal;
                   });
 
                   if (isDuplicate) {
                     if (typeof Alert !== 'undefined') {
-                      Alert.warning('Trùng lặp', 'Nhân viên này đã được chọn trong danh sách!');
+                      Alert.warning('Trùng lặp', 'Dữ liệu này đã được chọn trong danh sách!');
                     } else if (typeof UIToast !== 'undefined') {
-                      UIToast.show('Nhân viên này đã được chọn!', 'warning');
+                      UIToast.show('Dữ liệu này đã được chọn!', 'warning');
                     } else {
-                      alert('Nhân viên này đã được chọn!');
+                      alert('Dữ liệu này đã được chọn!');
                     }
                     if (displayInp) displayInp.value = '';
-                    currRow['PersonID'] = '';
-                    currRow['PersonName'] = '';
-                    currRow['PhongBan'] = '';
-                    if (isBH) {
-                      currRow['MucDong'] = '';
-                      if (cellMap['MucDong']) {
-                        var mInp = cellMap['MucDong'].querySelector('input');
-                        if (mInp) mInp.value = '';
+                    currRow[fName] = '';
+
+                    if (typeof lConf.mapData === 'function') {
+                      // Reset based on generic mapData logic if needed, simple clear for now
+                    } else if (fName === 'PersonID') {
+                      currRow['PersonName'] = '';
+                      currRow['PhongBan'] = '';
+                      if (isBH) {
+                        currRow['MucDong'] = '';
+                        if (cellMap['MucDong']) {
+                          var mInp = cellMap['MucDong'].querySelector('input');
+                          if (mInp) mInp.value = '';
+                        }
+                      } else {
+                        currRow['TitleName'] = '';
                       }
-                    } else {
-                      currRow['TitleName'] = '';
+                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
+                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = '';
+                      if (cellMap['TitleName']) cellMap['TitleName'].textContent = '';
                     }
-                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
-                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = '';
-                    if (cellMap['TitleName']) cellMap['TitleName'].textContent = '';
                     return;
                   }
 
                   // Cập nhật dữ liệu hàng
-                  if (isBH) {
-                    currRow['PersonID'] = selectedData[1];
-                    currRow['PersonName'] = selectedData[2];
-                    currRow['PhongBan'] = selectedData[3];
-                    currRow['MucDong'] = parseFloat(selectedData[4]) || 0;
+                  currRow[fName] = selectedVal;
 
-                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[2] || '';
-                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[3] || '';
-                    if (cellMap['MucDong']) {
-                      var mInp = cellMap['MucDong'].querySelector('input');
-                      if (mInp) {
-                        mInp.value = selectedData[4] || '0';
-                        // Tự động kích hoạt tính toán bảo hiểm
-                        mInp.dispatchEvent(new Event('change', { bubbles: true }));
-                      }
+                  if (typeof lConf.mapData === 'function') {
+                    var gridRow = { _tr: tr };
+                    lConf.mapData(selectedData, gridRow, false);
+                    for (var key in gridRow) {
+                      if (key !== '_tr') currRow[key] = gridRow[key];
                     }
-                  } else {
-                    currRow['PersonID'] = selectedData[0];
-                    currRow['PersonName'] = selectedData[1];
-                    currRow['PhongBan'] = selectedData[2];
-                    currRow['TitleName'] = selectedData[3];
-                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
-                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
-                    if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
+                  } else if (fName === 'PersonID') {
+                    if (isBH) {
+                      currRow['PersonID'] = selectedData[1];
+                      currRow['PersonName'] = selectedData[2];
+                      currRow['PhongBan'] = selectedData[3];
+                      currRow['MucDong'] = parseFloat(selectedData[4]) || 0;
+
+                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[2] || '';
+                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[3] || '';
+                      if (cellMap['MucDong']) {
+                        var mInp = cellMap['MucDong'].querySelector('input');
+                        if (mInp) {
+                          mInp.value = selectedData[4] || '0';
+                          mInp.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                      }
+                    } else {
+                      currRow['PersonID'] = selectedData[0];
+                      currRow['PersonName'] = selectedData[1];
+                      currRow['PhongBan'] = selectedData[2];
+                      currRow['TitleName'] = selectedData[3];
+                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
+                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
+                      if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
+                    }
                   }
                 }
               });
@@ -18485,6 +19106,27 @@ window.DynamicFormEngine = (function () {
     }
 
     footer.appendChild(btnCancel);
+
+    // Render custom footer buttons (khai báo trong MODULE_CONFIG.customFooterButtons)
+    // Đây là extension point cho các form muốn thêm nút vào thanh thao tác mà không sửa Engine
+    if (MODULE_CONFIG.customFooterButtons && MODULE_CONFIG.customFooterButtons.length > 0) {
+      MODULE_CONFIG.customFooterButtons.forEach(function (btnDef) {
+        var customBtn = document.createElement('button');
+        customBtn.type = 'button';
+        customBtn.className = 'btn ' + (btnDef.className || 'btn-outline-secondary');
+        if (btnDef.icon) {
+          customBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px; margin-right: 4px; vertical-align: middle;">' + btnDef.icon + '</span> ' + (btnDef.label || '');
+        } else {
+          customBtn.textContent = btnDef.label || '';
+        }
+        if (typeof btnDef.onClick === 'function') {
+          customBtn.onclick = function () {
+            btnDef.onClick({ row: row, body: body, btnSave: btnSave, isEdit: isEdit });
+          };
+        }
+        footer.appendChild(customBtn);
+      });
+    }
 
     if (isViewMode) {
       var btnSwitchEdit = document.createElement('button');
@@ -18900,6 +19542,11 @@ window.DynamicFormEngine = (function () {
       }
 
       function _postFinalizeSave() {
+        // Broadcast sự kiện lưu thành công để các form có thể hook vào (ví dụ: chạy SP ngay sau khi lưu)
+        document.dispatchEvent(new CustomEvent('dynamicFormSaved', {
+          detail: { formName: MODULE_CONFIG.FormName, data: singlePayload, isEdit: isEdit }
+        }));
+
         if (MODULE_CONFIG.IsFullPageDetail) return; // Không cần load lại dữ liệu nếu là trang Detail (vì nó sẽ tự navigate back về Grid)
         if (_isFormBuilder()) {
           window._uiConfigCache = {}; // Cache Invalidate
@@ -19136,6 +19783,7 @@ window.DynamicFormEngine = (function () {
   return { render: render };
 })();
 
+
 /* --- index.js --- */
 /**
  * Bootstraps the application layout & interactions
@@ -19166,21 +19814,21 @@ document.addEventListener('DOMContentLoaded', function () {
   // 0.6 Khởi tạo hệ thống Phân quyền (RBAC)
   window.AppPermissions = {
     _cache: null,
-    
-    _init: function() {
+
+    _init: function () {
       try {
         var navCache = JSON.parse(sessionStorage.getItem('pmql_nav_cache') || 'null');
         var userCache = JSON.parse(localStorage.getItem('pmql_user') || 'null');
-        
+
         var isAdmin = (userCache && (userCache.UserGroupID === 'Admin' || userCache.userGroupID === 'Admin'));
-        
+
         this._cache = {
           isAdmin: isAdmin,
           dict: {}
         };
 
         if (navCache && navCache.rawRecords) {
-          navCache.rawRecords.forEach(function(r) {
+          navCache.rawRecords.forEach(function (r) {
             if (r.formName) {
               this._cache.dict[r.formName.toLowerCase()] = r;
             }
@@ -19190,17 +19838,17 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Error init AppPermissions', e);
       }
     },
-    
-    hasPermission: function(formName, action) {
+
+    hasPermission: function (formName, action) {
       if (!this._cache) this._init();
       if (!this._cache) return false;
-      
+
       if (this._cache.isAdmin) return true; // Admin bypass
-      
+
       if (!formName) return true; // Các module ko định danh thì cho phép qua
       var perm = this._cache.dict[formName.toLowerCase()];
       if (!perm) return false; // Không có trong phân quyền thì tịt
-      
+
       // action có thể là 'IsAdd', 'IsUpdate', 'IsDelete', 'IsRun', v.v.
       return (perm[action] == 1 || perm[action] === true);
     }
@@ -19239,11 +19887,168 @@ document.addEventListener('DOMContentLoaded', function () {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
     ModalWidth: '860px',
+    // Nút Sắp ca tự động nằm trên thanh thao tác (cạnh Lưu thay đổi/Sửa)
+    // Hoạt động ở cả chế độ Xem và Sửa
+    customFooterButtons: [
+      {
+        label: 'Sắp ca tự động',
+        icon: 'auto_fix_high',
+        className: 'btn-outline-primary',
+        onClick: function (ctx) {
+          var tuNgay = '';
+          var denNgay = '';
+          
+          if (ctx.isEdit) {
+            var elTu = ctx.body ? ctx.body.querySelector('[name="TuNgay"]') : null;
+            var elDen = ctx.body ? ctx.body.querySelector('[name="DenNgay"]') : null;
+            tuNgay = elTu ? elTu.value : '';
+            denNgay = elDen ? elDen.value : '';
+          } else {
+            tuNgay = ctx.row && ctx.row.TuNgay ? (typeof UIUtils !== 'undefined' ? UIUtils.formatDate(ctx.row.TuNgay) : ctx.row.TuNgay) : '';
+            denNgay = ctx.row && ctx.row.DenNgay ? (typeof UIUtils !== 'undefined' ? UIUtils.formatDate(ctx.row.DenNgay) : ctx.row.DenNgay) : '';
+          }
+
+          var msg = 'Bạn có chắc chắn muốn chạy sắp ca tự động';
+          if (tuNgay && denNgay) {
+            msg += ' từ ngày <b>' + tuNgay + '</b> đến ngày <b>' + denNgay + '</b>?';
+          } else {
+            msg += '?';
+          }
+
+          if (ctx.isEdit) {
+            msg += '<br><br><span style="color: #d97706;"><span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">info</span> <i>Lưu ý: Dữ liệu chưa lưu (bao gồm cả nhân viên chi tiết) sẽ tự động được lưu trước khi chạy sắp ca.</i></span>';
+          }
+
+          if (typeof window.ConfirmModal !== 'undefined') {
+            window.ConfirmModal.show({
+              title: 'Xác nhận Sắp ca tự động',
+              message: msg,
+              confirmText: 'Xác nhận',
+              confirmClass: 'btn-primary',
+              onConfirm: function() {
+                 _proceedSapCa();
+              }
+            });
+          } else {
+            // Fallback nếu ConfirmModal không tồn tại
+            var plainMsg = msg.replace(/<[^>]*>?/gm, '');
+            if (confirm(plainMsg)) _proceedSapCa();
+          }
+
+          function _proceedSapCa() {
+            if (ctx.isEdit) {
+              // Lắng nghe sự kiện lưu thành công để chạy SP
+              var saveHandler = function(e) {
+                if (e.detail && e.detail.formName === 'WA_CaLamViecFrm') {
+                  document.removeEventListener('dynamicFormSaved', saveHandler);
+                  // Lấy ID mới sau khi lưu (nếu là thêm mới) hoặc ID cũ
+                  var newSapCaID = e.detail.data ? e.detail.data.SapCaID : (ctx.row ? ctx.row.SapCaID : '');
+                  window.SapCaTuDong_ByID(newSapCaID, ctx.btnSave); // ctx.btnSave có thể truyền null nếu muốn
+                }
+              };
+              document.addEventListener('dynamicFormSaved', saveHandler);
+              
+              // Tự động gọi hàm lưu của Engine
+              if (ctx.btnSave) {
+                ctx.btnSave.click();
+              } else {
+                 if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy nút Lưu để lưu dữ liệu');
+              }
+            } else {
+               // Đang ở chế độ xem, chạy SP luôn
+               var currentID = ctx.row ? ctx.row.SapCaID : '';
+               window.SapCaTuDong_ByID(currentID, null);
+            }
+          }
+        }
+      }
+    ],
     DetailTabs: [
       {
         label: 'Nhân viên',
         api: 'API_CaLamViec_NhanVien',
         filterField: 'SapCaID',
+        editable: true,
+        customButtons: [
+          {
+            id: 'btn-chon-nhanvien',
+            label: 'Chọn nhiều nhân viên',
+            icon: 'group_add',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', {
+                List: 'HR_PersonTbl',
+                Func: 'View',
+                Keyword: ''
+              }).then(function (res) {
+                if (loadingMsg) loadingMsg.close();
+                var rawList = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
+                // Chuẩn hóa thành object nếu API trả về mảng phẳng
+                var dataList = rawList.map(function (r) {
+                  if (Array.isArray(r)) {
+                    return { PersonID: r[0] || '', PersonName: r[1] || '', PhongBan: r[2] || '', TitleName: r[3] || '' };
+                  }
+                  return r;
+                });
+                _showNhanVienModal(dataList, ctx);
+              }).catch(function () {
+                if (loadingMsg) loadingMsg.close();
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách nhân viên', 'error');
+              });
+
+              function _showNhanVienModal(dataList, ctx) {
+                UIControls.utils.showMultiSelectGridModal({
+                  title: 'Chọn nhân viên',
+                  dataList: dataList,
+                  ctx: ctx,
+                  keyField: 'PersonID',
+                  headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ', 'Cảnh báo'],
+                  fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', '_warning_'],
+                  onRowRender: function (rData, isDuplicate) {
+                    var warningText = isDuplicate ? 'Đã có trên form' : '';
+                    return {
+                      warningText: warningText,
+                      warningStyle: warningText ? 'color: red;' : ''
+                    };
+                  },
+                  onConfirm: function (selectedRows) {
+                    var added = 0;
+                    selectedRows.forEach(function (rowData) {
+                      var newRow = {};
+                      newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                      newRow['PersonID'] = rowData.PersonID || '';
+                      newRow['PersonName'] = rowData.PersonName || '';
+                      newRow['PhongBan'] = rowData.PhongBan || '';
+                      newRow['GhiChu'] = '';
+                      ctx.panel._currentRows.push(newRow);
+                      added++;
+                    });
+                    if (added > 0) {
+                      if (typeof ctx.renderGrid === 'function') ctx.renderGrid(ctx.tabDef, ctx.panel);
+                      if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                    }
+                  }
+                });
+              }
+            }
+          }
+        ],
+        lookupConfig: {
+          PersonID: {
+            headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+            colFilterIndex: 0,
+            apiList: 'HR_PersonTbl',
+            getPayload: function () {
+              return {};
+            },
+            mapData: function (d) {
+              return [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+            }
+          }
+        },
         fields: ['PersonID', 'PersonName', 'PhongBan', 'GhiChu'],
         headers: {
           PersonID: 'Mã nhân viên',
@@ -19266,6 +20071,31 @@ document.addEventListener('DOMContentLoaded', function () {
           TrangThaiThucTe: 'Trạng thái'
         }
       }
+    ],
+    FormFields: [
+      // Dòng 1: Tên bảng ca, Sắp ca, Nút
+      { name: 'TenBangCa', position: 'grid|4' },
+      { name: 'SapCaID', position: 'grid|4' },
+      { name: 'btnSapCaTuDong', position: 'grid|4', renderRule: 'html', html: '<button type="button" class="btn btn-outline-primary" style="margin-top:28px;width:100%;" onclick="window.SapCaTuDong()"><span class="material-symbols-outlined" style="vertical-align:middle;">auto_fix_high</span> Sắp ca tự động</button>' },
+      // Dòng 2: Từ ngày, Đến ngày
+      { name: 'TuNgay', position: 'grid|6' },
+      { name: 'DenNgay', position: 'grid|6' },
+      // Dòng 3: Thứ 2 -> Chủ nhật (Checkboxes)
+      { name: 'Thu2', position: 'grid|1-7' },
+      { name: 'Thu3', position: 'grid|1-7' },
+      { name: 'Thu4', position: 'grid|1-7' },
+      { name: 'Thu5', position: 'grid|1-7' },
+      { name: 'Thu6', position: 'grid|1-7' },
+      { name: 'Thu7', position: 'grid|1-7' },
+      { name: 'ChuNhat', position: 'grid|1-7' },
+      // Dòng 4: Shift Comboboxes
+      { name: 'ShiftIDThu2', position: 'grid|1-7' },
+      { name: 'ShiftIDThu3', position: 'grid|1-7' },
+      { name: 'ShiftIDThu4', position: 'grid|1-7' },
+      { name: 'ShiftIDThu5', position: 'grid|1-7' },
+      { name: 'ShiftIDThu6', position: 'grid|1-7' },
+      { name: 'ShiftIDThu7', position: 'grid|1-7' },
+      { name: 'ShiftIDChuNhat', position: 'grid|1-7' }
     ]
   };
 
@@ -19310,6 +20140,8 @@ document.addEventListener('DOMContentLoaded', function () {
     PrimaryKey: 'PersonID',
     IsFullPageDetail: false,
     isPersonForm: true,
+    AttachmentApi: 'API_PersonAttach',
+    HideAddNewInDropdowns: true,
     fieldOverrides: {
       PersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
       NewPersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
@@ -19369,8 +20201,8 @@ document.addEventListener('DOMContentLoaded', function () {
     WizardSteps: [
       { label: 'Thông tin công việc', icon: 'work', description: 'Vị trí và phòng ban', fields: ['PersonID', 'PersonName', 'PersonStatus', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 'ShiftID'] },
       { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch & Liên hệ', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'HonNhan', 'PeoplesName', 'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienNay', 'EducationName', 'CareerName', 'NguoiLienHe', 'MoiQuanHe', 'NguoiLienHeSoDT'] },
-      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['SoHopDong', 'LoaiHopDong', 'SocialID', 'SocialDate', 'NgayKetThucBH', 'SoTheBHYT', 'ThoiGianHuongBHYT', 'HospitalName'] },
-      { label: 'Tài chính & Khác', icon: 'account_balance', description: 'Ngân hàng & Thông tin phụ', fields: ['BankName', 'BankLocation', 'BankAccountNo', 'BankHolder', 'NewPersonID', 'CardNo', 'ProvineName', 'NgayNghiViec'] },
+      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['SocialID', 'SocialDate', 'NgayKetThucBH', 'ChamCong', 'SoTheBHYT', 'ThoiGianHuongBHYT', 'HospitalName', 'SoHopDong', 'LoaiHopDong', 'NgayHopDong', 'NgayHetHopDong', 'MaNVChamCong'] },
+      { label: 'Tài chính & Khác', icon: 'account_balance', description: 'Ngân hàng & Thông tin phụ', fields: ['BankHolder', 'BankAccountNo', 'BankName', 'BankLocation', 'NewPersonID', 'CardNo', 'ProvineName', 'NgayNghiViec'] },
       { label: 'Xác nhận', icon: 'fact_check', description: 'Kiểm tra thông tin trước khi lưu', fields: [] }
     ],
     Filters: [
@@ -19520,10 +20352,11 @@ document.addEventListener('DOMContentLoaded', function () {
     PrimaryKey: 'CandidateID',
     ModalWidth: '960px',
     isCandidateForm: true,
+    AttachmentApi: 'API_CandidateAttach',
     useCandidateAttachmentApi: true,
     HideBranchStep: true,
     wizardHooks: {
-      resolveAutoId: function(branchId, apiUrl, currentUser, cb) {
+      resolveAutoId: function (branchId, apiUrl, currentUser, cb) {
         // Sinh mã ứng viên: UV + 6 số ngẫu nhiên theo thời gian
         var candidateId = 'UV' + new Date().getTime().toString().slice(-6);
         cb(candidateId, 'UV', null);
@@ -19678,10 +20511,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
               }
 
-              var lookupPayload = { 
-                List: 'WA_BaoHiemFrm_PersonID', 
-                Func: 'View', 
-                Keyword: '', 
+              var lookupPayload = {
+                List: 'WA_BaoHiemFrm_PersonID',
+                Func: 'View',
+                Keyword: '',
                 JsonData: JSON.stringify({ BranchID: branchID, LoaiBaoHiem: loaiBaoHiem, DocumentID: docID })
               };
               var loadingMsg = null;
@@ -19698,84 +20531,32 @@ document.addEventListener('DOMContentLoaded', function () {
               });
 
               function _showMultiSelectModal(dataList, ctx) {
-                var mWrap = document.createElement('div');
-                mWrap.className = 'ui-modal-overlay';
-                mWrap.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 99999; display: flex; align-items: center; justify-content: center;';
+                var pNode = document.querySelector('.df-master-wrapper input[name="PeriodID"], .split-master-detail-container input[name="PeriodID"]');
+                var lNode = document.querySelector('.df-master-wrapper input[name="LoaiBaoHiem"], .split-master-detail-container input[name="LoaiBaoHiem"]');
+                var masterPeriodID = pNode ? pNode.value : (ctx.row.PeriodID || '');
+                var masterLoaiBaoHiem = lNode ? lNode.value : (ctx.row.LoaiBaoHiem || '');
 
-                var mBox = document.createElement('div');
-                mBox.className = 'ui-modal-content';
-                mBox.style.cssText = 'background: #fff; width: 900px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
+                UIControls.utils.showMultiSelectGridModal({
+                  title: 'Chọn nhân viên tham gia bảo hiểm',
+                  dataList: dataList,
+                  ctx: ctx,
+                  keyField: 'PersonID',
+                  headers: ['Mã NV', 'Họ Tên', 'Chức danh', 'Bộ phận', 'Mức đóng', 'Cảnh báo'],
+                  fields: ['PersonID', 'PersonName', 'ChucDanhChuyenMon', 'PhongBan', 'MucDong', '_warning_'],
+                  onRowRender: function (rData, isDuplicate) {
+                    var warningText = rData.CanhBao || (isDuplicate ? 'Đã có trên form' : '');
+                    return {
+                      warningText: warningText,
+                      warningStyle: warningText ? 'color: red;' : ''
+                    };
+                  },
+                  onConfirm: function (selectedRows) {
+                    var added = 0;
+                    var calcCache = {};
+                    var promises = [];
+                    var tempRows = [];
 
-                var mHeader = document.createElement('div');
-                mHeader.style.cssText = 'padding: 16px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); border-radius: 8px 8px 0 0;';
-                mHeader.innerHTML = '<h3 style="margin: 0; font-size: 16px;">Chọn nhân viên tham gia bảo hiểm</h3><button type="button" class="btn-close" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>';
-                mHeader.querySelector('.btn-close').onclick = function () { document.body.removeChild(mWrap); };
-
-                var mBody = document.createElement('div');
-                mBody.style.cssText = 'padding: 16px; overflow-y: auto; flex: 1;';
-
-                var tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
-                tableHTML += '<thead style="background: var(--color-surface-elevated);"><tr style="border-bottom: 2px solid var(--color-border);">';
-                tableHTML += '<th style="padding: 10px; text-align: center; width: 40px;"><input type="checkbox" id="chkAllMulti" /></th>';
-                tableHTML += '<th style="padding: 10px; text-align: left;">Mã NV</th>';
-                tableHTML += '<th style="padding: 10px; text-align: left;">Họ Tên</th>';
-                tableHTML += '<th style="padding: 10px; text-align: left;">Chức danh</th>';
-                tableHTML += '<th style="padding: 10px; text-align: left;">Bộ phận</th>';
-                tableHTML += '<th style="padding: 10px; text-align: right;">Mức đóng</th>';
-                tableHTML += '<th style="padding: 10px; text-align: left;">Cảnh báo</th>';
-                tableHTML += '</tr></thead><tbody>';
-
-                dataList.forEach(function (rData, idx) {
-                  var isDuplicate = ctx.panel._currentRows.some(function (r) { return r['PersonID'] === rData.PersonID; });
-                  var chkDisabled = isDuplicate ? 'disabled' : '';
-                  var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : '';
-                  var warningText = rData.CanhBao || (isDuplicate ? 'Đã có trên form' : '');
-                  var warningStyle = warningText ? 'color: red;' : '';
-
-                  tableHTML += '<tr style="border-bottom: 1px solid var(--color-border); ' + styleClass + '">';
-                  tableHTML += '<td style="padding: 8px; text-align: center;"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
-                  tableHTML += '<td style="padding: 8px;">' + (rData.PersonID || '') + '</td>';
-                  tableHTML += '<td style="padding: 8px;">' + (rData.PersonName || '') + '</td>';
-                  tableHTML += '<td style="padding: 8px;">' + (rData.ChucDanhChuyenMon || '') + '</td>';
-                  tableHTML += '<td style="padding: 8px;">' + (rData.PhongBan || '') + '</td>';
-                  tableHTML += '<td style="padding: 8px; text-align: right;">' + (rData.MucDong || '0') + '</td>';
-                  tableHTML += '<td style="padding: 8px; ' + warningStyle + '">' + warningText + '</td>';
-                  tableHTML += '</tr>';
-                });
-                tableHTML += '</tbody></table>';
-
-                mBody.innerHTML = tableHTML;
-
-                var mFooter = document.createElement('div');
-                mFooter.style.cssText = 'padding: 16px; border-top: 1px solid var(--color-border); text-align: right; background: var(--color-surface); border-radius: 0 0 8px 8px;';
-
-                var btnCancel = document.createElement('button');
-                btnCancel.type = 'button';
-                btnCancel.className = 'btn btn-light';
-                btnCancel.textContent = 'Đóng';
-                btnCancel.style.marginRight = '8px';
-                btnCancel.onclick = function () { document.body.removeChild(mWrap); };
-
-                var btnSelect = document.createElement('button');
-                btnSelect.type = 'button';
-                btnSelect.className = 'btn btn-primary';
-                btnSelect.textContent = 'Chọn & tiếp tục';
-                btnSelect.onclick = function () {
-                  var chks = mBody.querySelectorAll('.chk-item-multi:checked');
-                  var added = 0;
-                  var pNode = document.querySelector('.df-master-wrapper input[name="PeriodID"], .split-master-detail-container input[name="PeriodID"]');
-                  var lNode = document.querySelector('.df-master-wrapper input[name="LoaiBaoHiem"], .split-master-detail-container input[name="LoaiBaoHiem"]');
-                  var masterPeriodID = pNode ? pNode.value : (ctx.row.PeriodID || '');
-                  var masterLoaiBaoHiem = lNode ? lNode.value : (ctx.row.LoaiBaoHiem || '');
-                  
-                  var calcCache = {};
-                  var promises = [];
-                  var tempRows = [];
-
-                  chks.forEach(function (chk) {
-                    var idx = parseInt(chk.getAttribute('data-idx'));
-                    var rowData = dataList[idx];
-                    if (rowData) {
+                    selectedRows.forEach(function (rowData) {
                       var newRow = {};
                       newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
                       newRow['PersonID'] = rowData.PersonID;
@@ -19786,83 +20567,62 @@ document.addEventListener('DOMContentLoaded', function () {
                       newRow['MucDong'] = mDong;
                       newRow['PeriodID'] = masterPeriodID;
                       newRow['LoaiBaoHiem'] = masterLoaiBaoHiem;
-                      
+
                       tempRows.push(newRow);
 
                       if (mDong > 0) {
                         if (!calcCache[mDong]) {
-                           calcCache[mDong] = 'pending';
-                           var p = ApiClient.post('/api/API_Gateway_Router', {
-                             List: 'WA_BaoHiemFrm_Calculate',
-                             Func: 'View',
-                             JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: mDong })
-                           }).then(function(res) {
-                              var data = res.list || res.records || [];
-                              if (data && data.length > 0) {
-                                var resRow = data[0];
-                                calcCache[mDong] = {
-                                  MucDongBHXHNLD: resRow.MucDongBHXHNLD || 0,
-                                  MucDongBHXHNSDLD: resRow.MucDongBHXHNSDLD || 0,
-                                  MucDongBHYTNLD: resRow.MucDongBHYTNLD || 0,
-                                  MucDongBHYTNSDLD: resRow.MucDongBHYTNSDLD || 0,
-                                  MucDongBHTNNLD: resRow.MucDongBHTNNLD || 0,
-                                  MucDongBHTNNSDLD: resRow.MucDongBHTNNSDLD || 0
-                                };
-                              } else {
-                                calcCache[mDong] = null;
-                              }
-                           }).catch(function() {
+                          calcCache[mDong] = 'pending';
+                          var p = ApiClient.post('/api/API_Gateway_Router', {
+                            List: 'WA_BaoHiemFrm_Calculate',
+                            Func: 'View',
+                            JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: mDong })
+                          }).then(function (res) {
+                            var data = res.list || res.records || [];
+                            if (data && data.length > 0) {
+                              var resRow = data[0];
+                              calcCache[mDong] = {
+                                MucDongBHXHNLD: resRow.MucDongBHXHNLD || 0,
+                                MucDongBHXHNSDLD: resRow.MucDongBHXHNSDLD || 0,
+                                MucDongBHYTNLD: resRow.MucDongBHYTNLD || 0,
+                                MucDongBHYTNSDLD: resRow.MucDongBHYTNSDLD || 0,
+                                MucDongBHTNNLD: resRow.MucDongBHTNNLD || 0,
+                                MucDongBHTNNSDLD: resRow.MucDongBHTNNSDLD || 0
+                              };
+                            } else {
                               calcCache[mDong] = null;
-                           });
-                           promises.push(p);
+                            }
+                          }).catch(function () {
+                            calcCache[mDong] = null;
+                          });
+                          promises.push(p);
                         }
                       }
-                    }
-                  });
-
-                  var finalizeAdd = function() {
-                    tempRows.forEach(function(row) {
-                      if (row.MucDong > 0 && calcCache[row.MucDong] && calcCache[row.MucDong] !== 'pending') {
-                        Object.assign(row, calcCache[row.MucDong]);
-                      }
-                      ctx.panel._currentRows.push(row);
-                      added++;
                     });
 
-                    if (added > 0) {
-                      ctx.renderGrid(ctx.tabDef, ctx.panel);
-                      if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                    var finalizeAdd = function () {
+                      tempRows.forEach(function (row) {
+                        if (row.MucDong > 0 && calcCache[row.MucDong] && calcCache[row.MucDong] !== 'pending') {
+                          Object.assign(row, calcCache[row.MucDong]);
+                        }
+                        ctx.panel._currentRows.push(row);
+                        added++;
+                      });
+
+                      if (added > 0) {
+                        if (typeof ctx.renderGrid === 'function') ctx.renderGrid(ctx.tabDef, ctx.panel);
+                        if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                      }
+                    };
+
+                    if (promises.length > 0) {
+                      if (typeof UIToast !== 'undefined') UIToast.show('Đang tính toán...', 'info');
+                      Promise.all(promises).then(finalizeAdd).catch(finalizeAdd);
+                    } else {
+                      finalizeAdd();
                     }
-                    document.body.removeChild(mWrap);
-                  };
-
-                  if (promises.length > 0) {
-                    btnSelect.innerText = 'Đang tính toán...';
-                    btnSelect.disabled = true;
-                    Promise.all(promises).then(finalizeAdd).catch(finalizeAdd);
-                  } else {
-                    finalizeAdd();
                   }
-                };
-
-
-                mFooter.appendChild(btnCancel);
-                mFooter.appendChild(btnSelect);
-
-                mBox.appendChild(mHeader);
-                mBox.appendChild(mBody);
-                mBox.appendChild(mFooter);
-                mWrap.appendChild(mBox);
-                document.body.appendChild(mWrap);
-
-                var chkAll = mBody.querySelector('#chkAllMulti');
-                if (chkAll) {
-                  chkAll.onchange = function () {
-                    var chks = mBody.querySelectorAll('.chk-item-multi:not([disabled])');
-                    var isChecked = this.checked;
-                    chks.forEach(function (chk) { chk.checked = isChecked; });
-                  };
-                }
+                });
               }
             }
           }
@@ -19873,27 +20633,27 @@ document.addEventListener('DOMContentLoaded', function () {
             headers: ['STT', 'Mã NV', 'Họ Tên', 'Bộ phận', 'Mức đóng', 'Cảnh báo'],
             colFilterIndex: 1,
             apiList: 'WA_BaoHiemFrm_PersonID',
-            getPayload: function() {
+            getPayload: function () {
               var bNode = document.querySelector('.df-master-wrapper input[name="BranchID"], .split-master-detail-container input[name="BranchID"]');
               var pkNode = document.querySelector('.df-master-wrapper input[name="PeriodKeyID"], .split-master-detail-container input[name="PeriodKeyID"]');
               var dNode = document.querySelector('.df-master-wrapper input[name="DocumentID"], .split-master-detail-container input[name="DocumentID"]');
-              
+
               var branchID = bNode ? bNode.value : '';
               var loaiBaoHiem = (pkNode && pkNode.value && pkNode.value.indexOf('_') > -1) ? pkNode.value.split('_')[1] : '';
               var docID = dNode ? dNode.value : '';
-              
+
               return {
                 JsonData: JSON.stringify({ BranchID: branchID, LoaiBaoHiem: loaiBaoHiem, DocumentID: docID })
               };
             },
-            mapData: function(d) {
+            mapData: function (d) {
               return [String(d.STT || ''), d.PersonID || '', d.PersonName || '', d.PhongBan || '', String(d.MucDong || 0), d.CanhBao || ''];
             }
           }
         },
         fieldEvents: {
           MucDong: {
-            onChange: function(val, currRow, row, tr) {
+            onChange: function (val, currRow, row, tr) {
               var v = parseFloat(val) || 0;
               currRow['MucDong'] = v;
               var pNode = document.querySelector('.df-master-wrapper input[name="PeriodID"], .split-master-detail-container input[name="PeriodID"]');
@@ -20059,6 +20819,11 @@ document.addEventListener('DOMContentLoaded', function () {
       { name: 'DateCreate', label: 'Ngày tạo', required: false, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, position: 'grid', orderNo: 28, renderRule: 'dt' }
     ],
 
+    // Cấu hình ghi đè lên SY_FormatFields từ Database
+    fieldOverrides: {
+      PersonStatus: { renderRule: 'sl', dataSource: 'API_ComboPersonStatus' }
+    },
+
     // ── DetailFormFields: hiển thị trong panel split-detail bên phải ─────
     DetailFormFields: [
       { name: 'MaHopDong', label: 'Mã hợp đồng' },
@@ -20081,7 +20846,7 @@ document.addEventListener('DOMContentLoaded', function () {
       { name: 'HinhThucTraLuong', label: 'Hình thức trả lương' },
       { name: 'DiaDiemLamViec', label: 'Địa điểm làm việc' },
       { name: 'PhuongTien', label: 'Phương tiện đi làm' },
-      { name: 'PersonStatus', label: 'Trạng thái NV' },
+      { name: 'PersonStatusName', label: 'Trạng thái NV' },
       { name: 'CMND', label: 'Số CCCD/CMND' },
       { name: 'CMNDNgayCap', label: 'Ngày cấp CCCD', format: 'date' },
       { name: 'CMNDNoiCap', label: 'Nơi cấp CCCD' },
@@ -20096,7 +20861,95 @@ document.addEventListener('DOMContentLoaded', function () {
         api: 'API_HopDongLaoDong_ChiTiet',
         filterField: 'MaHopDong',
         editable: true,
+        customButtons: [
+          {
+            id: 'btn-multi-select-phucap',
+            label: 'Chọn nhiều phụ cấp',
+            icon: 'checklist',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var lookupPayload = { List: 'WA_BangPhuCapFrm', Func: 'View', Keyword: '' };
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách phụ cấp...', 'info', 0);
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', lookupPayload).then(function (res) {
+                if (loadingMsg) loadingMsg.close();
+                var dataList = res.list || res.records || [];
+                UIControls.utils.showMultiSelectGridModal({
+                  title: 'Chọn phụ cấp',
+                  dataList: dataList,
+                  ctx: ctx,
+                  keyField: 'MaPhuCap',
+                  headers: ['Mã phụ cấp', 'Tên phụ cấp', 'Tiền PC', 'PC Ngày', 'PC Tháng', 'Ghi chú'],
+                  fields: ['MaPhuCap', 'TenPhuCap', 'TienPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'GhiChu'],
+                  mapRow: function (rowData) {
+                    var newRow = {};
+                    newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                    newRow['MaPhuCap'] = rowData.MaPhuCap;
+                    newRow['TenPhuCap'] = rowData.TenPhuCap;
+                    newRow['TienPhuCap'] = rowData.TienPhuCap;
+                    newRow['TienPhuCapNgay'] = rowData.TienPhuCapNgay;
+                    newRow['TienPhuCapThang'] = rowData.TienPhuCapThang;
+                    newRow['GhiChu'] = rowData.GhiChu || '';
+                    return newRow;
+                  }
+                });
+              }).catch(function (err) {
+                if (loadingMsg) loadingMsg.close();
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
+                else alert('Lỗi khi tải danh sách');
+              });
+            }
+          }
+        ],
         fields: ['MaPhuCap', 'TenPhuCap', 'TienPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'GhiChu'],
+        lookupConfig: {
+          MaPhuCap: {
+            headers: ['Mã PC', 'Tên phụ cấp', 'PC ngày', 'PC tháng'],
+            colFilterIndex: 0,
+            apiList: 'WA_BangPhuCapFrm',
+            getPayload: function () { return { List: 'WA_BangPhuCapFrm', Func: 'View' }; },
+            mapData: function (rowData, gridRow, isSearch) {
+              var getV = function (keys, idx) {
+                if (Array.isArray(rowData)) return rowData[idx] != null ? rowData[idx] : '';
+                for (var i = 0; i < keys.length; i++) {
+                  if (rowData[keys[i]] !== undefined && rowData[keys[i]] !== null) return rowData[keys[i]];
+                }
+                for (var k in rowData) {
+                  var lk = k.toLowerCase();
+                  for (var j = 0; j < keys.length; j++) {
+                    if (lk === keys[j].toLowerCase() && rowData[k] !== null) return rowData[k];
+                  }
+                }
+                return '';
+              };
+
+              if (isSearch) {
+                return [
+                  getV(['MaPhuCap'], 0),
+                  getV(['TenPhuCap'], 1),
+                  getV(['TienPhuCapNgay'], 3),
+                  getV(['TienPhuCapThang'], 4),
+                  getV(['TienPhuCap'], -1) || 0
+                ];
+              }
+
+              gridRow.TenPhuCap = getV(['TenPhuCap'], 1);
+              gridRow.TienPhuCapNgay = getV(['TienPhuCapNgay'], 2) || 0; // Notice index 2 in returned array
+              gridRow.TienPhuCapThang = getV(['TienPhuCapThang'], 3) || 0;
+              gridRow.TienPhuCap = getV(['TienPhuCap'], 4) || 0;
+
+              ['TenPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'TienPhuCap'].forEach(function (fName) {
+                if (!gridRow._tr) return;
+                var td = gridRow._tr.querySelector('td[data-field="' + fName + '"]');
+                if (td) {
+                  var inp = td.querySelector('input');
+                  if (inp) inp.value = gridRow[fName];
+                }
+              });
+            }
+          }
+        },
         headers: {
           MaPhuCap: 'Mã phụ cấp',
           TenPhuCap: 'Tên phụ cấp',
@@ -20431,6 +21284,60 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
 });
+
+// --- CUSTOM FUNCTIONS FOR WA_CaLamViecFrm ---
+
+// Hàm lõi: nhận SapCaID trực tiếp, không cần query DOM
+window.SapCaTuDong_ByID = function (sapCaID, callerBtn) {
+  if (!sapCaID) {
+    if (typeof Alert !== 'undefined') Alert.warning('Chưa lưu', 'Vui lòng Lưu thay đổi trước khi chạy Sắp ca tự động');
+    return;
+  }
+
+  var originalHtml = callerBtn ? callerBtn.innerHTML : '';
+  if (callerBtn) {
+    callerBtn.disabled = true;
+    callerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
+  }
+
+  var payload = {
+    SapCaID: sapCaID
+  };
+
+  ApiClient.post('/api/HR_CaLamViec_SapCaStp', payload)
+    .then(function (res) {
+      if (res && res.code === 0) {
+        if (typeof Alert !== 'undefined') Alert.success('Thành công', 'Đã sắp ca tự động thành công');
+        // Reload detail grid (Bảng ca chi tiết)
+        var refreshBtn = document.querySelector('.btn-refresh-tab');
+        if (refreshBtn) {
+          refreshBtn.click();
+        } else if (typeof window.DynamicFormEngine !== 'undefined' && typeof window.DynamicFormEngine.reloadDetailTabs === 'function') {
+          window.DynamicFormEngine.reloadDetailTabs();
+        }
+      } else {
+        if (typeof Alert !== 'undefined') Alert.error('Lỗi', res && res.msg ? res.msg : 'Chạy sắp ca thất bại');
+      }
+    })
+    .catch(function (err) {
+      if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Lỗi hệ thống khi gọi API sắp ca');
+    })
+    .finally(function () {
+      if (callerBtn) {
+        callerBtn.disabled = false;
+        callerBtn.innerHTML = originalHtml;
+      }
+    });
+};
+
+// Backward compat: nút "Sắp ca tự động" cũ trong FormFields vẫn hoạt động
+window.SapCaTuDong = function () {
+  var form = document.querySelector('.df-master-wrapper, .split-master-detail-container');
+  if (!form) { if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy form'); return; }
+  var sapCaInput = form.querySelector('[name="SapCaID"]');
+  var btn = form.querySelector('button[onclick="window.SapCaTuDong()"]');
+  window.SapCaTuDong_ByID(sapCaInput ? sapCaInput.value : '', btn);
+};
 
 
 /* --- router.js --- */

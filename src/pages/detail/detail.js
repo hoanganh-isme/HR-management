@@ -41,12 +41,16 @@ var DetailPage = (function () {
       }
     } catch(e) {}
 
+    var isAdd = hash.indexOf('action=add') > -1;
+    var isForceEdit = hash.indexOf('action=edit') > -1;
+
     // Merge với cờ IsFullPageDetail để engine biết cần render thẳng ra page thay vì vẽ grid
     var config = Object.assign({}, baseConfig, {
       IsFullPageDetail: true,
       DetailRowId: rowId,
       DetailRowData: rowData,
       IsDetailAdd: isAdd,
+      IsDetailForceEdit: isForceEdit,
       HideEditBtn: true
     });
 

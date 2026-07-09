@@ -760,34 +760,100 @@ window.DynamicFormEngine = (function () {
           var fieldName = item.name || item.FieldName;
           var isReadOnlyEditVal = _bool(item.isReadOnlyEdit, item.IsReadOnlyEdit);
           var isReadOnlyAddVal = _bool(item.isReadOnlyAdd, item.IsReadOnlyAdd);
-          if (MODULE_CONFIG.fieldOverrides && MODULE_CONFIG.fieldOverrides[fieldName]) {
-            var overrides = MODULE_CONFIG.fieldOverrides[fieldName];
-            if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
-            if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
-            if (overrides.required !== undefined) item.required = overrides.required;
-            if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
+          var hiddenColsVal = [];
+
+          var finalPosition = item.FormPosition || item.formPosition || item.position || 'grid';
+          var finalRenderRule = (item.renderRule || '').toLowerCase().trim();
+          var finalLabel = item.label || item.CaptionVN;
+
+          if (MODULE_CONFIG.fieldOverrides) {
+            var overrideKey = Object.keys(MODULE_CONFIG.fieldOverrides).find(function (k) {
+              return k.toLowerCase() === fieldName.toLowerCase();
+            });
+            if (overrideKey) {
+              var overrides = MODULE_CONFIG.fieldOverrides[overrideKey];
+              if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
+              if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
+              if (overrides.required !== undefined) item.required = overrides.required;
+              if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
+              if (overrides.hiddenColumns !== undefined) hiddenColsVal = overrides.hiddenColumns;
+              if (overrides.renderRule !== undefined) finalRenderRule = overrides.renderRule.toLowerCase().trim();
+              if (overrides.dataSource !== undefined) item.dataSource = overrides.dataSource;
+              if (overrides.position !== undefined) finalPosition = overrides.position;
+              if (overrides.label !== undefined) finalLabel = overrides.label;
+            }
+          }
+
+          if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+            var ff = MODULE_CONFIG.FormFields.find(function (f) { return f.name.toLowerCase() === fieldName.toLowerCase(); });
+            if (ff) {
+              if (ff.isReadOnlyEdit !== undefined) isReadOnlyEditVal = ff.isReadOnlyEdit;
+              if (ff.isReadOnlyAdd !== undefined) isReadOnlyAddVal = ff.isReadOnlyAdd;
+              if (ff.required !== undefined) item.required = ff.required;
+              if (ff.IsRequired !== undefined) item.IsRequired = ff.IsRequired;
+              if (ff.hiddenColumns !== undefined) hiddenColsVal = ff.hiddenColumns;
+              if (ff.renderRule !== undefined) finalRenderRule = ff.renderRule.toLowerCase().trim();
+              if (ff.dataSource !== undefined) item.dataSource = ff.dataSource;
+              if (ff.position !== undefined) finalPosition = ff.position;
+              if (ff.label !== undefined) finalLabel = ff.label;
+              if (ff.html !== undefined) item.html = ff.html;
+            }
           }
 
           globalFormSchema.push({
             name: fieldName,
-            label: item.label || item.CaptionVN,
+            label: finalLabel,
             required: _bool(item.required, item.IsRequired),
             showInAdd: _bool(item.showInAdd, item.ShowInAdd),
             showInEdit: _bool(item.showInEdit, item.ShowInEdit),
             showInFilter: _bool(item.showInFilter, item.ShowInFilter),
             isReadOnlyEdit: isReadOnlyEditVal,
             isReadOnlyAdd: isReadOnlyAddVal,
-            position: item.FormPosition || item.formPosition || item.position || 'grid',
+            position: finalPosition,
             orderNo: item.OrderNo || item.orderNo || 0,
-            renderRule: (item.renderRule || '').toLowerCase().trim(),
+            renderRule: finalRenderRule,
             dataSource: (item.dataSource || item.DataSource || '').trim(),
             validateRule: rawValidate,
             dependsOn: (item.dependsOn || item.DependsOn || '').trim(),
             visibleRule: rawVisible,
             formulaRule: formulaMatch ? formulaMatch[1].trim() : '',
-            triggerApi: triggerMatch ? triggerMatch[1].trim() : ''
+            triggerApi: triggerMatch ? triggerMatch[1].trim() : '',
+            hiddenColumns: hiddenColsVal,
+            html: item.html
           });
         });
+
+        // Hỗ trợ CHÈN THÊM TRƯỜNG TỰ DO (ví dụ nút bấm) từ FormFields (Chỉ chèn những trường chưa có trong DB)
+        if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+          MODULE_CONFIG.FormFields.forEach(function (cf) {
+            if (!globalFormSchema.find(function (sf) { return sf.name.toLowerCase() === cf.name.toLowerCase(); })) {
+              globalFormSchema.push({
+                name: cf.name,
+                label: cf.label || '',
+                required: cf.required || false,
+                showInAdd: true,
+                showInEdit: true,
+                showInFilter: false,
+                isReadOnlyEdit: cf.isReadOnlyEdit || false,
+                isReadOnlyAdd: cf.isReadOnlyAdd || false,
+                position: cf.position || 'grid',
+                orderNo: 999, // Xếp cuối theo mặc định
+                renderRule: (cf.renderRule || '').toLowerCase().trim(),
+                dataSource: cf.dataSource || '',
+                html: cf.html || ''
+              });
+            }
+          });
+
+          // Sắp xếp lại globalFormSchema đúng theo thứ tự khai báo trong FormFields
+          globalFormSchema.sort(function (a, b) {
+            var idxA = MODULE_CONFIG.FormFields.findIndex(function (f) { return f.name.toLowerCase() === a.name.toLowerCase(); });
+            var idxB = MODULE_CONFIG.FormFields.findIndex(function (f) { return f.name.toLowerCase() === b.name.toLowerCase(); });
+            if (idxA === -1) idxA = 9999;
+            if (idxB === -1) idxB = 9999;
+            return idxA - idxB;
+          });
+        }
 
         if (Object.keys(globalDictionary).length === 0) {
           console.warn('API returned no fields for FormName:', MODULE_CONFIG.FormName);
@@ -1463,6 +1529,11 @@ window.DynamicFormEngine = (function () {
 
         var toolbar = UIActionToolbar.create({
           onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
+          onView: (isFrm && !MODULE_CONFIG.HideViewBtn) ? function () {
+            if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Vui lòng chọn dữ liệu cần xem');
+            if (selectedRows.length > 1) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Chỉ có thể xem chi tiết từng dòng một.');
+            _openViewForm(selectedRows[0]);
+          } : false,
           onEdit: (isFrm && !MODULE_CONFIG.HideEditBtn) ? (_hasPermission('EDIT') ? function () {
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectEdit);
 
@@ -1476,7 +1547,7 @@ window.DynamicFormEngine = (function () {
             }
 
             if (selectedRows.length > 1) {
-              _openBulkEditForm();
+              return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Chỉ có thể sửa chi tiết từng dòng một.');
             } else {
               _openEditForm(selectedRows[0]);
             }
@@ -1837,7 +1908,7 @@ window.DynamicFormEngine = (function () {
     }
 
     if (MODULE_CONFIG.IsFullPageDetail && MODULE_CONFIG.DetailRowData) {
-      _openModal(true, MODULE_CONFIG.DetailRowData, true);
+      _openModal(true, MODULE_CONFIG.DetailRowData, !MODULE_CONFIG.IsDetailForceEdit);
       return;
     }
 
@@ -2063,10 +2134,217 @@ window.DynamicFormEngine = (function () {
           // Tìm key trong data có chữ hoa/thường khớp với fieldName (case-insensitive search)
           var actualField = rowKeys.find(function (k) { return k.toLowerCase() === fieldName.toLowerCase(); }) || fieldName;
 
+          var isDateField = actualField.toLowerCase().indexOf('ngay') >= 0 || actualField.toLowerCase().indexOf('date') >= 0 || f.renderRule === 'dt' || f.renderRule === 'date' || f.renderRule === 'd';
+
+          var customDateEditor = function (cell, onRendered, success, cancel) {
+            var cellValue = cell.getValue();
+            var input = document.createElement("input");
+            input.type = "text";
+            input.style.padding = "4px";
+            input.style.width = "100%";
+            input.style.boxSizing = "border-box";
+            input.style.border = "none";
+            input.style.outline = "none";
+            input.style.background = "transparent";
+
+            var parsedDate = null;
+            if (cellValue) {
+              if (typeof cellValue === 'string' && cellValue.indexOf('/') === 2) {
+                var parts = cellValue.split(/[\s/]/);
+                if (parts.length >= 3) {
+                  parsedDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                }
+              } else if (typeof cellValue === 'string' && cellValue.length >= 10 && cellValue.indexOf('-') === 4) {
+                var parts = cellValue.substring(0, 10).split('-');
+                parsedDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+              } else {
+                var d = new Date(cellValue);
+                if (!isNaN(d.getTime())) parsedDate = d;
+              }
+            }
+
+            onRendered(function () {
+              if (typeof window.flatpickr !== 'undefined') {
+                var fp = window.flatpickr(input, {
+                  defaultDate: parsedDate,
+                  dateFormat: "d/m/Y",
+                  allowInput: true,
+                  onClose: function (selectedDates, dateStr, instance) {
+                    if (dateStr !== cellValue) {
+                      success(dateStr);
+                    } else {
+                      cancel();
+                    }
+                  }
+                });
+                setTimeout(function () { fp.open(); }, 10);
+              } else {
+                // Fallback
+                input.type = "date";
+                if (parsedDate && !isNaN(parsedDate.getTime())) {
+                  var y = parsedDate.getFullYear();
+                  var m = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
+                  var d = parsedDate.getDate().toString().padStart(2, '0');
+                  input.value = y + '-' + m + '-' + d;
+                }
+                input.focus();
+                input.addEventListener("blur", function () {
+                  var v = input.value;
+                  if (v) {
+                    var p = v.split('-');
+                    if (p.length === 3) v = p[2] + '/' + p[1] + '/' + p[0];
+                    if (v !== cellValue) success(v); else cancel();
+                  } else {
+                    if (cellValue !== "") success(""); else cancel();
+                  }
+                });
+              }
+            });
+
+            return input;
+          };
+
+          var hasCombo = f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
+
+          var customComboEditor = function (cell, onRendered, success, cancel) {
+            var cellValue = cell.getValue();
+            var rowData = cell.getRow().getData();
+
+            var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
+            var maxCols = 4;
+            if (endpointRaw.indexOf('|') > -1) {
+              var dsParts = endpointRaw.split('|');
+              endpointRaw = dsParts[0];
+              var parsedCols = parseInt(dsParts[1], 10);
+              if (!isNaN(parsedCols) && parsedCols > 0) maxCols = parsedCols;
+            }
+            var finalUrl;
+            var fetchPayload = {};
+            if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
+              finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
+              fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View' };
+            } else {
+              var endpoint = endpointRaw.startsWith('http') ? endpointRaw : ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + endpointRaw);
+              finalUrl = endpoint;
+              if (endpoint.indexOf('?') > -1) {
+                var parts = endpoint.split('?');
+                finalUrl = parts[0];
+                var searchParams = new URLSearchParams(parts[1]);
+                searchParams.forEach(function (value, key) { fetchPayload[key] = value; });
+              }
+            }
+            if (!fetchPayload.UserName) fetchPayload.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
+
+            var searchApiCall = function (q, page) {
+              var payload = Object.assign({}, fetchPayload);
+              var isGateway = finalUrl.indexOf('API_Gateway_Router') > -1;
+              var dynamicFilters = {};
+              if (f.dependsOn) {
+                var parents = f.dependsOn.split(',').map(function (p) { return p.trim(); });
+                parents.forEach(function (p) {
+                  if (rowData[p] !== undefined && rowData[p] !== null) {
+                    dynamicFilters[p] = rowData[p];
+                  }
+                });
+              }
+              if (isGateway) dynamicFilters = Object.assign(dynamicFilters, dynamicFilters);
+              else payload = Object.assign(payload, dynamicFilters);
+
+              if (q) {
+                payload.Keyword = q;
+                if (isGateway) dynamicFilters.Keyword = q;
+              }
+              if (isGateway && Object.keys(dynamicFilters).length > 0) {
+                var existingJson = {};
+                try { existingJson = JSON.parse(payload.JsonData || '{}'); } catch (e) { }
+                payload.JsonData = JSON.stringify(Object.assign({}, existingJson, dynamicFilters));
+              }
+
+              return ApiClient.post(finalUrl, payload).then(function (res) {
+                var comboData = [];
+                var dataList = res.list || res.records;
+                var headers = ['Mã', 'Tên'];
+                var colFilterIndex = 1;
+                if (dataList && dataList.length > 0) {
+                  var keys = Object.keys(dataList[0]);
+                  if (keys.length > 0) {
+                    var displayKeysFull = keys;
+                    if (f.hiddenColumns && Array.isArray(f.hiddenColumns)) {
+                      var hcols = f.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                    }
+                    var displayKeys = displayKeysFull.slice(0, maxCols);
+                    headers = displayKeys.map(function (k) {
+                      if (typeof globalDictionary !== 'undefined') {
+                        var kLower = k.toLowerCase();
+                        var matchKey = Object.keys(globalDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
+                        if (matchKey) return globalDictionary[matchKey].CaptionVN;
+                      }
+                      return k;
+                    });
+                    var labelRegex = /name|tên|ten|label|desc|title/i;
+                    var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
+                    if (displayKey) {
+                      colFilterIndex = displayKeys.indexOf(displayKey);
+                    } else {
+                      var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+                      var validIdx = -1;
+                      for (var i = 1; i < displayKeys.length; i++) {
+                        if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+                      }
+                      colFilterIndex = validIdx !== -1 ? validIdx : 0;
+                    }
+                    if (f.name === 'PersonID') colFilterIndex = 0;
+                    if (f.name === 'PeriodKeyID') {
+                      var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
+                      if (keyIdx > -1) colFilterIndex = keyIdx;
+                    }
+                    dataList.forEach(function (d) {
+                      var rData = [];
+                      displayKeysFull.forEach(function (k) { rData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                      comboData.push(rData);
+                    });
+                  } else {
+                    dataList.forEach(function (d) { comboData.push(['', '']); });
+                  }
+                }
+                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex };
+              });
+            };
+
+            var lazyCombo = UIControls.createDataComboBox({
+              placeholder: '-- Chọn --',
+              headers: ['Mã', 'Tên'],
+              showAddNew: false,
+              onSearch: searchApiCall,
+              onChange: function (val) { },
+              onSelect: function (row) {
+                success(lazyCombo.querySelector('.ui-input').value);
+              }
+            });
+
+            lazyCombo.style.margin = "0";
+            lazyCombo.style.width = "100%";
+            var inputEl = lazyCombo.querySelector('.ui-input');
+            inputEl.style.border = "none";
+            inputEl.style.background = "transparent";
+            inputEl.style.padding = "4px";
+            inputEl.value = cellValue || '';
+
+            onRendered(function () {
+              inputEl.focus();
+              inputEl.click();
+            });
+
+            return lazyCombo;
+          };
+
           var colDef = {
             title: dictionary[fieldName] || fieldName,
             field: actualField,
-            editor: "input" // Cho phép chỉnh sửa trực tiếp
+            editor: isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input"),
+            maxWidth: 400, // UX: Giới hạn độ rộng tối đa để text dài (như Mô tả) không đẩy vỡ khung Grid
+            tooltip: true  // UX: Cho phép xem đầy đủ text khi hover chuột vào ô bị cắt chữ (...)
             // Đã loại bỏ headerFilter: "input" để header gọn gàng, người dùng sẽ xài Popup lọc dữ liệu thay thế
           };
 
@@ -3011,37 +3289,46 @@ window.DynamicFormEngine = (function () {
                 return;
               }
             }
-            
+
             // Dynamic API fetch fallback
             if (imgIdVal) {
-                var self = this;
-                var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
-                    ? 'API_CandidateAttach' : 'API_PersonAttach';
-                
-                var fetchPayload = {
-                  List: attachApi,
-                  Func: 'View',
-                  JsonData: JSON.stringify({
-                    CandidateID: imgIdVal,
-                    PersonID: imgIdVal
-                  }),
-                  UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
-                };
-      
-                ApiClient.post('/api/API_Gateway_Router', fetchPayload)
-                .then(function(data) {
-                   if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                       var b64 = data.records[0].Base64Content;
-                       self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
-                   } else {
-                       if (self.src !== defaultPhoto) self.src = defaultPhoto;
-                   }
+              var self = this;
+              var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
+                ? 'API_CandidateAttach' : 'API_PersonAttach';
+
+              var fetchPayload = {
+                List: attachApi,
+                Func: 'View',
+                JsonData: JSON.stringify({
+                  CandidateID: imgIdVal,
+                  PersonID: imgIdVal
+                }),
+                UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+              };
+
+              ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+                .then(function (data) {
+                  if (data && data.code === 0 && data.records && data.records.length > 0) {
+                    var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                    if (b64 && b64.length > 10) {
+                      if (b64.startsWith('data:image')) {
+                        self.src = b64;
+                      } else {
+                        var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                        self.src = 'data:' + mimeType + ';base64,' + b64;
+                      }
+                    } else {
+                      if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                    }
+                  } else {
+                    if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                  }
                 })
-                .catch(function(err) {
-                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                .catch(function (err) {
+                  if (self.src !== defaultPhoto) self.src = defaultPhoto;
                 });
             } else {
-                if (img.src !== defaultPhoto) img.src = defaultPhoto;
+              if (img.src !== defaultPhoto) img.src = defaultPhoto;
             }
           };
 
@@ -3529,9 +3816,25 @@ window.DynamicFormEngine = (function () {
       // Save row data to session storage for faster and accurate load
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
       // Redirect to detail page
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]);
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]) + '&action=edit';
     } else {
       _openModal(true, row, false);
+    }
+  }
+
+  function _openViewForm(row) {
+    if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
+      _openModal(true, row, true);
+      return;
+    }
+
+    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+      // Save row data to session storage for faster and accurate load
+      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
+      // Redirect to detail page without &action=edit to trigger View mode
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]);
+    } else {
+      _openModal(true, row, true); // true for forceDetail (view mode)
     }
   }
 
@@ -3723,25 +4026,30 @@ window.DynamicFormEngine = (function () {
                 if (dataList && dataList.length > 0) {
                   var keys = Object.keys(dataList[0]);
                   if (keys.length > 0) {
-                    headers = keys;
+                    var displayKeysFull = keys;
+                    if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+                      var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                    }
+                    headers = displayKeysFull;
                     var labelRegex = /name|tên|ten|label|desc|title/i;
-                    var displayKey = keys.find(function (k) { return labelRegex.test(k); });
-                    colFilterIndex = displayKey ? keys.indexOf(displayKey) : (keys.length > 1 ? 1 : 0);
+                    var displayKey = displayKeysFull.find(function (k) { return labelRegex.test(k); });
+                    colFilterIndex = displayKey ? displayKeysFull.indexOf(displayKey) : (displayKeysFull.length > 1 ? 1 : 0);
                     if (field.name === 'PersonID') colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
-                      var keyIdx = keys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
+                      var keyIdx = displayKeysFull.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
                     }
                     dataList.forEach(function (d) {
                       var rd = [];
-                      keys.forEach(function (k) { rd.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                      displayKeysFull.forEach(function (k) { rd.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
                       comboData.push(rd);
                     });
                   }
                 }
                 var newCombo = UIControls.createDataComboBox({
                   placeholder: '-- Chọn --', headers: headers, data: comboData, colFilterIndex: colFilterIndex,
-                  showAddNew: true, // Bật nút Thêm mới
+                  showAddNew: (typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns) ? false : true,
                   onF2: function () {
                     newCombo.querySelector('.ui-input').focus();
                   },
@@ -4047,37 +4355,46 @@ window.DynamicFormEngine = (function () {
             return;
           }
         }
-        
+
         // Dynamic API fetch fallback
         if (imgIdVal) {
-            var self = this;
-            var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi) 
-                ? 'API_CandidateAttach' : 'API_PersonAttach';
-            
-            var fetchPayload = {
-              List: attachApi,
-              Func: 'View',
-              JsonData: JSON.stringify({
-                CandidateID: imgIdVal,
-                PersonID: imgIdVal
-              }),
-              UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
-            };
-  
-            ApiClient.post('/api/API_Gateway_Router', fetchPayload)
-            .then(function(data) {
-               if (data && data.code === 0 && data.records && data.records.length > 0 && data.records[0].Base64Content) {
-                   var b64 = data.records[0].Base64Content;
-                   self.src = b64.startsWith('/9j/') ? ('data:image/jpeg;base64,' + b64) : b64;
-               } else {
-                   if (self.src !== defaultPhoto) self.src = defaultPhoto;
-               }
+          var self = this;
+          var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
+            ? 'API_CandidateAttach' : 'API_PersonAttach';
+
+          var fetchPayload = {
+            List: attachApi,
+            Func: 'View',
+            JsonData: JSON.stringify({
+              CandidateID: imgIdVal,
+              PersonID: imgIdVal
+            }),
+            UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
+          };
+
+          ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+            .then(function (data) {
+              if (data && data.code === 0 && data.records && data.records.length > 0) {
+                var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                if (b64 && b64.length > 10) {
+                  if (b64.startsWith('data:image')) {
+                    self.src = b64;
+                  } else {
+                    var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                    self.src = 'data:' + mimeType + ';base64,' + b64;
+                  }
+                } else {
+                  if (self.src !== defaultPhoto) self.src = defaultPhoto;
+                }
+              } else {
+                if (self.src !== defaultPhoto) self.src = defaultPhoto;
+              }
             })
-            .catch(function(err) {
-               if (self.src !== defaultPhoto) self.src = defaultPhoto;
+            .catch(function (err) {
+              if (self.src !== defaultPhoto) self.src = defaultPhoto;
             });
         } else {
-            if (img.src !== defaultPhoto) img.src = defaultPhoto;
+          if (img.src !== defaultPhoto) img.src = defaultPhoto;
         }
       };
 
@@ -4374,8 +4691,13 @@ window.DynamicFormEngine = (function () {
                   var keys = Object.keys(dataList[0]);
                   comboLoading.dataset.lastKeys = JSON.stringify(keys); // Lưu lại keys để dùng cho auto-fill
                   if (keys.length > 0) {
+                    var displayKeysFull = keys;
+                    if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
+                      var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                    }
                     // Dùng từ điển hiện tại của form để dịch tiêu đề lưới (nếu có), CHỈ HIỆN MAX CỘT ĐƯỢC CHỈ ĐỊNH (mặc định 4)
-                    var displayKeys = keys.slice(0, maxCols);
+                    var displayKeys = displayKeysFull.slice(0, maxCols);
                     headers = displayKeys.map(function (k) {
                       if (typeof currentDictionary !== 'undefined') {
                         var kLower = k.toLowerCase();
@@ -4386,7 +4708,16 @@ window.DynamicFormEngine = (function () {
                     });
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
-                    colFilterIndex = displayKey ? displayKeys.indexOf(displayKey) : (displayKeys.length > 1 ? 1 : 0);
+                    if (displayKey) {
+                      colFilterIndex = displayKeys.indexOf(displayKey);
+                    } else {
+                      var hideRegex = /^(ghichu|mota|description|mô tả|ngaytao|nguoitao)$/i;
+                      var validIdx = -1;
+                      for (var i = 1; i < displayKeys.length; i++) {
+                        if (!hideRegex.test(displayKeys[i])) { validIdx = i; break; }
+                      }
+                      colFilterIndex = validIdx !== -1 ? validIdx : 0;
+                    }
                     if (field.name === 'PersonID') colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
                       var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
@@ -4394,14 +4725,14 @@ window.DynamicFormEngine = (function () {
                     }
                     dataList.forEach(function (d) {
                       var rowData = [];
-                      keys.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
+                      displayKeysFull.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
                       comboData.push(rowData);
                     });
                   } else {
                     dataList.forEach(function (d) { comboData.push(['', '']); });
                   }
                 }
-                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex };
+                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex, forceMultiColumn: displayKeysFull.length > 1 };
               });
             };
 
@@ -4409,7 +4740,7 @@ window.DynamicFormEngine = (function () {
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
-              showAddNew: true, // Bật nút Thêm mới
+              showAddNew: (typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns) ? false : true,
               onF2: function () {
                 lazyCombo.querySelector('.ui-input').focus();
               },
@@ -4548,6 +4879,11 @@ window.DynamicFormEngine = (function () {
         flexDiv.appendChild(btn);
         wrapper.appendChild(flexDiv);
         inputEl = wrapper;
+      } else if (field.renderRule === 'html') {
+        var htmlWrapper = document.createElement('div');
+        htmlWrapper.style.width = '100%';
+        htmlWrapper.innerHTML = field.html || '';
+        inputEl = htmlWrapper;
       } else {
         inputEl = UIInput.createText(field);
       }
@@ -4572,7 +4908,7 @@ window.DynamicFormEngine = (function () {
         span = '6';
       }
       if (span === 'body') span = '12';
-      if (!['12', '8', '6', '4', '3'].includes(span)) span = '12';
+      if (!['12', '8', '6', '4', '3', '2', '1-7'].includes(span)) span = '12';
 
       var wrapper = document.createElement('div');
       wrapper.className = 'df-col-' + span;
@@ -4837,97 +5173,122 @@ window.DynamicFormEngine = (function () {
           keys.forEach(function (fName) {
             var td = cellMap[fName];
 
-            if (fName === 'PersonID') {
-              // ComboBox chọn nhân viên
-              var lConf = (tabDef.lookupConfig && tabDef.lookupConfig['PersonID']) || null;
-              var isBH = !!lConf;
+            var lConf = (tabDef.lookupConfig && tabDef.lookupConfig[fName]) || null;
+
+            if (lConf) {
+              // isBH: BaoHiem có cột STT ở đầu nên PersonID nằm ở colFilterIndex=1.
+              // Các form khác (CaLamViec, ...) PersonID nằm ở colFilterIndex=0.
+              // Dùng colFilterIndex để xác định thay vì hardcode fName === 'PersonID'
+              var isBH = (fName === 'PersonID' && (lConf.colFilterIndex || 0) === 1);
 
               var combo = UIControls.createDataComboBox({
-                placeholder: 'Chọn nhân viên...',
-                headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
-                colFilterIndex: lConf ? lConf.colFilterIndex : 0,
+                placeholder: 'Chọn...',
+                headers: lConf.headers || ['Mã', 'Tên'],
+                colFilterIndex: lConf.colFilterIndex || 0,
+                forceMultiColumn: lConf.forceMultiColumn !== false,
                 onSearch: function (q) {
                   var lookupPayload = {
-                    List: lConf ? lConf.apiList : 'HR_PersonTbl',
+                    List: lConf.apiList,
                     Func: 'View',
                     Keyword: q
                   };
-                  if (lConf && typeof lConf.getPayload === 'function') {
+                  if (typeof lConf.getPayload === 'function') {
                     Object.assign(lookupPayload, lConf.getPayload());
                   }
 
                   return ApiClient.post('/api/API_Gateway_Router', lookupPayload).then(function (res) {
-                    var list = res.list || res.records || [];
+                    var list = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
                     var dataList = list.map(function (d) {
-                      return (lConf && typeof lConf.mapData === 'function') ? lConf.mapData(d) : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+                      return (typeof lConf.mapData === 'function') ? lConf.mapData(d, {}, true) : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
                     });
+                    // For legacy WA_BaoHiemFrm that didn't define mapData:
+                    if (fName === 'PersonID' && typeof lConf.mapData !== 'function') {
+                      dataList = list.map(function (d) {
+                        return [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+                      });
+                    }
+
                     return {
-                      headers: lConf ? lConf.headers : ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+                      headers: lConf.headers || ['Mã', 'Tên'],
                       data: dataList,
-                      colFilterIndex: lConf ? lConf.colFilterIndex : 0
+                      colFilterIndex: lConf.colFilterIndex || 0
                     };
                   });
                 },
                 onSelect: function (selectedData) {
-                  var selectedPersonID = isBH ? selectedData[lConf.colFilterIndex] : selectedData[0];
+                  var selectedVal = selectedData[lConf.colFilterIndex || 0];
 
-                  // Kiểm tra trùng lặp trong panel._currentRows
+                  // Kiểm tra trùng lặp
                   var isDuplicate = panel._currentRows.some(function (row, index) {
-                    return index !== rIdx && row['PersonID'] === selectedPersonID;
+                    return index !== rIdx && row[fName] === selectedVal;
                   });
 
                   if (isDuplicate) {
                     if (typeof Alert !== 'undefined') {
-                      Alert.warning('Trùng lặp', 'Nhân viên này đã được chọn trong danh sách!');
+                      Alert.warning('Trùng lặp', 'Dữ liệu này đã được chọn trong danh sách!');
                     } else if (typeof UIToast !== 'undefined') {
-                      UIToast.show('Nhân viên này đã được chọn!', 'warning');
+                      UIToast.show('Dữ liệu này đã được chọn!', 'warning');
                     } else {
-                      alert('Nhân viên này đã được chọn!');
+                      alert('Dữ liệu này đã được chọn!');
                     }
                     if (displayInp) displayInp.value = '';
-                    currRow['PersonID'] = '';
-                    currRow['PersonName'] = '';
-                    currRow['PhongBan'] = '';
-                    if (isBH) {
-                      currRow['MucDong'] = '';
-                      if (cellMap['MucDong']) {
-                        var mInp = cellMap['MucDong'].querySelector('input');
-                        if (mInp) mInp.value = '';
+                    currRow[fName] = '';
+
+                    if (typeof lConf.mapData === 'function') {
+                      // Reset based on generic mapData logic if needed, simple clear for now
+                    } else if (fName === 'PersonID') {
+                      currRow['PersonName'] = '';
+                      currRow['PhongBan'] = '';
+                      if (isBH) {
+                        currRow['MucDong'] = '';
+                        if (cellMap['MucDong']) {
+                          var mInp = cellMap['MucDong'].querySelector('input');
+                          if (mInp) mInp.value = '';
+                        }
+                      } else {
+                        currRow['TitleName'] = '';
                       }
-                    } else {
-                      currRow['TitleName'] = '';
+                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
+                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = '';
+                      if (cellMap['TitleName']) cellMap['TitleName'].textContent = '';
                     }
-                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
-                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = '';
-                    if (cellMap['TitleName']) cellMap['TitleName'].textContent = '';
                     return;
                   }
 
                   // Cập nhật dữ liệu hàng
-                  if (isBH) {
-                    currRow['PersonID'] = selectedData[1];
-                    currRow['PersonName'] = selectedData[2];
-                    currRow['PhongBan'] = selectedData[3];
-                    currRow['MucDong'] = parseFloat(selectedData[4]) || 0;
+                  currRow[fName] = selectedVal;
 
-                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[2] || '';
-                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[3] || '';
-                    if (cellMap['MucDong']) {
-                      var mInp = cellMap['MucDong'].querySelector('input');
-                      if (mInp) {
-                        mInp.value = selectedData[4] || '0';
-                        // Tự động kích hoạt tính toán bảo hiểm
-                        mInp.dispatchEvent(new Event('change', { bubbles: true }));
-                      }
+                  if (typeof lConf.mapData === 'function') {
+                    var gridRow = { _tr: tr };
+                    lConf.mapData(selectedData, gridRow, false);
+                    for (var key in gridRow) {
+                      if (key !== '_tr') currRow[key] = gridRow[key];
                     }
-                  } else {
-                    currRow['PersonID'] = selectedData[0];
-                    currRow['PersonName'] = selectedData[1];
-                    currRow['PhongBan'] = selectedData[2];
-                    currRow['TitleName'] = selectedData[3];
-                    if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
-                    if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
-                    if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
+                  } else if (fName === 'PersonID') {
+                    if (isBH) {
+                      currRow['PersonID'] = selectedData[1];
+                      currRow['PersonName'] = selectedData[2];
+                      currRow['PhongBan'] = selectedData[3];
+                      currRow['MucDong'] = parseFloat(selectedData[4]) || 0;
+
+                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[2] || '';
+                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[3] || '';
+                      if (cellMap['MucDong']) {
+                        var mInp = cellMap['MucDong'].querySelector('input');
+                        if (mInp) {
+                          mInp.value = selectedData[4] || '0';
+                          mInp.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                      }
+                    } else {
+                      currRow['PersonID'] = selectedData[0];
+                      currRow['PersonName'] = selectedData[1];
+                      currRow['PhongBan'] = selectedData[2];
+                      currRow['TitleName'] = selectedData[3];
+                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
+                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
+                      if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
+                    }
                   }
                 }
               });
@@ -5200,6 +5561,27 @@ window.DynamicFormEngine = (function () {
     }
 
     footer.appendChild(btnCancel);
+
+    // Render custom footer buttons (khai báo trong MODULE_CONFIG.customFooterButtons)
+    // Đây là extension point cho các form muốn thêm nút vào thanh thao tác mà không sửa Engine
+    if (MODULE_CONFIG.customFooterButtons && MODULE_CONFIG.customFooterButtons.length > 0) {
+      MODULE_CONFIG.customFooterButtons.forEach(function (btnDef) {
+        var customBtn = document.createElement('button');
+        customBtn.type = 'button';
+        customBtn.className = 'btn ' + (btnDef.className || 'btn-outline-secondary');
+        if (btnDef.icon) {
+          customBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px; margin-right: 4px; vertical-align: middle;">' + btnDef.icon + '</span> ' + (btnDef.label || '');
+        } else {
+          customBtn.textContent = btnDef.label || '';
+        }
+        if (typeof btnDef.onClick === 'function') {
+          customBtn.onclick = function () {
+            btnDef.onClick({ row: row, body: body, btnSave: btnSave, isEdit: isEdit });
+          };
+        }
+        footer.appendChild(customBtn);
+      });
+    }
 
     if (isViewMode) {
       var btnSwitchEdit = document.createElement('button');
@@ -5615,6 +5997,11 @@ window.DynamicFormEngine = (function () {
       }
 
       function _postFinalizeSave() {
+        // Broadcast sự kiện lưu thành công để các form có thể hook vào (ví dụ: chạy SP ngay sau khi lưu)
+        document.dispatchEvent(new CustomEvent('dynamicFormSaved', {
+          detail: { formName: MODULE_CONFIG.FormName, data: singlePayload, isEdit: isEdit }
+        }));
+
         if (MODULE_CONFIG.IsFullPageDetail) return; // Không cần load lại dữ liệu nếu là trang Detail (vì nó sẽ tự navigate back về Grid)
         if (_isFormBuilder()) {
           window._uiConfigCache = {}; // Cache Invalidate

@@ -1,5 +1,4 @@
-USE X26DIMTUTAC
-GO
+
 
 CREATE OR ALTER PROCEDURE dbo.API_DanhSachChucVu
 (
@@ -20,5 +19,12 @@ BEGIN
         OR TitleName LIKE N'%' + @Keyword + '%'
         OR GhiChu LIKE N'%' + @Keyword + '%'
     ORDER BY ISNULL(STT, 9999), TitleName;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM WA_API WHERE list = 'API_DanhSachChucVu' AND func = 'View')
+BEGIN
+    INSERT INTO WA_API (list, func, [SQL], Para)
+    VALUES ('API_DanhSachChucVu', 'View', 'API_DanhSachChucVu', '@Keyword=''{Keyword}''');
 END
 GO

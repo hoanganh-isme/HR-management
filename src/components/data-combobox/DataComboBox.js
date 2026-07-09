@@ -11,7 +11,7 @@ UIControls.createDataComboBox = function (options) {
   var input = document.createElement('input');
   input.type = 'text';
   input.className = 'ui-input';
-  input.placeholder = options.placeholder || '';
+  input.placeholder = (options.placeholder !== undefined) ? options.placeholder : 'Tìm kiếm...';
   if (options.id) input.id = options.id;
 
   // Actions block – chỉ giữ nút mũi tên
@@ -152,7 +152,7 @@ UIControls.createDataComboBox = function (options) {
   function renderTable(displayData) {
     if (UIControls.utils) {
       tableWrapper.innerHTML = UIControls.utils.createDropdownTableHTML(
-        options.headers || [], displayData, options.colHighlightIndex !== undefined ? options.colHighlightIndex : (options.colFilterIndex || 0), options.colGroupIndex
+        options.headers || [], displayData, options.colHighlightIndex !== undefined ? options.colHighlightIndex : (options.colFilterIndex || 0), options
       );
       var rows = tableWrapper.querySelectorAll('tbody tr');
       var currentInputVal = input.value.trim().toLowerCase();
@@ -215,6 +215,7 @@ UIControls.createDataComboBox = function (options) {
         if (result && !Array.isArray(result) && result.data) {
           if (result.headers) options.headers = result.headers;
           if (result.colFilterIndex !== undefined) options.colFilterIndex = result.colFilterIndex;
+          if (result.forceMultiColumn !== undefined) options.forceMultiColumn = result.forceMultiColumn;
           result = result.data;
         }
         if (Array.isArray(result)) {

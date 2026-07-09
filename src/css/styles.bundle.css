@@ -785,6 +785,7 @@ body.dark-theme .nav-item:hover span.icon {
 
 /* TABLET PORTRAIT (769px - 991px) - Fallback to 2 columns */
 @media (max-width: 991px) {
+
   .df-col-3,
   .df-col-4 {
     width: calc(50% - 5px) !important;
@@ -793,6 +794,7 @@ body.dark-theme .nav-item:hover span.icon {
 
 /* MOBILE (<= 768px) - 1 Column Full Width */
 @media (max-width: 768px) {
+
   /* Trên Mobile: 
      - Tất cả các cột sẽ chuyển thành 100% (1 cột) để tối ưu không gian hiển thị,
        tránh tình trạng chữ bị cắt hoặc ô nhập quá hẹp. */
@@ -803,10 +805,12 @@ body.dark-theme .nav-item:hover span.icon {
     width: 100% !important;
   }
 
-  .df-master-wrapper, .df-avatar-group-wrapper {
+  .df-master-wrapper,
+  .df-avatar-group-wrapper {
     flex-direction: column !important;
     align-items: center !important;
   }
+
   .df-master-wrapper .photo-box-wrapper {
     width: 100% !important;
   }
@@ -815,46 +819,66 @@ body.dark-theme .nav-item:hover span.icon {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 /* CUSTOM TABULATOR CHO KẾ TOÁN */
 .tabulator {
-    font-size: 12.5px !important; /* Giảm cỡ chữ xuống mức tiêu chuẩn Excel */
+  font-size: 12.5px !important;
+  /* Giảm cỡ chữ xuống mức tiêu chuẩn Excel */
 }
+
 .tabulator-row {
-    border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
 }
+
 .tabulator-row .tabulator-cell {
-    border-right: 1px solid #e2e8f0; /* Kẻ đường dọc như Excel */
-    padding: 4px 8px !important; /* Thu gọn tối đa padding */
+  border-right: 1px solid #e2e8f0;
+  /* Kẻ đường dọc như Excel */
+  padding: 4px 8px !important;
+  /* Thu gọn tối đa padding */
 }
+
 .tabulator-row.tabulator-row-even {
-    background-color: #f8fafc !important; /* Xám nhạt xen kẽ */
+  background-color: #f8fafc !important;
+  /* Xám nhạt xen kẽ */
 }
+
 .tabulator-row.tabulator-row-odd {
-    background-color: #ffffff !important;
+  background-color: #ffffff !important;
 }
+
 .tabulator-row.tabulator-selectable:hover {
-    background-color: #e2e8f0 !important; /* Đậm hơn xíu khi di chuột */
+  background-color: #e2e8f0 !important;
+  /* Đậm hơn xíu khi di chuột */
 }
+
 .tabulator-header .tabulator-col {
-    background-color: #f1f5f9 !important; /* Làm chìm màu header */
-    border-right: 1px solid #cbd5e1;
-    font-weight: 600;
-    padding: 6px 8px !important;
+  background-color: #f1f5f9 !important;
+  /* Làm chìm màu header */
+  border-right: 1px solid #cbd5e1;
+  font-weight: 600;
+  padding: 6px 8px !important;
 }
 
 /* ẨN TÍNH NĂNG LỌC CỘT MẶC ĐỊNH */
 .tabulator .tabulator-header .tabulator-header-filter {
-    display: none !important;
+  display: none !important;
 }
 
 /* HIỆN LẠI KHI CÓ CLASS SHOW-FILTERS */
 .tabulator.show-filters .tabulator-header .tabulator-header-filter {
     display: block !important;
+}
+
+/* Ẩn nút Sắp ca tự động cũ do SY_FrmCfg sinh ra ở thân form (vì đã chuyển lên header action bar) */
+button[onclick*="SapCaTuDong"] {
+    display: none !important;
 }
 
 /* --- navbar.css --- */
@@ -5229,6 +5253,20 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   color: var(--color-text);
   white-space: nowrap;
   line-height: 1.4;
+}
+
+/* Soft UI cho chế độ 1 cột (giống select list mobile) */
+.dropdown-table.single-column td {
+  padding: 10px 14px;
+  border-bottom: none;
+  font-weight: 500;
+  white-space: normal;
+}
+.dropdown-table.single-column tbody tr {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.dropdown-table.single-column tbody tr:last-child {
+  border-bottom: none;
 }
 
 /* Nổi bật cột chính (ví dụ Tên nhân viên/Tên hàng) */

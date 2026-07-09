@@ -1,4 +1,4 @@
-
+﻿
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ
 -- =========================================================================
@@ -244,7 +244,7 @@ SET CaptionVN = CASE FieldName
     END,
     FormatID = CASE
         WHEN FieldName IN ('NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayHetHopDong', 'NgayNghiViec', 'NgayDuKienTV', 'DateCreate', 'DateUpdate', 'CMNDNgayCap') THEN 'd'
-        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'GioiTinh') THEN 'sl'
+        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'GioiTinh', 'TitleName', 'ChucDanhChuyenMon') THEN 'sl'
         WHEN FieldName IN ('ChamCong', 'isTaiTuyen') THEN 'sw'
         ELSE 't'
     END,
@@ -252,6 +252,8 @@ SET CaptionVN = CASE FieldName
         WHEN FieldName = 'BranchID'      THEN 'CF_BranchListFrm'
         WHEN FieldName = 'PhongBan'      THEN 'HR_DepartmentListTbl'
         WHEN FieldName = 'ShiftID'       THEN 'API_HR_DropdownShifts'
+        WHEN FieldName = 'TitleName'     THEN 'API_DanhSachChucVu'
+        WHEN FieldName = 'ChucDanhChuyenMon' THEN 'API_DanhSachChucDanh'
         WHEN FieldName = 'GioiTinh'      THEN N'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'
         ELSE NULL
     END,
@@ -398,202 +400,6 @@ BEGIN
     VALUES ('API_PersonAttach', 'HR_PersonAttachTbl', 'UserAutoID');
 END
 GO
-
-        WHEN 'ChamCong'                  THEN 'Has Timekeeping'
-        WHEN 'LoaiHopDong'               THEN 'Contract Type'
-        WHEN 'NgayHetHopDong'            THEN 'Contract Expiry'
-        WHEN 'NguoiLienHe'               THEN 'Emergency Contact'
-        WHEN 'MoiQuanHe'                 THEN 'Relationship'
-        WHEN 'NguoiLienHeSoDT'           THEN 'Contact Phone'
-        WHEN 'FileName'                  THEN 'File Name'
-        WHEN 'Base64Content'             THEN '3x4 Photo'
-        WHEN 'MaNVChamCong'              THEN 'Timekeeping ID'
-        WHEN 'PersonName2'               THEN 'Alias/Other Name'
-        WHEN 'PostionName'               THEN 'Position'
-        WHEN 'NgayNghiViec'              THEN 'Resignation Date'
-        WHEN 'WorkingGroupName'          THEN 'Working Group'
-        WHEN 'DungCuLamViec'             THEN 'Working Tools'
-        WHEN 'GhiChu'                    THEN 'Notes'
-        WHEN 'LocationID'                THEN 'Work Location'
-        WHEN 'NgayDuKienTV'              THEN 'Expected Probation Date'
-        WHEN 'UserCreate'                THEN 'Created By'
-        WHEN 'UserUpdate'                THEN 'Updated By'
-        WHEN 'DateUpdate'                THEN 'Updated Date'
-        WHEN 'DateCreate'                THEN 'Created Date'
-        WHEN 'DiaChiTamTru'              THEN 'Temporary Address'
-        WHEN 'isTaiTuyen'                THEN 'Re-hired'
-        WHEN 'PersonStatusName'          THEN 'Status Name'
-        WHEN 'HonNhan'                   THEN 'Marital Status'
-        WHEN 'CMNDNgayCap'               THEN 'ID Issue Date'
-        WHEN 'CMNDNoiCap'                THEN 'ID Issue Place'
-        WHEN 'NoiSinh'                   THEN 'Place of Birth'
-        WHEN 'PeoplesName'               THEN 'Ethnicity'
-        WHEN 'ReligionName'              THEN 'Religion'
-        WHEN 'Email'                     THEN 'Email'
-        WHEN 'EducationName'             THEN 'Education'
-        WHEN 'Nationality'               THEN 'Nationality'
-        WHEN 'JobName'                   THEN 'Job'
-        WHEN 'CareerName'                THEN 'Career'
-        WHEN 'HospitalName'              THEN 'Hospital'
-        ELSE FieldName
-    END,
-    FormatID = CASE
-        WHEN FieldName IN ('NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayHetHopDong', 'NgayNghiViec', 'NgayDuKienTV', 'DateCreate', 'DateUpdate', 'CMNDNgayCap') THEN 'd'
-        WHEN FieldName IN ('BranchID', 'PhongBan', 'ShiftID', 'GioiTinh') THEN 'sl'
-        WHEN FieldName IN ('ChamCong', 'isTaiTuyen') THEN 'sw'
-        ELSE 't'
-    END,
-    DataSource = CASE
-        WHEN FieldName = 'BranchID'      THEN 'CF_BranchListFrm'
-        WHEN FieldName = 'PhongBan'      THEN 'HR_DepartmentListTbl'
-        WHEN FieldName = 'ShiftID'       THEN 'API_HR_DropdownShifts'
-        WHEN FieldName = 'GioiTinh'      THEN N'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'
-        ELSE NULL
-    END,
-    FormPosition = CASE 
-        -- CÁC TRƯỜNG QUAN TRỌNG: Hiển thị trên Danh sách (Grid) VÀ trên Form chia 2 cột ('grid|6')
-        WHEN FieldName IN (
-            'PersonID', 'PersonName', 'GioiTinh', 'NgaySinh', 'CMND', 'DienThoai', 
-            'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 
-            'NgayVaoLam', 'PersonStatusName', 'SoHopDong', 'BankAccountNo', 'BankName', 'PeoplesName', 'ReligionName', 'Nationality'
-        ) THEN 'grid|6'
-        -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Danh sách, CHỈ hiển thị trên Form chia 2 cột ('6')
-        ELSE '6'
-    END,
-    ShowInAdd  = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 0 ELSE 1 END,
-    ShowInEdit = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 0 ELSE 1 END,
-    IsReadOnlyAdd  = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 1 ELSE 0 END,
-    IsReadOnlyEdit = CASE WHEN FieldName IN ('PersonID', 'UserCreate', 'UserUpdate', 'DateUpdate', 'DateCreate', 'PersonStatusName') THEN 1 ELSE 0 END,
-    IsRequired     = 0,
-    ShowInFilter   = 0,
-    OrderNo = CASE FieldName
-        WHEN 'PersonID'                  THEN 1
-        WHEN 'PersonName'                THEN 2
-        WHEN 'GioiTinh'                  THEN 3
-        WHEN 'PhongBan'                  THEN 4
-        WHEN 'TitleName'                 THEN 5
-        WHEN 'ChucDanhChuyenMon'         THEN 6
-        WHEN 'NgaySinh'                  THEN 7
-        WHEN 'CMND'                      THEN 8
-        WHEN 'DiaChiThuongTru'           THEN 9
-        WHEN 'NgayVaoLam'                THEN 10
-        WHEN 'BranchID'                  THEN 11
-        WHEN 'NgayHopDong'               THEN 12
-        WHEN 'NationName'                THEN 13
-        WHEN 'SoHopDong'                 THEN 14
-        WHEN 'DienThoai'                 THEN 15
-        WHEN 'NewPersonID'               THEN 17
-        WHEN 'CardNo'                    THEN 18
-        WHEN 'ProvineName'               THEN 19
-        WHEN 'DiaChiHienNay'             THEN 20
-        WHEN 'Quanly'                    THEN 21
-        WHEN 'NgayThuViec'               THEN 22
-        WHEN 'BankHolder'                THEN 23
-        WHEN 'BankAccountNo'             THEN 24
-        WHEN 'BankName'                  THEN 25
-        WHEN 'BankLocation'              THEN 26
-        WHEN 'SocialID'                  THEN 27
-        WHEN 'SocialDate'                THEN 28
-        WHEN 'NgayKetThucBH'             THEN 29
-        WHEN 'ShiftID'                   THEN 30
-        WHEN 'SoTheBHYT'                 THEN 31
-        WHEN 'ThoiGianHuongBHYT'         THEN 32
-        WHEN 'NoiDangKyBHYT'             THEN 33
-        WHEN 'ChamCong'                  THEN 34
-        WHEN 'LoaiHopDong'               THEN 35
-        WHEN 'NgayHetHopDong'            THEN 36
-        WHEN 'NguoiLienHe'               THEN 37
-        WHEN 'MoiQuanHe'                 THEN 38
-        WHEN 'NguoiLienHeSoDT'           THEN 39
-        WHEN 'MaNVChamCong'              THEN 40
-        WHEN 'PersonName2'               THEN 41
-        WHEN 'PostionName'               THEN 42
-        WHEN 'WorkingGroupName'          THEN 43
-        WHEN 'LocationID'                THEN 44
-        WHEN 'DiaChiTamTru'              THEN 45
-        WHEN 'NgayNghiViec'              THEN 46
-        WHEN 'DungCuLamViec'             THEN 47
-        WHEN 'GhiChu'                    THEN 48
-        WHEN 'NgayDuKienTV'              THEN 49
-        WHEN 'isTaiTuyen'                THEN 50
-        WHEN 'PersonStatusName'          THEN 16
-        WHEN 'UserCreate'                THEN 52
-        WHEN 'DateCreate'                THEN 53
-        WHEN 'UserUpdate'                THEN 54
-        WHEN 'DateUpdate'                THEN 55
-        WHEN 'FileName'                  THEN 57
-        WHEN 'Base64Content'             THEN 58
-        ELSE 99
-    END
-WHERE FormName = 'WA_PersonFullFrm';
-GO
-
--- =========================================================================
--- 6. THÊM MENU VÀO HỆ THỐNG WEB (WA_Menu) — MenuID 2010
--- =========================================================================
-INSERT INTO dbo.WA_Menu (MenuID, Parent, VN, EN, FormName, FormKey, URLPara, IconClass, isDisable)
-VALUES (
-    '2010',
-    '20',
-    N'Hồ sơ nhân viên tổng hợp',
-    'General Employee Profile',
-    'WA_PersonFullFrm',
-    'WA_PERSONFULLFRM',
-    '#/2010',
-    'assignment_ind',
-    0
-);
-GO
-
-EXEC dbo.API_DongBoQuyenTruyCap;
-GO
-
-PRINT 'Da thiet lap WA_PersonFullFrm (Ho so nhan vien tong hop) voi MenuID 2010 thanh cong!';
-GO
-
--- Thêm các cột ảo dùng cho bộ lọc
-IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD')
-BEGIN
-    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
-    VALUES ('WA_PersonFullFrm', 'LoaiHD', N'Loại HĐ', 'Contract Type', 'sl', 0, 'grid', 0, 0, 0, 0, 100, 1, 'API_DanhSachLoaiHD')
-END
-ELSE BEGIN
-    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_DanhSachLoaiHD' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD'
-END
-
-IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'NamLap')
-BEGIN
-    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
-    VALUES ('WA_PersonFullFrm', 'NamLap', N'Năm Lập', 'Year', 'sl', 0, 'grid', 0, 0, 0, 0, 101, 1, 'API_HopDongLaoDong_NamLap')
-END
-ELSE BEGIN
-    UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_HopDongLaoDong_NamLap' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'NamLap'
-END
-
--- Đảm bảo Chi nhánh hiện bộ lọc
-UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'CF_BranchListFrm' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'BranchID'
-
--- Đảm bảo PersonStatus hiện bộ lọc
-IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus')
-BEGIN
-    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)
-    VALUES ('WA_PersonFullFrm', 'PersonStatus', N'Trạng thái', 'Status', 'sl', 0, 'grid', 0, 0, 0, 0, 102, 1, 'API_ComboPersonStatus')
-END
-ELSE BEGIN
-    UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trạng thái', CaptionEN = 'Status', ShowInFilter = 1, DataSource = 'API_ComboPersonStatus', FormatID = 'sl' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus'
-END
-GO
-
--- =========================================================================
--- ĐĂNG KÝ VIEW CHO API_PersonAttach
--- =========================================================================
-IF NOT EXISTS (SELECT 1 FROM dbo.SY_FrmLstTbl WHERE FormID = 'API_PersonAttach')
-BEGIN
-    INSERT INTO dbo.SY_FrmLstTbl (FormID, TableName, PrimaryKey)
-    VALUES ('API_PersonAttach', 'HR_PersonAttachTbl', 'UserAutoID');
-END
-GO
-
 IF NOT EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = 'API_PersonAttach' AND func = 'View')
 BEGIN
     INSERT INTO dbo.WA_API (list, func, [SQL], Para)

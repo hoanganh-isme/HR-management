@@ -58,6 +58,20 @@
   line-height: 1.4;
 }
 
+/* Soft UI cho chế độ 1 cột (giống select list mobile) */
+.dropdown-table.single-column td {
+  padding: 10px 14px;
+  border-bottom: none;
+  font-weight: 500;
+  white-space: normal;
+}
+.dropdown-table.single-column tbody tr {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.dropdown-table.single-column tbody tr:last-child {
+  border-bottom: none;
+}
+
 /* Nổi bật cột chính (ví dụ Tên nhân viên/Tên hàng) */
 .dropdown-table td.highlight-col {
   font-weight: 600;
