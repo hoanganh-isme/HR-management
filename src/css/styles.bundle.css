@@ -1,4 +1,4 @@
-/* --- design-tokens.css --- */
+﻿/* --- design-tokens.css --- */
 /* ═══════════════════════════════════════════
    Design Tokens — TailAdmin Style
    Dành cho Quản lý Tiệc Cưới
@@ -2294,11 +2294,490 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
 /* --- dashboard.css --- */
 /* ═══════════════════════════════════════════
    DASHBOARD LAYOUT CSS
-   Chỉ chứa grid layout classes đặc thù của dashboard
+   Chỉ chứa grid layout classes đặc thù của dashboard.
+   Không dùng inline styles trong JS — tất cả layout qua class.
    Các visual styles đã chuyển sang component CSS:
      - compare-badge.css, metric-card.css, sparkline.css
-   - kv-table.css, hall-gauge.css, section-panel.css
+     - kv-table.css, hall-gauge.css, section-panel.css
    ═══════════════════════════════════════════ */
+
+/* ─── WARNING BANNER ─── */
+.db-warning-banner {
+  display: flex;
+  align-items: center;
+  background-color: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  gap: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.db-warning-icon {
+  color: var(--color-danger, #f43f5e);
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.db-warning-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.db-warning-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  color: var(--color-danger, #f43f5e);
+  border: 1px solid rgba(244, 63, 94, 0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.db-warning-btn:hover {
+  background-color: rgba(244, 63, 94, 0.05);
+}
+
+/* ─── HEADER CONTROLS: Tab switcher + Filter dropdown ─── */
+.db-header-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;               /* Cho phép xuống dòng trên màn hình nhỏ */
+  gap: 10px 16px;                /* row-gap col-gap */
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Tab switcher — cuộn ngang trên mobile khi quá nhiều tabs */
+.db-tab-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;         /* Ẩn scrollbar Firefox */
+  -ms-overflow-style: none;      /* Ẩn scrollbar IE */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.db-tab-switcher::-webkit-scrollbar {
+  display: none;                 /* Ẩn scrollbar Chrome/Safari */
+}
+
+/* Tab button — không bị shrink để tránh bị thu nhỏ text */
+.db-tab-switcher .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md, 8px);
+}
+
+/* Filter wrapper */
+.db-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.db-filter-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.db-filter-select {
+  width: 170px;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md, 8px);
+  border-color: var(--color-border);
+}
+
+/* ─── TODAY GRID: 5 metric cards ngang liền mạch ─── */
+.db-today-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1.3fr 1fr 1fr 1fr;
+}
+
+/* Mỗi cell có border phải */
+.db-today-grid > * {
+  border-right: 1px solid var(--color-border);
+}
+.db-today-grid > *:last-child {
+  border-right: none;
+}
+
+/* ─── DEMOGRAPHICS GRID: 3 pie charts ─── */
+.db-demographics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* ─── DEPARTMENT GRID: 2 bar charts ─── */
+.db-department-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+/* Chart wrapper chiều cao tự nhiên — thay cho inline height */
+.db-chart-wrap {
+  width: 100%;
+  height: 180px;
+  position: relative;
+  padding: 8px 0;
+}
+
+.db-chart-wrap--tall {
+  width: 100%;
+  height: 360px;
+  position: relative;
+  padding: 12px 16px 8px;
+}
+
+/* Tiêu đề chart trong card */
+.db-chart-title {
+  margin: 0 0 14px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ─── REVENUE GRID: Lương — 3 cột ─── */
+.db-revenue-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.5fr;
+}
+
+.db-revenue-grid > * {
+  border-right: 1px solid var(--color-border);
+}
+.db-revenue-grid > *:last-child {
+  border-right: none;
+}
+
+.db-revenue-main {
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.db-revenue-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.db-revenue-value {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--color-text);
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.db-revenue-compare {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-compare-text {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.db-revenue-stat-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.db-rev-stat-item {
+  padding: 16px 20px;
+  flex: 1;
+}
+
+.db-rev-stat-divider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+.db-rev-stat-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.db-rev-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text);
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+}
+
+.db-rev-stat-value.success { color: var(--color-success); }
+
+.db-rev-stat-compare {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.db-rev-stat-sub {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+/* ─── BOTTOM GRID: Sinh nhật + Hợp đồng ─── */
+.db-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* .card trong bottom-grid: bỏ margin-bottom mặc định (gap đã xử lý) */
+.db-bottom-grid > .card {
+  margin-bottom: 0;
+}
+
+/* ════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   Sử dụng min-width strategy (mobile-first)
+   ════════════════════════════════════════════ */
+
+/* ─── Tablet lớn: ≤ 1300px ─── */
+@media (max-width: 1300px) {
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .db-revenue-grid {
+    grid-template-columns: 1.5fr 1fr 1fr;
+  }
+
+  .db-demographics-grid {
+    grid-template-columns: repeat(3, 1fr); /* Giữ nguyên */
+  }
+}
+
+/* ─── Tablet: ≤ 1024px ─── */
+@media (max-width: 1024px) {
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .db-department-grid {
+    grid-template-columns: 1fr; /* Stack dọc */
+  }
+
+  .db-chart-wrap--tall {
+    height: 280px;
+  }
+
+  .db-bottom-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ─── Mobile lớn: ≤ 900px ─── */
+@media (max-width: 900px) {
+  /* Header controls: wrap xuống dòng */
+  .db-header-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .db-tab-switcher {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .db-filter-wrap {
+    width: 100%;
+  }
+
+  .db-filter-select {
+    flex: 1;
+    width: 100%;
+  }
+
+  /* Metric grid: 2 cột */
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Demographics: 1 cột dọc */
+  .db-demographics-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Department: 1 cột dọc */
+  .db-department-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Revenue: stack dọc */
+  .db-revenue-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .db-revenue-main {
+    border-right: none !important;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .db-revenue-stat-col {
+    border-right: none !important;
+    flex-direction: row;
+  }
+
+  .db-rev-stat-divider {
+    width: 1px;
+    height: auto;
+  }
+
+  .db-rev-stat-item {
+    flex: 1;
+  }
+
+  /* Bottom: 1 cột */
+  .db-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Mobile nhỏ: ≤ 600px ─── */
+@media (max-width: 600px) {
+  .db-tab-switcher .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  /* Metric grid: dùng border trick để tách cell */
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  /* Card lẻ cuối cùng span full width */
+  .db-today-grid > *:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .db-today-grid > * {
+    border: none !important;
+    background: var(--color-surface);
+  }
+
+  /* Demographics: 2 cột nhỏ trên mobile — tẫt hơn 1 cột dọc dài */
+  .db-demographics-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Card biểu đồ tròn không có padding dư */
+  .db-demographics-grid .hr-widget-card {
+    padding: 10px 6px;
+  }
+
+  /* Chart wrapper — đủ cao cho donut + legend */
+  .db-chart-wrap {
+    height: 160px;
+  }
+
+  .db-chart-wrap--tall {
+    height: 200px;
+    padding: 8px 8px 4px;
+  }
+
+  /* Department: giữ 1 cột */
+  .db-department-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Revenue */
+  .db-revenue-value {
+    font-size: 22px;
+  }
+
+  .db-revenue-main {
+    padding: 16px 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Warning banner */
+  .db-warning-banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+
+  .db-warning-icon {
+    font-size: 20px;
+    margin-top: 2px;
+  }
+
+  .db-warning-text {
+    flex: 1 1 calc(100% - 36px);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+
+  .db-warning-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    margin-top: 2px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* Tiêu đề chart — nhỏ hơn trên mobile */
+  .db-chart-title {
+    font-size: 10px;
+    margin-bottom: 8px;
+    letter-spacing: 0.2px;
+  }
+}
+
 
 /* ─── WARNING BANNER ─── */
 .db-warning-banner {
@@ -2351,11 +2830,10 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
 }
 
 /* Mỗi cell có border phải */
-.db-today-grid>* {
+.db-today-grid > * {
   border-right: 1px solid var(--color-border);
 }
-
-.db-today-grid>*:last-child {
+.db-today-grid > *:last-child {
   border-right: none;
 }
 
@@ -2371,11 +2849,10 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   grid-template-columns: 2fr 1.5fr 1.5fr;
 }
 
-.db-revenue-grid>* {
+.db-revenue-grid > * {
   border-right: 1px solid var(--color-border);
 }
-
-.db-revenue-grid>*:last-child {
+.db-revenue-grid > *:last-child {
   border-right: none;
 }
 
@@ -2445,9 +2922,7 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   letter-spacing: -0.5px;
 }
 
-.db-rev-stat-value.success {
-  color: var(--color-success);
-}
+.db-rev-stat-value.success { color: var(--color-success); }
 
 .db-rev-stat-compare {
   display: flex;
@@ -2471,7 +2946,7 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
 }
 
 /* .card trong bottom-grid: bỏ margin-bottom mặc định (gap đã xử lý) */
-.db-bottom-grid>.card {
+.db-bottom-grid > .card {
   margin-bottom: 0;
 }
 
@@ -2481,91 +2956,53 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
     grid-template-columns: 1fr 1fr 1fr 1fr;
     grid-template-rows: auto auto;
   }
-
   .db-today-hall-cell {
     grid-column: 3 / 5;
     border-right: none;
   }
-
   .db-revenue-grid {
     grid-template-columns: 1.5fr 1fr 1fr;
   }
-
   .db-bottom-grid {
     grid-template-columns: 1fr 1fr;
   }
-
   .db-bottom-grid .section-panel:last-child {
     grid-column: 1 / 3;
   }
 }
 
 @media (max-width: 900px) {
-  .db-today-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .db-today-hall-cell {
-    grid-column: 1 / 3;
-    border-right: none;
-  }
-
-  .db-revenue-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .db-revenue-main {
-    border-right: none !important;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .db-revenue-stat-col {
-    border-right: none !important;
-    flex-direction: row;
-  }
-
-  .db-rev-stat-divider {
-    width: 1px;
-    height: auto;
-  }
-
-  .db-rev-stat-item {
-    flex: 1;
-  }
-
-  .db-bottom-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .db-bottom-grid .section-panel:last-child {
-    grid-column: 1;
-  }
+  .db-today-grid { grid-template-columns: 1fr 1fr; }
+  .db-today-hall-cell { grid-column: 1 / 3; border-right: none; }
+  .db-revenue-grid { grid-template-columns: 1fr; }
+  .db-revenue-main { border-right: none !important; border-bottom: 1px solid var(--color-border); }
+  .db-revenue-stat-col { border-right: none !important; flex-direction: row; }
+  .db-rev-stat-divider { width: 1px; height: auto; }
+  .db-rev-stat-item { flex: 1; }
+  .db-bottom-grid { grid-template-columns: 1fr; }
+  .db-bottom-grid .section-panel:last-child { grid-column: 1; }
 }
 
 @media (max-width: 600px) {
-  .db-today-grid {
-    grid-template-columns: 1fr 1fr;
+  .db-today-grid { 
+    grid-template-columns: 1fr 1fr; 
     gap: 1px;
     background: var(--color-border);
     border-bottom: 1px solid var(--color-border);
   }
-
-  .db-today-hall-cell {
-    grid-column: 1 / 3;
+  .db-today-hall-cell { 
+    grid-column: 1 / 3; 
   }
-
-  .db-today-grid>* {
-    border: none !important;
+  .db-today-grid > * { 
+    border: none !important; 
     background: var(--color-surface);
   }
-
+  
   .db-revenue-main {
     padding: 16px 6px !important;
   }
-
-  .db-revenue-value {
-    font-size: 22px;
-  }
+  
+  .db-revenue-value { font-size: 22px; }
 
   .db-warning-banner {
     flex-wrap: wrap;

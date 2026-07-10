@@ -244,11 +244,33 @@ var DashboardPage = (function () {
     if (typeof Chart !== 'undefined') {
       if (canvas._chartInstance) canvas._chartInstance.destroy();
       var isDark = document.body.classList.contains('dark-theme');
+      var isMobile = window.innerWidth <= 600;
       var colors = ['#4F46E5', '#10B981', '#F59E0B', '#0EA5E9', '#F43F5E', '#8B5CF6'];
       canvas._chartInstance = new Chart(canvas, {
         type: 'doughnut',
         data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: isDark ? 2 : 1, borderColor: isDark ? '#1e293b' : '#ffffff' }] },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: {
+            legend: {
+              display: true,
+              position: 'bottom',
+              labels: {
+                boxWidth: isMobile ? 8 : 10,
+                boxHeight: isMobile ? 8 : 10,
+                padding: isMobile ? 6 : 10,
+                font: { size: isMobile ? 9 : 11 },
+                // Wrap legend nếu text quá dài
+                usePointStyle: true
+              }
+            }
+          },
+          layout: {
+            padding: { left: 4, right: 4, top: 0, bottom: 0 }
+          }
+        }
       });
     }
   }
@@ -322,33 +344,45 @@ var DashboardPage = (function () {
   HROverviewTemplate.prototype.buildDemographicsSection = function () {
     var self = this;
     var sp = SectionPanel.create({ icon: 'pie_chart', title: 'CƠ CẤU NHÂN SỰ' });
+    // Dùng CSS class — không hard code inline style
     var grid = document.createElement('div');
-    grid.className = 'db-revenue-grid';
-    grid.style.cssText = 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;';
+    grid.className = 'db-demographics-grid';
 
-    // Giới tính
-    var genderCol = document.createElement('div'); genderCol.className = 'hr-widget-card'; genderCol.style.padding = '15px';
-    genderCol.innerHTML = '<h4 style="margin: 0 0 16px 0; font-size: 13px; color: var(--color-text-secondary); text-align: center;">Theo Giới tính</h4>';
-    var genderWrap = document.createElement('div'); genderWrap.style.cssText = 'width: 100%; height: 160px; position: relative; margin: 0 auto;';
+    // ── Giới tính
+    var genderCol = document.createElement('div');
+    genderCol.className = 'hr-widget-card';
+    genderCol.innerHTML = '<h4 class="db-chart-title">Theo Giới tính</h4>';
+    var genderWrap = document.createElement('div');
+    genderWrap.className = 'db-chart-wrap';
     this.refs.genderCanvas = document.createElement('canvas');
-    genderWrap.appendChild(this.refs.genderCanvas); genderCol.appendChild(genderWrap);
+    genderWrap.appendChild(this.refs.genderCanvas);
+    genderCol.appendChild(genderWrap);
 
-    // Độ tuổi
-    var ageCol = document.createElement('div'); ageCol.className = 'hr-widget-card'; ageCol.style.padding = '15px';
-    ageCol.innerHTML = '<h4 style="margin: 0 0 16px 0; font-size: 13px; color: var(--color-text-secondary); text-align: center;">Theo Độ tuổi</h4>';
-    var ageWrap = document.createElement('div'); ageWrap.style.cssText = 'width: 100%; height: 160px; position: relative; margin: 0 auto;';
+    // ── Độ tuổi
+    var ageCol = document.createElement('div');
+    ageCol.className = 'hr-widget-card';
+    ageCol.innerHTML = '<h4 class="db-chart-title">Theo Độ tuổi</h4>';
+    var ageWrap = document.createElement('div');
+    ageWrap.className = 'db-chart-wrap';
     this.refs.ageCanvas = document.createElement('canvas');
-    ageWrap.appendChild(this.refs.ageCanvas); ageCol.appendChild(ageWrap);
+    ageWrap.appendChild(this.refs.ageCanvas);
+    ageCol.appendChild(ageWrap);
 
-    // Hợp đồng
-    var typeCol = document.createElement('div'); typeCol.className = 'hr-widget-card'; typeCol.style.padding = '15px';
-    typeCol.innerHTML = '<h4 style="margin: 0 0 16px 0; font-size: 13px; color: var(--color-text-secondary); text-align: center;">Theo Loại Hợp Đồng</h4>';
-    var typeWrap = document.createElement('div'); typeWrap.style.cssText = 'width: 100%; height: 160px; position: relative; margin: 0 auto;';
+    // ── Loại Hợp Đồng
+    var typeCol = document.createElement('div');
+    typeCol.className = 'hr-widget-card';
+    typeCol.innerHTML = '<h4 class="db-chart-title">Theo Loại Hợp Đồng</h4>';
+    var typeWrap = document.createElement('div');
+    typeWrap.className = 'db-chart-wrap';
     this.refs.typeCanvas = document.createElement('canvas');
-    typeWrap.appendChild(this.refs.typeCanvas); typeCol.appendChild(typeWrap);
+    typeWrap.appendChild(this.refs.typeCanvas);
+    typeCol.appendChild(typeWrap);
 
-    grid.appendChild(genderCol); grid.appendChild(ageCol); grid.appendChild(typeCol);
-    sp.body.appendChild(grid); this.root.appendChild(sp.panel);
+    grid.appendChild(genderCol);
+    grid.appendChild(ageCol);
+    grid.appendChild(typeCol);
+    sp.body.appendChild(grid);
+    this.root.appendChild(sp.panel);
 
     HRDataService.getDemographicsData().then(function (d) {
       _drawPie(self.refs.genderCanvas, d.gender.labels, d.gender.values);
@@ -361,20 +395,29 @@ var DashboardPage = (function () {
     var self = this;
     var sp = SectionPanel.create({ icon: 'corporate_fare', title: 'PHÂN BỔ THEO PHÒNG BAN & CHI NHÁNH' });
 
+    // Dùng CSS class — không hard code inline style
     var grid = document.createElement('div');
-    grid.style.cssText = 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;';
+    grid.className = 'db-department-grid';
 
-    var deptCol = document.createElement('div'); deptCol.className = 'hr-widget-card'; deptCol.style.padding = '20px';
-    deptCol.innerHTML = '<h4 style="margin: 0 0 16px 0; font-size: 14px; color: var(--color-text-secondary); text-align: center;">Theo Phòng Ban</h4>';
-    var deptWrap = document.createElement('div'); deptWrap.style.cssText = 'padding:12px 16px 8px; height:380px; position:relative;';
+    // ── Theo Phòng Ban
+    var deptCol = document.createElement('div');
+    deptCol.className = 'hr-widget-card';
+    deptCol.innerHTML = '<h4 class="db-chart-title">Theo Phòng Ban</h4>';
+    var deptWrap = document.createElement('div');
+    deptWrap.className = 'db-chart-wrap--tall';
     this.refs.deptCanvas = document.createElement('canvas');
-    deptWrap.appendChild(this.refs.deptCanvas); deptCol.appendChild(deptWrap);
+    deptWrap.appendChild(this.refs.deptCanvas);
+    deptCol.appendChild(deptWrap);
 
-    var branchCol = document.createElement('div'); branchCol.className = 'hr-widget-card'; branchCol.style.padding = '20px';
-    branchCol.innerHTML = '<h4 style="margin: 0 0 16px 0; font-size: 14px; color: var(--color-text-secondary); text-align: center;">Theo Chi Nhánh</h4>';
-    var branchWrap = document.createElement('div'); branchWrap.style.cssText = 'padding:12px 16px 8px; height:380px; position:relative;';
+    // ── Theo Chi Nhánh
+    var branchCol = document.createElement('div');
+    branchCol.className = 'hr-widget-card';
+    branchCol.innerHTML = '<h4 class="db-chart-title">Theo Chi Nhánh</h4>';
+    var branchWrap = document.createElement('div');
+    branchWrap.className = 'db-chart-wrap--tall';
     this.refs.branchCanvas = document.createElement('canvas');
-    branchWrap.appendChild(this.refs.branchCanvas); branchCol.appendChild(branchWrap);
+    branchWrap.appendChild(this.refs.branchCanvas);
+    branchCol.appendChild(branchWrap);
 
     grid.appendChild(deptCol);
     grid.appendChild(branchCol);
@@ -513,12 +556,12 @@ var DashboardPage = (function () {
   // ── Template Switcher & Global Filters UI ────────────────────────
   function _buildHeaderControls(container) {
     var headerRow = document.createElement('div');
-    headerRow.className = 'dashboard-header-controls';
-    headerRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px;';
+    // Dùng CSS class — không hard code inline style
+    headerRow.className = 'db-header-controls';
 
     // Switcher Tabs
     var switcher = document.createElement('div');
-    switcher.style.cssText = 'display: flex; gap: 10px;';
+    switcher.className = 'db-tab-switcher';
 
     var templates = [
       { id: 'overview', name: 'Tổng quan', icon: 'dashboard', classRef: HROverviewTemplate },
@@ -530,7 +573,6 @@ var DashboardPage = (function () {
       var btn = document.createElement('button');
       btn.className = 'btn ' + (tpl.id === 'overview' ? 'btn-primary' : 'btn-outline');
       btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px; margin-right:6px; vertical-align:middle;">' + tpl.icon + '</span>' + tpl.name;
-      btn.style.cssText = 'display: flex; align-items: center; border-radius: var(--radius-md);';
 
       btn.onclick = function () {
         Array.from(switcher.children).forEach(function (c) { c.classList.remove('btn-primary'); c.classList.add('btn-outline'); });
@@ -544,11 +586,14 @@ var DashboardPage = (function () {
 
     // Filter Branch Dropdown
     var filterWrap = document.createElement('div');
-    filterWrap.style.cssText = 'display: flex; align-items: center; gap: 8px;';
-    filterWrap.innerHTML = '<span style="font-size:13px; color:var(--color-text-secondary); font-weight:500;">Lọc chi nhánh:</span>';
+    filterWrap.className = 'db-filter-wrap';
+    var filterLabel = document.createElement('span');
+    filterLabel.className = 'db-filter-label';
+    filterLabel.textContent = 'Lọc chi nhánh:';
+    filterWrap.appendChild(filterLabel);
+
     var branchSelect = document.createElement('select');
-    branchSelect.className = 'form-control';
-    branchSelect.style.cssText = 'width: 180px; font-size: 13px; padding: 6px 12px; border-radius: var(--radius-md); border-color: var(--color-border);';
+    branchSelect.className = 'form-control db-filter-select';
     branchSelect.innerHTML = '<option value="">Tất cả Chi nhánh</option>';
 
     branchSelect.onchange = function (e) {
