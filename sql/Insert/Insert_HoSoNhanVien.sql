@@ -262,7 +262,7 @@ SET CaptionVN = CASE FieldName
         WHEN FieldName IN (
             'PersonID', 'PersonName', 'GioiTinh', 'NgaySinh', 'CMND', 'DienThoai', 
             'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 
-            'NgayVaoLam', 'PersonStatusName', 'SoHopDong', 'BankAccountNo', 'BankName', 'PeoplesName', 'ReligionName', 'Nationality'
+            'NgayVaoLam', 'PersonStatusName', 'SoHopDong', 'BankAccountNo', 'BankName', 'PeoplesName', 'ReligionName', 'NationName'
         ) THEN 'grid|6'
         -- CÁC TRƯỜNG CHI TIẾT CHUYÊN SÂU: Ẩn khỏi Danh sách, CHỈ hiển thị trên Form chia 2 cột ('6')
         ELSE '6'
