@@ -126,7 +126,7 @@ var Router = (function () {
   var _currentRoute = null;
   var _loadedScripts = {};
   var _templateCache = {};
-  var _appVersion = '2.13'; // Bump để làm mới cache html/script động
+  var _appVersion = '2.15'; // Bump để làm mới cache html/script động
   var _navId = 0; // Token chặn race-condition
 
   // ── Template cache (dùng chung cho cả Router lẫn Page modules) ─────────

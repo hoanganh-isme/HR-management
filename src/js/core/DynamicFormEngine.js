@@ -2084,23 +2084,7 @@ window.DynamicFormEngine = (function () {
       globalFormSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
       var renderers = Object.assign({}, customRenderers);
 
-      var hlFields = {
-        'PersonID': 'font-weight: 600; color: var(--color-primary);',
-        'personid': 'font-weight: 600; color: var(--color-primary);',
-        'CMND': 'font-weight: 600; color: var(--color-danger); letter-spacing: 0.5px;',
-        'cmnd': 'font-weight: 600; color: var(--color-danger); letter-spacing: 0.5px;',
-        'DienThoai': 'font-weight: 600; color: var(--color-info); letter-spacing: 0.5px;',
-        'dienthoai': 'font-weight: 600; color: var(--color-info); letter-spacing: 0.5px;',
-        'SoHopDong': 'font-weight: 600; color: var(--color-warning);',
-        'sohopdong': 'font-weight: 600; color: var(--color-warning);'
-      };
-      for (var k in hlFields) {
-        if (!renderers[k]) {
-          renderers[k] = (function (style) {
-            return function (v) { return '<span style="' + style + '">' + (v || '') + '</span>'; };
-          })(hlFields[k]);
-        }
-      }
+
 
 
       var tabulatorColumns = [];
@@ -2339,14 +2323,33 @@ window.DynamicFormEngine = (function () {
             return lazyCombo;
           };
 
+          var isEditable = true;
+          if (typeof MODULE_CONFIG !== 'undefined') {
+            if ((MODULE_CONFIG.FormType || '').toUpperCase() === 'REPORT') isEditable = false;
+            if ((MODULE_CONFIG.FormName || '').toUpperCase().indexOf('REPORT') > -1) isEditable = false;
+          }
+          if (f.ShowInEdit == 0 || f.IsReadOnlyEdit == 1) isEditable = false;
+
+          var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n';
+
           var colDef = {
             title: dictionary[fieldName] || fieldName,
             field: actualField,
-            editor: isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input"),
+            editor: isEditable ? (isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input")) : false,
             maxWidth: 400, // UX: Giới hạn độ rộng tối đa để text dài (như Mô tả) không đẩy vỡ khung Grid
             tooltip: true  // UX: Cho phép xem đầy đủ text khi hover chuột vào ô bị cắt chữ (...)
             // Đã loại bỏ headerFilter: "input" để header gọn gàng, người dùng sẽ xài Popup lọc dữ liệu thay thế
           };
+
+          if (isNumeric) {
+            colDef.bottomCalc = "sum";
+            colDef.bottomCalcFormatter = function (cell) {
+              var val = cell.getValue();
+              var n = parseFloat(val);
+              return isNaN(n) ? (val || '') : n.toLocaleString('vi-VN');
+            };
+            colDef.hozAlign = "right"; // Canh lề phải cho cột số
+          }
 
           // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {
@@ -2361,16 +2364,55 @@ window.DynamicFormEngine = (function () {
               var data = cell.getData();
               var val = cell.getValue();
               var text = data.PersonStatusName || data.personstatusname || val;
+              if (!text && !val) return '';
 
-              // Tô màu cơ bản cho trạng thái
-              var color = 'inherit';
-              if (String(val) === '1') color = 'var(--color-success, #10b981)';
-              else if (String(val) === '4' || String(val) === '8' || String(val) === '9') color = 'var(--color-danger, #ef4444)';
-              else if (String(val) === '2') color = 'var(--color-warning, #f59e0b)';
-              else if (String(val) === '3') color = 'var(--color-info, #3b82f6)';
+              var badgeClass = 'badge-info';
+              var textLower = String(text).toLowerCase();
+              if (String(val) === '1' || textLower.includes('chính thức') || textLower.includes('hoạt động') || textLower.includes('thành công')) badgeClass = 'badge-active';
+              else if (String(val) === '4' || String(val) === '8' || String(val) === '9' || textLower.includes('nghỉ') || textLower.includes('thôi việc') || textLower.includes('hủy') || textLower.includes('xóa')) badgeClass = 'badge-danger';
+              else if (String(val) === '2' || textLower.includes('thử việc') || textLower.includes('tạm hoãn') || textLower.includes('chờ')) badgeClass = 'badge-warning';
+              else if (String(val) === '3' || textLower.includes('thực tập') || textLower.includes('mới')) badgeClass = 'badge-info';
 
-              return '<span style="color: ' + color + '; font-weight: 500;">' + text + '</span>';
+              return '<span class="badge-status ' + badgeClass + '">' + (text || '') + '</span>';
             };
+          }
+
+          // Smart UI/UX Defaults (Kế thừa cho toàn bộ lưới nếu không bị ghi đè)
+          if (!colDef.formatter) {
+            var fName = actualField.toLowerCase();
+            var title = (colDef.title || '').toLowerCase();
+
+            if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid' || fName === 'personid' || title.includes('mã nhân viên')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
+            } else if (fName.includes('dienthoai') || fName.includes('phone') || fName.includes('sdt') || title.includes('điện thoại')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
+            } else if (fName.includes('email') || title.includes('email')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
+              colDef.formatter = function (cell) {
+                var v = cell.getValue();
+                if (!v) return '';
+                return '<a href="mailto:' + v + '">' + v + '</a>';
+              };
+            } else if (fName.includes('cmnd') || fName.includes('cccd') || fName.includes('idcard') || title.includes('cmnd') || title.includes('cccd')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-danger';
+            } else if (fName.includes('trangthai') || fName.includes('status') || title.includes('trạng thái')) {
+              colDef.formatter = function (cell) {
+                var v = cell.getValue();
+                if (!v && v !== 0) return '';
+                var textLower = String(v).toLowerCase();
+                var badgeClass = 'badge-info';
+
+                if (textLower.includes('chính thức') || textLower.includes('đã ký') || textLower.includes('hoàn thành') || textLower.includes('success') || textLower.includes('active') || textLower.includes('đạt') || textLower.includes('duyệt') || textLower.includes('đồng ý')) {
+                  badgeClass = 'badge-active';
+                } else if (textLower.includes('nghỉ') || textLower.includes('hủy') || textLower.includes('từ chối') || textLower.includes('khóa') || textLower.includes('fail') || textLower.includes('lỗi') || textLower.includes('không đạt')) {
+                  badgeClass = 'badge-danger';
+                } else if (textLower.includes('thử việc') || textLower.includes('chờ') || textLower.includes('pending') || textLower.includes('tạm') || textLower.includes('đang')) {
+                  badgeClass = 'badge-warning';
+                }
+
+                return '<span class="badge-status ' + badgeClass + '">' + v + '</span>';
+              };
+            }
           }
 
           if (renderers[fieldName]) {
@@ -2489,6 +2531,31 @@ window.DynamicFormEngine = (function () {
 
         var endpoint = MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router';
         if (!endpoint) return;
+
+        var schema = null;
+        if (globalFormSchema) {
+          schema = globalFormSchema.find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
+        }
+
+        var isReport = false;
+        if (typeof MODULE_CONFIG !== 'undefined') {
+          if ((MODULE_CONFIG.FormType || '').toUpperCase() === 'REPORT') isReport = true;
+          if ((MODULE_CONFIG.FormName || '').toUpperCase().indexOf('REPORT') > -1) isReport = true;
+        }
+
+        // Chặn chỉnh sửa và thông báo thân thiện đối với Form dạng REPORT
+        if (isReport) {
+          if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Dữ liệu trên báo cáo (REPORT) chỉ hỗ trợ xem, không được phép chỉnh sửa trực tiếp!');
+          cell.restoreOldValue();
+          return;
+        }
+
+        // Chặn chỉnh sửa đối với các cột được cấu hình khóa (Read-Only) hoặc cột động không có cấu hình
+        if (!schema || schema.ShowInEdit == 0 || schema.IsReadOnlyEdit == 1) {
+          if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Trường dữ liệu này đã được cấu hình khóa hoặc chỉ đọc, không được phép chỉnh sửa!');
+          cell.restoreOldValue();
+          return;
+        }
 
         // Validate riêng cho các cột kiểu Date để chống lỗi SQL khi nhập thiếu năm (VD: "20/10")
         var isDateCol = field.toLowerCase().indexOf('ngay') >= 0;
@@ -4510,7 +4577,29 @@ window.DynamicFormEngine = (function () {
     formSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
 
     // ENGINE VẼ FORM TỰ ĐỘNG
-    formSchema.forEach(function (field) {
+    // -- TỰ ĐỘNG GỘP NHÓM CÁC TRƯỜNG CÓ LIÊN QUAN (Kinh nghiệm UI/UX Nhân sự) --
+    var parentFields = {};
+    var childToParent = {};
+    var parentWrappers = {};
+
+    formSchema.forEach(function (f) {
+      var rule = (f.renderRule || f.formatId || f.FormatID || '').toLowerCase();
+      if (rule === 'sw' || rule === 'boolean') {
+        var children = formSchema.filter(function (cf) {
+          return cf.name !== f.name && cf.name.indexOf(f.name) > -1;
+        });
+        if (children.length > 0) {
+          parentFields[f.name] = children;
+          children.forEach(function (c) { childToParent[c.name] = f.name; });
+        }
+      }
+    });
+
+    var normalAndParentFields = formSchema.filter(function (f) { return !childToParent[f.name]; });
+    var childFields = formSchema.filter(function (f) { return childToParent[f.name]; });
+    var orderedSchema = normalAndParentFields.concat(childFields);
+
+    orderedSchema.forEach(function (field) {
       var isVisible = isEdit ? field.showInEdit : field.showInAdd;
       if (!(String(isVisible) === '1' || isVisible === true)) {
         // Vẽ input ẩn cho các Khóa chính (Ví dụ Makh) để Auto-Serializer thu thập được
@@ -4910,13 +4999,6 @@ window.DynamicFormEngine = (function () {
       if (span === 'body') span = '12';
       if (!['12', '8', '6', '4', '3', '2', '1-7'].includes(span)) span = '12';
 
-      var wrapper = document.createElement('div');
-      wrapper.className = 'df-col-' + span;
-      // Gán VisibleRule lên wrapper để UIControls.utils.applyVisibleRules xử lý
-      if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
-
-      wrapper.appendChild(inputEl);
-
       var targetGrid = grid;
       if (isGrouped) {
         targetGrid = groupContainers[field.name.toLowerCase()];
@@ -4925,7 +5007,105 @@ window.DynamicFormEngine = (function () {
           targetGrid.parentElement.style.display = 'block'; // show the "other" card if needed
         }
       }
-      targetGrid.appendChild(wrapper);
+
+      if (childToParent[field.name]) {
+        var parentName = childToParent[field.name];
+        var parentFlexGroup = parentWrappers[parentName];
+        if (parentFlexGroup) {
+          var childWrapper = document.createElement('div');
+          childWrapper.className = 'child-field-wrapper';
+          childWrapper.style.flex = '1';
+          childWrapper.style.minWidth = '0'; // Bù chiều ngang cho các Combobox
+          childWrapper.style.transition = 'all 0.25s cubic-bezier(0.16,1,0.3,1)';
+
+          // Ẩn label để form gọn gàng, đưa label vào placeholder (Không hardcode, hỗ trợ kế thừa)
+          var labels = inputEl.querySelectorAll('label');
+          labels.forEach(function (l) { l.style.display = 'none'; });
+
+          var fGroups = inputEl.querySelectorAll('.form-group');
+          fGroups.forEach(function (fg) { fg.style.marginBottom = '0'; });
+          if (inputEl.classList && inputEl.classList.contains('form-group')) {
+            inputEl.style.marginBottom = '0';
+          }
+
+          var isSelect = field.renderRule === 'sl' || field.renderRule === 'select' || field.dataSource;
+          var prefix = isSelect ? 'Chọn ' : 'Nhập ';
+          var inps = inputEl.querySelectorAll('input:not([type="hidden"]), select, textarea');
+          inps.forEach(function (inp) {
+            if (inp.placeholder === '-- Vui lòng chọn --' || inp.placeholder === 'Nhập...' || !inp.placeholder) {
+              // Xóa chữ "Vui lòng chọn" thay bằng "Chọn [Tên field]"
+              var lblText = (field.label || '').trim().toLowerCase();
+              if (lblText) {
+                inp.placeholder = prefix + lblText;
+              }
+            }
+          });
+
+          childWrapper.appendChild(inputEl);
+          parentFlexGroup.appendChild(childWrapper);
+        }
+      } else if (parentFields[field.name]) {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'df-col-' + span;
+        if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
+
+        var flexGroup = document.createElement('div');
+        flexGroup.style.display = 'flex';
+        flexGroup.style.flexWrap = 'nowrap';
+        flexGroup.style.gap = '12px';
+        flexGroup.style.alignItems = 'center';
+        flexGroup.style.width = '100%';
+        flexGroup.style.padding = '8px 12px';
+        flexGroup.style.background = 'var(--color-surface, #fff)';
+        flexGroup.style.border = '1px solid var(--color-border, #e2e8f0)';
+        flexGroup.style.borderRadius = '8px';
+
+        var parentInputWrapper = document.createElement('div');
+        parentInputWrapper.style.flexShrink = '0';
+        parentInputWrapper.style.minWidth = '90px';
+        parentInputWrapper.appendChild(inputEl);
+        flexGroup.appendChild(parentInputWrapper);
+
+        parentWrappers[field.name] = flexGroup;
+        wrapper.appendChild(flexGroup);
+        targetGrid.appendChild(wrapper);
+
+        setTimeout(function () {
+          var parentCb = parentInputWrapper.querySelector('input[type="checkbox"]');
+          if (parentCb) {
+            var toggleChildren = function (isAutoChange) {
+              var isChecked = parentCb.checked;
+              var childEls = flexGroup.querySelectorAll('.child-field-wrapper');
+              childEls.forEach(function (ce) {
+                if (isChecked) {
+                  ce.style.opacity = '1';
+                  ce.style.pointerEvents = 'auto';
+                } else {
+                  ce.style.opacity = '0.4';
+                  ce.style.pointerEvents = 'none';
+                  if (isAutoChange === true && !isViewMode) {
+                    var select = ce.querySelector('select');
+                    if (select) { select.value = ''; select.dispatchEvent(new Event('change')); }
+                    var input = ce.querySelector('input:not([type="hidden"])');
+                    if (input) { input.value = ''; input.dispatchEvent(new Event('change')); }
+                    var select2 = ce.querySelector('.select2-hidden-accessible');
+                    if (select2 && window.$) { $(select2).val('').trigger('change'); }
+                  }
+                }
+              });
+            };
+            parentCb.addEventListener('change', function () { toggleChildren(true); });
+            toggleChildren(false);
+          }
+        }, 100);
+
+      } else {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'df-col-' + span;
+        if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
+        wrapper.appendChild(inputEl);
+        targetGrid.appendChild(wrapper);
+      }
 
       // Gán giá trị mặc định vào currentModalFormState
       currentModalFormState[field.name] = field.value || '';

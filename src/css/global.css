@@ -703,19 +703,20 @@ body.dark-theme .nav-item:hover span.icon {
 }
 
 .tabulator-row {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #cbd5e1 !important;
+  margin-bottom: 0 !important;
 }
 
 .tabulator-row .tabulator-cell {
-  border-right: 1px solid #e2e8f0;
-  /* Kẻ đường dọc như Excel */
-  padding: 4px 8px !important;
-  /* Thu gọn tối đa padding */
+  border-right: 1px solid #cbd5e1 !important;
+}
+
+.tabulator-row .tabulator-cell:last-child {
+  border-right: none !important;
 }
 
 .tabulator-row.tabulator-row-even {
   background-color: #f8fafc !important;
-  /* Xám nhạt xen kẽ */
 }
 
 .tabulator-row.tabulator-row-odd {
@@ -724,15 +725,24 @@ body.dark-theme .nav-item:hover span.icon {
 
 .tabulator-row.tabulator-selectable:hover {
   background-color: #e2e8f0 !important;
-  /* Đậm hơn xíu khi di chuột */
+}
+
+.tabulator-header {
+  border-bottom: 1px solid #cbd5e1 !important;
 }
 
 .tabulator-header .tabulator-col {
   background-color: #f1f5f9 !important;
-  /* Làm chìm màu header */
-  border-right: 1px solid #cbd5e1;
+  border-right: 1px solid #cbd5e1 !important;
   font-weight: 600;
-  padding: 6px 8px !important;
+}
+
+.tabulator-header .tabulator-col:last-child {
+  border-right: none !important;
+}
+
+.tabulator-header .tabulator-col .tabulator-col-content {
+  padding: 8px 10px !important;
 }
 
 /* ẨN TÍNH NĂNG LỌC CỘT MẶC ĐỊNH */
@@ -748,4 +758,9 @@ body.dark-theme .nav-item:hover span.icon {
 /* Ẩn nút Sắp ca tự động cũ do SY_FrmCfg sinh ra ở thân form (vì đã chuyển lên header action bar) */
 button[onclick*="SapCaTuDong"] {
     display: none !important;
+}
+
+/* Fix lỗi datepicker (Flatpickr) bị ẩn dưới Filter Overlay Panel */
+.flatpickr-calendar {
+    z-index: 9999999 !important;
 }

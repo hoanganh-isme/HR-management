@@ -18,24 +18,66 @@ GO
 --   EXEC dbo.API_BaoCaoNhanSuReportStp @FromDate='2024-01-01', @ToDate='2025-12-31'
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_BaoCaoNhanSuReportStp
-    @BranchID  NVARCHAR(MAX)  = '',
-    @PhongBan  NVARCHAR(200) = '',
-    @FromDate  DATETIME      = NULL,
-    @ToDate    DATETIME      = NULL,
-    @Keyword   NVARCHAR(200) = ''
+    @BranchID      NVARCHAR(MAX) = '',
+    @PhongBan      NVARCHAR(200) = '',
+    @FromDate      DATETIME      = NULL,
+    @ToDate        DATETIME      = NULL,
+    @Keyword       NVARCHAR(200) = '',
+    @LoaiHopDong   NVARCHAR(50)  = '',
+    @ThieuHopDong  BIT           = NULL,
+    @ThieuBaoHiem  BIT           = NULL,
+    @Template      NVARCHAR(50)  = ''
 AS
 BEGIN
     SET NOCOUNT ON;
 
     -- Làm sạch tham số đầu vào
-    SET @BranchID = LTRIM(RTRIM(ISNULL(@BranchID, '')));
-    SET @PhongBan = LTRIM(RTRIM(ISNULL(@PhongBan, '')));
-    SET @Keyword  = LTRIM(RTRIM(ISNULL(@Keyword, '')));
+    SET @BranchID    = LTRIM(RTRIM(ISNULL(@BranchID, '')));
+    SET @PhongBan    = LTRIM(RTRIM(ISNULL(@PhongBan, '')));
+    SET @Keyword     = LTRIM(RTRIM(ISNULL(@Keyword, '')));
+    SET @LoaiHopDong = LTRIM(RTRIM(ISNULL(@LoaiHopDong, '')));
+    SET @Template    = LTRIM(RTRIM(ISNULL(@Template, '')));
 
     -- Bỏ qua placeholder chưa được thay thế bởi Gateway Router
-    IF @BranchID LIKE '%{%}%' SET @BranchID = '';
-    IF @PhongBan LIKE '%{%}%' SET @PhongBan = '';
-    IF @Keyword  LIKE '%{%}%' SET @Keyword  = '';
+    IF @BranchID    LIKE '%{%}%' SET @BranchID    = '';
+    IF @PhongBan    LIKE '%{%}%' SET @PhongBan    = '';
+    IF @Keyword     LIKE '%{%}%' SET @Keyword     = '';
+    IF @LoaiHopDong LIKE '%{%}%' SET @LoaiHopDong = '';
+    IF @Template    LIKE '%{%}%' SET @Template    = '';
+
+    -- =========================================================================
+    -- Hỗ trợ tương thích ngược (kế thừa lại logic cũ) cho các Template từ Desktop App
+    -- =========================================================================
+    IF @Template = 'HR_BaoCaoNhanSuNVNReport'
+        SET @LoaiHopDong = 'NVN';
+    ELSE IF @Template = 'HR_BaoCaoNhanSuNNNReport'
+        SET @LoaiHopDong = 'NNN';
+    ELSE IF @Template = 'HR_BaoCaoNhanSuThieuHDReport'
+        SET @ThieuHopDong = 1;
+    ELSE IF @Template = 'HR_BaoCaoNhanSuThieuBHReport'
+        SET @ThieuBaoHiem = 1;
+
+    -- =========================================================================
+    -- Tính toán số lượng tăng/giảm trong kỳ
+    -- =========================================================================
+    DECLARE @SoLuongTang INT = 0,
+            @SoLuongGiam INT = 0;
+
+    IF @FromDate IS NOT NULL AND @ToDate IS NOT NULL
+    BEGIN
+        SELECT @SoLuongTang = COUNT(1)
+        FROM dbo.HR_PersonTbl
+        WHERE NgayVaoLam >= @FromDate
+          AND NgayVaoLam < DATEADD(DAY, 1, @ToDate)
+          AND (@BranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
+
+        SELECT @SoLuongGiam = COUNT(1)
+        FROM dbo.HR_PersonTbl
+        WHERE NgayNghiViec >= @FromDate
+          AND NgayNghiViec < DATEADD(DAY, 1, @ToDate)
+          AND PersonStatus = '8'
+          AND (@BranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
+    END
 
     SELECT
         -- ── Thông tin định danh ──────────────────────────────────────────
@@ -78,7 +120,6 @@ BEGIN
         P.NgayHopDong,
         HD.LuongCoBan                                   AS LuongCoBanHD,
 
-
         -- ── Ngân hàng ────────────────────────────────────────────────────
         P.BankName,
         P.BankAccountNo,
@@ -97,6 +138,32 @@ BEGIN
         P.UserID,
         P.STT,
 
+        -- ── Các cờ báo cáo ───────────────────────────────────────────────
+        CAST(CASE
+                WHEN HD.NgayKyHopDong >= @FromDate
+                 AND HD.NgayKyHopDong < DATEADD(DAY, 1, @ToDate)
+                THEN 1 ELSE 0
+             END AS BIT) AS NhanVienMoi,
+
+        CAST(CASE
+                WHEN EXISTS
+                (
+                    SELECT 1
+                    FROM dbo.HR_BaoHiemChiTietTbl CT
+                    INNER JOIN dbo.HR_BaoHiemTbl BH
+                        ON BH.DocumentID = CT.DocumentID
+                    WHERE CT.PersonID = P.PersonID
+                )
+                THEN 0 ELSE 1
+             END AS BIT) AS ThieuBaoHiem,
+
+        CAST(CASE
+                WHEN HD.PersonID IS NULL THEN 1
+                ELSE 0
+             END AS BIT) AS ThieuHD,
+
+        @SoLuongTang AS SoLuongTang,
+        @SoLuongGiam AS SoLuongGiam,
 
         -- ── Audit ────────────────────────────────────────────────────────
         P.UserCreate,
@@ -106,14 +173,13 @@ BEGIN
 
     FROM dbo.HR_PersonTbl P
 
-
     -- Trạng thái nhân viên
     LEFT JOIN dbo.HR_PersonStatusTbl PS
         ON PS.PersonStatus = P.PersonStatus
 
     -- Lương hợp đồng mới nhất
     LEFT JOIN (
-        SELECT PersonID, LuongCoBan,
+        SELECT PersonID, LuongCoBan, NgayKyHopDong, LoaiHD,
                ROW_NUMBER() OVER (PARTITION BY PersonID ORDER BY NgayKyHopDong DESC) AS rn
         FROM dbo.HR_HopDongTbl
     ) HD ON P.PersonID = HD.PersonID AND HD.rn = 1
@@ -126,8 +192,14 @@ BEGIN
     ) LS ON P.PersonID = LS.PersonID AND LS.rn = 1
 
     WHERE
+        -- =====================================================================
+        -- LỌC CỐ ĐỊNH TỪ DESKTOP APP (ĐỒNG BỘ DỮ LIỆU)
+        -- Desktop App SP (HR_BaoCaoNhansu2ReportStp) chỉ lấy nhân sự Chính thức (4)
+        -- =====================================================================
+        P.PersonStatus = 4
+
         -- Lọc chi nhánh
-        (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
+        AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
 
         -- Lọc bộ phận (hỗ trợ LIKE nếu truyền một phần tên)
         AND (@PhongBan = '' OR P.PhongBan LIKE N'%' + @PhongBan + N'%')
@@ -147,6 +219,32 @@ BEGIN
             OR P.CMND LIKE '%' + @Keyword + '%'
             OR P.SoHopDong LIKE '%' + @Keyword + '%'
         )
+        
+        -- =====================================================================
+        -- Lọc mở rộng cho Báo cáo (từ Web/Mobile hoặc qua Template Desktop)
+        -- =====================================================================
+        -- Lọc loại hợp đồng (NVN, NNN, ...)
+        AND (@LoaiHopDong = '' OR HD.LoaiHD = @LoaiHopDong)
+
+        -- Lọc thiếu hợp đồng
+        AND (@ThieuHopDong IS NULL 
+             OR (@ThieuHopDong = 1 AND HD.PersonID IS NULL) 
+             OR (@ThieuHopDong = 0 AND HD.PersonID IS NOT NULL))
+
+        -- Lọc thiếu bảo hiểm
+        AND (@ThieuBaoHiem IS NULL 
+             OR (@ThieuBaoHiem = 1 AND NOT EXISTS (
+                 SELECT 1 
+                 FROM dbo.HR_BaoHiemChiTietTbl CT 
+                 INNER JOIN dbo.HR_BaoHiemTbl BH ON BH.DocumentID = CT.DocumentID 
+                 WHERE CT.PersonID = P.PersonID
+             ))
+             OR (@ThieuBaoHiem = 0 AND EXISTS (
+                 SELECT 1 
+                 FROM dbo.HR_BaoHiemChiTietTbl CT 
+                 INNER JOIN dbo.HR_BaoHiemTbl BH ON BH.DocumentID = CT.DocumentID 
+                 WHERE CT.PersonID = P.PersonID
+             )))
 
     ORDER BY P.BranchID, P.PhongBan, P.PersonName;
 END
@@ -168,7 +266,7 @@ VALUES (
     'WA_BaoCaoNhanSuReport',
     'View',
     'API_BaoCaoNhanSuReportStp',
-    '@BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @FromDate=''{FromDate}'', @ToDate=''{ToDate}'', @Keyword=N''{Keyword}'''
+    '@BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @FromDate=''{FromDate}'', @ToDate=''{ToDate}'', @Keyword=N''{Keyword}'', @LoaiHopDong=N''{LoaiHopDong}'', @ThieuHopDong=''{ThieuHopDong}'', @ThieuBaoHiem=''{ThieuBaoHiem}'', @Template=N''{Template}'''
 );
 GO
 

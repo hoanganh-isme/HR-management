@@ -183,13 +183,13 @@ GO
 -- =========================================================================
 INSERT INTO dbo.WA_Menu (MenuID, Parent, VN, EN, FormName, FormKey, URLPara, IconClass, isDisable)
 VALUES (
-    '2044',
-    '20',
-    N'Sắp ca làm việc',
+    '2144',
+    '21',
+    N'Ca làm việc',
     'Shift Scheduling',
     'WA_CaLamViecFrm',
     '',
-    '#/2044',
+    '#/2144',
     'schedule',
     0
 );

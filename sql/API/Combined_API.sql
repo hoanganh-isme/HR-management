@@ -1,4 +1,4 @@
-USE [X26DIMTUTAC]
+﻿USE [X26DIMTUTAC]
 GO
 
 SET ANSI_NULLS ON
@@ -135,8 +135,7 @@ GO
 
 GO
 
-USE X26DIMTUTAC
-GO
+
 CREATE OR ALTER PROCEDURE dbo.API_BangThamSo
 (
     @Keyword NVARCHAR(200) = ''
@@ -145,15 +144,16 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SELECT 
-        UserAutoID,
-        PeriodID,
-        LoaiBaoHiem,
-        BHXHNLD,
-        BHXHCTY,
-        BHYTNLD,
-        BHYTCTY,
-        BHTNNLD,
-        BHTNCTY
+        PeriodID AS [PeriodID],
+        LoaiBaoHiem AS [LoaiBaoHiem],
+        CONCAT(PeriodID, '_', LoaiBaoHiem) AS [KeyID],
+        UserAutoID AS [UserAutoID],
+        BHXHNLD AS [BHXHNLD],
+        BHXHCTY AS [BHXHCTY],
+        BHYTNLD AS [BHYTNLD],
+        BHYTCTY AS [BHYTCTY],
+        BHTNNLD AS [BHTNNLD],
+        BHTNCTY AS [BHTNCTY]
     FROM dbo.HR_BangThamSoTbl
     WHERE @Keyword = ''
        OR PeriodID LIKE '%' + @Keyword + '%'
@@ -1385,24 +1385,66 @@ GO
 --   EXEC dbo.API_BaoCaoNhanSuReportStp @FromDate='2024-01-01', @ToDate='2025-12-31'
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_BaoCaoNhanSuReportStp
-    @BranchID  NVARCHAR(MAX)  = '',
-    @PhongBan  NVARCHAR(200) = '',
-    @FromDate  DATETIME      = NULL,
-    @ToDate    DATETIME      = NULL,
-    @Keyword   NVARCHAR(200) = ''
+    @BranchID      NVARCHAR(MAX) = '',
+    @PhongBan      NVARCHAR(200) = '',
+    @FromDate      DATETIME      = NULL,
+    @ToDate        DATETIME      = NULL,
+    @Keyword       NVARCHAR(200) = '',
+    @LoaiHopDong   NVARCHAR(50)  = '',
+    @ThieuHopDong  BIT           = NULL,
+    @ThieuBaoHiem  BIT           = NULL,
+    @Template      NVARCHAR(50)  = ''
 AS
 BEGIN
     SET NOCOUNT ON;
 
     -- LÃ m sáº¡ch tham sá»‘ Ä‘áº§u vÃ o
-    SET @BranchID = LTRIM(RTRIM(ISNULL(@BranchID, '')));
-    SET @PhongBan = LTRIM(RTRIM(ISNULL(@PhongBan, '')));
-    SET @Keyword  = LTRIM(RTRIM(ISNULL(@Keyword, '')));
+    SET @BranchID    = LTRIM(RTRIM(ISNULL(@BranchID, '')));
+    SET @PhongBan    = LTRIM(RTRIM(ISNULL(@PhongBan, '')));
+    SET @Keyword     = LTRIM(RTRIM(ISNULL(@Keyword, '')));
+    SET @LoaiHopDong = LTRIM(RTRIM(ISNULL(@LoaiHopDong, '')));
+    SET @Template    = LTRIM(RTRIM(ISNULL(@Template, '')));
 
     -- Bá» qua placeholder chÆ°a Ä‘Æ°á»£c thay tháº¿ bá»Ÿi Gateway Router
-    IF @BranchID LIKE '%{%}%' SET @BranchID = '';
-    IF @PhongBan LIKE '%{%}%' SET @PhongBan = '';
-    IF @Keyword  LIKE '%{%}%' SET @Keyword  = '';
+    IF @BranchID    LIKE '%{%}%' SET @BranchID    = '';
+    IF @PhongBan    LIKE '%{%}%' SET @PhongBan    = '';
+    IF @Keyword     LIKE '%{%}%' SET @Keyword     = '';
+    IF @LoaiHopDong LIKE '%{%}%' SET @LoaiHopDong = '';
+    IF @Template    LIKE '%{%}%' SET @Template    = '';
+
+    -- =========================================================================
+    -- Há»— trá»£ tÆ°Æ¡ng thÃ­ch ngÆ°á»£c (káº¿ thá»«a láº¡i logic cÅ©) cho cÃ¡c Template tá»« Desktop App
+    -- =========================================================================
+    IF @Template = 'HR_BaoCaoNhanSuNVNReport'
+        SET @LoaiHopDong = 'NVN';
+    ELSE IF @Template = 'HR_BaoCaoNhanSuNNNReport'
+        SET @LoaiHopDong = 'NNN';
+    ELSE IF @Template = 'HR_BaoCaoNhanSuThieuHDReport'
+        SET @ThieuHopDong = 1;
+    ELSE IF @Template = 'HR_BaoCaoNhanSuThieuBHReport'
+        SET @ThieuBaoHiem = 1;
+
+    -- =========================================================================
+    -- TÃ­nh toÃ¡n sá»‘ lÆ°á»£ng tÄƒng/giáº£m trong ká»³
+    -- =========================================================================
+    DECLARE @SoLuongTang INT = 0,
+            @SoLuongGiam INT = 0;
+
+    IF @FromDate IS NOT NULL AND @ToDate IS NOT NULL
+    BEGIN
+        SELECT @SoLuongTang = COUNT(1)
+        FROM dbo.HR_PersonTbl
+        WHERE NgayVaoLam >= @FromDate
+          AND NgayVaoLam < DATEADD(DAY, 1, @ToDate)
+          AND (@BranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
+
+        SELECT @SoLuongGiam = COUNT(1)
+        FROM dbo.HR_PersonTbl
+        WHERE NgayNghiViec >= @FromDate
+          AND NgayNghiViec < DATEADD(DAY, 1, @ToDate)
+          AND PersonStatus = '8'
+          AND (@BranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
+    END
 
     SELECT
         -- â”€â”€ ThÃ´ng tin Ä‘á»‹nh danh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1445,7 +1487,6 @@ BEGIN
         P.NgayHopDong,
         HD.LuongCoBan                                   AS LuongCoBanHD,
 
-
         -- â”€â”€ NgÃ¢n hÃ ng â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         P.BankName,
         P.BankAccountNo,
@@ -1464,6 +1505,32 @@ BEGIN
         P.UserID,
         P.STT,
 
+        -- â”€â”€ CÃ¡c cá» bÃ¡o cÃ¡o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        CAST(CASE
+                WHEN HD.NgayKyHopDong >= @FromDate
+                 AND HD.NgayKyHopDong < DATEADD(DAY, 1, @ToDate)
+                THEN 1 ELSE 0
+             END AS BIT) AS NhanVienMoi,
+
+        CAST(CASE
+                WHEN EXISTS
+                (
+                    SELECT 1
+                    FROM dbo.HR_BaoHiemChiTietTbl CT
+                    INNER JOIN dbo.HR_BaoHiemTbl BH
+                        ON BH.DocumentID = CT.DocumentID
+                    WHERE CT.PersonID = P.PersonID
+                )
+                THEN 0 ELSE 1
+             END AS BIT) AS ThieuBaoHiem,
+
+        CAST(CASE
+                WHEN HD.PersonID IS NULL THEN 1
+                ELSE 0
+             END AS BIT) AS ThieuHD,
+
+        @SoLuongTang AS SoLuongTang,
+        @SoLuongGiam AS SoLuongGiam,
 
         -- â”€â”€ Audit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         P.UserCreate,
@@ -1473,14 +1540,13 @@ BEGIN
 
     FROM dbo.HR_PersonTbl P
 
-
     -- Tráº¡ng thÃ¡i nhÃ¢n viÃªn
     LEFT JOIN dbo.HR_PersonStatusTbl PS
         ON PS.PersonStatus = P.PersonStatus
 
     -- LÆ°Æ¡ng há»£p Ä‘á»“ng má»›i nháº¥t
     LEFT JOIN (
-        SELECT PersonID, LuongCoBan,
+        SELECT PersonID, LuongCoBan, NgayKyHopDong, LoaiHD,
                ROW_NUMBER() OVER (PARTITION BY PersonID ORDER BY NgayKyHopDong DESC) AS rn
         FROM dbo.HR_HopDongTbl
     ) HD ON P.PersonID = HD.PersonID AND HD.rn = 1
@@ -1493,8 +1559,14 @@ BEGIN
     ) LS ON P.PersonID = LS.PersonID AND LS.rn = 1
 
     WHERE
+        -- =====================================================================
+        -- Lá»ŒC Cá» Äá»ŠNH Tá»ª DESKTOP APP (Äá»’NG Bá»˜ Dá»® LIá»†U)
+        -- Desktop App SP (HR_BaoCaoNhansu2ReportStp) chá»‰ láº¥y nhÃ¢n sá»± ChÃ­nh thá»©c (4)
+        -- =====================================================================
+        P.PersonStatus = 4
+
         -- Lá»c chi nhÃ¡nh
-        (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
+        AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
 
         -- Lá»c bá»™ pháº­n (há»— trá»£ LIKE náº¿u truyá»n má»™t pháº§n tÃªn)
         AND (@PhongBan = '' OR P.PhongBan LIKE N'%' + @PhongBan + N'%')
@@ -1514,6 +1586,32 @@ BEGIN
             OR P.CMND LIKE '%' + @Keyword + '%'
             OR P.SoHopDong LIKE '%' + @Keyword + '%'
         )
+        
+        -- =====================================================================
+        -- Lá»c má»Ÿ rá»™ng cho BÃ¡o cÃ¡o (tá»« Web/Mobile hoáº·c qua Template Desktop)
+        -- =====================================================================
+        -- Lá»c loáº¡i há»£p Ä‘á»“ng (NVN, NNN, ...)
+        AND (@LoaiHopDong = '' OR HD.LoaiHD = @LoaiHopDong)
+
+        -- Lá»c thiáº¿u há»£p Ä‘á»“ng
+        AND (@ThieuHopDong IS NULL 
+             OR (@ThieuHopDong = 1 AND HD.PersonID IS NULL) 
+             OR (@ThieuHopDong = 0 AND HD.PersonID IS NOT NULL))
+
+        -- Lá»c thiáº¿u báº£o hiá»ƒm
+        AND (@ThieuBaoHiem IS NULL 
+             OR (@ThieuBaoHiem = 1 AND NOT EXISTS (
+                 SELECT 1 
+                 FROM dbo.HR_BaoHiemChiTietTbl CT 
+                 INNER JOIN dbo.HR_BaoHiemTbl BH ON BH.DocumentID = CT.DocumentID 
+                 WHERE CT.PersonID = P.PersonID
+             ))
+             OR (@ThieuBaoHiem = 0 AND EXISTS (
+                 SELECT 1 
+                 FROM dbo.HR_BaoHiemChiTietTbl CT 
+                 INNER JOIN dbo.HR_BaoHiemTbl BH ON BH.DocumentID = CT.DocumentID 
+                 WHERE CT.PersonID = P.PersonID
+             )))
 
     ORDER BY P.BranchID, P.PhongBan, P.PersonName;
 END
@@ -1535,7 +1633,7 @@ VALUES (
     'WA_BaoCaoNhanSuReport',
     'View',
     'API_BaoCaoNhanSuReportStp',
-    '@BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @FromDate=''{FromDate}'', @ToDate=''{ToDate}'', @Keyword=N''{Keyword}'''
+    '@BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @FromDate=''{FromDate}'', @ToDate=''{ToDate}'', @Keyword=N''{Keyword}'', @LoaiHopDong=N''{LoaiHopDong}'', @ThieuHopDong=''{ThieuHopDong}'', @ThieuBaoHiem=''{ThieuBaoHiem}'', @Template=N''{Template}'''
 );
 GO
 
@@ -1544,8 +1642,6 @@ GO
 
 GO
 
-USE X26DIMTUTAC
-GO
 
 IF OBJECT_ID('dbo.API_BaoHiem', 'P') IS NOT NULL
     DROP PROCEDURE dbo.API_BaoHiem;
@@ -2138,8 +2234,38 @@ GO
 
 GO
 
-USE X26DIMTUTAC
+
+CREATE OR ALTER PROCEDURE dbo.API_DanhSachChucDanh
+(
+    @Keyword NVARCHAR(100) = ''
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SET @Keyword = ISNULL(@Keyword, '');
+
+    SELECT 
+        ChucDanhChuyenMon,
+        MoTa
+    FROM HR_ChucDanhTbl
+    WHERE 
+        @Keyword = ''
+        OR ChucDanhChuyenMon LIKE N'%' + @Keyword + '%'
+        OR MoTa LIKE N'%' + @Keyword + '%'
+    ORDER BY ChucDanhChuyenMon;
+END
 GO
+IF NOT EXISTS (SELECT 1 FROM WA_API WHERE list = 'API_DanhSachChucDanh' AND func = 'View')
+BEGIN
+    INSERT INTO WA_API (list, func, [SQL], Para)
+    VALUES ('API_DanhSachChucDanh', 'View', 'API_DanhSachChucDanh', '@Keyword=''{Keyword}''');
+END
+GO
+
+GO
+
+
 
 CREATE OR ALTER PROCEDURE dbo.API_DanhSachChucVu
 (
@@ -2160,6 +2286,13 @@ BEGIN
         OR TitleName LIKE N'%' + @Keyword + '%'
         OR GhiChu LIKE N'%' + @Keyword + '%'
     ORDER BY ISNULL(STT, 9999), TitleName;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM WA_API WHERE list = 'API_DanhSachChucVu' AND func = 'View')
+BEGIN
+    INSERT INTO WA_API (list, func, [SQL], Para)
+    VALUES ('API_DanhSachChucVu', 'View', 'API_DanhSachChucVu', '@Keyword=''{Keyword}''');
 END
 GO
 
@@ -2737,6 +2870,46 @@ GO
 
 GO
 
+
+-- =========================================================================
+-- Táº O STORED PROCEDURE CHO DROPDOWN Láº¤Y CÃC TÃ™Y CHá»ŒN BÃO CÃO (FILTER PRESETS)
+-- =========================================================================
+-- Giáº£i phÃ¡p: Tráº£ vá» danh sÃ¡ch áº£o (Virtual Table) tá»« SP thay vÃ¬ táº¡o báº£ng váº­t lÃ½.
+-- Web App sáº½ gá»i API nÃ y Ä‘á»ƒ build Dropdown, khÃ´ng bá»‹ hardcode dÆ°á»›i React.
+CREATE OR ALTER PROCEDURE dbo.API_Dropdown_ReportTemplates
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Tráº£ vá» Ä‘á»‹nh dáº¡ng [value], [label] cho UI Web App (Dropdown)
+    SELECT 'HR_BaoCaoNhansu2Report' AS [value], N'BÃ¡o cÃ¡o nhÃ¢n sá»± tá»•ng há»£p' AS [label]
+    UNION ALL
+    SELECT 'HR_BaoCaoNhanSuNVNReport', N'BÃ¡o cÃ¡o nhÃ¢n sá»± NVN'
+    UNION ALL
+    SELECT 'HR_BaoCaoNhanSuNNNReport', N'BÃ¡o cÃ¡o nhÃ¢n sá»± NNN'
+    UNION ALL
+    SELECT 'HR_BaoCaoNhanSuThieuHDReport', N'BÃ¡o cÃ¡o nhÃ¢n sá»± thiáº¿u HÄLÄ'
+    UNION ALL
+    SELECT 'HR_BaoCaoNhanSuThieuBHReport', N'BÃ¡o cÃ¡o nhÃ¢n sá»± thiáº¿u BH';
+END
+GO
+
+PRINT 'Da tao SP API_Dropdown_ReportTemplates thanh cong!';
+GO
+
+-- =========================================================================
+-- ÄÄƒng kÃ½ API Dropdown vÃ o WA_API
+-- =========================================================================
+DELETE FROM dbo.WA_API WHERE list = 'API_Dropdown_ReportTemplates';
+INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+VALUES ('API_Dropdown_ReportTemplates', 'View', 'API_Dropdown_ReportTemplates', '');
+GO
+
+PRINT 'Da dang ky WA_API [API_Dropdown_ReportTemplates / View] thanh cong!';
+GO
+
+GO
+
 -- USE X26DIMTUTAC
 -- GO
 
@@ -2779,6 +2952,7 @@ BEGIN
         H.ChucVuNguoiKy,
         H.DiaDiemLamViec,
         H.PersonStatus,
+        S.PersonStatusName,
         H.UserCreate,
         H.UserUpdate,
         H.DateUpdate,
@@ -2795,6 +2969,7 @@ BEGIN
         P.DiaChiThuongTru
     FROM dbo.HR_HopDongTbl H
     LEFT JOIN dbo.HR_PersonTbl P ON H.PersonID = P.PersonID
+    LEFT JOIN dbo.HR_PersonStatusTbl S ON H.PersonStatus = S.PersonStatus
     WHERE 1=1
       AND (ISNULL(@Keyword, '') = '' 
            OR H.MaHopDong LIKE '%' + @Keyword + '%' 
@@ -3432,11 +3607,28 @@ END
 GO
 GO
 
-IF NOT EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = 'API_PersonAttach' AND func = 'SaveAvatar')
+GO
+
+
+CREATE OR ALTER PROCEDURE [dbo].[API_HR_BangThamSo_Lookup]
+    @Keyword NVARCHAR(MAX) = N''
+AS
 BEGIN
-    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-    VALUES ('API_PersonAttach', 'SaveAvatar', 'API_PersonAttach_SaveAvatar', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+    SET NOCOUNT ON;
+
+    SELECT  
+        RTRIM(PeriodID) AS [PeriodID],
+        RTRIM(LoaiBaoHiem) AS [LoaiBaoHiem],
+        CONCAT(PeriodID, '_', LoaiBaoHiem) AS [KeyID]
+    FROM dbo.HR_BangThamSoTbl
+    WHERE 1=1
+      AND (ISNULL(@Keyword, '') = '' 
+           OR PeriodID LIKE '%' + @Keyword + '%' 
+           OR LoaiBaoHiem LIKE '%' + @Keyword + '%')
+    GROUP BY PeriodID, LoaiBaoHiem
+    ORDER BY PeriodID DESC, LoaiBaoHiem;
 END
+GO
 
 GO
 
@@ -3470,7 +3662,7 @@ BEGIN
 
     -- 2. Truy váº¥n dá»¯ liá»‡u chÃ­nh tráº£ vá» cho Grid trÃªn Web
     SELECT 
-        KP.[UserAutoID]
+        KP.[UserAutoID],
         KP.[PersonID],
         KP.[PersonName],
         KP.[ChucDanhChuyenMon],
@@ -3495,10 +3687,11 @@ END
 GO
 
 -- =========================================================================
--- Helper API: Láº¥y danh sÃ¡ch nhÃ¢n viÃªn kÃ¨m Má»©c Ä‘Ã³ng BH, Chá»©c danh, Chi nhÃ¡nh
+-- Helper API: Láº¥y danh sÃ¡ch nhÃ¢n viÃªn kÃ¨m tÃ­nh toÃ¡n Kinh PhÃ­ CÃ´ng ÄoÃ n
 -- DÃ¹ng Ä‘á»ƒ lÃ m nguá»“n dá»¯ liá»‡u (DataSource) tÃ¬m kiáº¿m chá»n nhÃ¢n viÃªn cho Form
+-- Tá»± Ä‘á»™ng tráº£ vá» cÃ¡c trÆ°á»ng tÃ­nh toÃ¡n Ä‘á»ƒ Frontend tá»± Ä‘á»™ng map vÃ o Form
 -- =========================================================================
-CREATE OR ALTER PROCEDURE [dbo].[API_KinhPhiCongDoan_PersonList]
+CREATE OR ALTER PROCEDURE [dbo].[API_Calculate_MucDong_CongDoan]
     @Keyword NVARCHAR(200) = ''
 AS
 BEGIN
@@ -3509,7 +3702,11 @@ BEGIN
         PV.PersonName, 
         BHCT.MucDong, 
         ISNULL(HD.ChucDanhChuyenMonHD, PV.ChucDanhChuyenMon) AS ChucDanhChuyenMon, 
-        PV.BranchID
+        PV.BranchID,
+        -- TÃ­nh toÃ¡n cÃ¡c trÆ°á»ng tá»± Ä‘á»™ng
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 AS DECIMAL(18,2)) AS KinhPhiNopCongDoanVN,
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 * 0.25 AS DECIMAL(18,2)) AS CongDoanVN,
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 * 0.75 AS DECIMAL(18,2)) AS CongDoanCTY
     FROM [dbo].[HR_PersonView] PV 
     LEFT JOIN [dbo].[HR_BaoHiemChiTietTbl] BHCT ON PV.PersonID = BHCT.PersonID 
     LEFT JOIN [dbo].[HR_HopDongTbl] HD ON PV.PersonID = HD.PersonID
@@ -3947,6 +4144,96 @@ GO
 
 GO
 
+-- 1. Create the HR_CandidateAttachTbl table
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'HR_CandidateAttachTbl')
+BEGIN
+    CREATE TABLE [dbo].[HR_CandidateAttachTbl](
+        [UserAutoID] [varchar](50) NOT NULL,
+        [CandidateID] [varchar](50) NULL,
+        [FileName] [nvarchar](250) NULL,
+        [FileType] [int] NULL,
+        [STT] [int] NULL,
+        [FileSize] [int] NULL,
+        [Base64Content] [nvarchar](max) NULL,
+        [Content] [varbinary](max) NULL,
+        [Notes] [nvarchar](500) NULL,
+     CONSTRAINT [PK_HR_CandidateAttachTbl] PRIMARY KEY CLUSTERED 
+    (
+        [UserAutoID] ASC
+    )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+    ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+    ALTER TABLE [dbo].[HR_CandidateAttachTbl]  WITH CHECK ADD  CONSTRAINT [FK_HR_CandidateAttachTbl_HR_DanhSachUngVienTbl] FOREIGN KEY([CandidateID])
+    REFERENCES [dbo].[HR_DanhSachUngVienTbl] ([CandidateID])
+    ON DELETE CASCADE
+
+    ALTER TABLE [dbo].[HR_CandidateAttachTbl] CHECK CONSTRAINT [FK_HR_CandidateAttachTbl_HR_DanhSachUngVienTbl]
+END
+GO
+
+-- 2. Create the procedure API_CandidateAttach_SaveAvatar
+CREATE OR ALTER PROCEDURE [dbo].[API_CandidateAttach_SaveAvatar]
+    @List VARCHAR(50),
+    @Data NVARCHAR(MAX),
+    @UserName VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        -- Extract CandidateID from JSON
+        DECLARE @CandidateID VARCHAR(50) = JSON_VALUE(@Data, '$.CandidateID');
+        DECLARE @FileType INT = CAST(JSON_VALUE(@Data, '$.FileType') AS INT);
+        
+        IF @CandidateID IS NULL OR @CandidateID = ''
+        BEGIN
+            SELECT -1 AS code, N'Lá»—i: KhÃ´ng tÃ¬m tháº¥y mÃ£ á»©ng viÃªn!' AS msg;
+            RETURN;
+        END
+
+        -- If uploading Avatar (FileType = 1) -> Find old Avatar to overwrite (UPDATE)
+        IF @FileType = 1 
+        BEGIN
+            DECLARE @ExistingID VARCHAR(50);
+            SELECT TOP 1 @ExistingID = UserAutoID 
+            FROM HR_CandidateAttachTbl 
+            WHERE (CandidateID = @CandidateID) AND FileType = 1;
+
+            IF @ExistingID IS NOT NULL
+            BEGIN
+                -- If Avatar exists -> Inject UserAutoID into JSON and change IsEdit = 1
+                SET @Data = JSON_MODIFY(@Data, '$.UserAutoID', @ExistingID);
+                SET @Data = JSON_MODIFY(@Data, '$.IsEdit', 1);
+            END
+        END
+        
+        -- Delegate to API_LuuDong
+        EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
+        
+    END TRY
+    BEGIN CATCH
+        SELECT -1 AS code, ERROR_MESSAGE() AS msg;
+    END CATCH
+END
+GO
+
+-- 3. Register Procedure in WA_API
+IF NOT EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = 'API_CandidateAttach' AND func = 'SaveAvatar')
+BEGIN
+    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+    VALUES ('API_CandidateAttach', 'SaveAvatar', 'API_CandidateAttach_SaveAvatar', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+END
+GO
+
+-- 4. Register Mapping in SY_FrmLstTbl
+IF NOT EXISTS (SELECT 1 FROM dbo.SY_FrmLstTbl WHERE FormID = 'API_CandidateAttach')
+BEGIN
+    INSERT INTO dbo.SY_FrmLstTbl (FormID, TableName, PrimaryKey)
+    VALUES ('API_CandidateAttach', 'HR_CandidateAttachTbl', 'UserAutoID');
+END
+GO
+
+GO
+
 USE [X26DIMTUTAC]
 GO
 
@@ -4111,6 +4398,244 @@ BEGIN
         CAST(ROUND(@MucDong * @BHYTCTY / 100.0, 0) AS DECIMAL(18, 2)) AS MucDongBHYTNSDLD,
         CAST(ROUND(@MucDong * @BHTNNLD / 100.0, 0) AS DECIMAL(18, 2)) AS MucDongBHTNNLD,
         CAST(ROUND(@MucDong * @BHTNCTY / 100.0, 0) AS DECIMAL(18, 2)) AS MucDongBHTNNSDLD;
+END
+GO
+
+GO
+
+
+IF OBJECT_ID('dbo.WA_BaoHiemFrm_Save', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.WA_BaoHiemFrm_Save;
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE dbo.WA_BaoHiemFrm_Save
+(
+    @List VARCHAR(50) = '',
+    @Data NVARCHAR(MAX) = '',
+    @UserName VARCHAR(50) = ''
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    BEGIN TRY
+        -- TrÃ­ch xuáº¥t PeriodKeyID tá»« JSON (VD: 202606_NVN)
+        DECLARE @PeriodKeyID VARCHAR(50) = JSON_VALUE(@Data, '$.PeriodKeyID');
+        
+        IF @PeriodKeyID IS NOT NULL AND CHARINDEX('_', @PeriodKeyID) > 0
+        BEGIN
+            -- TÃ¡ch PeriodID vÃ  LoaiBaoHiem tá»« PeriodKeyID
+            DECLARE @PeriodID VARCHAR(20) = SUBSTRING(@PeriodKeyID, 1, CHARINDEX('_', @PeriodKeyID) - 1);
+            DECLARE @LoaiBaoHiem VARCHAR(50) = SUBSTRING(@PeriodKeyID, CHARINDEX('_', @PeriodKeyID) + 1, LEN(@PeriodKeyID));
+            
+            -- BÆ¡m ngÆ°á»£c láº¡i PeriodID vÃ  LoaiBaoHiem vÃ o JSON
+            SET @Data = JSON_MODIFY(@Data, '$.PeriodID', @PeriodID);
+            SET @Data = JSON_MODIFY(@Data, '$.LoaiBaoHiem', @LoaiBaoHiem);
+        END
+
+        -- Gá»i láº¡i hÃ m lÃµi API_LuuDong Ä‘á»ƒ tiáº¿n hÃ nh lÆ°u
+        EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
+
+    END TRY
+    BEGIN CATCH
+        SELECT -1 AS code, ERROR_MESSAGE() AS msg;
+    END CATCH
+END
+GO
+
+GO
+
+USE X26DIM_TT;
+GO
+IF OBJECT_ID('dbo.WA_BaoHiem_PersonLookup', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.WA_BaoHiem_PersonLookup;
+GO
+IF OBJECT_ID('dbo.API_BaoHiem_PersonLookup', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.API_BaoHiem_PersonLookup;
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE OR ALTER PROCEDURE [dbo].[WA_BaoHiem_PersonLookup]
+(
+    @BranchID NVARCHAR(50) = '',
+    @LoaiBaoHiem NVARCHAR(50) = '',
+    @DocumentID NVARCHAR(50) = '',
+    @Keyword NVARCHAR(200) = ''
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SET @BranchID = ISNULL(@BranchID, '');
+    SET @LoaiBaoHiem = ISNULL(@LoaiBaoHiem, '');
+    SET @DocumentID = ISNULL(@DocumentID, '');
+    SET @Keyword = ISNULL(@Keyword, '');
+
+    DECLARE @LoaiHDFilter NVARCHAR(50) = '';
+
+    ----------------------------------------------------------------
+    -- Náº¿u khÃ´ng truyá»n BranchID / LoaiBaoHiem thÃ¬ láº¥y tá»« master theo DocumentID
+    ----------------------------------------------------------------
+    IF @DocumentID <> ''
+    BEGIN
+        SELECT TOP 1
+            @BranchID = CASE 
+                            WHEN @BranchID = '' 
+                            THEN ISNULL(BranchID, '') 
+                            ELSE @BranchID 
+                        END,
+
+            @LoaiBaoHiem = CASE 
+                                WHEN @LoaiBaoHiem = '' 
+                                THEN ISNULL(LoaiBaoHiem, '') 
+                                ELSE @LoaiBaoHiem 
+                            END
+        FROM dbo.HR_BaoHiemTbl
+        WHERE DocumentID = @DocumentID;
+    END;
+
+    ----------------------------------------------------------------
+    -- Láº¥y loáº¡i HD tá»« LoaiBaoHiem
+    -- VD: BHXH_NVN => NVN
+    -- VD: BHXH_NNN => NNN
+    ----------------------------------------------------------------
+    IF UPPER(@LoaiBaoHiem) LIKE '%NNN%'
+        SET @LoaiHDFilter = 'NNN';
+
+    IF UPPER(@LoaiBaoHiem) LIKE '%NVN%'
+        SET @LoaiHDFilter = 'NVN';
+
+    ----------------------------------------------------------------
+    -- ChÆ°a chá»n chi nhÃ¡nh thÃ¬ khÃ´ng xá»• nhÃ¢n viÃªn
+    ----------------------------------------------------------------
+    IF @BranchID = ''
+    BEGIN
+        SELECT 
+            CAST(NULL AS NVARCHAR(50)) AS PersonID,
+            CAST(NULL AS NVARCHAR(250)) AS PersonName,
+            CAST(NULL AS NVARCHAR(250)) AS PhongBan,
+            CAST(0 AS DECIMAL(18, 2)) AS MucDong,
+            CAST(NULL AS NVARCHAR(50)) AS BranchID,
+            CAST(NULL AS NVARCHAR(250)) AS ChucDanhChuyenMon,
+            CAST(NULL AS NVARCHAR(50)) AS LoaiHD,
+            N'' AS CanhBao
+        WHERE 1 = 0;
+
+        RETURN;
+    END;
+
+    ----------------------------------------------------------------
+    -- Láº¥y nhÃ¢n viÃªn theo chi nhÃ¡nh master
+    -- Lá»c NVN / NNN dá»±a theo LoaiBaoHiem
+    ----------------------------------------------------------------
+    SELECT 
+        P.PersonID, 
+        P.PersonName, 
+        P.PhongBan, 
+        ISNULL(BH.MucDong, 0) AS MucDong,
+        P.BranchID,
+
+        ISNULL(HDGN.ChucDanhChuyenMon, '') AS ChucDanhChuyenMon,
+
+        CASE 
+            WHEN ISNULL(HDGN.LoaiHD, '') LIKE '%NNN%' THEN 'NNN'
+            ELSE 'NVN'
+        END AS LoaiHD,
+
+        CASE 
+            WHEN BH.PersonID IS NOT NULL 
+            THEN N'!!! ÄÃƒ CÃ“ BH Táº I Ká»²: ' 
+                 + CAST(BH.PeriodID AS VARCHAR(50))
+                 + N' - NgÃ y CT: ' + CONVERT(VARCHAR(10), BH.DocumentDate, 103)
+                 + N' (Chá»©ng tá»«: ' + BH.DocumentID + N')'
+            ELSE N'' 
+        END AS CanhBao
+
+    FROM dbo.HR_PersonTbl P
+
+    OUTER APPLY
+    (
+        SELECT TOP 1
+            HD.PersonID,
+            HD.LoaiHD,
+            P.ChucDanhChuyenMon,
+            HD.NgayKyHopDong,
+            HD.NgayCoHieuLuc,
+            HD.MaHopDong
+        FROM dbo.HR_HopDongTbl HD
+        WHERE HD.PersonID = P.PersonID
+        ORDER BY 
+            ISNULL(HD.NgayCoHieuLuc, '19000101') DESC,
+            ISNULL(HD.NgayKyHopDong, '19000101') DESC,
+            HD.MaHopDong DESC
+    ) HDGN
+
+    OUTER APPLY
+    (
+        SELECT TOP 1
+            CT.PersonID,
+            CT.MucDong,
+            H.DocumentID,
+            H.PeriodID,
+            H.DocumentDate
+        FROM dbo.HR_BaoHiemChiTietTbl CT
+        INNER JOIN dbo.HR_BaoHiemTbl H 
+            ON H.DocumentID = CT.DocumentID
+        WHERE CT.PersonID = P.PersonID
+
+          AND (
+                @LoaiBaoHiem = ''
+                OR H.LoaiBaoHiem = @LoaiBaoHiem
+              )
+
+          -- KhÃ´ng láº¥y chÃ­nh chá»©ng tá»« Ä‘ang sá»­a Ä‘á»ƒ cáº£nh bÃ¡o láº¡i chÃ­nh nÃ³
+          AND (
+                @DocumentID = ''
+                OR H.DocumentID <> @DocumentID
+              )
+
+        ORDER BY 
+            H.DocumentDate DESC,
+            H.PeriodID DESC,
+            H.DocumentID DESC
+    ) BH
+
+    WHERE P.BranchID = @BranchID
+
+      AND
+      (
+            @LoaiHDFilter = ''
+
+            OR
+            (
+                @LoaiHDFilter = 'NNN'
+                AND ISNULL(HDGN.LoaiHD, '') LIKE '%NNN%'
+            )
+
+            OR
+            (
+                @LoaiHDFilter = 'NVN'
+                AND ISNULL(HDGN.LoaiHD, '') NOT LIKE '%NNN%'
+            )
+      )
+      
+      -- Bá»• sung bá»™ lá»c Keyword cho Web App Combobox
+      AND (
+          @Keyword = ''
+          OR P.PersonID LIKE '%' + @Keyword + '%'
+          OR P.PersonName LIKE N'%' + @Keyword + '%'
+      )
+
+    ORDER BY P.PersonID DESC;
 END
 GO
 
@@ -4780,8 +5305,7 @@ GO
 
 GO
 
-USE [QLTiec]
-GO
+
 
 /****** Object:  StoredProcedure [dbo].[API_LayDanhSachMenuTatCa] ******/
 SET ANSI_NULLS ON
@@ -4813,8 +5337,7 @@ GO
 
 GO
 
-USE [QLTiec]
-GO
+
 
 CREATE PROCEDURE [dbo].[API_LayDanhSachNhom]
 AS
@@ -4833,8 +5356,6 @@ GO
 
 GO
 
-USE [QLTiec]
-GO
 
 SET ANSI_NULLS ON
 GO
@@ -4860,8 +5381,6 @@ GO
 
 GO
 
-USE [QLTiec]
-GO
 
 ALTER PROCEDURE [dbo].[API_LayMenuTheoNhomQuyen]
     @NhomNguoiDangThaoTac NVARCHAR(50), -- Báº®T BUá»˜C THÃŠM: ID NhÃ³m cá»§a ngÆ°á»i gá»i API
@@ -5413,7 +5932,12 @@ BEGIN
         END
 
         -- Cháº¡y cÃ¢u lá»‡nh sinh ra
+        DECLARE @AppLockResource VARCHAR(255) = 'API_LuuDong_' + @TableName;
+        EXEC sp_getapplock @Resource = @AppLockResource, @LockMode = 'Exclusive', @LockOwner = 'Session', @LockTimeout = 15000;
+        
         EXEC sp_executesql @SQL;
+        
+        EXEC sp_releaseapplock @Resource = @AppLockResource, @LockOwner = 'Session';
 
         SELECT 0 AS code, N'LÆ°u thÃ nh cÃ´ng!' AS msg;
         
@@ -5421,6 +5945,11 @@ BEGIN
         DROP TABLE #JsonData;
     END TRY
     BEGIN CATCH
+        -- Giáº£i phÃ³ng lock náº¿u cÃ³ lá»—i xáº£y ra
+        DECLARE @CatchLockName VARCHAR(255) = 'API_LuuDong_' + ISNULL(@TableName, '');
+        IF APPLOCK_MODE('public', @CatchLockName, 'Session') <> 'NoLock'
+            EXEC sp_releaseapplock @Resource = @CatchLockName, @LockOwner = 'Session';
+
         -- Báº«y lá»—i vÃ  in ra cÃ¢u lá»‡nh SQL Ä‘á»ƒ dá»… debug
         DECLARE @ErrMsg NVARCHAR(MAX) = ERROR_MESSAGE();
         SELECT -1 AS code, N'Lá»—i SQL: ' + @ErrMsg + N'. [SQL: ' + ISNULL(@SQL, '') + N']' AS msg;

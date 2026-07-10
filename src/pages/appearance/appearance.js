@@ -18,6 +18,14 @@ var AppearancePage = (function () {
     { id: 'dark', name: 'Bản Phát triển (Tối)', desc: 'Giao diện hiện đại, nền tối dịu mắt.', icon: 'dark_mode' }
   ];
 
+  var FONTS = [
+    { id: 'Plus Jakarta Sans', desc: 'Sang trọng, sắc nét', isDefault: true },
+    { id: 'Inter', desc: 'Hiện đại, dễ đọc' },
+    { id: 'Roboto', desc: 'Tiêu chuẩn cổ điển' },
+    { id: 'Nunito', desc: 'Bo tròn, thân thiện' },
+    { id: 'Arial', desc: 'Dễ nhìn cho kế toán' }
+  ];
+
   function render($container) {
     fetch('./src/pages/appearance/appearance.html')
       .then(function(res) { return res.text(); })
@@ -53,10 +61,11 @@ var AppearancePage = (function () {
     if (!container) return;
     var currentFont = localStorage.getItem('pmql_font_family') || 'Plus Jakarta Sans';
 
-    container.innerHTML = _buildFontCard('Plus Jakarta Sans', 'Sang trọng, sắc nét', currentFont, true)
-      + _buildFontCard('Inter', 'Hiện đại, dễ đọc', currentFont, false)
-      + _buildFontCard('Roboto', 'Tiêu chuẩn cổ điển', currentFont, false)
-      + _buildFontCard('Nunito', 'Bo tròn, thân thiện', currentFont, false);
+    var html = '';
+    FONTS.forEach(function(fontDef) {
+       html += _buildFontCard(fontDef.id, fontDef.desc, currentFont, fontDef.isDefault);
+    });
+    container.innerHTML = html;
   }
 
   function _buildFontCard(fontName, desc, currentFont, isDefault) {
