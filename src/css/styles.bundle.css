@@ -3293,12 +3293,13 @@ body.dark-theme .kvtable__row--total {
   flex-shrink: 0;
 }
 
-/* --- components/hall-gauge/hall-gauge.css --- */
+/* --- components/status-gauge/status-gauge.css --- */
 /* ═══════════════════════════════════════════
-   HALL GAUGE COMPONENT
+   STATUS GAUGE COMPONENT
    Progress gauge: tổng / đang / xong
    ═══════════════════════════════════════════ */
 
+.status-gauge,
 .hall-gauge {
   display: flex;
   flex-direction: column;
@@ -3307,6 +3308,7 @@ body.dark-theme .kvtable__row--total {
 }
 
 /* Title */
+.status-gauge__title,
 .hall-gauge__title {
   display: flex;
   align-items: center;
@@ -3316,18 +3318,21 @@ body.dark-theme .kvtable__row--total {
   color: var(--color-text-secondary);
 }
 
+.status-gauge__icon,
 .hall-gauge__icon {
   font-size: 16px !important;
   color: var(--color-primary);
 }
 
 /* Big count */
+.status-gauge__count,
 .hall-gauge__count {
   display: flex;
   align-items: baseline;
   gap: 6px;
 }
 
+.status-gauge__count-num,
 .hall-gauge__count-num {
   font-size: 32px;
   font-weight: 800;
@@ -3336,6 +3341,7 @@ body.dark-theme .kvtable__row--total {
   letter-spacing: -1px;
 }
 
+.status-gauge__count-label,
 .hall-gauge__count-label {
   font-size: 12px;
   color: var(--color-text-secondary);
@@ -3343,12 +3349,14 @@ body.dark-theme .kvtable__row--total {
 }
 
 /* Bar */
+.status-gauge__bar-row,
 .hall-gauge__bar-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.status-gauge__bar,
 .hall-gauge__bar {
   flex: 1;
   height: 8px;
@@ -3357,16 +3365,19 @@ body.dark-theme .kvtable__row--total {
   overflow: hidden;
 }
 
+body.dark-theme .status-gauge__bar,
 body.dark-theme .hall-gauge__bar {
   background: rgba(79, 70, 229, 0.20);
 }
 
+.status-gauge__fill,
 .hall-gauge__fill {
   height: 100%;
   border-radius: 999px;
   transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.status-gauge__pct,
 .hall-gauge__pct {
   font-size: 13px;
   font-weight: 700;
@@ -3375,6 +3386,7 @@ body.dark-theme .hall-gauge__bar {
 }
 
 /* Sub text */
+.status-gauge__sub,
 .hall-gauge__sub {
   display: flex;
   justify-content: space-between;
@@ -3383,6 +3395,7 @@ body.dark-theme .hall-gauge__bar {
   gap: 8px;
 }
 
+.status-gauge__sub strong,
 .hall-gauge__sub strong {
   color: var(--color-text);
   font-weight: 600;

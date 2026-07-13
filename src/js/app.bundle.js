@@ -2786,9 +2786,9 @@ var KVTable = (function () {
   };
 })();
 
-/* --- components/hall-gauge/HallGauge.js --- */
+/* --- components/status-gauge/StatusGauge.js --- */
 /**
- * HallGauge Component
+ * StatusGauge Component
  * ─────────────────────────────────────────────
  * Hiển thị tình trạng sảnh/phòng với progress bar + số liệu
  * Dùng cho: Dashboard "Hoạt động trong ngày", trang Hall Status
@@ -2807,7 +2807,7 @@ var KVTable = (function () {
  *   // Cập nhật không re-render
  *   HallGauge.update(el, { done: 3, ongoing: 2 });
  */
-var HallGauge = (function () {
+window.StatusGauge = (function () {
 
   /**
    * Tính phần trăm và đảm bảo [0, 100]
@@ -2842,25 +2842,25 @@ var HallGauge = (function () {
     var activePct = _pct(ongoing, total);
 
     var wrap = document.createElement('div');
-    wrap.className = 'hall-gauge';
+    wrap.className = 'status-gauge hall-gauge';
 
     wrap.innerHTML =
-      '<div class="hall-gauge__title">' +
-        '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
+      '<div class="status-gauge__title hall-gauge__title">' +
+        '<span class="material-symbols-outlined status-gauge__icon hall-gauge__icon">location_city</span>' +
         (opts.titleText || 'Trạng thái nhân sự hôm nay') +
       '</div>' +
-      '<div class="hall-gauge__count">' +
-        '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +
-        '<span class="hall-gauge__count-label">' + label + '</span>' +
+      '<div class="status-gauge__count hall-gauge__count">' +
+        '<span class="status-gauge__count-num hall-gauge__count-num" data-hg-total>' + total + '</span>' +
+        '<span class="status-gauge__count-label hall-gauge__count-label">' + label + '</span>' +
       '</div>' +
-      '<div class="hall-gauge__bar-row">' +
-        '<div class="hall-gauge__bar">' +
-          '<div class="hall-gauge__fill" data-hg-fill' +
+      '<div class="status-gauge__bar-row hall-gauge__bar-row">' +
+        '<div class="status-gauge__bar hall-gauge__bar">' +
+          '<div class="status-gauge__fill hall-gauge__fill" data-hg-fill' +
             ' style="width:0%; background:' + color + '"></div>' +
         '</div>' +
-        '<span class="hall-gauge__pct" data-hg-pct style="color:' + color + '">0%</span>' +
+        '<span class="status-gauge__pct hall-gauge__pct" data-hg-pct style="color:' + color + '">0%</span>' +
       '</div>' +
-      '<div class="hall-gauge__sub">' +
+      '<div class="status-gauge__sub hall-gauge__sub">' +
         '<span>' + doneLabel + ': <strong data-hg-done>' + done + '</strong></span>' +
         '<span>' + ongoingLabel + ': <strong data-hg-ongoing>' + ongoing + '</strong></span>' +
       '</div>';
@@ -2912,6 +2912,8 @@ var HallGauge = (function () {
     update: update
   };
 })();
+
+window.HallGauge = window.StatusGauge;
 
 /* --- components/section-panel/SectionPanel.js --- */
 /**
