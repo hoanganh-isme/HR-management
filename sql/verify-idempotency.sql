@@ -9,6 +9,7 @@ SET NOCOUNT ON;
 :r $(Root)\sql\Modules\Shift\register_Shift.sql
 :r $(Root)\sql\Modules\Contract\register_Contract.sql
 :r $(Root)\sql\Modules\Employee\register_Employee.sql
+:r $(Root)\sql\Modules\Leave\register_Leave.sql
 :r $(Root)\sql\Modules\ReferenceData\register_ReferenceData.sql
 
 SELECT 'RUN_1' AS RunName, COUNT(*) AS FormCount INTO #FormCounts FROM dbo.SY_FrmLstTbl;
@@ -22,6 +23,7 @@ SELECT 'RUN_1' AS RunName, COUNT(*) AS FieldCount INTO #FieldCounts FROM dbo.SY_
 :r $(Root)\sql\Modules\Shift\register_Shift.sql
 :r $(Root)\sql\Modules\Contract\register_Contract.sql
 :r $(Root)\sql\Modules\Employee\register_Employee.sql
+:r $(Root)\sql\Modules\Leave\register_Leave.sql
 :r $(Root)\sql\Modules\ReferenceData\register_ReferenceData.sql
 
 INSERT INTO #FormCounts SELECT 'RUN_2', COUNT(*) FROM dbo.SY_FrmLstTbl;

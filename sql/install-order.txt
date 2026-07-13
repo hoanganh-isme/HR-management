@@ -2,8 +2,13 @@
 # 1. Core API
 sql/API/API_LuuTruongGiaoDien.sql
 sql/API/API_DongBoTruongGiaoDien.sql
+sql/API/API_LayCacTruongGiaoDien.sql
 sql/API/API_DangKyFormWeb.sql
 sql/API/API_TheoDoiTaiNguyenFormWeb.sql
+sql/API/API_TruyVanDong.sql
+sql/API/API_LuuDong.sql
+sql/API/API_XoaDong.sql
+sql/API/API_LuuMenu.sql
 
 # 2. Existing module business procedures (no business logic is duplicated here)
 sql/API/APINEW/API_KinhPhiCongDoan.sql
@@ -20,6 +25,8 @@ sql/API/APINEW/API_HopDongLaoDong.sql
 sql/API/APINEW/API_HopDongLaoDong_ChiTiet.sql
 sql/API/APINEW/API_HopDongLaoDong_Attach.sql
 sql/API/APINEW/API_HoSoNhanVien.sql
+sql/API/APINEW/API_QuanLyNghiPhepNam.sql
+sql/API/APINEW/API_QuanLyNghiPhepNam_ChiTiet.sql
 
 # 3. Script-owned shared metadata seed
 sql/Modules/Core/insert_SharedFieldDictionary.sql
@@ -31,9 +38,11 @@ sql/Modules/Payroll/register_Payroll.sql
 sql/Modules/Shift/register_Shift.sql
 sql/Modules/Contract/register_Contract.sql
 sql/Modules/Employee/register_Employee.sql
+sql/Modules/Leave/register_Leave.sql
 sql/Modules/ReferenceData/register_ReferenceData.sql
 
 # 5. Verification
 sql/Modules/Core/verify_CoreRegistration.sql
 sql/verify-registration.sql
 sql/verify-idempotency.sql
+tests/sql/test-menu-form-registration.sql

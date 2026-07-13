@@ -151,3 +151,13 @@ test('fixtures cover paging, code/msg, empty and error responses', () => {
     assert.equal(error.records, null);
   });
 });
+
+test('annual leave module uses the leave-row CRUD contract', () => {
+  loadSource('src/js/modules/leave/annual-leave.module.js');
+  const config = context.APP_MODULES.WA_QUANLYNGHIPHEPNAMFRM;
+
+  assert.equal(config.PrimaryKey, 'UserAutoID');
+  assert.notEqual(config.HideAddBtn, true);
+  assert.notEqual(config.HideEditBtn, true);
+  assert.notEqual(config.HideDeleteBtn, true);
+});

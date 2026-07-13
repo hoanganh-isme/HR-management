@@ -4,6 +4,18 @@ SET XACT_ABORT ON;
 BEGIN TRY
     BEGIN TRANSACTION;
 
+    IF OBJECT_ID('dbo.API_TruyVanDong', 'P') IS NULL
+        THROW 51520, 'Missing core View procedure API_TruyVanDong.', 1;
+
+    IF OBJECT_ID('dbo.API_LuuDong', 'P') IS NULL
+        THROW 51521, 'Missing core Save procedure API_LuuDong.', 1;
+
+    IF OBJECT_ID('dbo.API_XoaDong', 'P') IS NULL
+        THROW 51522, 'Missing core Delete procedure API_XoaDong.', 1;
+
+    IF OBJECT_ID('dbo.API_DangKyFormWeb', 'P') IS NULL
+        THROW 51523, 'Missing form registration procedure API_DangKyFormWeb.', 1;
+
     SELECT list, func, COUNT(*) AS DuplicateCount
     FROM dbo.WA_API
     GROUP BY list, func

@@ -17,6 +17,33 @@ CREATE TABLE dbo.WA_API (
     Para NVARCHAR(MAX) NULL
 );
 
+CREATE TABLE dbo.WA_Menu (
+    MenuID NVARCHAR(50) NOT NULL,
+    Parent NVARCHAR(50) NULL,
+    VN NVARCHAR(250) NULL,
+    EN NVARCHAR(250) NULL,
+    SubTitle NVARCHAR(250) NULL,
+    FormName NVARCHAR(250) NULL,
+    FormKey NVARCHAR(250) NULL,
+    URLPara NVARCHAR(250) NULL,
+    IconClass NVARCHAR(100) NULL,
+    isDisable BIT NULL
+);
+
+CREATE TABLE dbo.WA_UserGroupPermisstion (
+    UserGroupID NVARCHAR(50) NOT NULL,
+    MenuID NVARCHAR(50) NOT NULL,
+    IsRun BIT NULL,
+    IsAdd BIT NULL,
+    IsUpdate BIT NULL,
+    IsDelete BIT NULL
+);
+
+CREATE TABLE dbo.WA_UserPermisstion (
+    UserName NVARCHAR(50) NOT NULL,
+    MenuID NVARCHAR(50) NOT NULL
+);
+
 CREATE TABLE dbo.SY_FormatFields (
     AutoID INT IDENTITY(1, 1),
     FormName VARCHAR(50) NOT NULL,
@@ -57,8 +84,42 @@ CREATE TABLE dbo.HR_SapCaNhanVienTbl (UserAutoID INT, SapCaID VARCHAR(50), Perso
 CREATE TABLE dbo.HR_HopDongTbl (MaHopDong VARCHAR(50), PersonID VARCHAR(50), BranchID VARCHAR(50), LoaiHopDong VARCHAR(50));
 CREATE TABLE dbo.HR_HopDongDetailTbl (UserAutoID INT, MaHopDong VARCHAR(50), Code VARCHAR(50));
 CREATE TABLE dbo.HR_HopDongAttachTbl (UserAutoID INT, MaHopDong VARCHAR(50), FileName NVARCHAR(255));
-CREATE TABLE dbo.HR_PersonTbl (PersonID VARCHAR(50), PersonName NVARCHAR(255), PersonStatus VARCHAR(50), BranchID VARCHAR(50), LoaiHD VARCHAR(50), NamLap INT);
+CREATE TABLE dbo.HR_PersonTbl (
+    PersonID VARCHAR(50),
+    PersonName NVARCHAR(255),
+    PersonStatus VARCHAR(50),
+    BranchID VARCHAR(50),
+    LoaiHD VARCHAR(50),
+    NamLap INT,
+    PhongBan NVARCHAR(255),
+    TitleName NVARCHAR(255),
+    ChucDanhChuyenMon NVARCHAR(255),
+    NgaySinh DATE,
+    CMND VARCHAR(50),
+    DiaChiThuongTru NVARCHAR(500),
+    NgayVaoLam DATE,
+    NgayHopDong DATE,
+    NationName NVARCHAR(255),
+    SoHopDong VARCHAR(50),
+    DienThoai VARCHAR(50)
+);
 CREATE TABLE dbo.HR_PersonAttachTbl (UserAutoID INT, PersonID VARCHAR(50), FileName NVARCHAR(255));
+CREATE TABLE dbo.HR_PersonNghiPhepTbl (
+    UserAutoID INT,
+    PersonID VARCHAR(50),
+    Nam INT,
+    SoNgay DECIMAL(9,2),
+    GhiChu NVARCHAR(500),
+    PhepThamNien DECIMAL(9,2),
+    SoNgayDaSuDung DECIMAL(9,2),
+    SoNgayConLai DECIMAL(9,2),
+    PhepTonNamTruoc DECIMAL(9,2),
+    SoNgayPhepTet DECIMAL(9,2),
+    SoNgayPhepOm DECIMAL(9,2),
+    NgayCapNhat DATETIME,
+    UserUpdate VARCHAR(50)
+);
+CREATE TABLE dbo.HR_MenuRegistrationTestTbl (UserAutoID INT, PersonID VARCHAR(50), Nam INT, SoNgay DECIMAL(9,2));
 
 CREATE TABLE dbo.CF_BranchTbl (BranchID VARCHAR(50));
 CREATE TABLE dbo.HR_BangCapTbl (MaBangCap VARCHAR(50));
@@ -134,4 +195,10 @@ GO
 CREATE OR ALTER PROCEDURE dbo.API_LuuDong AS SELECT 0 AS code;
 GO
 CREATE OR ALTER PROCEDURE dbo.API_XoaDong AS SELECT 0 AS code;
+GO
+CREATE OR ALTER PROCEDURE dbo.API_MenuRegistrationSave AS SELECT 0 AS code;
+GO
+CREATE OR ALTER PROCEDURE dbo.API_MenuRegistrationDelete AS SELECT 0 AS code;
+GO
+CREATE OR ALTER PROCEDURE dbo.API_MenuRegistrationApprove AS SELECT 0 AS code;
 GO

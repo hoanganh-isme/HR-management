@@ -1,98 +1,141 @@
-# SQL deployment and rollback
+# Triển khai và hoàn tác cấu hình SQL
 
-## Deployment model
+## Mô hình triển khai
 
-Run `sql/install-order.txt` from the repository root in SQLCMD mode. Start with
-`API_TheoDoiTaiNguyenFormWeb` on the target database to inventory usable
-resources and repeated field names. The tracker is read-only.
+Chạy các tệp theo thứ tự trong `sql/install-order.txt` bằng SQLCMD từ thư mục
+gốc của repository. Trước khi thay đổi cấu hình, chạy
+`API_TheoDoiTaiNguyenFormWeb` trên database đích để kiểm tra tài nguyên hiện có.
+Thủ tục tracking chỉ đọc dữ liệu.
 
-`SY_FrmLstTbl` remains the form resource registry. `SY_FormatFields` continues
-to hold form-specific behavior required by the current DynamicFormEngine
-contract. Shared captions and base formats are seeded once in the global
-`SY_FmtFldTbl` dictionary, so module register scripts do not repeat those
-values. Existing metadata is not compacted automatically.
+Core CRUD phải được cài đủ `API_TruyVanDong`, `API_LuuDong` và `API_XoaDong`
+trước `API_LuuMenu`. `API_DangKyFormWeb` sẽ từ chối đăng ký nếu một operation
+tham chiếu tới SP chưa tồn tại.
 
-## Changed files
+Ví dụ kiểm tra form phép năm:
 
-- `sql/API/API_DangKyFormWeb.sql`: transactional registration, operations JSON,
-  locked upsert and summary counts.
-- `sql/API/API_DongBoTruongGiaoDien.sql`: set-based discovery, table fallback
-  from the form registry, no cursor, no default pruning.
-- `sql/API/API_LuuTruongGiaoDien.sql`: nullable update options and insert-only
-  defaults.
-- `sql/Insert/Insert_WA_KinhPhiCongDoanFrm.sql`: canonical union-fee register.
+```sql
+EXEC dbo.API_TheoDoiTaiNguyenFormWeb
+    @FormName = 'WA_QuanLyNghiPhepNamFrm';
+```
 
-## New files
+Các result set trả về gồm:
 
-- Read-only registry tracker and shared-field dictionary seed.
-- Canonical register scripts for insurance, payroll, shift, contract and
-  employee modules.
-- Duplicate/index verification, contract verification and two-run idempotency
-  test.
-- Install-order and rollback scripts.
+1. Bảng, khóa chính, SP View, capability, `OperationProfile`, SP bị thiếu và số
+   field có thể nhập.
+2. Tên field dùng chung giữa nhiều form.
+3. Dữ liệu cấu hình bị trùng.
+4. Các operation chính xác trong `WA_API`.
+5. `ShowInAdd`, `IsReadOnlyAdd`, `ShowInEdit`, `IsReadOnlyEdit` của từng field.
+6. Quyền `IsRun`, `IsAdd`, `IsUpdate`, `IsDelete` của từng nhóm trên menu.
+7. Danh sách cột vật lý tên `IsEdit` nếu database thật sự có cột này.
 
-## DELETE scope
+`SY_FrmLstTbl` là sổ đăng ký tài nguyên form. `SY_FormatFields` giữ hành vi riêng
+của từng field trong từng form. Nhãn và định dạng dùng chung có thể đặt tại
+`SY_FmtFldTbl` với `FormName` rỗng.
 
-`API_DangKyFormWeb` deletes only `WA_API` rows whose `list` equals the supplied
-`FormName`, and only when `@ReplaceOperations = 1`. Field synchronization does
-not delete by default; callers must explicitly pass `@DeleteMissingFields = 1`
-after successful discovery. No new script deletes `SY_FrmLstTbl`, menu,
-permission or business HR rows.
+`API_LayCacTruongGiaoDien` suy ra `canView`, `canAdd`, `canEdit`, `canDelete`
+từ đúng các dòng `WA_API` của form. Frontend không được tự giả định form nào
+cũng có đủ CRUD.
 
-The shared dictionary seed performs update-then-insert and has no `DELETE`.
-Compatibility routes outside the main form lists are update-then-insert and
-preserve routes owned by other systems.
+## Ý nghĩa của IsEdit
 
-## Idempotency evidence
+`IsEdit` của form động không được lưu trong bảng cấu hình. Frontend tạo giá trị
+này trong JSON khi bấm Lưu:
 
-`sql/verify-idempotency.sql` runs the shared seed and all canonical register
-scripts twice in one SQLCMD session. It captures total counts after each run
-and throws if form, API or field counts increase on run two. Actual run-one and
-run-two values must be recorded from the target environment because this
-repository does not contain a database connection or production data.
+- `IsEdit = 0`: thêm mới bằng INSERT.
+- `IsEdit = 1`: cập nhật bằng UPDATE.
 
-Local SQL Server 2019 validation used an isolated scratch schema containing
-only registry tables, module key columns and metadata-only SP stubs. Results:
+`API_LuuDong` đọc `$.IsEdit` để chọn nhánh xử lý rồi loại key này khỏi danh sách
+cột được ghi xuống bảng. Trạng thái khóa field nằm ở `SY_FormatFields`; quyền
+thao tác nằm ở `WA_UserGroupPermisstion`; operation nằm ở `WA_API`.
 
-| Metric | Run 1 | Run 2 |
-|---|---:|---:|
-| `SY_FrmLstTbl` rows | 29 | 29 |
-| `WA_API` rows | 102 | 102 |
-| `SY_FormatFields` rows | 70 | 70 |
-| Shared dictionary rows inserted | 12 | 0 |
+## Luồng tạo menu
 
-The second run also passed after the three unique indexes were created. The
-core safety test confirmed that failed metadata discovery preserves existing
-field rows and that omitted optional parameters do not reset metadata flags.
-These counts validate script behavior, not production contents; target counts
-must still be captured during deployment.
+Màn hình quản trị menu hỗ trợ ba nguồn form:
 
-## Duplicate handling
+1. **Form có sẵn**: chỉ lưu `WA_Menu` và dùng lại đăng ký hiện tại. Hệ thống từ
+   chối nếu thiếu bảng, khóa chính, SP View hoặc metadata field.
+2. **CRUD từ bảng**: dùng `API_TruyVanDong` để xem dữ liệu và đăng ký
+   `API_LuuDong`, `API_XoaDong` cho Save/Delete.
+3. **SP nghiệp vụ**: dùng SP được nhập làm View; bảng và khóa chính vẫn xác định
+   nơi Save/Delete ghi dữ liệu.
 
-Duplicate `(list, func)`, `(FormName, FieldName)` and `FormID` rows are reported
-before unique indexes are considered. Dirty sets are left unchanged and do not
-receive an index. This task performs no arbitrary canonical-row selection,
-backup or duplicate cleanup.
+Khi đăng ký form mới, phải chọn một hồ sơ thao tác:
 
-## Rollback
+- `CRUD`: hệ thống đồng bộ chính xác `View`, `Save`, `Delete`. Save mặc định dùng
+  `API_LuuDong`, Delete mặc định dùng `API_XoaDong`; JSON nghiệp vụ có thể thay
+  SP mặc định nhưng vẫn phải dùng tên thao tác `Save` và `Delete` để form động
+  nhận biết.
+- `READONLY`: chỉ giữ `View`; các thao tác ghi cũ của form bị loại khỏi `WA_API`.
+- `CUSTOM`: luôn có `View` và lấy các thao tác còn lại từ JSON. Dùng cho duyệt,
+  tính lương, khóa kỳ, cấp phép hoặc luồng có SP Save/Delete riêng.
 
-1. Stop after a failed script; `XACT_ABORT` and `TRY/CATCH` roll back that
-   script's transaction.
-2. Run `sql/rollback-registration-refactor.sql` to remove only unique indexes
-   introduced by verification.
-3. Redeploy the previous versions of the three core procedures if code rollback
-   is required.
-4. Do not delete registrations to roll back. Restore metadata values from the
-   pre-deployment database backup or approved audit snapshot.
+Profile được xử lý tại `API_DangKyFormWeb`, vì vậy màn hình menu và các script
+module cùng kế thừa một quy tắc. Backend kiểm tra SP của từng operation tồn tại
+và kiểm tra profile CRUD có đủ `View/Save/Delete` trước khi commit.
 
-## Production risks
+`API_LuuMenu` gọi `API_DangKyFormWeb` trong cùng transaction. Nếu đăng ký form
+không hợp lệ thì menu cũng được rollback. Quyền nhóm người dùng là bước riêng,
+không tự cấp cùng lúc khi tạo menu.
 
-- DMV result-set discovery can fail for procedures that use temporary tables;
-  synchronization falls back to the registered table and requires virtual or
-  computed fields in `@Overrides`.
-- A database with existing duplicate API/form/field keys blocks canonical
-  registration until duplicates are reviewed.
-- Legacy generated insert scripts remain destructive and are intentionally
-  excluded from the new install order.
-- Union fee is not a true master/detail document module in the current schema;
-  no `Generate`, lock or manual-row preservation contract was invented.
+Nếu một form cũ chỉ có `View`, chạy lại script đăng ký canonical của module với
+`@OperationProfile = 'CRUD'`. Với phép năm, chạy
+`sql/Modules/Leave/register_Leave.sql`; script sẽ sửa chính xác các dòng
+`WA_API` của form mà không thay đổi dữ liệu `HR_PersonNghiPhepTbl`.
+
+Sau khi engine mới được triển khai, form CRUD một bảng hoặc form chỉ đọc không
+cần tạo thêm file JavaScript. Chỉ các luồng đặc biệt như wizard, master-detail,
+tính toán nghiệp vụ hoặc đính kèm mới cần module source riêng.
+
+## Form quản lý phép năm
+
+`WA_QuanLyNghiPhepNamFrm` được đăng ký bởi
+`sql/Modules/Leave/register_Leave.sql`:
+
+- Bảng lưu: `HR_PersonNghiPhepTbl`.
+- Khóa chính: `UserAutoID`.
+- View: `API_QuanLyNghiPhepNam`.
+- Save: `API_LuuDong`.
+- Delete: `API_XoaDong`.
+
+`PersonID`, `Nam`, số ngày phép, phép thâm niên, phép tồn, phép Tết, phép ốm và
+ghi chú có thể nhập theo metadata. `SoNgayDaSuDung`, `SoNgayConLai` và các field
+audit vẫn khóa vì là dữ liệu tính toán hoặc dữ liệu hệ thống.
+
+## Phạm vi DELETE
+
+`API_DangKyFormWeb` chỉ thay các dòng `WA_API` có `list` bằng đúng `FormName`
+khi `@ReplaceOperations = 1`. Đồng bộ field không tự xóa mặc định.
+
+Riêng script đăng ký phép năm xóa các field metadata cũ không còn thuộc form,
+nhưng chỉ trong phạm vi `FormName = 'WA_QuanLyNghiPhepNamFrm'`. Script không xóa
+dữ liệu trong `HR_PersonNghiPhepTbl`.
+
+Các script export `Insert_*` cũ có lệnh xóa rộng được giữ để tham khảo tương
+thích nhưng không nằm trong thứ tự triển khai mới.
+
+## Kiểm tra lặp lại
+
+`sql/verify-idempotency.sql` chạy seed và các script đăng ký hai lần. Số dòng
+form, API và field sau lần hai phải bằng lần một. Bài kiểm thử integration tại
+`tests/sql/test-menu-form-registration.sql` kiểm tra menu thuần, CRUD từ bảng,
+form có sẵn và chuyển từ CRUD sang chỉ đọc.
+Test cũng kiểm tra ánh xạ SP chuẩn và profile nghiệp vụ riêng.
+
+## Hoàn tác
+
+1. Dừng triển khai ngay khi một script lỗi; transaction sẽ rollback script đó.
+2. Chạy `sql/rollback-registration-refactor.sql` nếu cần bỏ các unique index do
+   bước kiểm tra tạo ra.
+3. Triển khai lại phiên bản trước của các core procedure nếu cần rollback code.
+4. Không xóa đăng ký để hoàn tác. Khôi phục giá trị metadata từ backup hoặc bản
+   snapshot đã được duyệt.
+
+## Rủi ro cần theo dõi
+
+- SP dùng bảng tạm có thể khiến SQL Server không mô tả được result set; khi đó
+  hệ thống phải fallback về bảng đã đăng ký.
+- Dữ liệu trùng `(list, func)`, `(FormName, FieldName)` hoặc `FormID` phải được
+  xử lý trước khi tạo unique index.
+- Sau khi đổi source frontend cần bảo đảm trình duyệt nạp đúng phiên bản, tránh
+  cache bundle cũ.

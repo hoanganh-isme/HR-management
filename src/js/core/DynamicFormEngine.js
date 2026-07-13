@@ -751,7 +751,7 @@ window.DynamicFormEngine = (function () {
 
     // 1. Lấy Từ điển UI từ Database trước (Cơ chế Caching siêu tốc)
     var configEndpoint = MODULE_CONFIG.ApiDictionary;
-    var cacheKey = 'FormConfigCache_' + MODULE_CONFIG.FormName;
+    var cacheKey = 'FormConfigCache_' + MODULE_CONFIG.FormName + '_v' + (MODULE_CONFIG.SchemaVersion || 1);
     var cachedData = null;
 
     // RAM Cache cho giao diện
@@ -787,6 +787,26 @@ window.DynamicFormEngine = (function () {
           Object.keys(_rowMap).forEach(function (src) {
             if (firstRow[src]) MODULE_CONFIG[_rowMap[src]] = firstRow[src];
           });
+
+          // WA_API is the source of truth for form capabilities. Explicit module
+          // flags may hide more actions, but they cannot enable a missing route.
+          if (firstRow.canAdd !== undefined || firstRow.CanAdd !== undefined) {
+            MODULE_CONFIG.CanAddOperation = _bool(firstRow.canAdd, firstRow.CanAdd);
+            if (!MODULE_CONFIG.CanAddOperation) MODULE_CONFIG.HideAddBtn = true;
+          }
+          if (firstRow.canEdit !== undefined || firstRow.CanEdit !== undefined) {
+            MODULE_CONFIG.CanEditOperation = _bool(firstRow.canEdit, firstRow.CanEdit);
+            if (!MODULE_CONFIG.CanEditOperation) MODULE_CONFIG.HideEditBtn = true;
+          }
+          if (firstRow.canDelete !== undefined || firstRow.CanDelete !== undefined) {
+            MODULE_CONFIG.CanDeleteOperation = _bool(firstRow.canDelete, firstRow.CanDelete);
+            if (!MODULE_CONFIG.CanDeleteOperation) MODULE_CONFIG.HideDeleteBtn = true;
+          }
+
+          // A copied or stale detail URL must not bypass the operation contract.
+          if (MODULE_CONFIG.IsDetailForceEdit && MODULE_CONFIG.CanEditOperation === false) {
+            MODULE_CONFIG.IsDetailForceEdit = false;
+          }
 
           // Sinh nhãn mặc định — caller có thể override từ config
           _setDefaults(MODULE_CONFIG, {
@@ -893,6 +913,8 @@ window.DynamicFormEngine = (function () {
           if (Object.keys(overrides).length > 0) {
             if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
             if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
+            if (overrides.showInAdd !== undefined) item.showInAdd = overrides.showInAdd;
+            if (overrides.showInEdit !== undefined) item.showInEdit = overrides.showInEdit;
             if (overrides.required !== undefined) item.required = overrides.required;
             if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
             if (overrides.hiddenColumns !== undefined) hiddenColsVal = overrides.hiddenColumns;
@@ -912,6 +934,8 @@ window.DynamicFormEngine = (function () {
             if (ff) {
               if (ff.isReadOnlyEdit !== undefined) isReadOnlyEditVal = ff.isReadOnlyEdit;
               if (ff.isReadOnlyAdd !== undefined) isReadOnlyAddVal = ff.isReadOnlyAdd;
+              if (ff.showInAdd !== undefined) item.showInAdd = ff.showInAdd;
+              if (ff.showInEdit !== undefined) item.showInEdit = ff.showInEdit;
               if (ff.required !== undefined) item.required = ff.required;
               if (ff.IsRequired !== undefined) item.IsRequired = ff.IsRequired;
               if (ff.hiddenColumns !== undefined) hiddenColsVal = ff.hiddenColumns;
@@ -964,13 +988,13 @@ window.DynamicFormEngine = (function () {
                 name: cf.name,
                 label: cf.label || '',
                 required: cf.required || false,
-                showInAdd: true,
-                showInEdit: true,
+                showInAdd: cf.showInAdd !== false,
+                showInEdit: cf.showInEdit !== false,
                 showInFilter: false,
                 isReadOnlyEdit: cf.isReadOnlyEdit || false,
                 isReadOnlyAdd: cf.isReadOnlyAdd || false,
                 position: cf.position || 'grid',
-                orderNo: 999, // Xếp cuối theo mặc định
+                orderNo: cf.orderNo || 999, // Xếp cuối theo mặc định
                 renderRule: (cf.renderRule || '').toLowerCase().trim(),
                 dataSource: cf.dataSource || '',
                 dataSourceMethod: String(cf.dataSourceMethod || 'POST').toUpperCase(),
@@ -1664,9 +1688,14 @@ window.DynamicFormEngine = (function () {
         var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
         var isReport = formNameLower.endsWith('report');
         var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
+        var hasWritableAddFields = globalFormSchema.some(function (field) {
+          var isVisible = String(field.showInAdd) === '1' || field.showInAdd === true;
+          return isVisible && !field.isReadOnlyAdd;
+        });
+        var canOpenAddForm = hasWritableAddFields || MODULE_CONFIG.AllowAddWithoutWritableFields === true;
 
         var toolbar = UIActionToolbar.create({
-          onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
+          onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn && canOpenAddForm) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
           onView: (isFrm && !MODULE_CONFIG.HideViewBtn) ? function () {
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Vui lòng chọn dữ liệu cần xem');
             if (selectedRows.length > 1) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Chỉ có thể xem chi tiết từng dòng một.');
@@ -2012,6 +2041,10 @@ window.DynamicFormEngine = (function () {
 
       if (!MODULE_CONFIG.NoAutoLoad) {
         if (MODULE_CONFIG.IsDetailAdd) {
+          if (MODULE_CONFIG.CanAddOperation === false) {
+            $container.innerHTML = '<div class="alert alert-warning m-4">Form này không được đăng ký thao tác Thêm mới.</div>';
+            return;
+          }
           _openModal(false, null);
         } else if (MODULE_CONFIG.action === 'detail' || MODULE_CONFIG.Action === 'detail') {
           _openModal(true, MODULE_CONFIG.DetailRowData, true);
@@ -3969,6 +4002,10 @@ window.DynamicFormEngine = (function () {
   }
 
   function _openAddForm() {
+    if (MODULE_CONFIG.CanAddOperation === false) {
+      return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Form này không được đăng ký thao tác Thêm mới.');
+    }
+
     // Neu co WizardSteps -> dung Wizard multi-step, nguoc lai dung detail full page
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
@@ -3989,6 +4026,10 @@ window.DynamicFormEngine = (function () {
 
 
   function _openEditForm(row) {
+    if (MODULE_CONFIG.CanEditOperation === false) {
+      return _openViewForm(row);
+    }
+
     if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
       _openModal(true, row, true);
       return;
@@ -4938,7 +4979,7 @@ window.DynamicFormEngine = (function () {
                   // Duyệt qua các cột trả về từ API
                   keys.forEach(function (keyName, index) {
                     // Tìm xem trong Form hiện tại có Input nào tên trùng với tên Cột không (case-insensitive)
-                    var form = hiddenInput.closest('.ui-modal') || hiddenInput.closest('body');
+                    var form = body;
                     if (form) {
                       var targetInput = form.querySelector('[name="' + keyName + '" i]');
                       if (targetInput && targetInput !== hiddenInput) {
@@ -5876,7 +5917,7 @@ window.DynamicFormEngine = (function () {
       });
     }
 
-    if (isViewMode) {
+    if (isViewMode && MODULE_CONFIG.CanEditOperation !== false) {
       var btnSwitchEdit = document.createElement('button');
       btnSwitchEdit.className = 'btn btn-primary';
       btnSwitchEdit.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px; margin-right: 4px; vertical-align: middle;">edit</span> Sửa';
@@ -5948,7 +5989,7 @@ window.DynamicFormEngine = (function () {
         }
       };
       btnSave.onclick = function () { _saveData(isEdit, row, dummyModal, body, btnSave); };
-      if (isViewMode) {
+      if (isViewMode && btnSwitchEdit) {
         btnSwitchEdit.onclick = function () { _openModal(true, row, false); };
       }
     } else {
@@ -5969,7 +6010,7 @@ window.DynamicFormEngine = (function () {
       btnSave.onclick = function () {
         _saveData(isEdit, row, modal, body, btnSave);
       };
-      if (isViewMode) {
+      if (isViewMode && btnSwitchEdit) {
         btnSwitchEdit.onclick = function () { modal.closeNow(); _openModal(true, row, false); };
       }
     }

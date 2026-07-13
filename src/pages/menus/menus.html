@@ -63,7 +63,7 @@
 <!-- ══ MODAL Thêm / Sửa Menu ══════════════════════════════════ -->
 <div id="modal-menu-form" class="modal-overlay" style="display:none;">
   <div class="modal-content"
-    style="width: 520px; max-width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+    style="width: 720px; max-width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
     <div class="modal-header">
       <h3 id="modal-menu-title">Thêm mới Menu</h3>
       <button class="btn-close-modal" id="btn-close-modal">
@@ -121,7 +121,7 @@
         <div class="row g-3 mb-3">
           <div class="col-8">
             <div class="form-group">
-              <label class="form-label">Tên Form hệ thống <span style="color:var(--color-danger)">*</span></label>
+              <label class="form-label">Tên Form hệ thống <span id="menu-formname-required" style="color:var(--color-danger)">*</span></label>
               <input type="text" id="menu-formname" class="ui-input" placeholder="VD: WB_BaocaoDoanhThu">
             </div>
           </div>
@@ -136,7 +136,68 @@
         <!-- URL / Tham số -->
         <div class="form-group mb-3">
           <label class="form-label">URL / Tham số</label>
-          <input type="text" id="menu-urlpara" class="ui-input" placeholder="VD: ?type=doanhthu">
+          <input type="text" id="menu-urlpara" class="ui-input" placeholder="VD: #/3001">
+        </div>
+
+        <div class="form-group mb-3">
+          <label class="form-label">Nguồn form</label>
+          <select id="menu-form-mode" class="ui-input">
+            <option value="none">Chỉ tạo menu / nhóm</option>
+            <option value="existing">Dùng form đã đăng ký</option>
+            <option value="table">Tạo CRUD trực tiếp từ bảng</option>
+            <option value="procedure">Đăng ký SP nghiệp vụ</option>
+          </select>
+        </div>
+
+        <div id="menu-form-contract" style="display:none; padding:16px; margin-bottom:16px; border:1px solid var(--color-border); border-radius:8px; background:rgba(0,0,0,0.02);">
+          <div id="menu-table-contract" class="row g-3 mb-3">
+            <div class="col-8">
+              <div class="form-group">
+                <label class="form-label">Bảng dữ liệu <span style="color:var(--color-danger)">*</span></label>
+                <input type="text" id="menu-table-name" class="ui-input" placeholder="VD: HR_PersonNghiPhepTbl">
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="form-group">
+                <label class="form-label">Khóa chính <span style="color:var(--color-danger)">*</span></label>
+                <input type="text" id="menu-primary-key" class="ui-input" placeholder="VD: UserAutoID">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group mb-3">
+            <label class="form-label">Hồ sơ thao tác</label>
+            <select id="menu-data-access" class="ui-input">
+              <option value="CRUD">CRUD chuẩn (View, Save, Delete)</option>
+              <option value="READONLY">Chỉ xem (View)</option>
+              <option value="CUSTOM">Nghiệp vụ riêng</option>
+            </select>
+          </div>
+
+          <div id="menu-procedure-contract" style="display:none;">
+            <div class="form-group mb-3">
+              <label class="form-label">Stored procedure View <span style="color:var(--color-danger)">*</span></label>
+              <input type="text" id="menu-view-procedure" class="ui-input" placeholder="VD: API_QuanLyNghiPhepNam">
+            </div>
+            <div class="form-group mb-3">
+              <label class="form-label">Tham số View</label>
+              <textarea id="menu-view-parameters" class="ui-input" rows="2" placeholder="@Keyword=N'{Keyword}', @BranchID=N'{BranchID}'"></textarea>
+            </div>
+          </div>
+
+          <details>
+            <summary style="cursor:pointer; font-weight:600; font-size:13px; color:var(--color-text-secondary);">Cấu hình field và thao tác nâng cao</summary>
+            <div style="padding-top:12px;">
+              <div class="form-group mb-3">
+                <label class="form-label">Field overrides (JSON)</label>
+                <textarea id="menu-field-overrides" class="ui-input" rows="4" spellcheck="false">[]</textarea>
+              </div>
+              <div class="form-group mb-3">
+                <label class="form-label">Thao tác nghiệp vụ (JSON)</label>
+                <textarea id="menu-operations" class="ui-input" rows="4" spellcheck="false" placeholder='[{"func":"Save","sql":"API_LuuNghiepVu","para":"@Data=N&apos;{JsonData}&apos;"},{"func":"Delete","sql":"API_XoaNghiepVu","para":"@Data=N&apos;{JsonData}&apos;"}]'></textarea>
+              </div>
+            </div>
+          </details>
         </div>
 
         <!-- Icon -->

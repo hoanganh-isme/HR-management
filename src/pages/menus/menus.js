@@ -6,6 +6,16 @@ var MenusPage = (function () {
   var $container;
   var allMenus = [];   // flat list từ API
   var _scrollState = { windowTop: 0, sidebarTop: 0, contentTop: 0, tableLeft: 0 };
+  var OPERATION_PROFILES = {
+    CRUD: { includeSave: 1, includeDelete: 1, requireOperations: false },
+    READONLY: { includeSave: 0, includeDelete: 0, requireOperations: false },
+    CUSTOM: { includeSave: 0, includeDelete: 0, requireOperations: true }
+  };
+
+  function _operationProfile() {
+    var value = $container.querySelector('#menu-data-access').value.toUpperCase();
+    return OPERATION_PROFILES[value] ? value : 'CRUD';
+  }
 
   function _getPermKey() {
     var hash = window.location.hash.replace('#', '').split('?')[0] || '/menus';
@@ -87,7 +97,45 @@ var MenusPage = (function () {
     $container.querySelector('#btn-close-modal').addEventListener('click', _closeModal);
     $container.querySelector('#btn-cancel-modal').addEventListener('click', _closeModal);
     $container.querySelector('#btn-save-menu').addEventListener('click', _saveMenu);
+    $container.querySelector('#menu-form-mode').addEventListener('change', _updateFormModeUI);
+    $container.querySelector('#menu-data-access').addEventListener('change', _updateOperationProfileUI);
 
+  }
+
+  function _updateFormModeUI() {
+    var mode = $container.querySelector('#menu-form-mode').value;
+    var contract = $container.querySelector('#menu-form-contract');
+    var procedureContract = $container.querySelector('#menu-procedure-contract');
+    var tableContract = $container.querySelector('#menu-table-contract');
+    var formName = $container.querySelector('#menu-formname');
+    var requiredMark = $container.querySelector('#menu-formname-required');
+
+    contract.style.display = (mode === 'table' || mode === 'procedure') ? 'block' : 'none';
+    procedureContract.style.display = mode === 'procedure' ? 'block' : 'none';
+    tableContract.style.display = (mode === 'table' || mode === 'procedure') ? '' : 'none';
+    formName.disabled = mode === 'none';
+    requiredMark.style.display = mode === 'none' ? 'none' : 'inline';
+
+    if (mode === 'none') formName.value = '';
+    if (mode === 'table') $container.querySelector('#menu-view-procedure').value = 'API_TruyVanDong';
+    _updateOperationProfileUI();
+  }
+
+  function _updateOperationProfileUI() {
+    var details = $container.querySelector('#menu-form-contract details');
+    if (details && _operationProfile() === 'CUSTOM') details.open = true;
+  }
+
+  function _parseJsonInput(selector, fallbackValue, fieldLabel) {
+    var value = $container.querySelector(selector).value.trim();
+    if (!value) return fallbackValue;
+
+    try {
+      JSON.parse(value);
+      return value;
+    } catch (error) {
+      throw new Error(fieldLabel + ' không phải JSON hợp lệ');
+    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -395,156 +443,10 @@ var MenusPage = (function () {
       });
     });
 
-    // Bind event cho nút Thêm Menu Con inline (trực tiếp trên table)
+    // Menu con luôn đi qua modal để có đủ hợp đồng form/API.
     wrapper.querySelectorAll('.btn-add-child-inline').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var tbody = wrapper.querySelector('tbody');
-        if (!tbody) {
-          // Bảng trống nên tbody nằm trong wrapper.querySelector('.child-drag-table tbody'); 
-          // Nhưng khoan, nếu rỗng thì chưa render '<table class="child-drag-table">'.
-          // Tuy nhiên, ở bản HTML ta có <div> rỗng nếu list rỗng, nhưng mình vừa thấy ở code (khoảng line 219)
-          // `contentHTML` rỗng nếu list rỗng, đâm ra không có bảng.
-          // Để giải quyết, ta cứ gọi `_openModal` nếu ko có bảng, hoặc ép nó render bảng.
-          // Nhưng để an toàn cứ thử lấy bảng:
-        }
-        var tableWrapper = wrapper.querySelector('.child-drag-table tbody');
-        if (!tableWrapper) {
-          // Nếu trống không có table thì cứ mở Modal cho gọn
-          _openModal(false, { parent: parentItem.id, isDisable: false });
-          return;
-        }
-
-        var baseInputStyle = "width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px; border-radius:6px; border:1px solid var(--color-border); outline:none; transition:all 0.2s; background:#fff;";
-        var focusInputStyle = "width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px; border-radius:6px; border:1px solid var(--color-primary); outline:none; transition:all 0.2s; background:#fff;";
-        var idInputStyle = "width:100%; box-sizing:border-box; padding:6px 8px; font-size:13px; border-radius:6px; border:2px solid var(--color-primary); outline:none; text-align:center; font-weight:700; font-family:monospace; background:#fff;";
-
-        var tr = document.createElement('tr');
-        tr.style.background = 'rgba(var(--color-primary-rgb), 0.04)';
-        tr.style.boxShadow = 'inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.2)';
-        tr.innerHTML = '<td style="color:var(--color-text-secondary);text-align:center;">' + UIIcon.renderHtml('add_circle', 'font-size:18px; color:var(--color-primary);') + '</td>'
-          + '<td><input type="text" class="form-control inline-new-id" placeholder="VD: 0305" style="' + idInputStyle + '" autofocus></td>'
-          + '<td style="text-align:center;"><code style="background:rgba(0,0,0,0.05);padding:5px 10px;border-radius:6px;font-size:12px;font-weight:700;color:var(--color-text-secondary);">' + parentItem.id + '</code></td>'
-          + '<td><input type="text" class="form-control inline-new-icon" value="horizontal_rule" style="width:32px; height:32px; padding:0; font-size:20px; font-family:\'Material Symbols Outlined\'; margin:0 auto; text-align:center; border-radius:6px; border:1px solid var(--color-border); outline:none; display:block; color:var(--color-primary); background:#fff;" title="Gõ tên Icon"></td>'
-          + '<td><input type="text" class="form-control inline-new-label" placeholder="VD: Báo cáo mới..." style="' + focusInputStyle + '"></td>'
-          + '<td><input type="text" class="form-control inline-new-en" placeholder="VD: New Report" style="' + baseInputStyle + '"></td>'
-          + '<td><input type="text" class="form-control inline-new-subtitle" placeholder="Phụ đề" style="' + baseInputStyle + '"></td>'
-          + '<td><input type="text" class="form-control inline-new-formname" placeholder="Tên Form" style="' + baseInputStyle + '"></td>'
-          + '<td><input type="text" class="form-control inline-new-formkey" placeholder="Key" style="' + baseInputStyle + '"></td>'
-          + '<td><input type="text" class="form-control inline-new-urlpara" placeholder="?url=" style="' + baseInputStyle + '"></td>'
-          + '<td style="text-align:center; white-space:nowrap;">'
-          + '  <div style="display:flex; gap:6px; justify-content:center;">'
-          + '    ' + UIButton.createHTML({ text: 'Lưu', icon: 'save', type: 'primary', className: 'btn-save-inline-new', style: 'padding:6px 12px;font-size:13px;border-radius:6px;display:flex;align-items:center;gap:4px;font-weight:600;', iconStyle: 'font-size:16px;' })
-          + '    ' + UIButton.createHTML({ icon: 'close', type: 'light', className: 'btn-cancel-inline-new', style: 'padding:6px 8px;font-size:13px;border-radius:6px;border:1px solid var(--color-border);display:flex;align-items:center;', tooltip: 'Hủy bỏ', iconStyle: 'font-size:16px;color:var(--color-text-secondary);' })
-          + '  </div>'
-          + '</td>';
-
-        tableWrapper.appendChild(tr);
-
-        // Hiệu ứng focus cho icon
-        var iconInput = tr.querySelector('.inline-new-icon');
-        iconInput.addEventListener('focus', function () {
-          this.style.borderColor = 'var(--color-primary)';
-          if (document.querySelector('.inline-icon-picker')) return;
-
-          var picker = document.createElement('div');
-          picker.className = 'inline-icon-picker';
-          picker.style.cssText = 'position:fixed; transform:translateX(-50%); width:220px; background:#fff; border:1px solid var(--color-border); box-shadow:0 10px 25px rgba(0,0,0,0.15); border-radius:8px; padding:8px; z-index:9999; display:flex; flex-wrap:wrap; gap:4px; justify-content:center; cursor:default;';
-
-          var updatePickerPos = function () {
-            if (!document.body.contains(picker)) {
-              window.removeEventListener('scroll', updatePickerPos, true);
-              window.removeEventListener('resize', updatePickerPos);
-              return;
-            }
-            var rect = iconInput.getBoundingClientRect();
-            var pickerHeight = 240;
-            var topPos = rect.bottom + 4;
-            if (topPos + pickerHeight > window.innerHeight && rect.top - pickerHeight > 0) topPos = rect.top - pickerHeight - 4;
-            picker.style.top = topPos + 'px';
-            picker.style.left = (rect.left + rect.width / 2) + 'px';
-          };
-
-          var icons = ['article', 'dashboard', 'people', 'bar_chart', 'settings', 'receipt', 'restaurant', 'point_of_sale', 'calendar_month', 'inventory_2', 'assignment', 'group', 'local_shipping', 'local_dining', 'category', 'notifications', 'monitoring', 'event', 'attach_money', 'print', 'folder', 'home', 'description', 'list', 'add', 'edit', 'delete', 'search', 'event_note', 'storefront'];
-          icons.forEach(function (ico) {
-            var btn = document.createElement('div');
-            btn.style.cssText = 'width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:4px; transition:background 0.2s;';
-            btn.innerHTML = UIIcon.renderHtml(ico, 'font-size:20px;color:var(--color-primary);');
-            btn.title = ico;
-            btn.onmouseenter = function () { btn.style.background = 'rgba(0,0,0,0.05)'; };
-            btn.onmouseleave = function () { btn.style.background = 'transparent'; };
-            btn.onmousedown = function (e) {
-              e.preventDefault();
-              iconInput.value = ico;
-              if (document.querySelector('.inline-icon-picker')) document.querySelector('.inline-icon-picker').remove();
-            };
-            picker.appendChild(btn);
-          });
-
-          document.body.appendChild(picker);
-          updatePickerPos();
-          window.addEventListener('scroll', updatePickerPos, true);
-          window.addEventListener('resize', updatePickerPos);
-        });
-
-        iconInput.addEventListener('blur', function () {
-          this.style.borderColor = 'var(--color-border)';
-          if (document.querySelector('.inline-icon-picker')) document.querySelector('.inline-icon-picker').remove();
-        });
-
-        iconInput.addEventListener('keydown', function (e) {
-          if (e.key === 'Escape' && document.querySelector('.inline-icon-picker')) {
-            document.querySelector('.inline-icon-picker').remove();
-          }
-        });
-
-        // Nút hủy
-        tr.querySelector('.btn-cancel-inline-new').addEventListener('click', function () { tr.remove(); });
-
-        // Nút lưu
-        tr.querySelector('.btn-save-inline-new').addEventListener('click', function () {
-          var btnSave = this;
-          var id = tr.querySelector('.inline-new-id').value.trim();
-          var label = tr.querySelector('.inline-new-label').value.trim();
-          var formName = tr.querySelector('.inline-new-formname').value.trim();
-          if (!id || !label || !formName) {
-            UIToast.show('Vui lòng nhập ID, Tên Menu và Tên Form', 'error'); return;
-          }
-
-          var payload = {
-            NhomNguoiDangThaoTac: MenusService.currentGroupId(),
-            MenuID: id,
-            OldMenuID: '',
-            ParentID: parentItem.id,
-            Label: label,
-            EN: tr.querySelector('.inline-new-en').value.trim(),
-            SubTitle: tr.querySelector('.inline-new-subtitle').value.trim(),
-            FormName: tr.querySelector('.inline-new-formname').value.trim(),
-            FormKey: tr.querySelector('.inline-new-formkey').value.trim(),
-            URLPara: tr.querySelector('.inline-new-urlpara').value.trim(),
-            Icon: tr.querySelector('.inline-new-icon').value.trim() || 'horizontal_rule',
-            IsDisable: 0,
-            IsEdit: 0
-          };
-
-          btnSave.disabled = true;
-          btnSave.innerHTML = '...';
-
-          MenusService.save(payload).then(function (res) {
-            if (res && res.code === 0) {
-              UIToast.show('Thêm mới thành công!', 'success');
-              if (window.Navbar) Navbar.clearMenuCache();
-              _loadMenus();
-            } else {
-              UIToast.show(res.msg || 'Lỗi', 'error');
-              btnSave.disabled = false;
-              btnSave.innerHTML = 'Lưu';
-            }
-          }).catch(function () {
-            UIToast.show('Lỗi kết nối', 'error');
-            btnSave.disabled = false;
-            btnSave.innerHTML = 'Lưu';
-          });
-        });
+        _openModal(false, { parent: parentItem.id, isDisable: false });
       });
     });
     wrapper.querySelectorAll('.btn-delete-menu-inline').forEach(function (btn) {
@@ -1020,6 +922,14 @@ var MenusPage = (function () {
       });
     }
 
+    $container.querySelector('#menu-table-name').value = '';
+    $container.querySelector('#menu-primary-key').value = '';
+    $container.querySelector('#menu-view-procedure').value = '';
+    $container.querySelector('#menu-view-parameters').value = '';
+    $container.querySelector('#menu-data-access').value = 'CRUD';
+    $container.querySelector('#menu-field-overrides').value = '[]';
+    $container.querySelector('#menu-operations').value = '';
+
     if (isEdit && menu) {
       title.textContent = 'Sửa Menu: ' + menu.label;
       isEditInp.value = '1';
@@ -1035,12 +945,13 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = menu.icon || '';
       $container.querySelector('#menu-icon-preview').textContent = menu.icon || 'label';
       $container.querySelector('#menu-is-disable').checked = (menu.isDisable == 1 || menu.isDisable === '1' || menu.isDisable === true);
+      $container.querySelector('#menu-form-mode').value = menu.formName ? 'existing' : 'none';
     } else {
       title.textContent = 'Thêm mới Menu';
       isEditInp.value = '0';
       oldIdInp.value = '';
       $container.querySelector('#menu-id').value = '';
-      $container.querySelector('#menu-parent').value = '';
+      $container.querySelector('#menu-parent').value = menu && menu.parent ? menu.parent : '';
       $container.querySelector('#menu-label').value = '';
       $container.querySelector('#menu-en').value = '';
       $container.querySelector('#menu-subtitle').value = '';
@@ -1050,7 +961,10 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = '';
       $container.querySelector('#menu-icon-preview').textContent = 'label';
       $container.querySelector('#menu-is-disable').checked = false;
+      $container.querySelector('#menu-form-mode').value = menu && menu.parent ? 'table' : 'none';
     }
+
+    _updateFormModeUI();
 
     modal.style.display = 'flex';
     setTimeout(function () { $container.querySelector('#menu-id').focus(); }, 100);
@@ -1076,9 +990,47 @@ var MenusPage = (function () {
     var isDisable = $container.querySelector('#menu-is-disable').checked ? 1 : 0;
     var isEdit = $container.querySelector('#menu-is-edit').value === '1';
     var oldId = $container.querySelector('#menu-old-id').value;
+    var formMode = $container.querySelector('#menu-form-mode').value;
+    var registerForm = formMode === 'table' || formMode === 'procedure';
+    var tableName = $container.querySelector('#menu-table-name').value.trim();
+    var primaryKey = $container.querySelector('#menu-primary-key').value.trim();
+    var viewProcedure = $container.querySelector('#menu-view-procedure').value.trim();
+    var viewParameters = $container.querySelector('#menu-view-parameters').value.trim();
+    var operationProfile = _operationProfile();
+    var profileConfig = OPERATION_PROFILES[operationProfile];
 
-    if (!id || !label || !formName) {
-      Alert.error('Thiếu thông tin', 'Vui lòng nhập Menu ID, Tên Menu (VN) và Tên Form hệ thống');
+    if (!id || !label) {
+      Alert.error('Thiếu thông tin', 'Vui lòng nhập Menu ID và Tên Menu (VN)');
+      return;
+    }
+
+    if (formMode !== 'none' && !formName) {
+      Alert.error('Thiếu thông tin', 'Vui lòng nhập Tên Form hệ thống');
+      return;
+    }
+
+    if (registerForm && (!tableName || !primaryKey)) {
+      Alert.error('Thiếu cấu hình form', 'Vui lòng nhập Bảng dữ liệu và Khóa chính');
+      return;
+    }
+
+    if (formMode === 'procedure' && !viewProcedure) {
+      Alert.error('Thiếu cấu hình form', 'Vui lòng nhập Stored procedure View');
+      return;
+    }
+
+    var overrides;
+    var operations;
+    try {
+      overrides = _parseJsonInput('#menu-field-overrides', '[]', 'Field overrides');
+      operations = _parseJsonInput('#menu-operations', null, 'Operations');
+    } catch (error) {
+      Alert.error('JSON không hợp lệ', error.message);
+      return;
+    }
+
+    if (registerForm && profileConfig.requireOperations && operations === null) {
+      Alert.error('Thiếu thao tác nghiệp vụ', 'Vui lòng khai báo ít nhất một thao tác trong Operations JSON');
       return;
     }
 
@@ -1095,7 +1047,20 @@ var MenusPage = (function () {
       URLPara: urlPara,
       Icon: icon,
       IsDisable: isDisable,
-      IsEdit: isEdit ? 1 : 0
+      IsEdit: isEdit ? 1 : 0,
+      RegisterForm: registerForm ? 1 : 0,
+      RequireAvailableForm: formMode === 'existing' ? 1 : 0,
+      TableName: registerForm ? tableName : null,
+      PrimaryKey: registerForm ? primaryKey : null,
+      FormType: 'EDIT',
+      OperationProfile: registerForm ? operationProfile : null,
+      ViewProcedure: formMode === 'table' ? 'API_TruyVanDong' : (viewProcedure || null),
+      ViewParameters: viewParameters || null,
+      Overrides: overrides,
+      Operations: operations,
+      ReplaceOperations: registerForm ? 1 : 0,
+      IncludeSaveOperation: profileConfig.includeSave,
+      IncludeDeleteOperation: profileConfig.includeDelete
     };
 
     var btn = $container.querySelector('#btn-save-menu');
@@ -1105,7 +1070,19 @@ var MenusPage = (function () {
     MenusService.save(payload)
       .then(function (res) {
         if (res && res.code === 0) {
-          Alert.success('Thành công', 'Đã lưu Menu thành công!');
+          var formRegistered = res.FormRegistered == 1 || res.formRegistered == 1;
+          var resourceStatus = res.ResourceStatus || res.resourceStatus;
+          var operationCount = res.OperationCount !== undefined ? res.OperationCount : res.operationCount;
+          var successMessage = formRegistered
+            ? 'Đã tạo menu, đăng ký API và đồng bộ field thành công.'
+            : 'Đã lưu menu thành công.';
+          if (formRegistered && operationCount !== undefined) {
+            successMessage += ' Số thao tác: ' + operationCount + '.';
+          }
+          if (resourceStatus && resourceStatus !== 'AVAILABLE' && resourceStatus !== 'MENU_ONLY') {
+            successMessage += ' Trạng thái form: ' + resourceStatus + '.';
+          }
+          Alert.success('Thành công', successMessage);
           _closeModal();
           if (window.Navbar) Navbar.clearMenuCache();
           _loadMenus();

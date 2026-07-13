@@ -11,6 +11,22 @@ BEGIN
         
         -- Trả về thêm cấu hình cấp độ Form để loại bỏ hoàn toàn AppModules.js
         ISNULL(l.PrimaryKey, '') AS [primaryKey],
+        CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM dbo.WA_API api
+            WHERE api.list = ff.FormName AND UPPER(api.func) = 'VIEW'
+        ) THEN 1 ELSE 0 END AS BIT) AS [canView],
+        CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM dbo.WA_API api
+            WHERE api.list = ff.FormName AND UPPER(api.func) = 'SAVE'
+        ) THEN 1 ELSE 0 END AS BIT) AS [canAdd],
+        CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM dbo.WA_API api
+            WHERE api.list = ff.FormName AND UPPER(api.func) = 'SAVE'
+        ) THEN 1 ELSE 0 END AS BIT) AS [canEdit],
+        CAST(CASE WHEN EXISTS (
+            SELECT 1 FROM dbo.WA_API api
+            WHERE api.list = ff.FormName AND UPPER(api.func) = 'DELETE'
+        ) THEN 1 ELSE 0 END AS BIT) AS [canDelete],
         
         ISNULL(ff.ShowInAdd,      1) AS [showInAdd],
         ISNULL(ff.ShowInEdit,     1) AS [showInEdit],

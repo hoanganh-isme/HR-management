@@ -23,7 +23,9 @@ VALUES
     ('Contract', 'API_HopDongLaoDong_ChiTiet', 'HR_HopDongDetailTbl', 'UserAutoID', 'API_HopDongLaoDong_ChiTiet', 3),
     ('Contract', 'API_HopDongLaoDong_Attach', 'HR_HopDongAttachTbl', 'UserAutoID', 'API_HopDongLaoDong_Attach', 3),
     ('Employee', 'WA_PersonFullFrm', 'HR_PersonTbl', 'PersonID', 'API_HoSoNhanVien', 3),
-    ('Employee', 'API_PersonAttach', 'HR_PersonAttachTbl', 'UserAutoID', 'API_PersonAttach', 4);
+    ('Employee', 'API_PersonAttach', 'HR_PersonAttachTbl', 'UserAutoID', 'API_PersonAttach', 4),
+    ('Leave', 'WA_QuanLyNghiPhepNamFrm', 'HR_PersonNghiPhepTbl', 'UserAutoID', 'API_QuanLyNghiPhepNam', 3),
+    ('Leave', 'API_QuanLyNghiPhepNam_ChiTiet', 'HR_PersonNghiPhepTbl', 'UserAutoID', 'API_QuanLyNghiPhepNam_ChiTiet', 1);
 
 SELECT
     expected.ModuleName,

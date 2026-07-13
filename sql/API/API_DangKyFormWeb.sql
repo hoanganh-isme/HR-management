@@ -8,8 +8,17 @@ CREATE OR ALTER PROCEDURE [dbo].[API_DangKyFormWeb]
     @ViewProcedure     VARCHAR(128) = NULL,
     @ViewParameters    NVARCHAR(MAX) = NULL,
     @Overrides         NVARCHAR(MAX) = N'[]',
+    @OperationProfile  VARCHAR(20) = NULL,
     @Operations        NVARCHAR(MAX) = NULL,
-    @ReplaceOperations BIT = 0
+    @ReplaceOperations BIT = 0,
+    @IncludeSaveOperation BIT = 1,
+    @IncludeDeleteOperation BIT = 1,
+    @EmitResult BIT = 1,
+    @ApiInsertedOutput INT = NULL OUTPUT,
+    @ApiDeletedOutput INT = NULL OUTPUT,
+    @FieldsInsertedOutput INT = NULL OUTPUT,
+    @FieldsUpdatedOutput INT = NULL OUTPUT,
+    @FieldsDeletedOutput INT = NULL OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -20,6 +29,11 @@ BEGIN
     DECLARE @FieldsInserted INT = 0;
     DECLARE @FieldsUpdated INT = 0;
     DECLARE @FieldsDeleted INT = 0;
+    DECLARE @HasExplicitProfile BIT = CASE
+        WHEN NULLIF(LTRIM(RTRIM(ISNULL(@OperationProfile, ''))), '') IS NULL THEN 0
+        ELSE 1
+    END;
+    DECLARE @ResolvedOperationProfile VARCHAR(20);
 
     BEGIN TRY
         BEGIN TRANSACTION;
@@ -45,6 +59,39 @@ BEGIN
         IF @Operations IS NOT NULL AND ISJSON(@Operations) <> 1
             THROW 51003, 'Operations must be valid JSON.', 1;
 
+        SET @ResolvedOperationProfile = UPPER(LTRIM(RTRIM(ISNULL(@OperationProfile, ''))));
+
+        IF @ResolvedOperationProfile = ''
+            SET @ResolvedOperationProfile = CASE
+                WHEN @IncludeSaveOperation = 1 AND @IncludeDeleteOperation = 1 THEN 'CRUD'
+                WHEN @IncludeSaveOperation = 0 AND @IncludeDeleteOperation = 0 THEN 'READONLY'
+                ELSE 'CUSTOM'
+            END;
+
+        IF @ResolvedOperationProfile NOT IN ('CRUD', 'READONLY', 'CUSTOM')
+            THROW 51007, 'OperationProfile must be CRUD, READONLY or CUSTOM.', 1;
+
+        IF @ResolvedOperationProfile = 'CRUD'
+        BEGIN
+            SET @IncludeSaveOperation = 1;
+            SET @IncludeDeleteOperation = 1;
+        END
+        ELSE IF @ResolvedOperationProfile = 'READONLY'
+        BEGIN
+            SET @IncludeSaveOperation = 0;
+            SET @IncludeDeleteOperation = 0;
+        END
+        ELSE IF @HasExplicitProfile = 1
+        BEGIN
+            -- CUSTOM lay toan bo thao tac ghi du lieu tu @Operations.
+            SET @IncludeSaveOperation = 0;
+            SET @IncludeDeleteOperation = 0;
+        END
+
+        -- Profile duoc chon ro rang la hop dong chinh xac, khong giu lai API cu.
+        IF @HasExplicitProfile = 1
+            SET @ReplaceOperations = 1;
+
         DECLARE @CanonicalOperations TABLE (
             func VARCHAR(50) NOT NULL PRIMARY KEY,
             [SQL] VARCHAR(256) NOT NULL,
@@ -52,10 +99,15 @@ BEGIN
         );
 
         INSERT INTO @CanonicalOperations (func, [SQL], Para)
-        VALUES
-            ('View', @ViewProcedure, @ViewParameters),
-            ('Save', 'API_LuuDong', N'@List=N''' + REPLACE(@FormName, '''', '''''') + N''', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-            ('Delete', 'API_XoaDong', N'@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
+        VALUES ('View', @ViewProcedure, @ViewParameters);
+
+        IF @IncludeSaveOperation = 1
+            INSERT INTO @CanonicalOperations (func, [SQL], Para)
+            VALUES ('Save', 'API_LuuDong', N'@List=N''' + REPLACE(@FormName, '''', '''''') + N''', @Data=N''{JsonData}'', @UserName=N''{User}''');
+
+        IF @IncludeDeleteOperation = 1
+            INSERT INTO @CanonicalOperations (func, [SQL], Para)
+            VALUES ('Delete', 'API_XoaDong', N'@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 
         IF @Operations IS NOT NULL
         BEGIN
@@ -98,6 +150,11 @@ BEGIN
                 Para NVARCHAR(MAX) '$.para'
             ) operation;
 
+            IF @ResolvedOperationProfile = 'CUSTOM'
+               AND @HasExplicitProfile = 1
+               AND NOT EXISTS (SELECT 1 FROM @ParsedOperations)
+                THROW 51008, 'CUSTOM profile requires at least one custom operation.', 1;
+
             UPDATE canonical
                SET canonical.[SQL] = parsed.[SQL],
                    canonical.Para = parsed.Para
@@ -113,6 +170,40 @@ BEGIN
                 WHERE canonical.func = parsed.func
             );
         END
+
+        IF @ResolvedOperationProfile = 'CUSTOM'
+           AND @HasExplicitProfile = 1
+           AND NOT EXISTS (
+               SELECT 1 FROM @CanonicalOperations WHERE UPPER(func) <> 'VIEW'
+           )
+            THROW 51008, 'CUSTOM profile requires at least one custom operation.', 1;
+
+        IF @ResolvedOperationProfile = 'READONLY'
+           AND EXISTS (
+               SELECT 1
+               FROM @CanonicalOperations
+               WHERE UPPER(func) IN ('SAVE', 'DELETE', 'EXECUTE')
+           )
+            THROW 51009, 'READONLY profile cannot contain Save, Delete or Execute.', 1;
+
+        IF @ResolvedOperationProfile = 'CRUD'
+           AND EXISTS (
+               SELECT required.func
+               FROM (VALUES ('View'), ('Save'), ('Delete')) required(func)
+               WHERE NOT EXISTS (
+                   SELECT 1
+                   FROM @CanonicalOperations operation
+                   WHERE UPPER(operation.func) = UPPER(required.func)
+               )
+           )
+            THROW 51010, 'CRUD profile requires View, Save and Delete.', 1;
+
+        IF EXISTS (
+            SELECT 1
+            FROM @CanonicalOperations operation
+            WHERE OBJECT_ID(operation.[SQL], 'P') IS NULL
+        )
+            THROW 51011, 'A registered operation references a missing stored procedure.', 1;
 
         UPDATE form WITH (UPDLOCK, HOLDLOCK)
            SET FormType = @FormType,
@@ -141,10 +232,16 @@ BEGIN
         )
             THROW 51006, 'WA_API contains duplicate list + func rows for this form.', 1;
 
-        IF @Operations IS NOT NULL AND @ReplaceOperations = 1
+        IF @ReplaceOperations = 1
         BEGIN
-            DELETE FROM dbo.WA_API
-            WHERE list = @FormName;
+            DELETE api
+            FROM dbo.WA_API api
+            WHERE api.list = @FormName
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM @CanonicalOperations operation
+                  WHERE UPPER(operation.func) = UPPER(api.func)
+              );
 
             SET @ApiDeleted = @@ROWCOUNT;
         END
@@ -275,15 +372,24 @@ BEGIN
 
         COMMIT TRANSACTION;
 
-        SELECT
-            0 AS code,
-            @FormName AS FormName,
-            @ApiInserted AS ApiInserted,
-            @ApiDeleted AS ApiDeleted,
-            @FieldsInserted AS FieldsInserted,
-            @FieldsUpdated AS FieldsUpdated,
-            @FieldsDeleted AS FieldsDeleted,
-            N'Form registration completed.' AS msg;
+        SET @ApiInsertedOutput = @ApiInserted;
+        SET @ApiDeletedOutput = @ApiDeleted;
+        SET @FieldsInsertedOutput = @FieldsInserted;
+        SET @FieldsUpdatedOutput = @FieldsUpdated;
+        SET @FieldsDeletedOutput = @FieldsDeleted;
+
+        IF @EmitResult = 1
+            SELECT
+                0 AS code,
+                @FormName AS FormName,
+                @ResolvedOperationProfile AS OperationProfile,
+                (SELECT COUNT(*) FROM @CanonicalOperations) AS OperationCount,
+                @ApiInserted AS ApiInserted,
+                @ApiDeleted AS ApiDeleted,
+                @FieldsInserted AS FieldsInserted,
+                @FieldsUpdated AS FieldsUpdated,
+                @FieldsDeleted AS FieldsDeleted,
+                N'Form registration completed.' AS msg;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0

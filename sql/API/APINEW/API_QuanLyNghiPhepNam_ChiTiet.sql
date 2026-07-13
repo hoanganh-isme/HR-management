@@ -1,6 +1,3 @@
-USE X26DIMTUTAC
-GO
-
 -- =========================================================================
 -- API Tab Chi tiết: Lịch sử phép năm theo PersonID (tất cả các năm)
 -- EXEC dbo.API_QuanLyNghiPhepNam_ChiTiet @PersonID = 'ED004'
@@ -25,7 +22,8 @@ BEGIN
         ISNULL(N.PhepTonNamTruoc, 0)   AS PhepTonNamTruoc,
         ISNULL(N.SoNgayPhepTet, 0)     AS SoNgayPhepTet,
         ISNULL(N.SoNgayPhepOm, 0)      AS SoNgayPhepOm,
-        N.NgayCapNhat
+        N.NgayCapNhat,
+        N.UserUpdate
     FROM dbo.HR_PersonNghiPhepTbl N
     WHERE N.PersonID = @PersonID
     ORDER BY N.Nam DESC;
