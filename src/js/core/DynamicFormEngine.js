@@ -47,12 +47,12 @@ window.DynamicFormEngine = (function () {
 
   // ── Helpers ──────────────────────────────────────────────
   function _currentGroup() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
   }
 
   function _currentUser() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Username || u.UserName || u.username || 'Admin';
   }
 
@@ -65,14 +65,14 @@ window.DynamicFormEngine = (function () {
    */
   function _getUserBranches() {
     try {
-      var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+      var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
       var branchRaw = (u.BranchID || u.branchID || u.branchId || u.Branch || '').toString().trim();
       var userGrp = (u.UserGroupID || u.userGroupID || u.userGroupId || u.Group || u.NhomQuyen || _currentGroup() || '').toString().toLowerCase();
 
       var isAdmin = (userGrp === 'admin');
 
       // Load ALL_BRANCHES từ local storage
-      var sysBranches = JSON.parse(localStorage.getItem('pmql_sys_branches') || '[]');
+      var sysBranches = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('sys_branches', '[]') : localStorage.getItem('pmql_sys_branches')) || '[]');
       var ALL_BRANCHES = sysBranches.map(function (b) {
         return {
           id: (b.BranchID || b.branchID || b.branchId || '').toString().trim(),
@@ -1975,7 +1975,7 @@ window.DynamicFormEngine = (function () {
 
       // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
       var _sessionUser = {};
-      try { _sessionUser = JSON.parse(localStorage.getItem('pmql_user') || '{}'); } catch (e) { }
+      try { _sessionUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}'); } catch (e) { }
       var _branchID = (_sessionUser.BranchID || '').toString().trim();
 
       var query = {

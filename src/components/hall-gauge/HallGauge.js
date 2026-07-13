@@ -58,7 +58,7 @@ var HallGauge = (function () {
     wrap.innerHTML =
       '<div class="hall-gauge__title">' +
         '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
-        (opts.titleText || 'Sảnh tiệc hôm nay') +
+        (opts.titleText || 'Trạng thái nhân sự hôm nay') +
       '</div>' +
       '<div class="hall-gauge__count">' +
         '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +

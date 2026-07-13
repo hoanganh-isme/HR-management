@@ -388,7 +388,7 @@ var DocumentExportPlugin = (function () {
         convertFields: config.convertFields || [],
         // branchId từ localStorage (backend sẽ tự xác thực lại bằng SY_User)
         branchId: (function() {
-          try { return (JSON.parse(localStorage.getItem('pmql_user') || '{}')).BranchID || null; } catch(e) { return null; }
+          try { return (JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}')).BranchID || null; } catch(e) { return null; }
         })()
       })
     })

@@ -196,7 +196,7 @@ var WizardForm = (function () {
     // Nếu không có danh sách chi nhánh → fallback đọc từ localStorage
     if (!userBranches || userBranches.length === 0) {
       try {
-        var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+        var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
         var raw = u.ChiNhanhList || u.Branches || u.BranchCodes || u.ChiNhanh || [];
         if (Array.isArray(raw)) {
           userBranches = raw.map(function (b) {

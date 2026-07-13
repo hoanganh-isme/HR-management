@@ -147,7 +147,8 @@ var SettingsPage = (function () {
     var colRight = document.createElement('div');
     colRight.className = 'col-md-6';
     colRight.style.cssText = 'border-left:1px solid var(--color-border); padding-left:32px;';
-    colRight.innerHTML = '<div class="d-flex align-items-center gap-2 mb-3" style="font-size:var(--font-size-lg); font-weight:600;">' + UIIcon.createHTML('cloud_download', 'color:var(--color-primary)') + 'Sao lưu Dữ liệu Hệ thống</div><p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:24px; line-height:1.5;">Hệ thống sẽ nén toàn bộ CSDL hiện tại thành file .bak hoặc .sql để tải xuống.<br>Tên file mặc định: <code style="background: rgba(148, 163, 184, 0.1); padding:2px 6px; border-radius:4px;">PMQLTiec_2026_10_25.bak</code></p>' + UIButton.createHTML({ text: 'Tải File Sao Lưu Ngay', icon: 'save', type: 'secondary', className: 'w-100 d-flex justify-content-center gap-2', onClick: "Alert.success('Backup thành công!')" });
+    var backupPrefix = window.APP_SETTINGS ? APP_SETTINGS.appCode.toUpperCase() : 'HRM';
+    colRight.innerHTML = '<div class="d-flex align-items-center gap-2 mb-3" style="font-size:var(--font-size-lg); font-weight:600;">' + UIIcon.createHTML('cloud_download', 'color:var(--color-primary)') + 'Sao lưu Dữ liệu Hệ thống</div><p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:24px; line-height:1.5;">Hệ thống sẽ nén toàn bộ CSDL hiện tại thành file .bak hoặc .sql để tải xuống.<br>Tên file mặc định: <code style="background: rgba(148, 163, 184, 0.1); padding:2px 6px; border-radius:4px;">' + backupPrefix + '_2026_10_25.bak</code></p>' + UIButton.createHTML({ text: 'Tải File Sao Lưu Ngay', icon: 'save', type: 'secondary', className: 'w-100 d-flex justify-content-center gap-2', onClick: "Alert.success('Backup thành công!')" });
     row.appendChild(colRight);
 
     container.appendChild(row);

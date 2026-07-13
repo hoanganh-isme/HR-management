@@ -13,17 +13,7 @@ var Router = (function () {
     { path: '/components-demo', template: 'src/pages/components-demo/components-demo.html', script: 'src/pages/components-demo/components-demo.js', perm: 'uidemo', title: 'Bản test Component', pageFn: 'ComponentsDemoPage' },
     { path: '/appearance', template: 'src/pages/appearance/appearance.html', script: 'src/pages/appearance/appearance.js', perm: '', title: 'Cấu hình Giao diện', pageFn: 'AppearancePage' },
     { path: '/document-manager', template: 'src/pages/document-manager/document-manager.html', script: 'src/pages/document-manager/document-manager.js', perm: '', title: 'Workspace Tài Liệu', pageFn: 'DocumentManagerPage', hideHeader: true },
-    { path: '/categories', template: 'src/pages/categories/categories.html', script: 'src/pages/categories/categories.js', perm: '', title: '', pageFn: 'CategoriesPage' },
-    { path: '/inventory', template: 'src/pages/inventory/inventory.html', script: 'src/pages/inventory/inventory.js', perm: '', title: 'Kho & Định lượng', pageFn: 'InventoryPage' },
-    { path: '/cash-flow', template: 'src/pages/cash-flow/cash-flow.html', script: 'src/pages/cash-flow/cash-flow.js', perm: '', title: 'Kế toán & Quỹ tiền mặt', pageFn: 'CashFlowPage' },
-    { path: '/calendar', template: 'src/pages/calendar/calendar.html', script: 'src/pages/calendar/calendar.js', perm: '', title: '', pageFn: 'CalendarPage' },
     { path: '/menus', template: 'src/pages/menus/menus.html', script: 'src/pages/menus/menus.js?v=2', perm: '', title: '', pageFn: 'MenusPage' },
-    { path: '/promotions', template: 'src/pages/promotions/promotions.html', script: 'src/pages/promotions/promotions.js', perm: '', title: '', pageFn: 'PromotionsPage' },
-    { path: '/report-revenue', template: 'src/pages/report-revenue/report-revenue.html', script: 'src/pages/report-revenue/report-revenue.js', perm: '', title: '', pageFn: 'ReportRevenuePage' },
-    { path: '/report-cost', template: 'src/pages/report-cost/report-cost.html', script: 'src/pages/report-cost/report-cost.js', perm: '', title: '', pageFn: 'ReportCostPage' },
-    { path: '/report-other', template: 'src/pages/report-other/report-other.html', script: 'src/pages/report-other/report-other.js', perm: '', title: '', pageFn: 'ReportOtherPage' },
-    { path: '/survey', template: 'src/pages/survey/survey.html', script: 'src/pages/survey/survey.js', perm: '', title: '', pageFn: 'SurveyPage' },
-    { path: '/hall-status', template: 'src/pages/hall-status/hall-status.html', script: 'src/pages/hall-status/hall-status.js', perm: '', title: '', pageFn: 'HallStatusPage' },
     { path: '/settings', template: 'src/pages/settings/settings.html', script: 'src/pages/settings/settings.js', perm: '', title: '', pageFn: 'SettingsPage' },
     { path: '/permissions', template: 'src/pages/permissions/permissions.html', script: 'src/pages/permissions/permissions.js', perm: '', title: '', pageFn: 'PermissionsPage' },
     { path: '/detail', template: 'src/pages/detail/detail.html', script: 'src/pages/detail/detail.js', perm: '', title: 'Chi tiết', pageFn: 'DetailPage', hideHeader: true }
@@ -45,6 +35,7 @@ var Router = (function () {
       if (url === '') return;
 
       var path = '/' + url;
+      if (window.APP_SETTINGS && APP_SETTINGS.isLegacyRouteDisabled(path)) return;
 
       var existingRoute = ROUTES.find(function (r) { return r.path === path; });
 
@@ -145,7 +136,7 @@ var Router = (function () {
 
   // ── Preload templates phổ biến (tải trước nền) ─────────────────────────
   function _preloadTemplates() {
-    var priority = ['/dashboard', '/visitor', '/booking'];
+    var priority = ['/dashboard'];
     priority.forEach(function (p) {
       var r = _findRoute(p);
       if (r && r.template) fetchTemplate(r.template).catch(function () { });
@@ -365,12 +356,12 @@ var Router = (function () {
       return Promise.resolve();
     }
     return ApiClient.get(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION, { silent: true }).then(function (res) {
-      var localVer = localStorage.getItem('pmql_permission_ver');
+      var localVer = window.APP_SETTINGS ? APP_SETTINGS.getStored('permission_ver', null) : localStorage.getItem('pmql_permission_ver');
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
 
       if (svVersion && svVersion !== localVer) {
-        var userJson = localStorage.getItem('pmql_user');
+        var userJson = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
         var userObj = userJson ? JSON.parse(userJson) : {};
         return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {
           var permMap = {};
@@ -388,8 +379,13 @@ var Router = (function () {
               };
             }
           });
-          localStorage.setItem('pmql_permissions', JSON.stringify(permMap));
-          localStorage.setItem('pmql_permission_ver', svVersion);
+          if (window.APP_SETTINGS) {
+            APP_SETTINGS.setStored('permissions', JSON.stringify(permMap));
+            APP_SETTINGS.setStored('permission_ver', svVersion);
+          } else {
+            localStorage.setItem('pmql_permissions', JSON.stringify(permMap));
+            localStorage.setItem('pmql_permission_ver', svVersion);
+          }
         }).catch(function (e) {
           console.error('[Router] Lỗi tải quyền mới:', e);
         });

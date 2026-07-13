@@ -5,7 +5,7 @@
  */
 var Sidebar = (function () {
 
-  var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('nav_cache') : 'pmql_nav_cache';
   var NAV_CONFIG = [];
 
   function _buildConfigFromDB(dbMenus) {
@@ -69,12 +69,12 @@ var Sidebar = (function () {
     var container = document.getElementById(containerId);
     if (!container) return;
 
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     var groupId = u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
 
     // Thử load từ cache giống Navbar
     try {
-      var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+      var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
       if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
         NAV_CONFIG = cached.config;
         _doRender(container);
@@ -99,11 +99,12 @@ var Sidebar = (function () {
         if (records && records.length > 0) {
           NAV_CONFIG = _buildConfigFromDB(records);
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+            var cachePayload = JSON.stringify({
               groupId: groupId,
               config: NAV_CONFIG,
               rawRecords: records
-            }));
+            });
+            if (window.APP_SETTINGS) APP_SETTINGS.setSession('nav_cache', cachePayload); else sessionStorage.setItem(CACHE_KEY, cachePayload);
           } catch (e) { }
         }
         _doRender(container);

@@ -441,7 +441,7 @@ var PermissionsPage = (function () {
 
     var payload = {
       NhomNguoiDangThaoTac: (function() {
-        var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+        var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
         return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
       })(),
       UserGroupID: currentSelectedGroup.id,

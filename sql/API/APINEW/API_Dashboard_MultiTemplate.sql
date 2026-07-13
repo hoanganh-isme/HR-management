@@ -6,11 +6,13 @@ IF OBJECT_ID('API_HR_Dashboard_GetBranches', 'P') IS NOT NULL
     DROP PROCEDURE API_HR_Dashboard_GetBranches
 GO
 CREATE PROCEDURE API_HR_Dashboard_GetBranches
+    @BranchID VARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     SELECT BranchID AS value, ISNULL(BranchName, BranchID) AS label
     FROM dbo.CF_BranchTbl
+    WHERE @BranchID IS NULL OR @BranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ','))
     ORDER BY BranchName;
 END
 GO
@@ -22,7 +24,7 @@ GO
 
 CREATE PROCEDURE API_HR_Dashboard_OverviewToday
     @Date DATE = NULL,
-    @BranchID VARCHAR(50) = NULL
+    @BranchID VARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -34,7 +36,7 @@ BEGIN
     SELECT @TotalHeadcount = COUNT(1) 
     FROM dbo.HR_PersonTbl 
     WHERE (NgayNghiViec IS NULL OR NgayNghiViec > @Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR BranchID = @BranchID);
+      AND (@BranchID IS NULL OR @BranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
 
     -- 2. Đi làm & Đi trễ
     SELECT 
@@ -44,7 +46,7 @@ BEGIN
     INNER JOIN dbo.HR_PersonTbl P ON T.PersonID = P.PersonID
     WHERE T.Ngay = @Date
       AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > @Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID);
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
 
     -- 3. Vắng mặt
     SET @Present = ISNULL(@Present, 0);
@@ -55,14 +57,14 @@ BEGIN
     SELECT @NewHires = COUNT(1) 
     FROM dbo.HR_PersonTbl 
     WHERE MONTH(NgayVaoLam) = MONTH(@Date) AND YEAR(NgayVaoLam) = YEAR(@Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR BranchID = @BranchID);
+      AND (@BranchID IS NULL OR @BranchID = '' OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
 
     -- 5. Hợp đồng sắp hết hạn
     SELECT @ProbationExpiring = COUNT(1)
     FROM dbo.HR_HopDongTbl H
     INNER JOIN dbo.HR_PersonTbl P ON H.PersonID = P.PersonID
     WHERE H.NgayHetHieuLuc BETWEEN @Date AND DATEADD(DAY, 7, @Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID);
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
 
     -- Trả về
     SELECT 
@@ -81,7 +83,7 @@ IF OBJECT_ID('API_HR_Dashboard_Demographics', 'P') IS NOT NULL
 GO
 
 CREATE PROCEDURE API_HR_Dashboard_Demographics
-    @BranchID VARCHAR(50) = NULL
+    @BranchID VARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -97,7 +99,7 @@ BEGIN
         COUNT(1) AS value
     FROM dbo.HR_PersonTbl P
     WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     GROUP BY 
         CASE 
             WHEN LTRIM(RTRIM(GioiTinh)) IN (N'Nam', N'Naam', 'Nam', 'Naam') THEN N'Nam'
@@ -120,7 +122,7 @@ BEGIN
     FROM dbo.HR_PersonTbl P
     WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
       AND NgaySinh IS NOT NULL
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     GROUP BY 
         CASE 
             WHEN DATEDIFF(YEAR, NgaySinh, GETDATE()) < 25 THEN N'Dưới 25 tuổi'
@@ -140,7 +142,7 @@ BEGIN
     LEFT JOIN dbo.HR_HopDongTbl H ON P.PersonID = H.PersonID
     WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
       AND H.MaHopDong = (SELECT TOP 1 MaHopDong FROM dbo.HR_HopDongTbl WHERE PersonID = P.PersonID ORDER BY NgayKyHopDong DESC)
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     GROUP BY H.LoaiHopDong;
 END
 GO
@@ -151,7 +153,7 @@ IF OBJECT_ID('API_HR_Dashboard_Department', 'P') IS NOT NULL
 GO
 
 CREATE PROCEDURE API_HR_Dashboard_Department
-    @BranchID VARCHAR(50) = NULL
+    @BranchID VARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -163,7 +165,7 @@ BEGIN
             COUNT(P.PersonID) AS value
         FROM dbo.HR_DepartmentListTbl D
         LEFT JOIN dbo.HR_PersonTbl P ON P.PhongBan = D.PhongBan AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-        WHERE (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID OR P.PersonID IS NULL)
+        WHERE (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')) OR P.PersonID IS NULL)
         GROUP BY D.TenPhongBan
     ) AS T1
 
@@ -176,6 +178,7 @@ BEGIN
             COUNT(P.PersonID) AS value
         FROM dbo.CF_BranchTbl B
         LEFT JOIN dbo.HR_PersonTbl P ON P.BranchID = B.BranchID AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
+        WHERE (@BranchID IS NULL OR @BranchID = '' OR B.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
         GROUP BY B.BranchName
     ) AS T2
 
@@ -189,7 +192,7 @@ IF OBJECT_ID('API_HR_Dashboard_Birthdays', 'P') IS NOT NULL
 GO
 
 CREATE PROCEDURE API_HR_Dashboard_Birthdays
-    @BranchID VARCHAR(50) = NULL
+    @BranchID VARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -201,7 +204,7 @@ BEGIN
     LEFT JOIN dbo.HR_DepartmentListTbl D ON P.PhongBan = D.PhongBan
     WHERE MONTH(P.NgaySinh) = MONTH(GETDATE()) 
       AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     ORDER BY DAY(P.NgaySinh) ASC;
 END
 GO
@@ -213,7 +216,7 @@ GO
 
 CREATE PROCEDURE API_HR_Dashboard_Payroll
     @PeriodID VARCHAR(20) = NULL,
-    @BranchID VARCHAR(50) = NULL
+    @BranchID VARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -231,7 +234,7 @@ BEGIN
     FROM dbo.HR_PayrollTbl PR
     INNER JOIN dbo.HR_PersonTbl P ON PR.PersonID = P.PersonID
     WHERE PR.PeriodID = @PeriodID
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID);
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')));
 
     -- ResultSet 2: Phân bổ quỹ lương theo phòng ban
     SELECT TOP 5
@@ -241,7 +244,7 @@ BEGIN
     INNER JOIN dbo.HR_PersonTbl P ON PR.PersonID = P.PersonID
     LEFT JOIN dbo.HR_DepartmentListTbl D ON P.PhongBan = D.PhongBan
     WHERE PR.PeriodID = @PeriodID
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     GROUP BY D.TenPhongBan, P.PhongBan
     ORDER BY value DESC;
 END
@@ -254,7 +257,7 @@ GO
 
 CREATE PROCEDURE API_HR_Dashboard_ContractsExpiring
     @Days INT = 30,
-    @BranchID VARCHAR(50) = NULL
+    @BranchID VARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -271,7 +274,7 @@ BEGIN
     INNER JOIN dbo.HR_PersonTbl P ON H.PersonID = P.PersonID
     LEFT JOIN dbo.HR_DepartmentListTbl D ON P.PhongBan = D.PhongBan
     WHERE H.NgayHetHieuLuc BETWEEN GETDATE() AND DATEADD(DAY, @Days, GETDATE())
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     ORDER BY H.NgayHetHieuLuc ASC;
 END
 GO

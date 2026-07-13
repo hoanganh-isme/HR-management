@@ -1,4 +1,4 @@
-/* --- mockData.js --- */
+﻿/* --- mockData.js --- */
 /**
  * Mock Data
  * Dữ liệu mẫu dùng chung cho toàn bộ hệ thống trong lúc chờ tích hợp API thật
@@ -199,7 +199,7 @@ const ApiClient = (function () {
                     window.logoutApp();
                 } else {
                     deleteCookie('auth_token');
-                    localStorage.removeItem('pmql_user');
+                    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
                     window.location.href = 'login.html';
                 }
             }
@@ -291,7 +291,7 @@ window.ApiClient = ApiClient;
 var Permission = (function () {
   function _get(module) {
     var legacyPerms = JSON.parse(localStorage.getItem('app_permissions') || '{}');
-    var newPerms = JSON.parse(localStorage.getItem('pmql_permissions') || '{}');
+    var newPerms = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('permissions', '{}') : localStorage.getItem('pmql_permissions')) || '{}');
     var perms = Object.keys(newPerms).length > 0 ? newPerms : legacyPerms;
     
     if (Object.keys(perms).length === 0) {
@@ -718,7 +718,7 @@ var DocumentExportPlugin = (function () {
         convertFields: config.convertFields || [],
         // branchId từ localStorage (backend sẽ tự xác thực lại bằng SY_User)
         branchId: (function() {
-          try { return (JSON.parse(localStorage.getItem('pmql_user') || '{}')).BranchID || null; } catch(e) { return null; }
+          try { return (JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}')).BranchID || null; } catch(e) { return null; }
         })()
       })
     })
@@ -2290,7 +2290,7 @@ var PermissionsService = (function () {
   }
 
   function _currentGroupId() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
   }
 
@@ -2420,7 +2420,7 @@ var MenusService = (function () {
   }
 
   function _currentGroupId() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
   }
 
@@ -3301,7 +3301,7 @@ var HallGauge = (function () {
     wrap.innerHTML =
       '<div class="hall-gauge__title">' +
         '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
-        (opts.titleText || 'Sảnh tiệc hôm nay') +
+        (opts.titleText || 'Trạng thái nhân sự hôm nay') +
       '</div>' +
       '<div class="hall-gauge__count">' +
         '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +
@@ -3592,7 +3592,7 @@ var ReportFilterDialog = (function () {
   // ── Helpers ──────────────────────────────────────────────────
 
   function _currentUser() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Username || u.UserName || u.username || 'Admin';
   }
 
@@ -4488,7 +4488,7 @@ var Navbar = (function () {
   /* ─────────────────────────────────────────
      Layout Mode (lưu vào localStorage)
   ───────────────────────────────────────── */
-  var LAYOUT_KEY = 'pmql_layout_mode';
+  var LAYOUT_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('layout_mode') : 'pmql_layout_mode';
   var LAYOUT_HORIZONTAL = 'horizontal';
   var LAYOUT_VERTICAL = 'vertical';
 
@@ -4677,7 +4677,7 @@ var Navbar = (function () {
 
         <!-- Right Actions -->
         <div class="navbar-right">
-          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
+          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); if (window.APP_SETTINGS) { APP_SETTINGS.setStored('theme', isDark ? 'dark' : 'light'); } else { localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); } this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
             <span class="material-symbols-outlined" id="header-theme-icon-horizontal">dark_mode</span>
           </div>
           <div class="navbar-icon-btn" id="navbar-btn-notif" title="Thông báo">
@@ -4783,7 +4783,7 @@ var Navbar = (function () {
             </div>
 
             <div class="header-right">
-              <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
+              <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); if (window.APP_SETTINGS) { APP_SETTINGS.setStored('theme', isDark ? 'dark' : 'light'); } else { localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); } this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
                 <span class="material-symbols-outlined" id="header-theme-icon-vertical">dark_mode</span>
               </div>
               <div class="navbar-icon-btn" onclick="Alert.info('Thông báo', 'Bạn không có thông báo mới')">
@@ -4830,13 +4830,13 @@ var Navbar = (function () {
     _attachVerticalEvents();
   }
 
-  var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('nav_cache') : 'pmql_nav_cache';
 
   function render(containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
 
-    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     var groupId = currentUser.UserGroupID || currentUser.userGroupID || currentUser.Group || currentUser.GroupID || currentUser.NhomQuyen || 'Admin';
     var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
 
@@ -4844,11 +4844,11 @@ var Navbar = (function () {
     if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
       SystemDataService.getMenuSyncVersion().then(function (serverVer) {
         try {
-          var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+          var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
           var cacheVer = cached && cached.syncVer ? cached.syncVer : null;
           // Nếu server version khác với cache version → xóa cache, fetch lại
           if (serverVer && cacheVer && serverVer !== cacheVer) {
-            sessionStorage.removeItem(CACHE_KEY);
+            if (window.APP_SETTINGS) APP_SETTINGS.removeSession('nav_cache'); else sessionStorage.removeItem(CACHE_KEY);
             cached = null;
           }
           if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
@@ -4868,7 +4868,7 @@ var Navbar = (function () {
     } else {
       // Fallback: không có SystemDataService → dùng cache như cũ
       try {
-        var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+        var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
         if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
           NAV_CONFIG = cached.config;
           if (cached.rawRecords && window.Router && typeof Router.addDynamicRoutes === 'function') {
@@ -4899,12 +4899,13 @@ var Navbar = (function () {
           }
           // Lưu cache kèm syncVer để lần sau so sánh
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+            var cachePayload = JSON.stringify({
               groupId: groupId,
               config: NAV_CONFIG,
               rawRecords: records,
               syncVer: syncVer || ''
-            }));
+            });
+            if (window.APP_SETTINGS) APP_SETTINGS.setSession('nav_cache', cachePayload); else sessionStorage.setItem(CACHE_KEY, cachePayload);
           } catch (e) { }
         }
         _doRender(container);
@@ -4919,7 +4920,7 @@ var Navbar = (function () {
 
   /* Xóa cache khi logout hoặc đổi nhóm quyền */
   function clearMenuCache() {
-    sessionStorage.removeItem(CACHE_KEY);
+    if (window.APP_SETTINGS) APP_SETTINGS.removeSession('nav_cache'); else sessionStorage.removeItem(CACHE_KEY);
     NAV_CONFIG = [];
   }
 
@@ -4942,7 +4943,7 @@ var Navbar = (function () {
     }
 
     // UPDATE USER INFO IN DOM AFTER RENDER
-    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
     var navUserName = document.getElementById('nav-user-name');
     var vertNavUserName = document.getElementById('vert-nav-user-name');
@@ -9976,7 +9977,7 @@ var UITreeView = (function () {
 /* --- Calendar.js --- */
 /**
  * Calendar Component
- * Sinh Lịch Tiệc cơ bản bằng JS. Không dùng thư viện nặng.
+ * Sinh lịch công việc cơ bản bằng JS. Không dùng thư viện nặng.
  */
 var UICalendar = (function () {
 
@@ -10653,7 +10654,7 @@ var Header = (function () {
  */
 var Sidebar = (function () {
 
-  var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('nav_cache') : 'pmql_nav_cache';
   var NAV_CONFIG = [];
 
   function _buildConfigFromDB(dbMenus) {
@@ -10717,12 +10718,12 @@ var Sidebar = (function () {
     var container = document.getElementById(containerId);
     if (!container) return;
 
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     var groupId = u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
 
     // Thử load từ cache giống Navbar
     try {
-      var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+      var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
       if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
         NAV_CONFIG = cached.config;
         _doRender(container);
@@ -10747,11 +10748,12 @@ var Sidebar = (function () {
         if (records && records.length > 0) {
           NAV_CONFIG = _buildConfigFromDB(records);
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+            var cachePayload = JSON.stringify({
               groupId: groupId,
               config: NAV_CONFIG,
               rawRecords: records
-            }));
+            });
+            if (window.APP_SETTINGS) APP_SETTINGS.setSession('nav_cache', cachePayload); else sessionStorage.setItem(CACHE_KEY, cachePayload);
           } catch (e) { }
         }
         _doRender(container);
@@ -11842,7 +11844,7 @@ var WizardForm = (function () {
     // Nếu không có danh sách chi nhánh → fallback đọc từ localStorage
     if (!userBranches || userBranches.length === 0) {
       try {
-        var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+        var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
         var raw = u.ChiNhanhList || u.Branches || u.BranchCodes || u.ChiNhanh || [];
         if (Array.isArray(raw)) {
           userBranches = raw.map(function (b) {
@@ -13592,12 +13594,12 @@ window.DynamicFormEngine = (function () {
 
   // ── Helpers ──────────────────────────────────────────────
   function _currentGroup() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
   }
 
   function _currentUser() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Username || u.UserName || u.username || 'Admin';
   }
 
@@ -13610,14 +13612,14 @@ window.DynamicFormEngine = (function () {
    */
   function _getUserBranches() {
     try {
-      var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+      var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
       var branchRaw = (u.BranchID || u.branchID || u.branchId || u.Branch || '').toString().trim();
       var userGrp = (u.UserGroupID || u.userGroupID || u.userGroupId || u.Group || u.NhomQuyen || _currentGroup() || '').toString().toLowerCase();
 
       var isAdmin = (userGrp === 'admin');
 
       // Load ALL_BRANCHES từ local storage
-      var sysBranches = JSON.parse(localStorage.getItem('pmql_sys_branches') || '[]');
+      var sysBranches = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('sys_branches', '[]') : localStorage.getItem('pmql_sys_branches')) || '[]');
       var ALL_BRANCHES = sysBranches.map(function (b) {
         return {
           id: (b.BranchID || b.branchID || b.branchId || '').toString().trim(),
@@ -15520,7 +15522,7 @@ window.DynamicFormEngine = (function () {
 
       // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
       var _sessionUser = {};
-      try { _sessionUser = JSON.parse(localStorage.getItem('pmql_user') || '{}'); } catch (e) { }
+      try { _sessionUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}'); } catch (e) { }
       var _branchID = (_sessionUser.BranchID || '').toString().trim();
 
       var query = {
@@ -15877,13 +15879,13 @@ window.DynamicFormEngine = (function () {
 
           var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n';
 
-
           var colDef = {
             title: dictionary[fieldName] || fieldName,
             field: actualField,
             editor: isEditable ? (isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input")) : false,
-            maxWidth: 400,
-            tooltip: true
+            maxWidth: 400, // UX: Giới hạn độ rộng tối đa để text dài (như Mô tả) không đẩy vỡ khung Grid
+            tooltip: true  // UX: Cho phép xem đầy đủ text khi hover chuột vào ô bị cắt chữ (...)
+            // Đã loại bỏ headerFilter: "input" để header gọn gàng, người dùng sẽ xài Popup lọc dữ liệu thay thế
           };
 
           if (isNumeric) {
@@ -15893,99 +15895,72 @@ window.DynamicFormEngine = (function () {
               var n = parseFloat(val);
               return isNaN(n) ? (val || '') : n.toLocaleString('vi-VN');
             };
-            colDef.hozAlign = "right";
+            colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
 
+          // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {
             colDef.visible = savedVisibility[actualField];
           }
 
-          // ── SMART UI/UX DEFAULTS ──────────────────────────────────
-          // Ưu tiên format cho PersonStatus trước
+
+
+          // Fix: Cột PersonStatus ưu tiên hiển thị chữ (PersonStatusName) thay vì số
           if (actualField.toLowerCase() === 'personstatus') {
             colDef.formatter = function (cell) {
               var data = cell.getData();
               var val = cell.getValue();
               var text = data.PersonStatusName || data.personstatusname || val;
               if (!text && !val) return '';
-              var s = String(text).toLowerCase();
-              var badgeVariant = 'badge-neutral';
-              if (String(val) === '1' || s.includes('chính thức') || s.includes('hoạt động') || s.includes('thành công')) badgeVariant = 'badge-active';
-              else if (String(val) === '4' || String(val) === '8' || String(val) === '9' || s.includes('nghỉ') || s.includes('thôi việc') || s.includes('hủy') || s.includes('xóa')) badgeVariant = 'badge-danger';
-              else if (String(val) === '2' || s.includes('thử việc') || s.includes('tạm hoãn') || s.includes('chờ')) badgeVariant = 'badge-warning';
-              else if (String(val) === '3' || s.includes('thực tập') || s.includes('mới')) badgeVariant = 'badge-info';
-              return '<span class="badge ' + badgeVariant + '">' + (text || '') + '</span>';
+
+              var badgeClass = 'badge-info';
+              var textLower = String(text).toLowerCase();
+              if (String(val) === '1' || textLower.includes('chính thức') || textLower.includes('hoạt động') || textLower.includes('thành công')) badgeClass = 'badge-active';
+              else if (String(val) === '4' || String(val) === '8' || String(val) === '9' || textLower.includes('nghỉ') || textLower.includes('thôi việc') || textLower.includes('hủy') || textLower.includes('xóa')) badgeClass = 'badge-danger';
+              else if (String(val) === '2' || textLower.includes('thử việc') || textLower.includes('tạm hoãn') || textLower.includes('chờ')) badgeClass = 'badge-warning';
+              else if (String(val) === '3' || textLower.includes('thực tập') || textLower.includes('mới')) badgeClass = 'badge-info';
+
+              return '<span class="badge-status ' + badgeClass + '">' + (text || '') + '</span>';
             };
           }
 
-
-          // ── SMART UI/UX DEFAULTS ──────────────────────────────────────
-          // Áp dụng tự động dựa vào tên field / tiêu đề cột.
-          // cssClass cho identifier cells (hoạt động đúng trên cả edit & view mode).
-          // HTML string badge cho các cột trạng thái.
-          // ─────────────────────────────────────────────────────────────
+          // Smart UI/UX Defaults (Kế thừa cho toàn bộ lưới nếu không bị ghi đè)
           if (!colDef.formatter) {
             var fName = actualField.toLowerCase();
-            var colTitle = (colDef.title || '').toLowerCase();
+            var title = (colDef.title || '').toLowerCase();
 
-            // Mã nhân viên, Employee ID
-            if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid'
-                || fName === 'personid' || fName === 'newpersonid'
-                || colTitle.includes('mã nhân viên') || colTitle === 'mã nv') {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-primary';
-
-            // Số điện thoại
-            } else if (fName.includes('dienthoai') || fName.includes('phone') || fName.includes('sdt')
-                || colTitle.includes('điện thoại')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-primary';
-
-            // Email
-            } else if (fName.includes('email') || colTitle.includes('email')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-primary';
+            if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid' || fName === 'personid' || title.includes('mã nhân viên')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
+            } else if (fName.includes('dienthoai') || fName.includes('phone') || fName.includes('sdt') || title.includes('điện thoại')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
+            } else if (fName.includes('email') || title.includes('email')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
               colDef.formatter = function (cell) {
                 var v = cell.getValue();
                 if (!v) return '';
-                return '<a href="mailto:' + v + '" style="color:inherit;text-decoration:underline dotted;">' + v + '</a>';
+                return '<a href="mailto:' + v + '">' + v + '</a>';
               };
-
-            // CMND / CCCD (dữ liệu nhạy cảm)
-            } else if (fName.includes('cmnd') || fName.includes('cccd') || fName.includes('idcard')
-                || fName.includes('socccd') || colTitle.includes('cmnd') || colTitle.includes('cccd')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-danger';
-
-            // Số hợp đồng, Lương, Phụ cấp (tài chính)
-            } else if (fName.includes('sohopdong') || fName.includes('hopdong') || fName.includes('luong')
-                || fName.includes('salary') || fName.includes('phucap') || fName.includes('bhxh')
-                || colTitle.includes('hợp đồng') || colTitle.includes('lương') || colTitle.includes('phụ cấp')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-financial';
-
-            // Trạng thái chung (không phải PersonStatus)
-            } else if ((fName.includes('trangthai') || (fName.includes('status') && fName !== 'personstatus'))
-                || colTitle.includes('trạng thái')) {
+            } else if (fName.includes('cmnd') || fName.includes('cccd') || fName.includes('idcard') || title.includes('cmnd') || title.includes('cccd')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-danger';
+            } else if (fName.includes('trangthai') || fName.includes('status') || title.includes('trạng thái')) {
               colDef.formatter = function (cell) {
                 var v = cell.getValue();
                 if (!v && v !== 0) return '';
-                var s = String(v).toLowerCase();
-                var bv = 'badge-neutral';
-                if (s.includes('chính thức') || s.includes('đã ký') || s.includes('hoàn thành')
-                    || s.includes('duyệt') || s.includes('đồng ý') || s.includes('success')
-                    || s.includes('active') || s.includes('đạt')) {
-                  bv = 'badge-active';
-                } else if (s.includes('nghỉ') || s.includes('hủy') || s.includes('từ chối')
-                    || s.includes('khóa') || s.includes('fail') || s.includes('lỗi')
-                    || s.includes('không đạt') || s.includes('thôi việc')) {
-                  bv = 'badge-danger';
-                } else if (s.includes('thử việc') || s.includes('chờ') || s.includes('pending')
-                    || s.includes('tạm') || s.includes('đang')) {
-                  bv = 'badge-warning';
-                } else if (s.includes('thực tập') || s.includes('mới') || s.includes('info')) {
-                  bv = 'badge-info';
+                var textLower = String(v).toLowerCase();
+                var badgeClass = 'badge-info';
+
+                if (textLower.includes('chính thức') || textLower.includes('đã ký') || textLower.includes('hoàn thành') || textLower.includes('success') || textLower.includes('active') || textLower.includes('đạt') || textLower.includes('duyệt') || textLower.includes('đồng ý')) {
+                  badgeClass = 'badge-active';
+                } else if (textLower.includes('nghỉ') || textLower.includes('hủy') || textLower.includes('từ chối') || textLower.includes('khóa') || textLower.includes('fail') || textLower.includes('lỗi') || textLower.includes('không đạt')) {
+                  badgeClass = 'badge-danger';
+                } else if (textLower.includes('thử việc') || textLower.includes('chờ') || textLower.includes('pending') || textLower.includes('tạm') || textLower.includes('đang')) {
+                  badgeClass = 'badge-warning';
                 }
-                return '<span class="badge ' + bv + '">' + v + '</span>';
+
+                return '<span class="badge-status ' + badgeClass + '">' + v + '</span>';
               };
             }
           }
-
 
           if (renderers[fieldName]) {
             colDef.formatter = function (cell) {
@@ -18157,18 +18132,18 @@ window.DynamicFormEngine = (function () {
     formSchema.forEach(function (f) {
       var rule = (f.renderRule || f.formatId || f.FormatID || '').toLowerCase();
       if (rule === 'sw' || rule === 'boolean') {
-         var children = formSchema.filter(function (cf) {
-            return cf.name !== f.name && cf.name.indexOf(f.name) > -1;
-         });
-         if (children.length > 0) {
-            parentFields[f.name] = children;
-            children.forEach(function(c) { childToParent[c.name] = f.name; });
-         }
+        var children = formSchema.filter(function (cf) {
+          return cf.name !== f.name && cf.name.indexOf(f.name) > -1;
+        });
+        if (children.length > 0) {
+          parentFields[f.name] = children;
+          children.forEach(function (c) { childToParent[c.name] = f.name; });
+        }
       }
     });
 
-    var normalAndParentFields = formSchema.filter(function(f) { return !childToParent[f.name]; });
-    var childFields = formSchema.filter(function(f) { return childToParent[f.name]; });
+    var normalAndParentFields = formSchema.filter(function (f) { return !childToParent[f.name]; });
+    var childFields = formSchema.filter(function (f) { return childToParent[f.name]; });
     var orderedSchema = normalAndParentFields.concat(childFields);
 
     orderedSchema.forEach(function (field) {
@@ -18581,102 +18556,102 @@ window.DynamicFormEngine = (function () {
       }
 
       if (childToParent[field.name]) {
-         var parentName = childToParent[field.name];
-         var parentFlexGroup = parentWrappers[parentName];
-         if (parentFlexGroup) {
-            var childWrapper = document.createElement('div');
-            childWrapper.className = 'child-field-wrapper';
-            childWrapper.style.flex = '1';
-            childWrapper.style.minWidth = '0'; // Bù chiều ngang cho các Combobox
-            childWrapper.style.transition = 'all 0.25s cubic-bezier(0.16,1,0.3,1)';
-            
-            // Ẩn label để form gọn gàng, đưa label vào placeholder (Không hardcode, hỗ trợ kế thừa)
-            var labels = inputEl.querySelectorAll('label');
-            labels.forEach(function(l) { l.style.display = 'none'; });
-            
-            var fGroups = inputEl.querySelectorAll('.form-group');
-            fGroups.forEach(function(fg) { fg.style.marginBottom = '0'; });
-            if (inputEl.classList && inputEl.classList.contains('form-group')) {
-               inputEl.style.marginBottom = '0';
+        var parentName = childToParent[field.name];
+        var parentFlexGroup = parentWrappers[parentName];
+        if (parentFlexGroup) {
+          var childWrapper = document.createElement('div');
+          childWrapper.className = 'child-field-wrapper';
+          childWrapper.style.flex = '1';
+          childWrapper.style.minWidth = '0'; // Bù chiều ngang cho các Combobox
+          childWrapper.style.transition = 'all 0.25s cubic-bezier(0.16,1,0.3,1)';
+
+          // Ẩn label để form gọn gàng, đưa label vào placeholder (Không hardcode, hỗ trợ kế thừa)
+          var labels = inputEl.querySelectorAll('label');
+          labels.forEach(function (l) { l.style.display = 'none'; });
+
+          var fGroups = inputEl.querySelectorAll('.form-group');
+          fGroups.forEach(function (fg) { fg.style.marginBottom = '0'; });
+          if (inputEl.classList && inputEl.classList.contains('form-group')) {
+            inputEl.style.marginBottom = '0';
+          }
+
+          var isSelect = field.renderRule === 'sl' || field.renderRule === 'select' || field.dataSource;
+          var prefix = isSelect ? 'Chọn ' : 'Nhập ';
+          var inps = inputEl.querySelectorAll('input:not([type="hidden"]), select, textarea');
+          inps.forEach(function (inp) {
+            if (inp.placeholder === '-- Vui lòng chọn --' || inp.placeholder === 'Nhập...' || !inp.placeholder) {
+              // Xóa chữ "Vui lòng chọn" thay bằng "Chọn [Tên field]"
+              var lblText = (field.label || '').trim().toLowerCase();
+              if (lblText) {
+                inp.placeholder = prefix + lblText;
+              }
             }
+          });
 
-            var isSelect = field.renderRule === 'sl' || field.renderRule === 'select' || field.dataSource;
-            var prefix = isSelect ? 'Chọn ' : 'Nhập ';
-            var inps = inputEl.querySelectorAll('input:not([type="hidden"]), select, textarea');
-            inps.forEach(function(inp) {
-               if (inp.placeholder === '-- Vui lòng chọn --' || inp.placeholder === 'Nhập...' || !inp.placeholder) {
-                  // Xóa chữ "Vui lòng chọn" thay bằng "Chọn [Tên field]"
-                  var lblText = (field.label || '').trim().toLowerCase();
-                  if (lblText) {
-                     inp.placeholder = prefix + lblText;
-                  }
-               }
-            });
-
-            childWrapper.appendChild(inputEl);
-            parentFlexGroup.appendChild(childWrapper);
-         }
+          childWrapper.appendChild(inputEl);
+          parentFlexGroup.appendChild(childWrapper);
+        }
       } else if (parentFields[field.name]) {
-         var wrapper = document.createElement('div');
-         wrapper.className = 'df-col-' + span;
-         if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
-         
-         var flexGroup = document.createElement('div');
-         flexGroup.style.display = 'flex';
-         flexGroup.style.flexWrap = 'nowrap';
-         flexGroup.style.gap = '12px';
-         flexGroup.style.alignItems = 'center';
-         flexGroup.style.width = '100%';
-         flexGroup.style.padding = '8px 12px';
-         flexGroup.style.background = 'var(--color-surface, #fff)';
-         flexGroup.style.border = '1px solid var(--color-border, #e2e8f0)';
-         flexGroup.style.borderRadius = '8px';
+        var wrapper = document.createElement('div');
+        wrapper.className = 'df-col-' + span;
+        if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
 
-         var parentInputWrapper = document.createElement('div');
-         parentInputWrapper.style.flexShrink = '0';
-         parentInputWrapper.style.minWidth = '90px'; 
-         parentInputWrapper.appendChild(inputEl);
-         flexGroup.appendChild(parentInputWrapper);
+        var flexGroup = document.createElement('div');
+        flexGroup.style.display = 'flex';
+        flexGroup.style.flexWrap = 'nowrap';
+        flexGroup.style.gap = '12px';
+        flexGroup.style.alignItems = 'center';
+        flexGroup.style.width = '100%';
+        flexGroup.style.padding = '8px 12px';
+        flexGroup.style.background = 'var(--color-surface, #fff)';
+        flexGroup.style.border = '1px solid var(--color-border, #e2e8f0)';
+        flexGroup.style.borderRadius = '8px';
 
-         parentWrappers[field.name] = flexGroup;
-         wrapper.appendChild(flexGroup);
-         targetGrid.appendChild(wrapper);
+        var parentInputWrapper = document.createElement('div');
+        parentInputWrapper.style.flexShrink = '0';
+        parentInputWrapper.style.minWidth = '90px';
+        parentInputWrapper.appendChild(inputEl);
+        flexGroup.appendChild(parentInputWrapper);
 
-         setTimeout(function() {
-            var parentCb = parentInputWrapper.querySelector('input[type="checkbox"]');
-            if (parentCb) {
-               var toggleChildren = function(isAutoChange) {
-                  var isChecked = parentCb.checked;
-                  var childEls = flexGroup.querySelectorAll('.child-field-wrapper');
-                  childEls.forEach(function(ce) {
-                     if (isChecked) {
-                        ce.style.opacity = '1';
-                        ce.style.pointerEvents = 'auto';
-                     } else {
-                        ce.style.opacity = '0.4';
-                        ce.style.pointerEvents = 'none';
-                        if (isAutoChange === true && !isViewMode) {
-                          var select = ce.querySelector('select');
-                          if (select) { select.value = ''; select.dispatchEvent(new Event('change')); }
-                          var input = ce.querySelector('input:not([type="hidden"])');
-                          if (input) { input.value = ''; input.dispatchEvent(new Event('change')); }
-                          var select2 = ce.querySelector('.select2-hidden-accessible');
-                          if (select2 && window.$) { $(select2).val('').trigger('change'); }
-                        }
-                     }
-                  });
-               };
-               parentCb.addEventListener('change', function() { toggleChildren(true); });
-               toggleChildren(false);
-            }
-         }, 100);
+        parentWrappers[field.name] = flexGroup;
+        wrapper.appendChild(flexGroup);
+        targetGrid.appendChild(wrapper);
+
+        setTimeout(function () {
+          var parentCb = parentInputWrapper.querySelector('input[type="checkbox"]');
+          if (parentCb) {
+            var toggleChildren = function (isAutoChange) {
+              var isChecked = parentCb.checked;
+              var childEls = flexGroup.querySelectorAll('.child-field-wrapper');
+              childEls.forEach(function (ce) {
+                if (isChecked) {
+                  ce.style.opacity = '1';
+                  ce.style.pointerEvents = 'auto';
+                } else {
+                  ce.style.opacity = '0.4';
+                  ce.style.pointerEvents = 'none';
+                  if (isAutoChange === true && !isViewMode) {
+                    var select = ce.querySelector('select');
+                    if (select) { select.value = ''; select.dispatchEvent(new Event('change')); }
+                    var input = ce.querySelector('input:not([type="hidden"])');
+                    if (input) { input.value = ''; input.dispatchEvent(new Event('change')); }
+                    var select2 = ce.querySelector('.select2-hidden-accessible');
+                    if (select2 && window.$) { $(select2).val('').trigger('change'); }
+                  }
+                }
+              });
+            };
+            parentCb.addEventListener('change', function () { toggleChildren(true); });
+            toggleChildren(false);
+          }
+        }, 100);
 
       } else {
-         var wrapper = document.createElement('div');
-         wrapper.className = 'df-col-' + span;
-         if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
-         wrapper.appendChild(inputEl);
-         targetGrid.appendChild(wrapper);
+        var wrapper = document.createElement('div');
+        wrapper.className = 'df-col-' + span;
+        if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
+        wrapper.appendChild(inputEl);
+        targetGrid.appendChild(wrapper);
       }
 
       // Gán giá trị mặc định vào currentModalFormState
@@ -20003,7 +19978,7 @@ document.addEventListener('DOMContentLoaded', function () {
       ApiClient.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).catch(function () { });
     }
 
-    localStorage.removeItem('pmql_user');
+    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
     if (typeof ApiClient !== 'undefined' && ApiClient.deleteCookie) {
       ApiClient.deleteCookie('auth_token');
     }
@@ -20024,8 +19999,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     _init: function () {
       try {
-        var navCache = JSON.parse(sessionStorage.getItem('pmql_nav_cache') || 'null');
-        var userCache = JSON.parse(localStorage.getItem('pmql_user') || 'null');
+        var navCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem('pmql_nav_cache')) || 'null');
+        var userCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', 'null') : localStorage.getItem('pmql_user')) || 'null');
 
         var isAdmin = (userCache && (userCache.UserGroupID === 'Admin' || userCache.userGroupID === 'Admin'));
 
@@ -21413,7 +21388,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   if (typeof Router !== 'undefined') {
-    var currentUser = localStorage.getItem('pmql_user');
+    var currentUser = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
     if (currentUser && typeof ApiClient !== 'undefined') {
       ApiClient.post('/api/API_Gateway_Router', {
         List: 'CF_BranchListFrm',
@@ -21422,7 +21397,7 @@ document.addEventListener('DOMContentLoaded', function () {
         Limit: 1000
       }).then(function (res) {
         var branchList = Array.isArray(res) ? res : (res.data || res.list || res.records || []);
-        localStorage.setItem('pmql_sys_branches', JSON.stringify(branchList));
+        if (window.APP_SETTINGS) APP_SETTINGS.setStored('sys_branches', JSON.stringify(branchList)); else localStorage.setItem('pmql_sys_branches', JSON.stringify(branchList));
         Router.init();
       }).catch(function () {
         Router.init();
@@ -21433,7 +21408,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // 3. Khởi tạo Navbar (chỉ render nếu đã đăng nhập)
-  var currentUser = localStorage.getItem('pmql_user');
+  var currentUser = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
   if (currentUser && typeof Navbar !== 'undefined') {
     Navbar.render('navbar-container');
 
@@ -21448,12 +21423,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // 4. Khởi tạo cấu hình giao diện
-  var savedFont = localStorage.getItem('pmql_font_family');
+  var savedFont = window.APP_SETTINGS ? APP_SETTINGS.getStored('font_family', null) : localStorage.getItem('pmql_font_family');
   if (savedFont) {
     document.documentElement.style.setProperty('--font-family', '"' + savedFont + '", sans-serif');
   }
 
-  var savedTheme = localStorage.getItem('pmql_theme') || 'auto';
+  var savedTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
   if (savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.body.classList.add('dark-theme');
   } else {
@@ -21462,7 +21437,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Lắng nghe sự thay đổi giao diện từ hệ thống (khi chuyển qua chế độ tiết kiệm pin hoặc Dark Mode)
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-    var currentTheme = localStorage.getItem('pmql_theme') || 'auto';
+    var currentTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
     if (currentTheme === 'auto') {
       if (e.matches) {
         document.body.classList.add('dark-theme');
@@ -21472,7 +21447,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  var savedColor = localStorage.getItem('pmql_color');
+  var savedColor = window.APP_SETTINGS ? APP_SETTINGS.getStored('color', null) : localStorage.getItem('pmql_color');
   if (savedColor) {
     var COLORS = [
       { id: 'indigo', primary: '#4F46E5', hover: '#4338CA', dark: '#3730A3', light: 'rgba(79, 70, 229, 0.1)' },
@@ -21563,17 +21538,7 @@ var Router = (function () {
     { path: '/components-demo', template: 'src/pages/components-demo/components-demo.html', script: 'src/pages/components-demo/components-demo.js', perm: 'uidemo', title: 'Bản test Component', pageFn: 'ComponentsDemoPage' },
     { path: '/appearance', template: 'src/pages/appearance/appearance.html', script: 'src/pages/appearance/appearance.js', perm: '', title: 'Cấu hình Giao diện', pageFn: 'AppearancePage' },
     { path: '/document-manager', template: 'src/pages/document-manager/document-manager.html', script: 'src/pages/document-manager/document-manager.js', perm: '', title: 'Workspace Tài Liệu', pageFn: 'DocumentManagerPage', hideHeader: true },
-    { path: '/categories', template: 'src/pages/categories/categories.html', script: 'src/pages/categories/categories.js', perm: '', title: '', pageFn: 'CategoriesPage' },
-    { path: '/inventory', template: 'src/pages/inventory/inventory.html', script: 'src/pages/inventory/inventory.js', perm: '', title: 'Kho & Định lượng', pageFn: 'InventoryPage' },
-    { path: '/cash-flow', template: 'src/pages/cash-flow/cash-flow.html', script: 'src/pages/cash-flow/cash-flow.js', perm: '', title: 'Kế toán & Quỹ tiền mặt', pageFn: 'CashFlowPage' },
-    { path: '/calendar', template: 'src/pages/calendar/calendar.html', script: 'src/pages/calendar/calendar.js', perm: '', title: '', pageFn: 'CalendarPage' },
     { path: '/menus', template: 'src/pages/menus/menus.html', script: 'src/pages/menus/menus.js?v=2', perm: '', title: '', pageFn: 'MenusPage' },
-    { path: '/promotions', template: 'src/pages/promotions/promotions.html', script: 'src/pages/promotions/promotions.js', perm: '', title: '', pageFn: 'PromotionsPage' },
-    { path: '/report-revenue', template: 'src/pages/report-revenue/report-revenue.html', script: 'src/pages/report-revenue/report-revenue.js', perm: '', title: '', pageFn: 'ReportRevenuePage' },
-    { path: '/report-cost', template: 'src/pages/report-cost/report-cost.html', script: 'src/pages/report-cost/report-cost.js', perm: '', title: '', pageFn: 'ReportCostPage' },
-    { path: '/report-other', template: 'src/pages/report-other/report-other.html', script: 'src/pages/report-other/report-other.js', perm: '', title: '', pageFn: 'ReportOtherPage' },
-    { path: '/survey', template: 'src/pages/survey/survey.html', script: 'src/pages/survey/survey.js', perm: '', title: '', pageFn: 'SurveyPage' },
-    { path: '/hall-status', template: 'src/pages/hall-status/hall-status.html', script: 'src/pages/hall-status/hall-status.js', perm: '', title: '', pageFn: 'HallStatusPage' },
     { path: '/settings', template: 'src/pages/settings/settings.html', script: 'src/pages/settings/settings.js', perm: '', title: '', pageFn: 'SettingsPage' },
     { path: '/permissions', template: 'src/pages/permissions/permissions.html', script: 'src/pages/permissions/permissions.js', perm: '', title: '', pageFn: 'PermissionsPage' },
     { path: '/detail', template: 'src/pages/detail/detail.html', script: 'src/pages/detail/detail.js', perm: '', title: 'Chi tiết', pageFn: 'DetailPage', hideHeader: true }
@@ -21595,6 +21560,7 @@ var Router = (function () {
       if (url === '') return;
 
       var path = '/' + url;
+      if (window.APP_SETTINGS && APP_SETTINGS.isLegacyRouteDisabled(path)) return;
 
       var existingRoute = ROUTES.find(function (r) { return r.path === path; });
 
@@ -21695,7 +21661,7 @@ var Router = (function () {
 
   // ── Preload templates phổ biến (tải trước nền) ─────────────────────────
   function _preloadTemplates() {
-    var priority = ['/dashboard', '/visitor', '/booking'];
+    var priority = ['/dashboard'];
     priority.forEach(function (p) {
       var r = _findRoute(p);
       if (r && r.template) fetchTemplate(r.template).catch(function () { });
@@ -21915,12 +21881,12 @@ var Router = (function () {
       return Promise.resolve();
     }
     return ApiClient.get(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION, { silent: true }).then(function (res) {
-      var localVer = localStorage.getItem('pmql_permission_ver');
+      var localVer = window.APP_SETTINGS ? APP_SETTINGS.getStored('permission_ver', null) : localStorage.getItem('pmql_permission_ver');
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
 
       if (svVersion && svVersion !== localVer) {
-        var userJson = localStorage.getItem('pmql_user');
+        var userJson = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
         var userObj = userJson ? JSON.parse(userJson) : {};
         return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {
           var permMap = {};
@@ -21938,8 +21904,13 @@ var Router = (function () {
               };
             }
           });
-          localStorage.setItem('pmql_permissions', JSON.stringify(permMap));
-          localStorage.setItem('pmql_permission_ver', svVersion);
+          if (window.APP_SETTINGS) {
+            APP_SETTINGS.setStored('permissions', JSON.stringify(permMap));
+            APP_SETTINGS.setStored('permission_ver', svVersion);
+          } else {
+            localStorage.setItem('pmql_permissions', JSON.stringify(permMap));
+            localStorage.setItem('pmql_permission_ver', svVersion);
+          }
         }).catch(function (e) {
           console.error('[Router] Lỗi tải quyền mới:', e);
         });

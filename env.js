@@ -47,6 +47,65 @@ const ENV_VARS = {
 };
 
 // 2. Cấu hình API chi tiết
+// Shared application settings. Keep product identity and storage keys in one
+// place so old base-code names do not leak across the HR app.
+window.APP_SETTINGS = {
+    appCode: 'hrm',
+    legacyAppCode: 'pmql',
+    productName: 'Quản lý Nhân sự',
+    productTitle: 'HR Management',
+    documentDefaultUserName: 'Nhân viên nhân sự',
+    disabledLegacyRoutes: [
+        '/categories',
+        '/inventory',
+        '/cash-flow',
+        '/calendar',
+        '/promotions',
+        '/report-revenue',
+        '/report-cost',
+        '/report-other',
+        '/survey',
+        '/hall-status'
+    ],
+    storageKey: function (name) {
+        return this.appCode + '_' + name;
+    },
+    legacyStorageKey: function (name) {
+        return this.legacyAppCode + '_' + name;
+    },
+    getStored: function (name, fallback) {
+        var value = localStorage.getItem(this.storageKey(name));
+        if (value === null || value === undefined) {
+            value = localStorage.getItem(this.legacyStorageKey(name));
+        }
+        return value !== null && value !== undefined ? value : fallback;
+    },
+    setStored: function (name, value) {
+        localStorage.setItem(this.storageKey(name), value);
+    },
+    removeStored: function (name) {
+        localStorage.removeItem(this.storageKey(name));
+        localStorage.removeItem(this.legacyStorageKey(name));
+    },
+    getSession: function (name, fallback) {
+        var value = sessionStorage.getItem(this.storageKey(name));
+        if (value === null || value === undefined) {
+            value = sessionStorage.getItem(this.legacyStorageKey(name));
+        }
+        return value !== null && value !== undefined ? value : fallback;
+    },
+    setSession: function (name, value) {
+        sessionStorage.setItem(this.storageKey(name), value);
+    },
+    removeSession: function (name) {
+        sessionStorage.removeItem(this.storageKey(name));
+        sessionStorage.removeItem(this.legacyStorageKey(name));
+    },
+    isLegacyRouteDisabled: function (path) {
+        return this.disabledLegacyRoutes.indexOf(path) !== -1;
+    }
+};
+
 window.API_CONFIG = {
     BASE_URL: ENV_VARS.API_BASE,
 
@@ -72,7 +131,7 @@ window.API_CONFIG = {
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
                 return useProxy
                     ? origin + '/onlyoffice/web-apps/apps/api/documents/api.js'
-                    : 'https://qlt.bms79.com/onlyoffice/web-apps/apps/api/documents/api.js';
+                    : 'http://' + ENV_VARS.ONLYOFFICE_HOST + '/web-apps/apps/api/documents/api.js';
             },
             get UPLOADS_URL() {
                 var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
@@ -107,55 +166,22 @@ window.API_CONFIG = {
             GET_MY_PERMISSIONS: '/api/API_LayQuyenCuaToi',
         },
 
-        BOOKING: {
-            LIST: '/api/API_DanhSachPhieuCoc',
-            SAVE: '/api/API_LuuPhieuCoc',
-            CANCEL: '/api/API_HuyPhieuCoc',
-            DELETE: '/api/API_XoaPhieuCoc',
-        },
-        CUSTOMER: {
-            SEARCH: '/api/API_DanhSachKhachHang',
-            SAVE: '/api/API_LuuKhachHang',
-        },
         SYSTEM: {
-            HALLS: '/api/API_DanhSachSanh',
             SHIFTS: '/api/API_DanhSachCaLam',
-            BANQUET_TYPES: '/api/API_DanhSachLoaiHinhTiec',
             SETUP_VALUE: '/api/API_LayGiaTriSetup',
             GET_UI_DICTIONARY: '/api/API_LayCacTruongGiaoDien',
             GET_FIELDS_LIST: '/api/API_DanhSachTruongGiaoDien',
             SAVE_FIELD: '/api/API_LuuTruongGiaoDien',
             DELETE_FIELD: '/api/API_XoaTruongGiaoDien'
         },
-        CONTRACT: {
-            LIST: '/api/API_DanhSachHopDong',
-            SAVE: '/api/API_LuuHopDong',
-        },
-        FOODS: {
-            LIST: '/api/API_DanhSachThucDon',
-        },
         CALENDAR: {
             LIST: '/api/API_DanhSachLich',
             SAVE: '/api/API_LuuLich',
             LEGEND: '/api/API_LayChuThichLich'
         },
-        REPORTS: {
-            SALES_STATS: '/api/API_Report_SalesStats',
-            REVENUE: '/api/API_Report_Revenue',
-            COST: '/api/API_Report_Cost',
-        },
-        VISITOR: {
-            LIST: '/api/API_DanhSachKhachDen',
-            SAVE: '/api/API_LuuKhachDen',
-        },
         STAFF: {
             LIST: '/api/API_DanhSachNhanVien',
             SAVE: '/api/API_LuuNhanVien',
-        },
-        CHECKOUT: {
-            LIST: '/api/API_DanhSachQuyetToan',
-            SAVE: '/api/API_LuuQuyenToan',
-            CONTRACT_LIST: '/api/API_DanhSachHopDong',
         },
         MENUS: {
             GET_ALL: '/api/API_LayDanhSachMenuTatCa',

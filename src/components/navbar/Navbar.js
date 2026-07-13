@@ -9,7 +9,7 @@ var Navbar = (function () {
   /* ─────────────────────────────────────────
      Layout Mode (lưu vào localStorage)
   ───────────────────────────────────────── */
-  var LAYOUT_KEY = 'pmql_layout_mode';
+  var LAYOUT_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('layout_mode') : 'pmql_layout_mode';
   var LAYOUT_HORIZONTAL = 'horizontal';
   var LAYOUT_VERTICAL = 'vertical';
 
@@ -198,7 +198,7 @@ var Navbar = (function () {
 
         <!-- Right Actions -->
         <div class="navbar-right">
-          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
+          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); if (window.APP_SETTINGS) { APP_SETTINGS.setStored('theme', isDark ? 'dark' : 'light'); } else { localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); } this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
             <span class="material-symbols-outlined" id="header-theme-icon-horizontal">dark_mode</span>
           </div>
           <div class="navbar-icon-btn" id="navbar-btn-notif" title="Thông báo">
@@ -304,7 +304,7 @@ var Navbar = (function () {
             </div>
 
             <div class="header-right">
-              <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
+              <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); if (window.APP_SETTINGS) { APP_SETTINGS.setStored('theme', isDark ? 'dark' : 'light'); } else { localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); } this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
                 <span class="material-symbols-outlined" id="header-theme-icon-vertical">dark_mode</span>
               </div>
               <div class="navbar-icon-btn" onclick="Alert.info('Thông báo', 'Bạn không có thông báo mới')">
@@ -351,13 +351,13 @@ var Navbar = (function () {
     _attachVerticalEvents();
   }
 
-  var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('nav_cache') : 'pmql_nav_cache';
 
   function render(containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
 
-    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     var groupId = currentUser.UserGroupID || currentUser.userGroupID || currentUser.Group || currentUser.GroupID || currentUser.NhomQuyen || 'Admin';
     var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
 
@@ -365,11 +365,11 @@ var Navbar = (function () {
     if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
       SystemDataService.getMenuSyncVersion().then(function (serverVer) {
         try {
-          var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+          var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
           var cacheVer = cached && cached.syncVer ? cached.syncVer : null;
           // Nếu server version khác với cache version → xóa cache, fetch lại
           if (serverVer && cacheVer && serverVer !== cacheVer) {
-            sessionStorage.removeItem(CACHE_KEY);
+            if (window.APP_SETTINGS) APP_SETTINGS.removeSession('nav_cache'); else sessionStorage.removeItem(CACHE_KEY);
             cached = null;
           }
           if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
@@ -389,7 +389,7 @@ var Navbar = (function () {
     } else {
       // Fallback: không có SystemDataService → dùng cache như cũ
       try {
-        var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+        var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
         if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
           NAV_CONFIG = cached.config;
           if (cached.rawRecords && window.Router && typeof Router.addDynamicRoutes === 'function') {
@@ -420,12 +420,13 @@ var Navbar = (function () {
           }
           // Lưu cache kèm syncVer để lần sau so sánh
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+            var cachePayload = JSON.stringify({
               groupId: groupId,
               config: NAV_CONFIG,
               rawRecords: records,
               syncVer: syncVer || ''
-            }));
+            });
+            if (window.APP_SETTINGS) APP_SETTINGS.setSession('nav_cache', cachePayload); else sessionStorage.setItem(CACHE_KEY, cachePayload);
           } catch (e) { }
         }
         _doRender(container);
@@ -440,7 +441,7 @@ var Navbar = (function () {
 
   /* Xóa cache khi logout hoặc đổi nhóm quyền */
   function clearMenuCache() {
-    sessionStorage.removeItem(CACHE_KEY);
+    if (window.APP_SETTINGS) APP_SETTINGS.removeSession('nav_cache'); else sessionStorage.removeItem(CACHE_KEY);
     NAV_CONFIG = [];
   }
 
@@ -463,7 +464,7 @@ var Navbar = (function () {
     }
 
     // UPDATE USER INFO IN DOM AFTER RENDER
-    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
     var navUserName = document.getElementById('nav-user-name');
     var vertNavUserName = document.getElementById('vert-nav-user-name');

@@ -15,7 +15,7 @@ var MenusPage = (function () {
       if (r && r.module) return r.module;
     }
     // Nếu không tìm thấy route tĩnh, thử lấy module từ permissions
-    var perms = JSON.parse(localStorage.getItem('pmql_permissions') || '{}');
+    var perms = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('permissions', '{}') : localStorage.getItem('pmql_permissions')) || '{}');
     if (perms['menus'] || perms['quanlymenu']) return 'menus';
     return 'QuanTriHeThong';
   }

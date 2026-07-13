@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
       ApiClient.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).catch(function () { });
     }
 
-    localStorage.removeItem('pmql_user');
+    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
     if (typeof ApiClient !== 'undefined' && ApiClient.deleteCookie) {
       ApiClient.deleteCookie('auth_token');
     }
@@ -30,8 +30,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     _init: function () {
       try {
-        var navCache = JSON.parse(sessionStorage.getItem('pmql_nav_cache') || 'null');
-        var userCache = JSON.parse(localStorage.getItem('pmql_user') || 'null');
+        var navCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem('pmql_nav_cache')) || 'null');
+        var userCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', 'null') : localStorage.getItem('pmql_user')) || 'null');
 
         var isAdmin = (userCache && (userCache.UserGroupID === 'Admin' || userCache.userGroupID === 'Admin'));
 
@@ -1419,7 +1419,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   if (typeof Router !== 'undefined') {
-    var currentUser = localStorage.getItem('pmql_user');
+    var currentUser = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
     if (currentUser && typeof ApiClient !== 'undefined') {
       ApiClient.post('/api/API_Gateway_Router', {
         List: 'CF_BranchListFrm',
@@ -1428,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', function () {
         Limit: 1000
       }).then(function (res) {
         var branchList = Array.isArray(res) ? res : (res.data || res.list || res.records || []);
-        localStorage.setItem('pmql_sys_branches', JSON.stringify(branchList));
+        if (window.APP_SETTINGS) APP_SETTINGS.setStored('sys_branches', JSON.stringify(branchList)); else localStorage.setItem('pmql_sys_branches', JSON.stringify(branchList));
         Router.init();
       }).catch(function () {
         Router.init();
@@ -1439,7 +1439,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // 3. Khởi tạo Navbar (chỉ render nếu đã đăng nhập)
-  var currentUser = localStorage.getItem('pmql_user');
+  var currentUser = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
   if (currentUser && typeof Navbar !== 'undefined') {
     Navbar.render('navbar-container');
 
@@ -1454,12 +1454,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // 4. Khởi tạo cấu hình giao diện
-  var savedFont = localStorage.getItem('pmql_font_family');
+  var savedFont = window.APP_SETTINGS ? APP_SETTINGS.getStored('font_family', null) : localStorage.getItem('pmql_font_family');
   if (savedFont) {
     document.documentElement.style.setProperty('--font-family', '"' + savedFont + '", sans-serif');
   }
 
-  var savedTheme = localStorage.getItem('pmql_theme') || 'auto';
+  var savedTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
   if (savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.body.classList.add('dark-theme');
   } else {
@@ -1468,7 +1468,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Lắng nghe sự thay đổi giao diện từ hệ thống (khi chuyển qua chế độ tiết kiệm pin hoặc Dark Mode)
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-    var currentTheme = localStorage.getItem('pmql_theme') || 'auto';
+    var currentTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
     if (currentTheme === 'auto') {
       if (e.matches) {
         document.body.classList.add('dark-theme');
@@ -1478,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  var savedColor = localStorage.getItem('pmql_color');
+  var savedColor = window.APP_SETTINGS ? APP_SETTINGS.getStored('color', null) : localStorage.getItem('pmql_color');
   if (savedColor) {
     var COLORS = [
       { id: 'indigo', primary: '#4F46E5', hover: '#4338CA', dark: '#3730A3', light: 'rgba(79, 70, 229, 0.1)' },

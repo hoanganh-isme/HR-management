@@ -71,7 +71,7 @@ const ApiClient = (function () {
                     window.logoutApp();
                 } else {
                     deleteCookie('auth_token');
-                    localStorage.removeItem('pmql_user');
+                    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
                     window.location.href = 'login.html';
                 }
             }

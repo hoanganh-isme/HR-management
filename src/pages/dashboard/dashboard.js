@@ -8,6 +8,39 @@ var DashboardPage = (function () {
   var _innerRoot = null;
   var _currentTemplate = null;
   var _currentBranch = ''; // State lưu trữ Chi nhánh đang chọn để lọc
+  var _accessScope = null;
+
+  function _readCurrentUser() {
+    try {
+      var raw = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user');
+      return JSON.parse(raw || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function _getAccessScope() {
+    var user = _readCurrentUser();
+    var group = (user.UserGroupID || user.userGroupID || user.userGroupId || user.Group || user.GroupID || user.NhomQuyen || '').toString().trim().toLowerCase();
+    var isAdmin = group === 'admin';
+    var rawBranches = user.BranchID || user.branchID || user.branchId || user.Branches || user.BranchCodes || '';
+    var branchIds = [];
+
+    if (Array.isArray(rawBranches)) {
+      rawBranches.forEach(function (branch) {
+        var id = typeof branch === 'object' ? (branch.BranchID || branch.branchID || branch.Code || branch.id || '') : branch;
+        id = (id || '').toString().trim();
+        if (id && branchIds.indexOf(id) === -1) branchIds.push(id);
+      });
+    } else {
+      rawBranches.toString().split(',').forEach(function (id) {
+        id = id.trim();
+        if (id && branchIds.indexOf(id) === -1) branchIds.push(id);
+      });
+    }
+
+    return { isAdmin: isAdmin, branchIds: branchIds, defaultBranch: isAdmin ? '' : branchIds.join(',') };
+  }
 
   // ── Format helpers ─────────────────────────────────────────────
   function _fmtShort(n) {
@@ -48,7 +81,18 @@ var DashboardPage = (function () {
     _fetchAPI: function (spName, params, mockFallback) {
       return new Promise(function (resolve) {
         if (typeof ApiClient !== 'undefined') {
-          var payload = Object.assign({ Func: 'View', List: spName, FormName: spName, Limit: 1000 }, params || {});
+          var user = _readCurrentUser();
+          var userName = user.UserName || user.Username || user.username || '';
+          var requestParams = Object.assign({}, params || {});
+          var payload = {
+            Func: 'View',
+            List: spName,
+            FormName: spName,
+            UserName: userName,
+            User: userName,
+            Limit: 1000,
+            JsonData: JSON.stringify(requestParams)
+          };
           ApiClient.post('/api/API_Gateway_Router', payload)
             .then(function (res) {
               var data = null;
@@ -79,7 +123,7 @@ var DashboardPage = (function () {
 
     getBranches: function () {
       var mock = [{ value: 'COBI', label: 'COBI' }, { value: 'DONGDU', label: 'DONGDU' }];
-      return this._fetchAPI('API_HR_Dashboard_GetBranches', {}, mock);
+      return this._fetchAPI('API_HR_Dashboard_GetBranches', { BranchID: _currentBranch }, mock);
     },
 
     getOverviewToday: function () {
@@ -594,7 +638,18 @@ var DashboardPage = (function () {
 
     var branchSelect = document.createElement('select');
     branchSelect.className = 'form-control db-filter-select';
-    branchSelect.innerHTML = '<option value="">Tất cả Chi nhánh</option>';
+    var scope = _accessScope || _getAccessScope();
+    if (scope.isAdmin) {
+      branchSelect.innerHTML = '<option value="">Tất cả Chi nhánh</option>';
+    } else {
+      branchSelect.innerHTML = '';
+      if (scope.branchIds.length > 1) {
+        branchSelect.add(new Option('Tất cả chi nhánh được phân quyền', scope.branchIds.join(',')));
+      }
+      scope.branchIds.forEach(function (id) { branchSelect.add(new Option(id, id)); });
+      branchSelect.value = _currentBranch;
+      if (scope.branchIds.length === 1) branchSelect.disabled = true;
+    }
 
     branchSelect.onchange = function (e) {
       _currentBranch = e.target.value;
@@ -612,8 +667,16 @@ var DashboardPage = (function () {
           var opt = document.createElement('option');
           opt.value = HRDataService._getVal(b, 'value', '');
           opt.textContent = HRDataService._getVal(b, 'label', '');
-          if (opt.value) branchSelect.appendChild(opt);
+          var isAllowed = scope.isAdmin || scope.branchIds.some(function (id) {
+            return id.toLowerCase() === opt.value.toString().toLowerCase();
+          });
+          var existing = Array.from(branchSelect.options).find(function (item) {
+            return item.value.toLowerCase() === opt.value.toString().toLowerCase();
+          });
+          if (existing) existing.textContent = opt.textContent;
+          else if (opt.value && isAllowed) branchSelect.appendChild(opt);
         });
+        branchSelect.value = _currentBranch;
       }
     });
   }
@@ -621,12 +684,18 @@ var DashboardPage = (function () {
   // ── Main Render function for Router ────────────────────────────
   function render(container) {
     _container = container;
-    _currentBranch = ''; // Reset on full render
+    _accessScope = _getAccessScope();
+    _currentBranch = _accessScope.defaultBranch;
     Router.fetchTemplate('src/pages/dashboard/dashboard.html')
       .then(function (html) {
         _container.innerHTML = html;
         _innerRoot = _container.querySelector('#dashboard-root');
         if (!_innerRoot) { _innerRoot = document.createElement('div'); _container.appendChild(_innerRoot); }
+
+        if (!_accessScope.isAdmin && _accessScope.branchIds.length === 0) {
+          _innerRoot.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined">location_off</span><h3>Chưa được gán chi nhánh</h3><p>Tài khoản của bạn chưa có quyền xem dữ liệu dashboard. Vui lòng liên hệ quản trị viên.</p></div>';
+          return;
+        }
 
         _buildHeaderControls(_container);
 

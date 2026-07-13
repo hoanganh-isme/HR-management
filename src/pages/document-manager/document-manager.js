@@ -649,10 +649,10 @@ var DocumentManagerPage = (function () {
 
   function _getCurrentUserName() {
     try {
-      var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-      return u.FullName || u.UserName || 'Nhân viên Wedding';
+      var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+      return u.FullName || u.UserName || (window.APP_SETTINGS ? APP_SETTINGS.documentDefaultUserName : 'Nhân viên nhân sự');
     } catch (e) {
-      return 'Nhân viên Wedding';
+      return window.APP_SETTINGS ? APP_SETTINGS.documentDefaultUserName : 'Nhân viên nhân sự';
     }
   }
 
