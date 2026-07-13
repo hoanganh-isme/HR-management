@@ -275,7 +275,7 @@ var DocumentManagerPage = (function () {
         '</button>' +
         '</div>';
 
-      div.addEventListener('click', function () { _openEditor(doc.fileName); });
+      div.addEventListener('click', function () { _openEditor(doc.fileName, doc); });
       var delBtn = div.querySelector('.docmgr-del');
       if (delBtn) delBtn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -285,7 +285,7 @@ var DocumentManagerPage = (function () {
       list.appendChild(div);
     });
   }
-  function _openEditor(fileName) {
+  function _openEditor(fileName, documentRecord) {
     _currentFile = fileName;
     _renderList(); // Re-render list để cập nhật class .active
 
@@ -431,15 +431,16 @@ var DocumentManagerPage = (function () {
     var btnEditTpl = _qs('#docmgr-btn-edit-tpl');
     if (btnEditTpl) {
       btnEditTpl.addEventListener('click', function () {
-        _openTemplateEditor(fileName);
+        _openTemplateEditor(documentRecord || { fileName: fileName });
       });
     }
   }
 
   // ── Chỉnh sửa Template ────────────────────────────────────────────────
-  function _openTemplateEditor(fileName) {
-    var type = fileName.includes('hop_dong') ? 'hop_dong' : (fileName.includes('dat_coc') ? 'dat_coc' : 'quyet_toan');
-    var templateName = type + '.html';
+  function _openTemplateEditor(documentRecord) {
+    var template = DocumentTemplateResolver.resolve(documentRecord);
+    var type = template.templateCode;
+    var templateName = template.templateFile;
 
     // Đóng giao diện xem tài liệu cũ
     var area = _qs('#docmgr-editor-area');
@@ -461,7 +462,7 @@ var DocumentManagerPage = (function () {
 
         var config = {
           document: {
-            fileType: 'html',
+            fileType: template.fileType,
             key: type + '_' + Date.now(),
             title: templateName,
             url: fileUrl,

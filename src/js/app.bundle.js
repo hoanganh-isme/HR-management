@@ -21347,6 +21347,50 @@ window.SapCaTuDong = window.ShiftActions.autoAssignFromForm;
   }));
 })();
 
+/* --- js/modules/documents/LegacyDocumentTemplateAdapter.js --- */
+window.LegacyDocumentTemplateAdapter = {
+  resolve: function (documentRecord) {
+    var fileName = String((documentRecord && (documentRecord.fileName || documentRecord.FileName)) || '').toLowerCase();
+    var code = fileName.indexOf('hop_dong') !== -1
+      ? 'hop_dong'
+      : (fileName.indexOf('dat_coc') !== -1 ? 'dat_coc' : 'quyet_toan');
+    console.warn('[Deprecated] Document template inferred from legacy file name: ' + fileName);
+    return { templateCode: code, templateFile: code + '.html', fileType: 'html', legacy: true };
+  }
+};
+
+/* --- js/modules/documents/DocumentTemplateResolver.js --- */
+window.DocumentTemplateResolver = (function () {
+  function read(record, names) {
+    for (var index = 0; index < names.length; index += 1) {
+      if (record && record[names[index]] != null && record[names[index]] !== '') return String(record[names[index]]);
+    }
+    return '';
+  }
+
+  function resolve(documentRecord) {
+    var record = documentRecord || {};
+    var templateCode = read(record, ['TemplateCode', 'templateCode']);
+    var templateFile = read(record, ['TemplateFile', 'templateFile']);
+    var documentType = read(record, ['DocumentType', 'documentType', 'FormName', 'formName']);
+    var fileType = read(record, ['FileType', 'fileType']) || 'html';
+
+    if (!templateCode && documentType) templateCode = documentType;
+    if (!templateFile && templateCode) templateFile = templateCode + '.' + fileType.replace(/^\./, '');
+    if (!templateFile) return LegacyDocumentTemplateAdapter.resolve(record);
+
+    return {
+      templateCode: templateCode || templateFile.replace(/\.[^.]+$/, ''),
+      templateFile: templateFile,
+      documentType: documentType,
+      fileType: fileType,
+      legacy: false
+    };
+  }
+
+  return { resolve: resolve };
+})();
+
 /* --- js/plugins/payroll/PayrollActions.js --- */
 (function () {
   'use strict';

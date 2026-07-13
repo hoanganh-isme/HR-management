@@ -105,6 +105,8 @@
                "js/modules/payroll/allowance.module.js",
                "js/modules/insurance/insurance.module.js",
                "js/modules/insurance/union-fee.module.js",
+               "js/modules/documents/LegacyDocumentTemplateAdapter.js",
+               "js/modules/documents/DocumentTemplateResolver.js",
                "js/plugins/payroll/PayrollActions.js",
                "js/plugins/timesheet/TimesheetActions.js",
                "js/core/index.js",
