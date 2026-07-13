@@ -5766,6 +5766,26 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   line-height: 1.4;
 }
 
+.dropdown-table .dropdown-check-column {
+  width: 40px;
+  min-width: 40px;
+  padding-left: 10px;
+  padding-right: 10px;
+  text-align: center;
+}
+
+.dropdown-table .dropdown-check-column input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.dropdown-table tbody tr.active {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
 /* Soft UI cho chế độ 1 cột (giống select list mobile) */
 .dropdown-table.single-column td {
   padding: 10px 14px;

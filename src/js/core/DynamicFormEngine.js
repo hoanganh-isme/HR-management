@@ -4168,8 +4168,15 @@ window.DynamicFormEngine = (function () {
                 placeholder: '-- Chọn --',
                 headers: ['ID', 'Tên'],
                 data: staticData,
+                multiple: field.multiple === true || field.renderRule === 'ms',
+                initialValue: field.value,
+                valueIndex: 0,
+                forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
+                readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
                 colFilterIndex: 1,
-                onSelect: function (r) { hiddenInput.value = r[0]; }
+                onSelect: function (r) {
+                  hiddenInput.value = (field.multiple === true || field.renderRule === 'ms') ? r : r[0];
+                }
               });
               var newDisplayInput = newCombo.querySelector('input.ui-input');
               var matched = staticData.find(function (r) { return r[0] == field.value; });
@@ -4195,14 +4202,22 @@ window.DynamicFormEngine = (function () {
                 var optionTable = _buildOptionTable(dataList, field, 0);
                 var newCombo = UIControls.createDataComboBox({
                   placeholder: '-- Chọn --', headers: optionTable.headers, data: optionTable.data, colFilterIndex: optionTable.colFilterIndex,
+                  multiple: field.multiple === true || field.renderRule === 'ms',
+                  initialValue: field.value,
+                  valueIndex: optionTable.valueIndex,
+                  forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
                   showAddNew: field.allowCustomValue !== false && !(typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns),
-                  readonlyInput: field.allowCustomValue === false,
+                  readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
                   onF2: function () {
                     newCombo.querySelector('.ui-input').focus();
                   },
-                  onSelect: function (r) { hiddenInput.value = r[0]; },
+                  onSelect: function (r) {
+                    hiddenInput.value = (field.multiple === true || field.renderRule === 'ms') ? r : r[0];
+                  },
                   onChange: function (val) {
-                    hiddenInput.value = field.allowCustomValue === false ? '' : val;
+                    hiddenInput.value = (field.multiple === true || field.renderRule === 'ms')
+                      ? val
+                      : (field.allowCustomValue === false ? '' : val);
                   }
                 });
                 var newDisplayInput = newCombo.querySelector('input.ui-input');
@@ -4738,6 +4753,12 @@ window.DynamicFormEngine = (function () {
             var lazyStaticCombo = UIControls.createDataComboBox({
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
+              multiple: field.multiple === true || field.renderRule === 'ms',
+              initialValue: field.value,
+              valueIndex: 0,
+              colFilterIndex: 1,
+              forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
+              readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
               onSearch: function (q, page) {
                 return new Promise(function (resolve) {
@@ -4753,18 +4774,33 @@ window.DynamicFormEngine = (function () {
                   if (q) {
                     filtered = filtered.filter(function (r) { return r[1].toLowerCase().indexOf(q.toLowerCase()) > -1; });
                   }
-                  resolve({ headers: ['Mã', 'Tên'], data: filtered, colFilterIndex: 1 });
+                  resolve({
+                    headers: ['Mã', 'Tên'],
+                    data: filtered,
+                    valueIndex: 0,
+                    colFilterIndex: 1,
+                    forceMultiColumn: field.multiple === true || field.renderRule === 'ms'
+                  });
                 });
               },
               onSelect: function (row) {
-                hiddenInput.value = row[0]; // Cập nhật ID
+                hiddenInput.value = (field.multiple === true || field.renderRule === 'ms') ? row : row[0];
                 hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
               }
             });
 
             var displayInput = lazyStaticCombo.querySelector('input.ui-input');
-            var matched = staticData.find(function (r) { return r[0] == field.value; });
-            if (matched && displayInput) displayInput.value = matched[1];
+            if (field.multiple === true || field.renderRule === 'ms') {
+              var selectedStaticIds = String(field.value || '').split(',').map(function (value) { return value.trim(); }).filter(Boolean);
+              var selectedStaticLabels = selectedStaticIds.map(function (value) {
+                var selectedRow = staticData.find(function (r) { return String(r[0]) === value; });
+                return selectedRow ? selectedRow[1] : value;
+              });
+              if (displayInput) displayInput.value = selectedStaticLabels.join(', ');
+            } else {
+              var matched = staticData.find(function (r) { return r[0] == field.value; });
+              if (matched && displayInput) displayInput.value = matched[1];
+            }
 
             hiddenInput.fetchDataForValue = function () {
               var displayInp = lazyStaticCombo.querySelector('input.ui-input');
@@ -4861,17 +4897,28 @@ window.DynamicFormEngine = (function () {
             var lazyCombo = UIControls.createDataComboBox({
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
+              multiple: field.multiple === true || field.renderRule === 'ms',
+              initialValue: field.value,
+              valueIndex: 0,
+              forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
               showAddNew: field.allowCustomValue !== false && !(typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns),
-              readonlyInput: field.allowCustomValue === false,
+              readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
               onF2: function () {
                 lazyCombo.querySelector('.ui-input').focus();
               },
               onSearch: searchApiCall,
               onChange: function (val) {
-                hiddenInput.value = field.allowCustomValue === false ? '' : val;
+                hiddenInput.value = (field.multiple === true || field.renderRule === 'ms')
+                  ? val
+                  : (field.allowCustomValue === false ? '' : val);
               },
               onSelect: function (row) {
+                if (field.multiple === true || field.renderRule === 'ms') {
+                  hiddenInput.value = row;
+                  hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                  return;
+                }
                 hiddenInput.value = row[0];
 
                 // === AUTO FILL LOGIC ===
@@ -4917,6 +4964,15 @@ window.DynamicFormEngine = (function () {
             if (field.value) {
               searchApiCall('', 1).then(function (res) {
                 var displayInput = lazyCombo.querySelector('input.ui-input');
+                if (field.multiple === true || field.renderRule === 'ms') {
+                  var selectedIds = String(field.value).split(',').map(function (value) { return value.trim(); }).filter(Boolean);
+                  var selectedLabels = selectedIds.map(function (value) {
+                    var selectedRow = res.data.find(function (r) { return String(r[0]) === value; });
+                    return selectedRow ? selectedRow[res.colFilterIndex !== undefined ? res.colFilterIndex : 1] : value;
+                  });
+                  if (displayInput) displayInput.value = selectedLabels.join(', ');
+                  return;
+                }
                 var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
                 if (matched && displayInput) displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
                 else if (displayInput) displayInput.value = field.value; // Fallback

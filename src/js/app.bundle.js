@@ -133,150 +133,150 @@ var MockData = {
  */
 
 const ApiClient = (function () {
-  // Lấy Base URL từ env.js
-  const getBaseUrl = () => {
-    return window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
-  };
-
-  /**
-   * Cookie helpers (Tương tự Medstand)
-   */
-  function setCookie(name, value, days) {
-    const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    const isSecure = window.location.protocol === 'https:';
-    document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Strict${isSecure ? ';Secure' : ''}`;
-  }
-
-  function getCookie(name) {
-    const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
-    return match ? decodeURIComponent(match[1]) : '';
-  }
-
-  function deleteCookie(name) {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-  }
-
-  /**
-   * Lấy auth token từ Cookie
-   */
-  function getAuthToken() {
-    return getCookie('auth_token') || null;
-  }
-
-  /**
-   * Hàm gọi API cốt lõi
-   */
-  async function request(endpoint, options = {}) {
-    const baseUrl = getBaseUrl();
-    // Nếu endpoint đã là URL đầy đủ thì không nối BaseUrl nữa
-    const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
-
-    // Thiết lập Headers mặc định
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(options.headers || {})
+    // Lấy Base URL từ env.js
+    const getBaseUrl = () => {
+        return window.API_CONFIG ? window.API_CONFIG.BASE_URL : '';
     };
 
-    // Gắn Bearer Token nếu có
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    /**
+     * Cookie helpers (Tương tự Medstand)
+     */
+    function setCookie(name, value, days) {
+        const expires = new Date(Date.now() + days * 864e5).toUTCString();
+        const isSecure = window.location.protocol === 'https:';
+        document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Strict${isSecure ? ';Secure' : ''}`;
     }
 
-    const config = {
-      ...options,
-      headers
-    };
+    function getCookie(name) {
+        const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 
-    try {
-      const response = await fetch(url, config);
+    function deleteCookie(name) {
+        document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+    }
 
-      // Xử lý status 401 (Hết hạn token / Chưa đăng nhập)
-      if (response.status === 401) {
-        console.warn('[ApiClient] 401 Unauthorized. Token expired?');
-        if (typeof window.logoutApp === 'function') {
-          window.logoutApp();
-        } else {
-          deleteCookie('auth_token');
-          if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
-          window.location.href = 'login.html';
+    /**
+     * Lấy auth token từ Cookie
+     */
+    function getAuthToken() {
+        return getCookie('auth_token') || null;
+    }
+
+    /**
+     * Hàm gọi API cốt lõi
+     */
+    async function request(endpoint, options = {}) {
+        const baseUrl = getBaseUrl();
+        // Nếu endpoint đã là URL đầy đủ thì không nối BaseUrl nữa
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+
+        // Thiết lập Headers mặc định
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(options.headers || {})
+        };
+
+        // Gắn Bearer Token nếu có
+        const token = getAuthToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
         }
-      }
 
-      // Nếu response code không phải 2xx (Tức là bị lỗi Backend trả về)
-      if (!response.ok) {
-        let errorData;
+        const config = {
+            ...options,
+            headers
+        };
+
         try {
-          errorData = await response.json();
-        } catch (e) {
-          errorData = { message: response.statusText || 'Lỗi kết nối Server' };
+            const response = await fetch(url, config);
+
+            // Xử lý status 401 (Hết hạn token / Chưa đăng nhập)
+            if (response.status === 401) {
+                console.warn('[ApiClient] 401 Unauthorized. Token expired?');
+                if (typeof window.logoutApp === 'function') {
+                    window.logoutApp();
+                } else {
+                    deleteCookie('auth_token');
+                    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
+                    window.location.href = 'login.html';
+                }
+            }
+
+            // Nếu response code không phải 2xx (Tức là bị lỗi Backend trả về)
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    errorData = { message: response.statusText || 'Lỗi kết nối Server' };
+                }
+                const error = new Error(errorData.message || 'Lỗi Server');
+                error.status = response.status;
+                error.data = errorData;
+                throw error;
+            }
+
+            // Parse k\u1ebft qu\u1ea3
+            const textResponse = await response.text();
+            try {
+                // Trả về Object nếu JSON hợp lệ
+                return textResponse ? JSON.parse(textResponse) : {};
+            } catch (err) {
+                // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
+                return textResponse;
+            }
+
+        } catch (error) {
+            // Catch error network hoặc error tự throw ở trên
+            console.error(`[API Error] ${options.method || 'GET'} ${url} :`, error);
+            throw error; // Ném lỗi ra ngoài cho component/page xử lý hiện Toast báo lỗi
         }
-        const error = new Error(errorData.message || 'Lỗi Server');
-        error.status = response.status;
-        error.data = errorData;
-        throw error;
-      }
-
-      // Parse k\u1ebft qu\u1ea3
-      const textResponse = await response.text();
-      try {
-        // Trả về Object nếu JSON hợp lệ
-        return textResponse ? JSON.parse(textResponse) : {};
-      } catch (err) {
-        // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
-        return textResponse;
-      }
-
-    } catch (error) {
-      // Catch error network hoặc error tự throw ở trên
-      console.error(`[API Error] ${options.method || 'GET'} ${url} :`, error);
-      throw error; // Ném lỗi ra ngoài cho component/page xử lý hiện Toast báo lỗi
     }
-  }
 
-  return {
-    /**
-     * G\u1eedi request GET
-     */
-    get: function (endpoint, options = {}) {
-      return request(endpoint, { ...options, method: 'GET' });
-    },
+    return {
+        /**
+         * G\u1eedi request GET
+         */
+        get: function (endpoint, options = {}) {
+            return request(endpoint, { ...options, method: 'GET' });
+        },
 
-    /**
-     * G\u1eedi request POST (Dữ liệu truyền vào th\u00f4ng qua body)
-     */
-    post: function (endpoint, data, options = {}) {
-      return request(endpoint, {
-        ...options,
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
-    },
+        /**
+         * G\u1eedi request POST (Dữ liệu truyền vào th\u00f4ng qua body)
+         */
+        post: function (endpoint, data, options = {}) {
+            return request(endpoint, {
+                ...options,
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+        },
 
-    /**
-     * G\u1eedi request PUT (Th\u01b0\u1eddng d\u00f9ng \u0111\u1ec3 update)
-     */
-    put: function (endpoint, data, options = {}) {
-      return request(endpoint, {
-        ...options,
-        method: 'PUT',
-        body: JSON.stringify(data)
-      });
-    },
+        /**
+         * G\u1eedi request PUT (Th\u01b0\u1eddng d\u00f9ng \u0111\u1ec3 update)
+         */
+        put: function (endpoint, data, options = {}) {
+            return request(endpoint, {
+                ...options,
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+        },
 
-    /**
-     * G\u1eedi request DELETE
-     */
-    delete: function (endpoint, options = {}) {
-      return request(endpoint, { ...options, method: 'DELETE' });
-    },
+        /**
+         * G\u1eedi request DELETE
+         */
+        delete: function (endpoint, options = {}) {
+            return request(endpoint, { ...options, method: 'DELETE' });
+        },
 
-    // Expose cookie helpers to be used globally (e.g., in login and logout)
-    setCookie: setCookie,
-    getCookie: getCookie,
-    deleteCookie: deleteCookie
-  };
+        // Expose cookie helpers to be used globally (e.g., in login and logout)
+        setCookie: setCookie,
+        getCookie: getCookie,
+        deleteCookie: deleteCookie
+    };
 })();
 
 // Xuất ra để có thể dùng toàn cục trong file JS khác
@@ -293,11 +293,11 @@ var Permission = (function () {
     var legacyPerms = JSON.parse(localStorage.getItem('app_permissions') || '{}');
     var newPerms = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('permissions', '{}') : localStorage.getItem('pmql_permissions')) || '{}');
     var perms = Object.keys(newPerms).length > 0 ? newPerms : legacyPerms;
-
+    
     if (Object.keys(perms).length === 0) {
       return { xem: true, them: true, sua: true, xoa: true };
     }
-
+    
     var p = perms[module];
     if (!p) {
       var target = (module || '').toLowerCase();
@@ -309,19 +309,19 @@ var Permission = (function () {
       }
     }
     p = p || {};
-
+    
     return {
-      xem: p.CanView == 1 || p.CanView === '1' || p.CanView === true || p.CanView === 'true' || p.xem == 1 || p.xem === '1' || p.xem === true || p.xem === 'true',
-      them: p.CanAdd == 1 || p.CanAdd === '1' || p.CanAdd === true || p.CanAdd === 'true' || p.them == 1 || p.them === '1' || p.them === true || p.them === 'true',
-      sua: p.CanEdit == 1 || p.CanEdit === '1' || p.CanEdit === true || p.CanEdit === 'true' || p.sua == 1 || p.sua === '1' || p.sua === true || p.sua === 'true',
-      xoa: p.CanDelete == 1 || p.CanDelete === '1' || p.CanDelete === true || p.CanDelete === 'true' || p.xoa == 1 || p.xoa === '1' || p.xoa === true || p.xoa === 'true'
+        xem: p.CanView == 1 || p.CanView === '1' || p.CanView === true || p.CanView === 'true' || p.xem == 1 || p.xem === '1' || p.xem === true || p.xem === 'true',
+        them: p.CanAdd == 1 || p.CanAdd === '1' || p.CanAdd === true || p.CanAdd === 'true' || p.them == 1 || p.them === '1' || p.them === true || p.them === 'true',
+        sua: p.CanEdit == 1 || p.CanEdit === '1' || p.CanEdit === true || p.CanEdit === 'true' || p.sua == 1 || p.sua === '1' || p.sua === true || p.sua === 'true',
+        xoa: p.CanDelete == 1 || p.CanDelete === '1' || p.CanDelete === true || p.CanDelete === 'true' || p.xoa == 1 || p.xoa === '1' || p.xoa === true || p.xoa === 'true'
     };
   }
 
   return {
-    canView: function (module) { return _get(module).xem; },
-    canAdd: function (module) { return _get(module).them; },
-    canEdit: function (module) { return _get(module).sua; },
+    canView:   function (module) { return _get(module).xem; },
+    canAdd:    function (module) { return _get(module).them; },
+    canEdit:   function (module) { return _get(module).sua; },
     canDelete: function (module) { return _get(module).xoa; }
   };
 })();
@@ -439,7 +439,7 @@ var DocumentExportPlugin = (function () {
           errBox.style.textAlign = 'center';
           errBox.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1)';
           errBox.style.fontFamily = '"Inter", system-ui, -apple-system, sans-serif';
-
+          
           var errMsg = document.createElement('p');
           errMsg.innerText = 'Không tìm thấy mẫu hợp đồng nào được cấu hình trong CSDL (bảng HR_HopDongAddfile).';
           errMsg.style.color = '#ef4444';
@@ -447,7 +447,7 @@ var DocumentExportPlugin = (function () {
           errMsg.style.fontWeight = '500';
           errMsg.style.margin = '0 0 16px 0';
           errBox.appendChild(errMsg);
-
+          
           var btnClose = document.createElement('button');
           btnClose.innerText = 'Đóng';
           btnClose.style.padding = '8px 18px';
@@ -527,14 +527,14 @@ var DocumentExportPlugin = (function () {
           label.style.borderRadius = '8px';
           label.style.border = '1px solid #e2e8f0';
           label.style.transition = 'all 0.15s ease';
-
+          
           var radio = document.createElement('input');
           radio.type = 'radio';
           radio.name = 'tplSelect';
           radio.value = tpl.id;
           radio.style.cursor = 'pointer';
           radio.style.margin = '0';
-
+          
           var textSpan = document.createElement('span');
           textSpan.innerText = tpl.name;
           textSpan.style.fontWeight = '500';
@@ -544,7 +544,7 @@ var DocumentExportPlugin = (function () {
             label.style.borderColor = '#3b82f6';
             label.style.backgroundColor = '#eff6ff';
             textSpan.style.color = '#1d4ed8';
-
+            
             var badge = document.createElement('span');
             badge.innerText = 'Đề xuất';
             badge.style.marginLeft = 'auto';
@@ -554,7 +554,7 @@ var DocumentExportPlugin = (function () {
             badge.style.padding = '2px 8px';
             badge.style.borderRadius = '9999px';
             badge.style.fontWeight = '600';
-
+            
             label.appendChild(radio);
             label.appendChild(textSpan);
             label.appendChild(badge);
@@ -631,20 +631,20 @@ var DocumentExportPlugin = (function () {
       .catch(function (err) {
         console.error('[DocumentExportPlugin] Lỗi tải mẫu CSDL:', err);
         overlay.removeChild(loadingText);
-
+        
         // Hiện thông báo lỗi và tự động gỡ overlay
         var errBox = document.createElement('div');
         errBox.style.backgroundColor = '#ffffff';
         errBox.style.padding = '24px';
         errBox.style.borderRadius = '8px';
         errBox.style.textAlign = 'center';
-
+        
         var errMsg = document.createElement('p');
         errMsg.innerText = 'Không thể kết nối đến máy chủ hoặc tải danh sách mẫu từ CSDL.';
         errMsg.style.color = '#ef4444';
         errMsg.style.margin = '0 0 16px 0';
         errBox.appendChild(errMsg);
-
+        
         var btnClose = document.createElement('button');
         btnClose.innerText = 'Đóng';
         btnClose.style.padding = '8px 16px';
@@ -717,8 +717,8 @@ var DocumentExportPlugin = (function () {
         sqlListName: config.sqlListName,
         convertFields: config.convertFields || [],
         // branchId từ localStorage (backend sẽ tự xác thực lại bằng SY_User)
-        branchId: (function () {
-          try { return (JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}')).BranchID || null; } catch (e) { return null; }
+        branchId: (function() {
+          try { return (JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}')).BranchID || null; } catch(e) { return null; }
         })()
       })
     })
@@ -840,7 +840,7 @@ var FormBuilderPlugin = (function () {
         text: 'Thiết kế Layout',
         icon: 'design_services',
         type: 'tool',
-        onClick: function () { _promptLayoutBuilder(moduleConfig, onReloadFormEngine); }
+        onClick: function() { _promptLayoutBuilder(moduleConfig, onReloadFormEngine); }
       },
       {
         id: 'btn-form-builder-sync',
@@ -1037,7 +1037,7 @@ var FormBuilderPlugin = (function () {
           var fieldNameStr = f.FieldName || f.fieldname || f.FIELDNAME || f.name || '';
           var captionStr = f.CaptionVN || f.captionvn || f.CAPTIONVN || f.label || fieldNameStr;
 
-          var _bool = function (camel, pascal) {
+          var _bool = function(camel, pascal) {
             return String(camel) === '1' || camel === true || String(pascal) === '1' || pascal === true;
           };
 
@@ -1196,12 +1196,12 @@ var FormBuilderPlugin = (function () {
           }
 
           _sendSequentialToDB(saveEndpoint, payloads)
-            .then(function () {
+            .then(function() {
               modalLayout.closeNow();
               Alert.success('Thành công', 'Đã cập nhật xong cấu hình Layout!');
               if (typeof onReloadFormEngine === 'function') onReloadFormEngine();
             })
-            .catch(function (err) {
+            .catch(function(err) {
               console.error(err);
               btn.innerHTML = origTxt;
               btn.disabled = false;
@@ -1217,8 +1217,8 @@ var FormBuilderPlugin = (function () {
 
   // Chạy tuần tự các promises
   function _sendSequentialToDB(endpoint, payloads) {
-    return payloads.reduce(function (promise, payload) {
-      return promise.then(function () {
+    return payloads.reduce(function(promise, payload) {
+      return promise.then(function() {
         var finalPayload = payload;
         if (endpoint === '/api/API_Gateway_Router') {
           finalPayload = {
@@ -1227,8 +1227,8 @@ var FormBuilderPlugin = (function () {
             JsonData: JSON.stringify(payload)
           };
         }
-        return ApiClient.post(endpoint, finalPayload).then(function (res) {
-          if (res && res.code !== 0) throw new Error(res.msg || 'Lỗi lưu trường ' + payload.FieldName);
+        return ApiClient.post(endpoint, finalPayload).then(function(res) {
+            if (res && res.code !== 0) throw new Error(res.msg || 'Lỗi lưu trường ' + payload.FieldName);
         });
       });
     }, Promise.resolve());
@@ -1254,148 +1254,148 @@ var FormBuilderPlugin = (function () {
  */
 var WorkflowTransferPlugin = (function () {
 
-  function _autoClickAdd() {
-    setTimeout(function () {
-      var btnAdd = document.querySelector('button[title*="Thêm bản ghi mới"], button[title="Thêm"], .btn-primary:not(.btn-tool)');
-      if (btnAdd) btnAdd.click();
-    }, 800);
-  }
-
-  // --- CẤU HÌNH CÁC NÚT TRANSFER ---
-  var FORM_CONFIG = {
-    'frmKhachThamQuan': {
-      id: 'btn-transfer-booking',
-      text: 'Tạo Cọc',
-      icon: 'monetization_on',
-      targetHash: '#/booking',
-      storageKey: 'transfer_VisitorToBooking',
-      getTransferData: function (row) {
-        var data = Object.assign({}, row);
-        delete data.Id; delete data.AutoID; delete data.Sohopdong;
-        return data;
-      }
-    },
-    'frmHopDong': {
-      id: 'btn-transfer-checkout',
-      text: 'Quyết Toán',
-      icon: 'receipt_long',
-      targetHash: '#/checkout',
-      storageKey: 'transfer_ContractToCheckout',
-      getTransferData: function (row) {
-        var data = Object.assign({}, row);
-        delete data.Id; delete data.AutoID;
-        return data;
-      }
+    function _autoClickAdd() {
+        setTimeout(function () {
+            var btnAdd = document.querySelector('button[title*="Thêm bản ghi mới"], button[title="Thêm"], .btn-primary:not(.btn-tool)');
+            if (btnAdd) btnAdd.click();
+        }, 800);
     }
-  };
 
-  function getExtraButtons(formName, getSelectedRows) {
-    var config = FORM_CONFIG[formName];
-    if (!config) return [];
+    // --- CẤU HÌNH CÁC NÚT TRANSFER ---
+    var FORM_CONFIG = {
+        'frmKhachThamQuan': {
+            id: 'btn-transfer-booking',
+            text: 'Tạo Cọc',
+            icon: 'monetization_on',
+            targetHash: '#/booking',
+            storageKey: 'transfer_VisitorToBooking',
+            getTransferData: function (row) {
+                var data = Object.assign({}, row);
+                delete data.Id; delete data.AutoID; delete data.Sohopdong;
+                return data;
+            }
+        },
+        'frmHopDong': {
+            id: 'btn-transfer-checkout',
+            text: 'Quyết Toán',
+            icon: 'receipt_long',
+            targetHash: '#/checkout',
+            storageKey: 'transfer_ContractToCheckout',
+            getTransferData: function (row) {
+                var data = Object.assign({}, row);
+                delete data.Id; delete data.AutoID;
+                return data;
+            }
+        }
+    };
 
-    return [{
-      id: config.id,
-      text: config.text,
-      icon: config.icon,
-      type: 'tool',
-      onClick: function () {
-        var selectedRows = getSelectedRows();
-        if (!selectedRows || selectedRows.length !== 1) {
-          if (window.Alert) Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng duy nhất để ' + config.text + '.');
-          else alert('Vui lòng chọn 1 dòng!');
-          return;
+    function getExtraButtons(formName, getSelectedRows) {
+        var config = FORM_CONFIG[formName];
+        if (!config) return [];
+
+        return [{
+            id: config.id,
+            text: config.text,
+            icon: config.icon,
+            type: 'tool',
+            onClick: function () {
+                var selectedRows = getSelectedRows();
+                if (!selectedRows || selectedRows.length !== 1) {
+                    if (window.Alert) Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng duy nhất để ' + config.text + '.');
+                    else alert('Vui lòng chọn 1 dòng!');
+                    return;
+                }
+
+                var transferData = config.getTransferData(selectedRows[0]);
+                sessionStorage.setItem(config.storageKey, JSON.stringify(transferData));
+                window.location.hash = config.targetHash;
+                _autoClickAdd();
+            }
+        }];
+    }
+
+    // --- XỬ LÝ AUTO-FILL KHI MỞ FORM THÊM MỚI ---
+    var _observer = null;
+
+    function _handleAutoFill() {
+        var modalContent = document.querySelector('.modal-content');
+        if (!modalContent) return;
+        var modalTitle = modalContent.querySelector('.modal-title');
+        if (!modalTitle || modalTitle.innerText.indexOf('Thêm') === -1) return;
+
+        var dataV2B = sessionStorage.getItem('transfer_VisitorToBooking');
+        if (dataV2B) {
+            _fillData(JSON.parse(dataV2B), 'Khách Tham Quan');
+            sessionStorage.removeItem('transfer_VisitorToBooking');
+            return;
         }
 
-        var transferData = config.getTransferData(selectedRows[0]);
-        sessionStorage.setItem(config.storageKey, JSON.stringify(transferData));
-        window.location.hash = config.targetHash;
-        _autoClickAdd();
-      }
-    }];
-  }
-
-  // --- XỬ LÝ AUTO-FILL KHI MỞ FORM THÊM MỚI ---
-  var _observer = null;
-
-  function _handleAutoFill() {
-    var modalContent = document.querySelector('.modal-content');
-    if (!modalContent) return;
-    var modalTitle = modalContent.querySelector('.modal-title');
-    if (!modalTitle || modalTitle.innerText.indexOf('Thêm') === -1) return;
-
-    var dataV2B = sessionStorage.getItem('transfer_VisitorToBooking');
-    if (dataV2B) {
-      _fillData(JSON.parse(dataV2B), 'Khách Tham Quan');
-      sessionStorage.removeItem('transfer_VisitorToBooking');
-      return;
-    }
-
-    var dataC2C = sessionStorage.getItem('transfer_ContractToCheckout');
-    if (dataC2C) {
-      _fillData(JSON.parse(dataC2C), 'Hợp Đồng Tiệc');
-      sessionStorage.removeItem('transfer_ContractToCheckout');
-      return;
-    }
-  }
-
-  function _fillData(data, sourceName) {
-    setTimeout(function () {
-      var modalContent = document.querySelector('.modal-content');
-      if (!modalContent) return;
-      var filled = false;
-
-      var tryFill = function (selectors, value) {
-        if (!value) return;
-        var els = modalContent.querySelectorAll(selectors);
-        if (els.length > 0) {
-          els.forEach(function (el) {
-            el.value = value;
-            el.style.backgroundColor = '#f0fdf4';
-            el.style.borderColor = '#10b981';
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-          });
-          filled = true;
+        var dataC2C = sessionStorage.getItem('transfer_ContractToCheckout');
+        if (dataC2C) {
+            _fillData(JSON.parse(dataC2C), 'Hợp Đồng Tiệc');
+            sessionStorage.removeItem('transfer_ContractToCheckout');
+            return;
         }
-      };
+    }
 
-      // Duyệt qua mapping động từ JSON data (keys chính là tên trường của form đích)
-      Object.keys(data).forEach(function (fieldName) {
-        var value = data[fieldName];
-        if (!value) return; // Bỏ qua nếu không có giá trị
+    function _fillData(data, sourceName) {
+        setTimeout(function () {
+            var modalContent = document.querySelector('.modal-content');
+            if (!modalContent) return;
+            var filled = false;
 
-        // Tự động tạo selector thông minh bao phủ input, select, textarea
-        var selector = 'input[name="' + fieldName + '"], ' +
-          'select[name="' + fieldName + '"], ' +
-          'textarea[name="' + fieldName + '"]';
+            var tryFill = function (selectors, value) {
+                if (!value) return;
+                var els = modalContent.querySelectorAll(selectors);
+                if (els.length > 0) {
+                    els.forEach(function (el) {
+                        el.value = value;
+                        el.style.backgroundColor = '#f0fdf4';
+                        el.style.borderColor = '#10b981';
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    filled = true;
+                }
+            };
 
-        tryFill(selector, value);
-      });
+            // Duyệt qua mapping động từ JSON data (keys chính là tên trường của form đích)
+            Object.keys(data).forEach(function (fieldName) {
+                var value = data[fieldName];
+                if (!value) return; // Bỏ qua nếu không có giá trị
 
-      if (filled && window.Toast) {
-        Toast.success('Đã tự động điền thông tin từ ' + sourceName + '!');
-      }
-    }, 300);
-  }
+                // Tự động tạo selector thông minh bao phủ input, select, textarea
+                var selector = 'input[name="' + fieldName + '"], ' +
+                    'select[name="' + fieldName + '"], ' +
+                    'textarea[name="' + fieldName + '"]';
 
-  function init() {
-    if (_observer) _observer.disconnect();
+                tryFill(selector, value);
+            });
 
-    // Chỉ observe để auto-fill (chờ modal xuất hiện)
-    _observer = new MutationObserver(function () {
-      _handleAutoFill();
-    });
+            if (filled && window.Toast) {
+                Toast.success('Đã tự động điền thông tin từ ' + sourceName + '!');
+            }
+        }, 300);
+    }
 
-    _observer.observe(document.body, { childList: true, subtree: true });
-  }
+    function init() {
+        if (_observer) _observer.disconnect();
 
-  // Đăng ký Plugin vào hệ thống
-  window.FormActionPlugins = window.FormActionPlugins || [];
-  window.FormActionPlugins.push({ getExtraButtons: getExtraButtons });
+        // Chỉ observe để auto-fill (chờ modal xuất hiện)
+        _observer = new MutationObserver(function () {
+            _handleAutoFill();
+        });
 
-  // Tự khởi động MutationObserver khi load (giống DocumentExportPlugin)
-  init();
+        _observer.observe(document.body, { childList: true, subtree: true });
+    }
 
-  return { getExtraButtons: getExtraButtons };
+    // Đăng ký Plugin vào hệ thống
+    window.FormActionPlugins = window.FormActionPlugins || [];
+    window.FormActionPlugins.push({ getExtraButtons: getExtraButtons });
+
+    // Tự khởi động MutationObserver khi load (giống DocumentExportPlugin)
+    init();
+
+    return { getExtraButtons: getExtraButtons };
 })();
 
 
@@ -1404,12 +1404,12 @@ var WorkflowTransferPlugin = (function () {
  * Global Event Bus - Lõi Pub/Sub để các component giao tiếp với nhau
  * Giúp đồng bộ dữ liệu toàn hệ thống mà không cần truyền biến phức tạp
  */
-var EventBus = (function () {
+var EventBus = (function() {
   var listeners = {};
 
   return {
     // Đăng ký lắng nghe sự kiện
-    on: function (event, callback) {
+    on: function(event, callback) {
       if (!listeners[event]) {
         listeners[event] = [];
       }
@@ -1417,18 +1417,18 @@ var EventBus = (function () {
     },
 
     // Bỏ đăng ký lắng nghe
-    off: function (event, callback) {
+    off: function(event, callback) {
       if (!listeners[event]) return;
-      listeners[event] = listeners[event].filter(function (cb) {
+      listeners[event] = listeners[event].filter(function(cb) {
         return cb !== callback;
       });
     },
 
     // Phát sự kiện toàn cục kèm theo dữ liệu (nếu có)
-    emit: function (event, data) {
+    emit: function(event, data) {
       console.debug('[EventBus] emit:', event, data ? data : '');
       if (listeners[event]) {
-        listeners[event].forEach(function (callback) {
+        listeners[event].forEach(function(callback) {
           callback(data);
         });
       }
@@ -1640,10 +1640,10 @@ var PrintUtils = (function () {
     }
 
     win.document.write('<html><head><title>' + (title || 'In tài liệu') + '</title>');
-
+    
     // Nạp toàn bộ style hiện tại vào bản in
     var styles = document.querySelectorAll('link[rel="stylesheet"], style');
-    styles.forEach(function (s) {
+    styles.forEach(function(s) {
       win.document.write(s.outerHTML);
     });
 
@@ -1655,7 +1655,7 @@ var PrintUtils = (function () {
     win.document.close();
     win.focus();
 
-    setTimeout(function () {
+    setTimeout(function() {
       win.print();
       win.close();
     }, 500); // Đợi CSS load
@@ -1687,7 +1687,7 @@ var CalendarService = (function () {
   var _legendCache = null;
 
   function getLegend() {
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (_legendCache) {
         return resolve(_legendCache);
       }
@@ -1695,12 +1695,12 @@ var CalendarService = (function () {
         return reject('Missing API_CONFIG.ENDPOINTS.CALENDAR.LEGEND');
       }
       ApiClient.get(API_CONFIG.ENDPOINTS.CALENDAR.LEGEND)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           _legendCache = records;
           resolve(records);
         })
-        .catch(function (err) {
+        .catch(function(err) {
           console.warn('[CalendarService] Lỗi lấy Legend', err);
           resolve([]); // Trả về mảng rỗng nếu API lỗi để không bị crash FE
         });
@@ -1780,7 +1780,7 @@ var CalendarService = (function () {
           _calendarCache[cacheKey] = eventsData;
           resolve(eventsData);
           // Flush pending resolvers
-          _pendingResolvers.forEach(function (p) {
+          _pendingResolvers.forEach(function(p) {
             var cached = _calendarCache[p.cacheKey];
             if (cached) p.resolve(cached); else p.reject('No data');
           });
@@ -1789,7 +1789,7 @@ var CalendarService = (function () {
         .catch(function (err) {
           console.error('[CalendarService] Lỗi khi tải lịch:', err);
           reject(err);
-          _pendingResolvers.forEach(function (p) { p.reject(err); });
+          _pendingResolvers.forEach(function(p) { p.reject(err); });
           _pendingResolvers = [];
         })
         .finally(function () {
@@ -1860,7 +1860,7 @@ var CalendarService = (function () {
  * Lớp Dịch vụ lấy dữ liệu Danh mục dùng chung (Sảnh, Ca Tiệc...)
  * Đảm nhiệm việc fetch dữ liệu API, quản lý In-memory Cache để tái sử dụng
  */
-var SystemDataService = (function () {
+var SystemDataService = (function() {
   var _hallsCache = null;
   var _shiftsCache = null;
   var _isFetchingHalls = false;
@@ -1868,7 +1868,7 @@ var SystemDataService = (function () {
 
   function getHalls(forceRefresh) {
     forceRefresh = forceRefresh || false;
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (!forceRefresh && _hallsCache) {
         return resolve(_hallsCache);
       }
@@ -1880,13 +1880,13 @@ var SystemDataService = (function () {
 
       _isFetchingHalls = true;
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.HALLS)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           _hallsCache = records;
           resolve(records);
         })
         .catch(reject)
-        .finally(function () {
+        .finally(function() {
           _isFetchingHalls = false;
         });
     });
@@ -1894,7 +1894,7 @@ var SystemDataService = (function () {
 
   function getShifts(forceRefresh) {
     forceRefresh = forceRefresh || false;
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (!forceRefresh && _shiftsCache) {
         return resolve(_shiftsCache);
       }
@@ -1906,13 +1906,13 @@ var SystemDataService = (function () {
 
       _isFetchingShifts = true;
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           _shiftsCache = records;
           resolve(records);
         })
         .catch(reject)
-        .finally(function () {
+        .finally(function() {
           _isFetchingShifts = false;
         });
     });
@@ -1920,13 +1920,13 @@ var SystemDataService = (function () {
 
   function getBanquetTypes(forceRefresh) {
     forceRefresh = forceRefresh || false;
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES) {
         return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES');
       }
 
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           resolve(records);
         })
@@ -1935,15 +1935,15 @@ var SystemDataService = (function () {
   }
 
   function getSetupValue(codeId) {
-    return new Promise(function (resolve, reject) {
+    return new Promise(function(resolve, reject) {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE) {
         return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE');
       }
       ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE)
-        .then(function (res) {
+        .then(function(res) {
           var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
           // Tìm đúng CodeID được yêu cầu
-          var found = records.find(function (r) { return r.CodeID === codeId; });
+          var found = records.find(function(r) { return r.CodeID === codeId; });
           resolve(found ? found.CodeValue : null);
         })
         .catch(reject);
@@ -1998,8 +1998,8 @@ var BookingService = (function () {
       ApiClient.get(endpoint)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
+          if (res && res.records)      data = res.records;
+          else if (res && res.data)    data = res.data;
           else if (Array.isArray(res)) data = res;
           resolve(data);
         })
@@ -2041,7 +2041,7 @@ var BookingService = (function () {
       }
       var payloadObj = { Keyword: keyword || '' };
       var payload = JSON.stringify(payloadObj);
-
+      
       var queryParams = [
         'q=' + encodeURIComponent(payload),
         'limit=' + (limit || 20),
@@ -2150,8 +2150,8 @@ var VisitorService = (function () {
       ApiClient.get(endpoint)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
+          if (res && res.records)      data = res.records;
+          else if (res && res.data)    data = res.data;
           else if (Array.isArray(res)) data = res;
           resolve(data);
         })
@@ -2192,9 +2192,9 @@ var CheckoutService = (function () {
       ApiClient.get(endpoint + '?q=' + payloadString)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
+          if (res && res.records)       data = res.records;
+          else if (res && res.data)     data = res.data;
+          else if (Array.isArray(res))  data = res;
           resolve(data);
         })
         .catch(function (err) {
@@ -2222,9 +2222,9 @@ var CheckoutService = (function () {
       ApiClient.get(endpoint + '?q=' + payloadString)
         .then(function (res) {
           var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
+          if (res && res.records)       data = res.records;
+          else if (res && res.data)     data = res.data;
+          else if (Array.isArray(res))  data = res;
           // Chỉ lấy hợp đồng chưa quyết toán (IsKetthuc = 0 / TrangThai = 'Đã Ký')
           var filtered = data.filter(function (item) {
             return item.TrangThai !== 'Đã Quyết Toán' && item.TrangThai !== 'Đã Hủy';
@@ -2255,9 +2255,9 @@ var CheckoutService = (function () {
       ApiClient.post(endpoint, payload)
         .then(function (res) {
           var record = null;
-          if (res && res.records && res.records.length > 0) record = res.records[0];
-          else if (res && res.data && res.data.length > 0) record = res.data[0];
-          else if (Array.isArray(res) && res.length > 0) record = res[0];
+          if (res && res.records && res.records.length > 0)  record = res.records[0];
+          else if (res && res.data && res.data.length > 0)   record = res.data[0];
+          else if (Array.isArray(res) && res.length > 0)     record = res[0];
           else record = res;
           resolve(record);
         })
@@ -2269,9 +2269,9 @@ var CheckoutService = (function () {
   }
 
   return {
-    getList: getList,
+    getList:         getList,
     searchContracts: searchContracts,
-    save: save
+    save:            save
   };
 })();
 
@@ -2524,11 +2524,11 @@ var ReportService = (function () {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.REPORTS || !API_CONFIG.ENDPOINTS.REPORTS.REVENUE) {
         return reject('Missing API_CONFIG.ENDPOINTS.REPORTS.REVENUE');
       }
-
+      
       var payload = {};
       if (fromDate) payload.TuNgay = fromDate;
       if (toDate) payload.DenNgay = toDate;
-
+      
       var endpoint = API_CONFIG.ENDPOINTS.REPORTS.REVENUE + '?q=' + encodeURIComponent(JSON.stringify(payload));
 
       ApiClient.get(endpoint)
@@ -2551,11 +2551,11 @@ var ReportService = (function () {
       if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.REPORTS || !API_CONFIG.ENDPOINTS.REPORTS.COST) {
         return reject('Missing API_CONFIG.ENDPOINTS.REPORTS.COST');
       }
-
+      
       var payload = {};
       if (fromDate) payload.TuNgay = fromDate;
       if (toDate) payload.DenNgay = toDate;
-
+      
       var endpoint = API_CONFIG.ENDPOINTS.REPORTS.COST + '?q=' + encodeURIComponent(JSON.stringify(payload));
 
       ApiClient.get(endpoint)
@@ -2582,30 +2582,30 @@ var ReportService = (function () {
 
 /* --- PeriodManager.js --- */
 // Quản lý Kỳ kế toán (Period Manager) - Tích hợp Real DB (SY_Period)
-(function () {
+(function() {
   window.PeriodManager = {
     _cache: {},
-    init: function () {
+    init: function() {
       var _this = this;
       if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER) {
         ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
           List: 'SY_Period',
           Func: 'View'
-        }).then(function (res) {
+        }).then(function(res) {
           var records = res.records || (Array.isArray(res) ? res : []);
-          records.forEach(function (r) {
+          records.forEach(function(r) {
             var m = parseInt(r.PeriodNo);
             var y = parseInt(r.YearID);
             var isLocked = (r.isLock === true || r.isLock === 1 || r.isLock === '1' || r.isLock === 'True');
             if (m && y) _this._cache[m + '/' + y] = isLocked;
           });
-        }).catch(function (e) { console.error('Lỗi tải SY_Period:', e); });
+        }).catch(function(e) { console.error('Lỗi tải SY_Period:', e); });
       }
     },
-    getLockedPeriods: function () {
+    getLockedPeriods: function() {
       return this._cache;
     },
-    setLockedPeriod: function (month, year, isLocked) {
+    setLockedPeriod: function(month, year, isLocked) {
       var m = parseInt(month);
       var y = parseInt(year);
       this._cache[m + '/' + y] = isLocked;
@@ -2619,15 +2619,15 @@ var ReportService = (function () {
             PeriodID: periodId,
             isLock: isLocked ? 1 : 0
           }
-        }).catch(function (e) { console.error('Lỗi update Khóa Kỳ:', e); });
+        }).catch(function(e) { console.error('Lỗi update Khóa Kỳ:', e); });
       }
     },
-    isDateLocked: function (dateString) {
+    isDateLocked: function(dateString) {
       if (!dateString) return false;
       var dateObj = new Date(dateString);
       if (isNaN(dateObj.getTime())) {
         var parts = dateString.split('/');
-        if (parts.length === 3) dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+        if (parts.length === 3) dateObj = new Date(parts[2], parts[1]-1, parts[0]);
       }
       if (isNaN(dateObj.getTime())) return false;
       var month = dateObj.getMonth() + 1;
@@ -2801,7 +2801,7 @@ var MetricCard = (function () {
     var iconWrap = document.createElement('div');
     iconWrap.className = 'metric-card__icon';
     if (opts.iconColor) iconWrap.style.color = opts.iconColor;
-    if (opts.iconBg) iconWrap.style.background = opts.iconBg;
+    if (opts.iconBg)    iconWrap.style.background = opts.iconBg;
 
     var iconEl = document.createElement('span');
     iconEl.className = 'material-symbols-outlined';
@@ -3033,9 +3033,9 @@ var SparklineChart = (function () {
    * @param {number} H - logical height
    */
   function _setupCanvas(canvas, W, H) {
-    canvas.width = W * _dpr;
+    canvas.width  = W * _dpr;
     canvas.height = H * _dpr;
-    canvas.style.width = W + 'px';
+    canvas.style.width  = W + 'px';
     canvas.style.height = H + 'px';
     var ctx = canvas.getContext('2d');
     ctx.scale(_dpr, _dpr);
@@ -3133,9 +3133,9 @@ var KVTable = (function () {
 
   var _COLOR_MAP = {
     success: 'var(--color-success)',
-    danger: 'var(--color-danger)',
+    danger:  'var(--color-danger)',
     warning: 'var(--color-warning)',
-    info: 'var(--color-info)',
+    info:    'var(--color-info)',
     primary: 'var(--color-primary)'
   };
 
@@ -3146,7 +3146,7 @@ var KVTable = (function () {
     var div = document.createElement('div');
     div.className = 'kvtable__row'
       + (row.isHeader ? ' kvtable__row--header' : '')
-      + (row.isTotal ? ' kvtable__row--total' : '');
+      + (row.isTotal  ? ' kvtable__row--total'  : '');
     div.dataset.kvRowIndex = index;
 
     // Label side
@@ -3285,11 +3285,11 @@ var HallGauge = (function () {
    */
   function create(opts) {
     opts = opts || {};
-    var total = opts.total || 0;
-    var done = opts.done || 0;
+    var total   = opts.total   || 0;
+    var done    = opts.done    || 0;
     var ongoing = opts.ongoing || 0;
-    var label = opts.label || 'đang hoạt động';
-    var doneLabel = opts.doneLabel || 'Đã phục vụ xong';
+    var label       = opts.label       || 'đang hoạt động';
+    var doneLabel    = opts.doneLabel    || 'Đã phục vụ xong';
     var ongoingLabel = opts.ongoingLabel || 'Đang phục vụ';
     var color = opts.color || 'var(--color-primary)';
 
@@ -3300,23 +3300,23 @@ var HallGauge = (function () {
 
     wrap.innerHTML =
       '<div class="hall-gauge__title">' +
-      '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
-      (opts.titleText || 'Trạng thái nhân sự hôm nay') +
+        '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
+        (opts.titleText || 'Trạng thái nhân sự hôm nay') +
       '</div>' +
       '<div class="hall-gauge__count">' +
-      '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +
-      '<span class="hall-gauge__count-label">' + label + '</span>' +
+        '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +
+        '<span class="hall-gauge__count-label">' + label + '</span>' +
       '</div>' +
       '<div class="hall-gauge__bar-row">' +
-      '<div class="hall-gauge__bar">' +
-      '<div class="hall-gauge__fill" data-hg-fill' +
-      ' style="width:0%; background:' + color + '"></div>' +
-      '</div>' +
-      '<span class="hall-gauge__pct" data-hg-pct style="color:' + color + '">0%</span>' +
+        '<div class="hall-gauge__bar">' +
+          '<div class="hall-gauge__fill" data-hg-fill' +
+            ' style="width:0%; background:' + color + '"></div>' +
+        '</div>' +
+        '<span class="hall-gauge__pct" data-hg-pct style="color:' + color + '">0%</span>' +
       '</div>' +
       '<div class="hall-gauge__sub">' +
-      '<span>' + doneLabel + ': <strong data-hg-done>' + done + '</strong></span>' +
-      '<span>' + ongoingLabel + ': <strong data-hg-ongoing>' + ongoing + '</strong></span>' +
+        '<span>' + doneLabel + ': <strong data-hg-done>' + done + '</strong></span>' +
+        '<span>' + ongoingLabel + ': <strong data-hg-ongoing>' + ongoing + '</strong></span>' +
       '</div>';
 
     // Animate fill sau 1 frame để CSS transition hoạt động
@@ -3338,27 +3338,27 @@ var HallGauge = (function () {
   function update(el, patch) {
     if (!el || !patch) return;
 
-    var total = parseInt(el.querySelector('[data-hg-total]').textContent) || 0;
-    var done = parseInt(el.querySelector('[data-hg-done]').textContent) || 0;
+    var total   = parseInt(el.querySelector('[data-hg-total]').textContent)   || 0;
+    var done    = parseInt(el.querySelector('[data-hg-done]').textContent)    || 0;
     var ongoing = parseInt(el.querySelector('[data-hg-ongoing]').textContent) || 0;
 
-    if (patch.total !== undefined) total = patch.total;
-    if (patch.done !== undefined) done = patch.done;
+    if (patch.total   !== undefined) total   = patch.total;
+    if (patch.done    !== undefined) done    = patch.done;
     if (patch.ongoing !== undefined) ongoing = patch.ongoing;
 
     var activePct = _pct(ongoing, total);
 
-    var totalEl = el.querySelector('[data-hg-total]');
-    var doneEl = el.querySelector('[data-hg-done]');
+    var totalEl   = el.querySelector('[data-hg-total]');
+    var doneEl    = el.querySelector('[data-hg-done]');
     var ongoingEl = el.querySelector('[data-hg-ongoing]');
-    var fillEl = el.querySelector('[data-hg-fill]');
-    var pctEl = el.querySelector('[data-hg-pct]');
+    var fillEl    = el.querySelector('[data-hg-fill]');
+    var pctEl     = el.querySelector('[data-hg-pct]');
 
-    if (totalEl) totalEl.textContent = total;
-    if (doneEl) doneEl.textContent = done;
+    if (totalEl)   totalEl.textContent   = total;
+    if (doneEl)    doneEl.textContent    = done;
     if (ongoingEl) ongoingEl.textContent = ongoing;
-    if (fillEl) fillEl.style.width = activePct + '%';
-    if (pctEl) pctEl.textContent = activePct + '%';
+    if (fillEl)    fillEl.style.width    = activePct + '%';
+    if (pctEl)     pctEl.textContent     = activePct + '%';
   }
 
   return {
@@ -4203,17 +4203,23 @@ UIControls.utils = (function () {
       visibleIndexes.push(firstValid !== -1 ? firstValid : 0);
     }
 
-    var theadHTML = visibleIndexes.map(idx => `<th>${headers[idx]}</th>`).join('');
+    var multipleHeader = options.multiple ? '<th class="dropdown-check-column"><input type="checkbox" class="cb-multi-all" aria-label="Chọn tất cả"></th>' : '';
+    var theadHTML = multipleHeader + visibleIndexes.map(idx => `<th>${headers[idx]}</th>`).join('');
     var tbodyHTML = data.map(function (row, rIdx) {
+      var valueIndex = options.valueIndex !== undefined ? options.valueIndex : 0;
+      var rowValue = row[valueIndex] !== undefined && row[valueIndex] !== null ? String(row[valueIndex]) : '';
+      var checkboxCell = options.multiple
+        ? '<td class="dropdown-check-column"><input type="checkbox" class="cb-multi-item" value="' + rowValue + '" aria-label="Chọn dòng"></td>'
+        : '';
       var cells = visibleIndexes.map(function (idx) {
         var cls = (idx === colHighlightIndex && visibleIndexes.length > 1) ? 'highlight-col' : '';
         return `<td class="${cls}">${row[idx] || ''}</td>`;
       }).join('');
-      return `<tr data-index="${rIdx}">${cells}</tr>`;
+      return `<tr data-index="${rIdx}">${checkboxCell}${cells}</tr>`;
     }).join('');
 
     var isSingleCol = visibleIndexes.length <= 1;
-    var headerStyle = isSingleCol ? ' style="display:none;"' : '';
+    var headerStyle = isSingleCol && !options.multiple ? ' style="display:none;"' : '';
     var tblClass = isSingleCol ? 'dropdown-table single-column' : 'dropdown-table';
 
     return `
@@ -5217,7 +5223,7 @@ var Navbar = (function () {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.createCheckbox = function (options) {
+UIControls.createCheckbox = function(options) {
   var wrapper = document.createElement('label');
   wrapper.className = 'modern-checkbox-wrapper';
 
@@ -5226,7 +5232,7 @@ UIControls.createCheckbox = function (options) {
   input.className = 'modern-checkbox';
   if (options.checked) input.checked = true;
 
-  input.addEventListener('change', function (e) {
+  input.addEventListener('change', function(e) {
     if (typeof options.onChange === 'function') {
       options.onChange(e.target.checked);
     }
@@ -5248,19 +5254,19 @@ UIControls.createCheckbox = function (options) {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.createRadio = function (options) {
+UIControls.createRadio = function(options) {
   var wrapper = document.createElement('label');
   wrapper.className = 'modern-radio-wrapper';
 
   var input = document.createElement('input');
   input.type = 'radio';
   input.className = 'modern-radio';
-
+  
   if (options.name) input.name = options.name;
   if (options.value) input.value = options.value;
   if (options.checked) input.checked = true;
 
-  input.addEventListener('change', function (e) {
+  input.addEventListener('change', function(e) {
     if (e.target.checked && typeof options.onChange === 'function') {
       options.onChange(e.target.value);
     }
@@ -5268,7 +5274,7 @@ UIControls.createRadio = function (options) {
 
   var span = document.createElement('span');
   if (options.label) {
-    span.innerHTML = options.label; // Use innerHTML to support elements like <span class="count">(51)</span>
+     span.innerHTML = options.label; // Use innerHTML to support elements like <span class="count">(51)</span>
   }
 
   wrapper.appendChild(input);
@@ -5277,13 +5283,13 @@ UIControls.createRadio = function (options) {
   return wrapper;
 };
 
-UIControls.createRadioGroup = function (options) {
+UIControls.createRadioGroup = function(options) {
   var group = document.createElement('div');
   group.className = 'modern-radio-group';
-
+  
   var name = options.name || 'radio-group-' + Math.random().toString(36).substr(2, 9);
-
-  options.items.forEach(function (item) {
+  
+  options.items.forEach(function(item) {
     var radio = UIControls.createRadio({
       name: name,
       label: item.label,
@@ -5293,7 +5299,7 @@ UIControls.createRadioGroup = function (options) {
     });
     group.appendChild(radio);
   });
-
+  
   return group;
 };
 
@@ -5305,6 +5311,17 @@ UIControls.createRadioGroup = function (options) {
 var UIControls = window.UIControls || {};
 
 UIControls.createDataComboBox = function (options) {
+  options = options || {};
+  var isMultiple = options.multiple === true;
+  var valueIndex = options.valueIndex !== undefined ? options.valueIndex : 0;
+
+  function parseValues(value) {
+    if (Array.isArray(value)) return value.map(String).map(function (item) { return item.trim(); }).filter(Boolean);
+    return String(value || '').split(',').map(function (item) { return item.trim(); }).filter(Boolean);
+  }
+
+  var committedValues = parseValues(options.initialValue);
+  var selectedValues = committedValues.slice();
   var container = document.createElement('div');
   container.className = 'combo-box-container';
 
@@ -5314,6 +5331,7 @@ UIControls.createDataComboBox = function (options) {
   input.className = 'ui-input';
   input.placeholder = (options.placeholder !== undefined) ? options.placeholder : 'Tìm kiếm...';
   if (options.id) input.id = options.id;
+  if (isMultiple) input.value = committedValues.join(', ');
 
   // Actions block – chỉ giữ nút mũi tên
   var actions = document.createElement('div');
@@ -5330,7 +5348,7 @@ UIControls.createDataComboBox = function (options) {
     btnArrow.disabled = true;
     container.classList.add('ui-input-disabled');
     btnArrow.innerHTML = '<span class="material-symbols-outlined">lock</span>';
-  } else if (options.readonlyInput) {
+  } else if (options.readonlyInput || isMultiple) {
     input.readOnly = true;
     input.style.cursor = 'pointer';
     input.style.background = 'var(--color-background)'; // slight gray background to indicate read-only
@@ -5389,6 +5407,22 @@ UIControls.createDataComboBox = function (options) {
   var leftFooter = document.createElement('div');
   leftFooter.appendChild(btnAddNew);
 
+  var multiActions = document.createElement('div');
+  multiActions.style.cssText = 'display:' + (isMultiple ? 'flex' : 'none') + ';gap:8px;align-items:center;';
+
+  var btnCancel = document.createElement('button');
+  btnCancel.type = 'button';
+  btnCancel.className = 'btn btn-light';
+  btnCancel.textContent = 'Hủy';
+
+  var btnConfirm = document.createElement('button');
+  btnConfirm.type = 'button';
+  btnConfirm.className = 'btn btn-primary';
+  btnConfirm.textContent = 'Chọn';
+
+  multiActions.appendChild(btnCancel);
+  multiActions.appendChild(btnConfirm);
+
   // Pagination Elements
   var currentPage = 1;
   var currentQuery = '';
@@ -5442,6 +5476,7 @@ UIControls.createDataComboBox = function (options) {
 
   footer.appendChild(leftFooter);
   footer.appendChild(paginationWrapper);
+  footer.appendChild(multiActions);
 
   dropdown.appendChild(searchWrapper);
   dropdown.appendChild(tableWrapper);
@@ -5449,6 +5484,22 @@ UIControls.createDataComboBox = function (options) {
 
   // ── Data & Render ───────────────────────────────────────────────
   var fullData = options.data || [];
+
+  function getRowValue(row) {
+    return row && row[valueIndex] !== undefined && row[valueIndex] !== null ? String(row[valueIndex]) : '';
+  }
+
+  function syncDisplayValue() {
+    if (!isMultiple) return;
+    var labels = committedValues.map(function (value) {
+      var matched = fullData.find(function (row) { return getRowValue(row) === value; });
+      return matched ? String(matched[options.colFilterIndex || 0] || value) : value;
+    });
+    input.value = labels.join(', ');
+    input.title = labels.join(', ');
+  }
+
+  syncDisplayValue();
 
   function renderTable(displayData) {
     if (UIControls.utils) {
@@ -5461,12 +5512,28 @@ UIControls.createDataComboBox = function (options) {
       rows.forEach(function (row) {
         var dataRow = displayData[row.getAttribute('data-index')];
         var rowVal = (dataRow[options.colFilterIndex || 0] || '').toString().toLowerCase();
+        var dataValue = getRowValue(dataRow);
+
+        if (isMultiple) {
+          var checked = selectedValues.indexOf(dataValue) !== -1;
+          row.classList.toggle('active', checked);
+          var checkbox = row.querySelector('.cb-multi-item');
+          if (checkbox) checkbox.checked = checked;
+        }
 
         if (currentInputVal && rowVal === currentInputVal) {
           row.classList.add('active');
         }
 
-        row.addEventListener('click', function () {
+        row.addEventListener('click', function (event) {
+          event.stopPropagation();
+          if (isMultiple) {
+            var selectedIndex = selectedValues.indexOf(dataValue);
+            if (selectedIndex === -1) selectedValues.push(dataValue);
+            else selectedValues.splice(selectedIndex, 1);
+            renderTable(displayData);
+            return;
+          }
           input.value = dataRow[options.colFilterIndex || 0];
           hideDropdown();
           if (typeof options.onSelect === 'function') {
@@ -5474,6 +5541,25 @@ UIControls.createDataComboBox = function (options) {
           }
         });
       });
+
+      if (isMultiple) {
+        var selectAll = tableWrapper.querySelector('.cb-multi-all');
+        if (selectAll) {
+          var visibleValues = displayData.map(getRowValue).filter(Boolean);
+          selectAll.checked = visibleValues.length > 0 && visibleValues.every(function (value) {
+            return selectedValues.indexOf(value) !== -1;
+          });
+          selectAll.addEventListener('click', function (event) {
+            event.stopPropagation();
+            visibleValues.forEach(function (value) {
+              var index = selectedValues.indexOf(value);
+              if (selectAll.checked && index === -1) selectedValues.push(value);
+              if (!selectAll.checked && index !== -1) selectedValues.splice(index, 1);
+            });
+            renderTable(displayData);
+          });
+        }
+      }
     }
   }
 
@@ -5516,11 +5602,13 @@ UIControls.createDataComboBox = function (options) {
         if (result && !Array.isArray(result) && result.data) {
           if (result.headers) options.headers = result.headers;
           if (result.colFilterIndex !== undefined) options.colFilterIndex = result.colFilterIndex;
+          if (result.valueIndex !== undefined) valueIndex = result.valueIndex;
           if (result.forceMultiColumn !== undefined) options.forceMultiColumn = result.forceMultiColumn;
           result = result.data;
         }
         if (Array.isArray(result)) {
           fullData = result;
+          syncDisplayValue();
           renderTable(fullData);
           if (options.enablePagination) {
             paginationWrapper.style.display = 'flex';
@@ -5557,6 +5645,7 @@ UIControls.createDataComboBox = function (options) {
       document.body.appendChild(dropdown);
     }
     searchInput.value = '';
+    if (isMultiple) selectedValues = committedValues.slice();
 
     loadData('', 1);
 
@@ -5577,6 +5666,25 @@ UIControls.createDataComboBox = function (options) {
     dropdown.classList.remove('active');
     if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
   }
+
+  btnCancel.addEventListener('click', function (event) {
+    event.stopPropagation();
+    selectedValues = committedValues.slice();
+    hideDropdown();
+  });
+
+  btnConfirm.addEventListener('click', function (event) {
+    event.stopPropagation();
+    committedValues = selectedValues.slice();
+    syncDisplayValue();
+    var value = committedValues.join(',');
+    if (typeof options.onChange === 'function') options.onChange(value);
+    if (typeof options.onSelect === 'function') {
+      var rows = fullData.filter(function (row) { return committedValues.indexOf(getRowValue(row)) !== -1; });
+      options.onSelect(value, rows);
+    }
+    hideDropdown();
+  });
 
   // ── Search bên trong dropdown ───────────────────────────────────
   var _searchDebounce = null;
@@ -5611,14 +5719,14 @@ UIControls.createDataComboBox = function (options) {
   });
 
   input.addEventListener('click', function (e) {
-    if (options.readonlyInput) {
+    if (options.readonlyInput || isMultiple) {
       e.preventDefault();
       dropdown.classList.contains('active') ? hideDropdown() : showDropdown();
     }
   });
 
   input.addEventListener('mousedown', function (e) {
-    if (options.readonlyInput) {
+    if (options.readonlyInput || isMultiple) {
       e.preventDefault(); // Prevent focus and blinking cursor
     }
   });
@@ -5663,6 +5771,7 @@ UIControls.createDataComboBox = function (options) {
 
 
   input.addEventListener('blur', function () {
+    if (isMultiple) return;
     var val = input.value.trim().toLowerCase();
     if (val && fullData.length > 0) {
       var exactMatch = fullData.find(function (row) {
@@ -5685,6 +5794,16 @@ UIControls.createDataComboBox = function (options) {
   container.appendChild(input);
   container.appendChild(actions);
 
+  container.setValue = function (value) {
+    if (!isMultiple) {
+      input.value = value || '';
+      return;
+    }
+    committedValues = parseValues(value);
+    selectedValues = committedValues.slice();
+    syncDisplayValue();
+  };
+
   return container;
 };
 
@@ -5695,7 +5814,7 @@ UIControls.createDataComboBox = function (options) {
  */
 var UIControls = window.UIControls || {};
 
-UIControls.createGridDropdown = function (options) {
+UIControls.createGridDropdown = function(options) {
   var wrapper = document.createElement('div');
   wrapper.className = 'grid-cell-dropdown-wrapper';
 
@@ -5703,7 +5822,7 @@ UIControls.createGridDropdown = function (options) {
   input.type = 'text';
   input.className = 'grid-cell-input';
   input.placeholder = options.placeholder || '';
-  if (options.value) input.value = options.value;
+  if(options.value) input.value = options.value;
 
   var dropdown = document.createElement('div');
   dropdown.className = 'data-dropdown-menu';
@@ -5718,12 +5837,12 @@ UIControls.createGridDropdown = function (options) {
       dropdown.innerHTML = UIControls.utils.createDropdownTableHTML(options.headers || [], displayData, options.colHighlightIndex || 0);
       var rows = dropdown.querySelectorAll('tbody tr');
       rows.forEach(row => {
-        row.addEventListener('click', function (e) {
+        row.addEventListener('click', function(e) {
           e.stopPropagation();
           var dataRow = displayData[row.getAttribute('data-index')];
           input.value = dataRow[options.colFilterIndex || 0];
           hideDropdown();
-          if (typeof options.onSelect === 'function') {
+          if(typeof options.onSelect === 'function') {
             options.onSelect(dataRow);
           }
         });
@@ -5741,32 +5860,32 @@ UIControls.createGridDropdown = function (options) {
     }
     dropdown.classList.add('active');
   }
-
+  
   function hideDropdown() {
     dropdown.classList.remove('active');
     if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
   }
 
   input.addEventListener('focus', showDropdown);
-
-  input.addEventListener('input', function (e) {
+  
+  input.addEventListener('input', function(e) {
     var val = e.target.value.toLowerCase();
     dropdown.classList.add('active');
-    if (!val) return renderTable(fullData);
-    var filtered = fullData.filter(function (row) {
+    if(!val) return renderTable(fullData);
+    var filtered = fullData.filter(function(row) {
       return (row[options.colFilterIndex || 0] || '').toString().toLowerCase().includes(val);
     });
     renderTable(filtered);
   });
 
-  document.addEventListener('click', function (e) {
-    if (!wrapper.contains(e.target) && !dropdown.contains(e.target)) hideDropdown();
+  document.addEventListener('click', function(e) {
+    if(!wrapper.contains(e.target) && !dropdown.contains(e.target)) hideDropdown();
   });
 
-  window.addEventListener('scroll', function (e) {
-    if (dropdown.classList.contains('active') && !dropdown.contains(e.target)) {
-      hideDropdown();
-    }
+  window.addEventListener('scroll', function(e) {
+      if (dropdown.classList.contains('active') && !dropdown.contains(e.target)) {
+          hideDropdown();
+      }
   }, true);
 
   wrapper.appendChild(input);
@@ -5878,24 +5997,24 @@ var Alert = (function () {
     toast.innerHTML = html;
     container.appendChild(toast);
 
-    toast.querySelector('.toast-close').addEventListener('click', function () {
+    toast.querySelector('.toast-close').addEventListener('click', function() {
       removeToast(toast);
     });
 
     // Trigger animation
-    setTimeout(function () {
+    setTimeout(function() {
       toast.classList.add('show');
     }, 10);
 
     // Auto remove
-    setTimeout(function () {
+    setTimeout(function() {
       removeToast(toast);
     }, duration);
   }
 
   function removeToast(toast) {
     toast.classList.remove('show');
-    setTimeout(function () {
+    setTimeout(function() {
       if (toast.parentNode) {
         toast.parentNode.removeChild(toast);
       }
@@ -5903,10 +6022,10 @@ var Alert = (function () {
   }
 
   return {
-    success: function (title, message, duration) { show('success', title, message, duration); },
-    error: function (title, message, duration) { show('danger', title, message, duration); },
-    warning: function (title, message, duration) { show('warning', title, message, duration); },
-    info: function (title, message, duration) { show('info', title, message, duration); }
+    success: function(title, message, duration) { show('success', title, message, duration); },
+    error: function(title, message, duration) { show('danger', title, message, duration); },
+    warning: function(title, message, duration) { show('warning', title, message, duration); },
+    info: function(title, message, duration) { show('info', title, message, duration); }
   };
 })();
 
@@ -6021,7 +6140,7 @@ window.addEventListener('popstate', function (e) {
  * Mở các Pop-up Window Nhập liệu / Báo cáo không cần code cứng HTML
  */
 var UIModal = (function () {
-
+  
   /**
    * Mở một form Modal bất kỳ
    * @param {Object} config - { id, title, width, content (Node/String), footer (Node), onClose }
@@ -6109,7 +6228,7 @@ var UIModal = (function () {
 window.addEventListener('popstate', function (e) {
   // Chỉ đóng modal nếu state KHÔNG phải là modal (tránh xóa khi router hashchange)
   if (!e.state || !e.state.modalId) {
-    document.querySelectorAll('#modal-container .modal-overlay').forEach(function (m) {
+    document.querySelectorAll('#modal-container .modal-overlay').forEach(function(m) {
       m.remove();
     });
   }
@@ -6151,7 +6270,7 @@ var Pagination = (function () {
       opt.value = val;
       opt.text = label;
       if (val === options.itemsPerPage || (val === 100000 && options.itemsPerPage >= 100000)) {
-        opt.selected = true;
+         opt.selected = true;
       }
       select.appendChild(opt);
     });
@@ -6454,15 +6573,15 @@ var FilterComponent = (function () {
           inp.style.borderRadius = '6px';
           inp.style.outline = 'none';
           inp.style.transition = 'border-color 0.2s, box-shadow 0.2s';
-
+          
           // Hiệu ứng focus
-          inp.addEventListener('focus', function () {
-            this.style.borderColor = 'var(--color-primary, #3b82f6)';
-            this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+          inp.addEventListener('focus', function() {
+              this.style.borderColor = 'var(--color-primary, #3b82f6)';
+              this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
           });
-          inp.addEventListener('blur', function () {
-            this.style.borderColor = 'var(--color-border, #cbd5e1)';
-            this.style.boxShadow = 'none';
+          inp.addEventListener('blur', function() {
+              this.style.borderColor = 'var(--color-border, #cbd5e1)';
+              this.style.boxShadow = 'none';
           });
         }
 
@@ -6508,8 +6627,8 @@ var FilterComponent = (function () {
     btnReset.className = 'btn btn-light';
     btnReset.innerText = 'Xóa bộ lọc';
     btnReset.style.cssText = 'font-weight: 500; border: 1px solid var(--color-border, #e2e8f0); border-radius: 6px; padding: 8px 16px; background: var(--color-surface, #fff); color: var(--color-text-secondary, #64748b); cursor: pointer; transition: all 0.2s;';
-    btnReset.onmouseover = function () { this.style.background = 'var(--color-surface-elevated, #f8fafc)'; this.style.color = 'var(--color-text, #0f172a)'; };
-    btnReset.onmouseout = function () { this.style.background = 'var(--color-surface, #fff)'; this.style.color = 'var(--color-text-secondary, #64748b)'; };
+    btnReset.onmouseover = function() { this.style.background = 'var(--color-surface-elevated, #f8fafc)'; this.style.color = 'var(--color-text, #0f172a)'; };
+    btnReset.onmouseout = function() { this.style.background = 'var(--color-surface, #fff)'; this.style.color = 'var(--color-text-secondary, #64748b)'; };
     btnReset.onclick = function () {
       for (var key in inputs) {
         inputs[key].value = '';
@@ -6587,7 +6706,7 @@ var FilterComponent = (function () {
         var clientWidth = document.documentElement.clientWidth || window.innerWidth;
 
         // Chống tràn màn hình bên phải
-        var maxLeft = clientWidth - panelWidth - 10;
+        var maxLeft = clientWidth - panelWidth - 10; 
         if (panelLeft > maxLeft) panelLeft = maxLeft;
 
         // Chống tràn màn hình bên trái
@@ -6597,7 +6716,7 @@ var FilterComponent = (function () {
 
         // Căn mũi tên chĩa đúng tâm nút bấm
         var arrowPos = centerBtnX - panelLeft;
-
+        
         // Chặn không cho mũi tên bay ra khỏi ranh giới của popup
         if (arrowPos < 20) arrowPos = 20;
         if (arrowPos > panelWidth - 20) arrowPos = panelWidth - 20;
@@ -6620,7 +6739,7 @@ var FilterComponent = (function () {
           if (parent.style.display !== 'none') {
             backdrop.style.display = 'block';
             wrapper.style.display = 'flex';
-            setTimeout(function () {
+            setTimeout(function() {
               backdrop.style.opacity = '1';
               wrapper.style.opacity = '1';
               wrapper.style.transform = 'translateY(0)';
@@ -6634,7 +6753,7 @@ var FilterComponent = (function () {
             backdrop.style.opacity = '0';
             wrapper.style.opacity = '0';
             wrapper.style.transform = 'translateY(-10px)';
-            setTimeout(function () {
+            setTimeout(function() {
               if (parent.style.display === 'none') {
                 backdrop.style.display = 'none';
                 wrapper.style.display = 'none';
@@ -6709,11 +6828,11 @@ var UIInput = (function () {
     input.className = 'ui-input';
     if (config.id) input.id = config.id;
     if (config.name) input.name = config.name;
-
+    
     var finalPlaceholder = config.placeholder;
     // Removed auto-placeholder generation to clean up UI as requested by user
     if (finalPlaceholder) input.placeholder = finalPlaceholder;
-
+    
     if (config.value !== undefined) input.value = config.value;
     if (config.disabled) input.disabled = true;
     if (config.readonly) input.readOnly = true;
@@ -6777,10 +6896,10 @@ var UIInput = (function () {
     icon.style.color = 'var(--color-text-secondary)';
     icon.style.pointerEvents = 'none';
     icon.style.fontSize = '18px';
-
+    
     // Đảm bảo wrapper là relative để canh vị trí icon
     obj.wrapper.style.position = 'relative';
-
+    
     // Ẩn icon nếu đang dùng label inline hoặc config khác
     if (!config.label) icon.style.top = '10px';
     obj.wrapper.appendChild(icon);
@@ -6819,28 +6938,28 @@ var UIInput = (function () {
     obj.wrapper.classList.add('modern-checkbox-wrapper');
     obj.input.className = 'modern-checkbox';
     obj.input.style.cursor = 'pointer';
-
+    
     // Checkbox uses checked instead of value
     if (config.value === '1' || config.value === 1 || config.value === true || String(config.value).toLowerCase() === 'true') {
-      obj.input.checked = true;
+        obj.input.checked = true;
     }
-
+    
     // Thêm giá trị thực vào dataset để tự động serialize thành 1/0
     obj.input.value = obj.input.checked ? 1 : 0;
-    obj.input.onchange = function () {
-      this.value = this.checked ? 1 : 0;
+    obj.input.onchange = function() {
+        this.value = this.checked ? 1 : 0;
     };
-
+    
     // Đảo ngược thứ tự input và label cho đẹp
     var label = obj.wrapper.querySelector('label');
     if (label) {
-      // Xóa class cũ
-      label.className = '';
-      label.style.cursor = 'pointer';
-      // Đảo ngược thứ tự: input trước, label sau
-      obj.wrapper.insertBefore(obj.input, label);
+        // Xóa class cũ
+        label.className = '';
+        label.style.cursor = 'pointer';
+        // Đảo ngược thứ tự: input trước, label sau
+        obj.wrapper.insertBefore(obj.input, label);
     }
-
+    
     return obj.wrapper;
   }
 
@@ -6874,7 +6993,7 @@ var UIInput = (function () {
     eyeBtn.title = 'Hiện mật khẩu';
 
     var isVisible = false;
-    eyeBtn.addEventListener('click', function () {
+    eyeBtn.addEventListener('click', function() {
       isVisible = !isVisible;
       input.type = isVisible ? 'text' : 'password';
       eyeBtn.querySelector('.material-symbols-outlined').textContent = isVisible ? 'visibility' : 'visibility_off';
@@ -6883,8 +7002,8 @@ var UIInput = (function () {
     });
 
     // Hover effect
-    eyeBtn.addEventListener('mouseenter', function () { this.style.color = 'var(--color-text)'; });
-    eyeBtn.addEventListener('mouseleave', function () { this.style.color = 'var(--color-text-secondary)'; });
+    eyeBtn.addEventListener('mouseenter', function() { this.style.color = 'var(--color-text)'; });
+    eyeBtn.addEventListener('mouseleave', function() { this.style.color = 'var(--color-text-secondary)'; });
 
     inputWrap.appendChild(eyeBtn);
 
@@ -6921,12 +7040,12 @@ var UIInput = (function () {
     defaultOpt.innerText = '';
     select.appendChild(defaultOpt);
 
-    (options || []).forEach(function (opt) {
-      var o = document.createElement('option');
-      o.value = opt.value;
-      o.innerText = opt.label;
-      if (config.value == opt.value) o.selected = true;
-      select.appendChild(o);
+    (options || []).forEach(function(opt) {
+        var o = document.createElement('option');
+        o.value = opt.value;
+        o.innerText = opt.label;
+        if (config.value == opt.value) o.selected = true;
+        select.appendChild(o);
     });
 
     wrapper.appendChild(select);
@@ -6943,7 +7062,7 @@ var UIInput = (function () {
     var onIncrease = config.onIncrease || '';
     var onChange = config.onChange || '';
     var stopPropagation = config.stopPropagation ? 'event.stopPropagation(); ' : '';
-
+    
     var h = config.height || 32;
     var w = config.width || 96;
     var btnW = config.btnWidth || 30;
@@ -7003,7 +7122,7 @@ var UIInput = (function () {
    */
   function setupMoneyInput(inputEl, textEl) {
     if (!inputEl) return;
-
+    
     function refresh() {
       var raw = parseInt(inputEl.value.replace(/\D/g, ''), 10) || 0;
       inputEl.value = raw === 0 ? '' : raw.toLocaleString('vi-VN');
@@ -7014,14 +7133,14 @@ var UIInput = (function () {
       var pos = this.selectionStart;
       var oldLen = this.value.length;
       var raw = parseInt(this.value.replace(/\D/g, ''), 10) || 0;
-
+      
       this.value = raw === 0 ? '' : raw.toLocaleString('vi-VN');
-
+      
       var diff = this.value.length - oldLen;
       if (pos !== null) {
         this.setSelectionRange(pos + diff, pos + diff);
       }
-
+      
       if (textEl) textEl.innerText = raw === 0 ? '' : docSoTienVN(raw);
     });
 
@@ -7061,13 +7180,13 @@ var UIButton = (function () {
   function create(config) {
     var btn = document.createElement('button');
     btn.type = 'button'; // Prevent form submission
-
+    
     // Base class
     var typeClass = config.type ? 'btn-' + config.type : 'btn-primary';
     if (config.type === 'tool') typeClass = 'btn-tool'; // Special case for toolbar
-
+    
     btn.className = 'btn ' + typeClass + (config.className ? ' ' + config.className : '');
-
+    
     if (config.id) btn.id = config.id;
     if (config.disabled) btn.disabled = true;
     if (config.tooltip) btn.title = config.tooltip;
@@ -7096,7 +7215,7 @@ var UIButton = (function () {
 
     // Gắn sự kiện
     if (typeof config.onClick === 'function') {
-      btn.addEventListener('click', function (e) {
+      btn.addEventListener('click', function(e) {
         if (!btn.disabled) {
           config.onClick(e);
         }
@@ -7116,7 +7235,7 @@ var UIButton = (function () {
     // btn-bar-desktop: bi class CSS ẩn trên mobile
     bar.className = 'button-bar btn-bar-desktop';
 
-    buttonsConfig.forEach(function (cfg) {
+    buttonsConfig.forEach(function(cfg) {
       if (cfg === '|') {
         var div = document.createElement('div');
         div.className = 'divider';
@@ -7131,7 +7250,7 @@ var UIButton = (function () {
     var panel = document.createElement('div');
     panel.className = 'mobile-action-panel';
 
-    buttonsConfig.forEach(function (cfg) {
+    buttonsConfig.forEach(function(cfg) {
       if (cfg === '|' || !cfg.text) return;
       var item = document.createElement('button');
       item.type = 'button';
@@ -7140,7 +7259,7 @@ var UIButton = (function () {
       item.innerHTML =
         (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
         '<span>' + cfg.text + '</span>';
-      item.addEventListener('click', function (e) {
+      item.addEventListener('click', function(e) {
         closePanel();
         if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
       });
@@ -7156,7 +7275,7 @@ var UIButton = (function () {
         document.body.appendChild(overlay);
         document.body.appendChild(panel);
       } else {
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
           document.body.appendChild(overlay);
           document.body.appendChild(panel);
         });
@@ -7169,10 +7288,10 @@ var UIButton = (function () {
       panel.classList.add('open');
       overlay.classList.add('open');
       trigger.classList.add('active');
-
+      
       var rect = trigger.getBoundingClientRect();
       var panelRect = panel.getBoundingClientRect();
-
+      
       var top = rect.bottom + 4;
       if (top + panelRect.height > window.innerHeight && rect.top > panelRect.height) {
         top = rect.top - panelRect.height - 4; // pop upwards
@@ -7180,9 +7299,9 @@ var UIButton = (function () {
       } else {
         panel.style.transformOrigin = 'top left';
       }
-
+      
       panel.style.top = top + 'px';
-
+      
       // Smart positioning for left/right
       if (rect.left < window.innerWidth / 2) {
         // Button is on the left, anchor to the left
@@ -7213,7 +7332,7 @@ var UIButton = (function () {
       '<span class="material-symbols-outlined">settings</span>' +
       '<span>Thao tác</span>' +
       '<span class="material-symbols-outlined mobile-action-chevron">expand_more</span>';
-    trigger.addEventListener('click', function (e) {
+    trigger.addEventListener('click', function(e) {
       e.stopPropagation();
       panel.classList.contains('open') ? closePanel() : openPanel();
     });
@@ -7225,7 +7344,7 @@ var UIButton = (function () {
     wrapper.appendChild(trigger);
 
     // API công khai: cho phép thêm button config vào action sheet sau khi tạo
-    wrapper.addToMobilePanel = function (cfg, insertFirst) {
+    wrapper.addToMobilePanel = function(cfg, insertFirst) {
       // Thêm vào desktop bar
       var btn = create(cfg);
       if (insertFirst) {
@@ -7242,7 +7361,7 @@ var UIButton = (function () {
       item.innerHTML =
         (cfg.icon ? '<span class="material-symbols-outlined">' + cfg.icon + '</span>' : '') +
         '<span>' + cfg.text + '</span>';
-      item.addEventListener('click', function (e) {
+      item.addEventListener('click', function(e) {
         closePanel();
         if (!cfg.disabled && typeof cfg.onClick === 'function') cfg.onClick(e);
       });
@@ -7263,21 +7382,21 @@ var UIButton = (function () {
   function createHTML(config) {
     var typeClass = config.type ? 'btn-' + config.type : 'btn-primary';
     if (config.type === 'tool') typeClass = 'btn-tool';
-
+    
     var className = 'btn ' + typeClass + (config.className ? ' ' + config.className : '');
     var idAttr = config.id ? ` id="${config.id}"` : '';
     var disabledAttr = config.disabled ? ' disabled' : '';
     var titleAttr = config.tooltip ? ` title="${config.tooltip}"` : '';
     var onClickAttr = config.onClick ? ` onclick="${config.onClick}"` : '';
     var styleAttr = config.style ? ` style="${config.style}"` : '';
-
+    
     var dataAttrs = '';
     if (config.data) {
       for (var key in config.data) {
         dataAttrs += ` data-${key}="${config.data[key]}"`;
       }
     }
-
+    
     var innerHTML = '';
     if (config.icon) {
       var iconStyle = config.iconStyle ? ` style="${config.iconStyle}"` : '';
@@ -7305,7 +7424,7 @@ var UIButton = (function () {
  * Quản lý và render Icon (Hỗ trợ cả Material Symbols và Icon font riêng biệt)
  */
 var UIIcon = (function () {
-
+  
   /**
    * Sinh ra mã HTML của Icon
    * @param {string} iconName - Tên icon (VD: 'home', 'bar_chart', 'icon-grid')
@@ -7317,7 +7436,7 @@ var UIIcon = (function () {
     var styleAttr = style ? ' style="' + style + '"' : '';
     var extraClass = className ? ' ' + className : '';
     var onClickAttr = onClick ? ' onclick="' + onClick + '"' : '';
-
+    
     // Nếu có chứa "icon-" hoặc dấu cách, hoặc dấu gạch ngang -> Dùng thẻ <i> cho Icon font
     if (iconName.indexOf('icon-') >= 0 || iconName.indexOf(' ') >= 0 || iconName.indexOf('-') > 0) {
       return '<i class="' + iconName + extraClass + '"' + styleAttr + onClickAttr + '></i>';
@@ -7367,15 +7486,15 @@ var UIActionToolbar = (function () {
    */
   function create(actions) {
     actions = actions || {};
-
+    
     var buttons = [
-      { text: 'Thêm', icon: 'add', type: 'primary', onClick: actions.onAdd, attrs: 'data-tooltip="Thêm bản ghi mới (Ins)"' },
-      { text: 'Xem', icon: 'visibility', type: 'outline-secondary', onClick: actions.onView, attrs: 'data-tooltip="Xem chi tiết bản ghi đã chọn"' },
-      { text: 'Sửa', icon: 'edit', type: 'outline-secondary', onClick: actions.onEdit, attrs: 'data-tooltip="Sửa bản ghi đã chọn (F2)"' },
-      { text: 'Xóa', icon: 'delete', type: 'outline-danger', onClick: actions.onDelete, attrs: 'data-tooltip="Xóa bản ghi đã chọn (Del)"' },
-      { text: 'Lọc', icon: 'filter_alt', type: 'outline-secondary', onClick: actions.onFilter, attrs: 'data-tooltip="Lọc / Tìm kiếm dữ liệu"' },
-      { text: 'In', icon: 'print', type: 'outline-secondary', onClick: actions.onPrint, attrs: 'data-tooltip="In danh sách (Ctrl+P)"' },
-      { text: 'Đóng', icon: 'close', type: 'outline-secondary', onClick: actions.onClose, attrs: 'data-tooltip="Đóng trang hiện tại"' }
+      { text: 'Thêm',  icon: 'add',        type: 'primary', onClick: actions.onAdd,    attrs: 'data-tooltip="Thêm bản ghi mới (Ins)"' },
+      { text: 'Xem',   icon: 'visibility', type: 'outline-secondary',    onClick: actions.onView,   attrs: 'data-tooltip="Xem chi tiết bản ghi đã chọn"' },
+      { text: 'Sửa',   icon: 'edit',       type: 'outline-secondary', onClick: actions.onEdit,   attrs: 'data-tooltip="Sửa bản ghi đã chọn (F2)"' },
+      { text: 'Xóa',   icon: 'delete',     type: 'outline-danger', onClick: actions.onDelete, attrs: 'data-tooltip="Xóa bản ghi đã chọn (Del)"' },
+      { text: 'Lọc',   icon: 'filter_alt', type: 'outline-secondary',    onClick: actions.onFilter, attrs: 'data-tooltip="Lọc / Tìm kiếm dữ liệu"' },
+      { text: 'In',    icon: 'print',      type: 'outline-secondary',    onClick: actions.onPrint,  attrs: 'data-tooltip="In danh sách (Ctrl+P)"' },
+      { text: 'Đóng',  icon: 'close',      type: 'outline-secondary', onClick: actions.onClose,  attrs: 'data-tooltip="Đóng trang hiện tại"' }
     ];
 
     if (actions.extras && Array.isArray(actions.extras)) {
@@ -7385,11 +7504,11 @@ var UIActionToolbar = (function () {
     }
 
     var filteredButtons = [];
-    buttons.forEach(function (b) {
+    buttons.forEach(function(b) {
       if (b.onClick === false) return; // Hide button
       if (b.onClick === 'DISABLED' || b.onClick === 'disabled') {
         b.disabled = true;
-        b.onClick = function () {
+        b.onClick = function() {
           if (typeof Alert !== 'undefined') Alert.warning('Từ chối', 'Bạn không có quyền thao tác chức năng này!');
         };
       }
@@ -7424,7 +7543,7 @@ var UICard = (function () {
     if (config.title || config.rightElement) {
       var header = document.createElement('div');
       header.className = 'card-header';
-
+      
       var titleSpan = document.createElement('span');
       titleSpan.innerText = config.title || '';
       header.appendChild(titleSpan);
@@ -7438,7 +7557,7 @@ var UICard = (function () {
     // Body
     var body = document.createElement('div');
     body.className = 'card-body';
-
+    
     if (config.bodyContent) {
       if (typeof config.bodyContent === 'string') {
         body.innerHTML = config.bodyContent;
@@ -8589,7 +8708,7 @@ var UINestedTabs = (function () {
 
     // ── 2. Active mặc định ──────────────────────────────────────
     var defaultParentId = options.defaultParentId || parents[0].id;
-    var activeParent = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
+    var activeParent    = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
 
     // ── 3. Wrapper ───────────────────────────────────────────────
     var wrapper = document.createElement('div');
@@ -8606,7 +8725,7 @@ var UINestedTabs = (function () {
     // ── 6. Render mỗi parent ────────────────────────────────────
     parents.forEach(function (parentItem) {
       var isParentActive = (parentItem.id === activeParent.id);
-      var children = childrenMap[parentItem.id] || [];
+      var children       = childrenMap[parentItem.id] || [];
 
       // ─ Parent button ─
       var pBtn = _buildParentBtn(parentItem, isParentActive, children.length, isDraggable);
@@ -8618,12 +8737,12 @@ var UINestedTabs = (function () {
       childSection.dataset.sectionId = parentItem.id;
 
       if (children.length > 0) {
-        var defaultChildId = isParentActive ? (options.defaultChildId || children[0].id) : children[0].id;
+        var defaultChildId  = isParentActive ? (options.defaultChildId || children[0].id) : children[0].id;
 
-        var childBar = document.createElement('div');
-        childBar.className = 'ui-nested-tabs__child-bar';
+        var childBar        = document.createElement('div');
+        childBar.className  = 'ui-nested-tabs__child-bar';
 
-        var panelArea = document.createElement('div');
+        var panelArea       = document.createElement('div');
         panelArea.className = 'ui-nested-tabs__panel-area';
 
         children.forEach(function (childItem) {
@@ -8690,12 +8809,12 @@ var UINestedTabs = (function () {
   function createFromDB(dbRows, options) {
     var records = (dbRows || []).map(function (row) {
       return {
-        id: row.MenuID || row.id || row.menuId,
-        parent: row.Parent || row.parent || row.parentId || '',
-        label: row.VN || row.label || row.name || row.Label || '(Không tên)',
-        labelEN: row.EN || row.en || '',
-        icon: row.IconClass || row.icon || '',
-        formName: row.FormName || row.formName || ''
+        id:       row.MenuID   || row.id       || row.menuId,
+        parent:   row.Parent   || row.parent   || row.parentId || '',
+        label:    row.VN       || row.label    || row.name || row.Label || '(Không tên)',
+        labelEN:  row.EN       || row.en       || '',
+        icon:     row.IconClass || row.icon    || '',
+        formName: row.FormName  || row.formName || ''
       };
     });
     return create(records, options);
@@ -8740,7 +8859,7 @@ var UINestedTabs = (function () {
   function _buildChildBtn(childItem, parentItem, isActive, isDraggable) {
     var btn = document.createElement('button');
     btn.className = 'ui-nested-tab-child-btn' + (isActive ? ' active' : '');
-    btn.dataset.childId = childItem.id;
+    btn.dataset.childId  = childItem.id;
     btn.dataset.parentId = parentItem.id;
 
     if (isDraggable) {
@@ -8816,7 +8935,7 @@ var UINestedTabs = (function () {
    * @param {Object}  options      - options của component
    */
   function _attachDragToBar(bar, panelArea, type, parentId, options) {
-    var dragging = null;  // phần tử đang kéo
+    var dragging    = null;  // phần tử đang kéo
     var placeholder = null;  // dải chỉ vị trí thả
 
     // Selector của các btn trong bar
@@ -8854,7 +8973,7 @@ var UINestedTabs = (function () {
       }
 
       // Xác định thả vào trước hay sau
-      var rect = target.getBoundingClientRect();
+      var rect   = target.getBoundingClientRect();
       var offset = (type === 'parent')
         ? e.clientX - rect.left    // ngang
         : e.clientX - rect.left;   // ngang (child bar cũng ngang)
@@ -8930,7 +9049,7 @@ var UINestedTabs = (function () {
     var btns = Array.from(childBar.querySelectorAll(btnSelector));
     btns.forEach(function (btn) {
       var childId = btn.dataset.childId;
-      var panel = panelArea.querySelector('#nested-panel-' + childId);
+      var panel   = panelArea.querySelector('#nested-panel-' + childId);
       if (panel) panelArea.appendChild(panel); // appendChild tự move về cuối → đúng thứ tự
     });
   }
@@ -8942,14 +9061,14 @@ var UINestedTabs = (function () {
   function _defaultPanelHTML(item, parentItem) {
     return [
       '<div class="ui-nested-tab-default-content">',
-      UIIcon.renderHtml(item.icon || 'folder_open', 'font-size:40px;opacity:0.2;display:block;margin-bottom:12px'),
-      '<div style="font-weight:600;font-size:15px;margin-bottom:6px">', item.label || item.id, '</div>',
-      parentItem
-        ? '<div style="font-size:12px;opacity:0.5">Thuộc nhóm: ' + parentItem.label + ' (' + parentItem.id + ')</div>'
-        : '',
-      item.formName
-        ? '<code style="font-size:11px;opacity:0.5;display:block;margin-top:8px">' + item.formName + '</code>'
-        : '',
+        UIIcon.renderHtml(item.icon || 'folder_open', 'font-size:40px;opacity:0.2;display:block;margin-bottom:12px'),
+        '<div style="font-weight:600;font-size:15px;margin-bottom:6px">', item.label || item.id, '</div>',
+        parentItem
+          ? '<div style="font-size:12px;opacity:0.5">Thuộc nhóm: ' + parentItem.label + ' (' + parentItem.id + ')</div>'
+          : '',
+        item.formName
+          ? '<code style="font-size:11px;opacity:0.5;display:block;margin-top:8px">' + item.formName + '</code>'
+          : '',
       '</div>'
     ].join('');
   }
@@ -8962,8 +9081,8 @@ var UINestedTabs = (function () {
     var isDraggable = options.draggable !== false;
 
     var defaultParentId = options.defaultParentId || parents[0].id;
-    var activeParent = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
-    var defaultChildId = options.defaultChildId || null;
+    var activeParent    = parents.find(function (p) { return p.id === defaultParentId; }) || parents[0];
+    var defaultChildId  = options.defaultChildId  || null;
 
     var initChildren = childrenMap[activeParent.id] || [];
     var activeChildId = defaultChildId || (initChildren.length > 0 ? initChildren[0].id : null);
@@ -8996,9 +9115,9 @@ var UINestedTabs = (function () {
       pBtn.dataset.nodeId = node.id;
       pBtn.dataset.parentId = node.parent || '';
       if (!isRoot) {
-        pBtn.dataset.childId = node.id;
+          pBtn.dataset.childId = node.id; 
       }
-
+      
       if (level > 0) {
         pBtn.style.paddingLeft = (16 + level * 20) + 'px';
       }
@@ -9007,8 +9126,8 @@ var UINestedTabs = (function () {
         var handle = UIIcon.create('drag_indicator', 'ui-nested-drag-handle' + (isRoot ? '' : ' ui-nested-drag-handle--child'));
         pBtn.appendChild(handle);
         if (!isRoot) {
-          pBtn.draggable = true;
-          pBtn.dataset.dragType = 'child';
+            pBtn.draggable = true;
+            pBtn.dataset.dragType = 'child';
         }
       }
 
@@ -9054,10 +9173,10 @@ var UINestedTabs = (function () {
         childList.className = 'ui-nested-tabs__child-list' + (shouldOpen ? ' open' : '');
 
         children.forEach(function (childItem) {
-          var childIsActive = isNodeActive && (childItem.id === activeChildId);
-          var childShouldOpen = childIsActive;
-          var cRes = _buildSidebarNode(childItem, level + 1, childIsActive, childShouldOpen);
-          childList.appendChild(cRes.group);
+           var childIsActive = isNodeActive && (childItem.id === activeChildId);
+           var childShouldOpen = childIsActive;
+           var cRes = _buildSidebarNode(childItem, level + 1, childIsActive, childShouldOpen);
+           childList.appendChild(cRes.group);
         });
 
         parentGroup.appendChild(childList);
@@ -9083,17 +9202,17 @@ var UINestedTabs = (function () {
 
         var isPanelActive = parentPanel.classList.contains('active');
 
-        allSidebarBtns.forEach(function (b) { b.classList.remove('active'); });
-        allContentPanels.forEach(function (p) { p.classList.remove('active'); });
+        allSidebarBtns.forEach(function(b) { b.classList.remove('active'); });
+        allContentPanels.forEach(function(p) { p.classList.remove('active'); });
 
         pBtn.classList.add('active');
 
         if (!isPanelActive) {
           parentPanel.classList.add('active');
           if (childList) childList.classList.add('open');
-
+          
           var curr = parentGroup.parentElement;
-          while (curr && curr.classList.contains('ui-nested-tabs__child-list')) {
+          while(curr && curr.classList.contains('ui-nested-tabs__child-list')) {
             curr.classList.add('open');
             curr = curr.parentElement.parentElement;
           }
@@ -9144,18 +9263,18 @@ var UINestedTabs = (function () {
       resizer.classList.add('is-resizing');
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
-
+      
       var onMouseMove = function (e) {
         if (!isResizing) return;
-
+        
         // Tính toán độ rộng mới dựa trên vị trí chuột
         var containerRect = sidebar.parentElement.getBoundingClientRect();
         var newWidth = e.clientX - containerRect.left;
-
+        
         // Giới hạn width từ 180px đến 600px
         if (newWidth < 180) newWidth = 180;
         if (newWidth > 600) newWidth = 600;
-
+        
         sidebar.style.width = newWidth + 'px';
       };
 
@@ -9175,7 +9294,7 @@ var UINestedTabs = (function () {
 
   // ── Drag dọc cho child list ──────────────────────────────
   function _attachVerticalDrag(childList, contentArea, parentId, options) {
-    var dragging = null;
+    var dragging    = null;
     var placeholder = null;
 
     childList.addEventListener('dragstart', function (e) {
@@ -9195,7 +9314,7 @@ var UINestedTabs = (function () {
       var target = e.target.closest('.ui-nested-tabs__sidebar-parent');
       if (!target || target === dragging || target.parentElement !== childList) return;
       if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
-      var rect = target.getBoundingClientRect();
+      var rect   = target.getBoundingClientRect();
       var isUpper = (e.clientY - rect.top) < rect.height / 2;
       if (isUpper) childList.insertBefore(placeholder, target);
       else { var nx = target.nextSibling; if (nx) childList.insertBefore(placeholder, nx); else childList.appendChild(placeholder); }
@@ -9213,10 +9332,10 @@ var UINestedTabs = (function () {
       if (!dragging || !placeholder || !placeholder.parentNode) return;
       childList.insertBefore(dragging, placeholder);
       placeholder.parentNode.removeChild(placeholder);
-
+      
       // Sync panel order for UI (if needed, but panels are all flat in contentArea)
       // Array.from(childList.children).forEach(...) is possible, but contentArea order doesn't break CSS rendering.
-
+      
       if (typeof options.onReorder === 'function') {
         var ids = Array.from(childList.querySelectorAll(':scope > .ui-nested-tabs__sidebar-parent > .ui-nested-tab-child-btn--v')).map(function (b) { return b.dataset.childId || b.dataset.nodeId; });
         options.onReorder('child', ids, parentId);
@@ -9224,7 +9343,7 @@ var UINestedTabs = (function () {
       _vCleanup();
     });
 
-    childList.addEventListener('dragend', function (e) { e.stopPropagation(); _vCleanup(); });
+    childList.addEventListener('dragend', function(e) { e.stopPropagation(); _vCleanup(); });
 
     function _vCleanup() {
       if (dragging) { dragging.classList.remove('ui-nested-dragging'); dragging = null; }
@@ -9235,7 +9354,7 @@ var UINestedTabs = (function () {
 
   // ── Drag dọc cho parent groups ───────────────────────────
   function _attachVerticalDragParent(sidebar, options) {
-    var dragging = null;
+    var dragging    = null;
     var placeholder = null;
 
     sidebar.addEventListener('dragstart', function (e) {
@@ -9256,7 +9375,7 @@ var UINestedTabs = (function () {
       var target = e.target.closest('.ui-nested-tabs__sidebar-parent');
       if (!target || target === dragging || target.parentElement !== sidebar) return;
       if (placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
-      var rect = target.getBoundingClientRect();
+      var rect   = target.getBoundingClientRect();
       var isUpper = (e.clientY - rect.top) < rect.height / 2;
       if (isUpper) sidebar.insertBefore(placeholder, target);
       else { var nx = target.nextSibling; if (nx) sidebar.insertBefore(placeholder, nx); else sidebar.appendChild(placeholder); }
@@ -9283,7 +9402,7 @@ var UINestedTabs = (function () {
       _vpCleanup();
     });
 
-    sidebar.addEventListener('dragend', function (e) { e.stopPropagation(); _vpCleanup(); });
+    sidebar.addEventListener('dragend', function(e) { e.stopPropagation(); _vpCleanup(); });
 
     function _vpCleanup() {
       if (dragging) { dragging.classList.remove('ui-nested-dragging'); dragging = null; }
@@ -9296,7 +9415,7 @@ var UINestedTabs = (function () {
   //  EXPORTS
   // ════════════════════════════════════════════════════════════
   return {
-    create: create,
+    create:       create,
     createFromDB: createFromDB
   };
 
@@ -9317,7 +9436,7 @@ var UITotalBar = (function () {
   function create(config) {
     var bar = document.createElement('div');
     bar.className = 'total-bar ' + (config.className || '');
-
+    
     var label = document.createElement('div');
     label.className = 'total-bar-label';
     label.innerText = config.label || 'Tổng cộng';
@@ -9396,13 +9515,13 @@ var UIChart = (function () {
 
     var chartContainer = document.createElement('div');
     chartContainer.className = 'chart-container';
-
+    
     var canvas = document.createElement('canvas');
     chartContainer.appendChild(canvas);
     wrapper.appendChild(chartContainer);
 
     // Kích hoạt chart mượt sau khi insert vào DOM
-    setTimeout(function () {
+    setTimeout(function() {
       if (typeof Chart !== 'undefined') {
         new Chart(canvas, {
           type: config.type || 'bar',
@@ -9438,14 +9557,14 @@ var UIStepper = (function () {
    */
   function create(steps, currentStepIndex) {
     currentStepIndex = currentStepIndex || 0;
-
+    
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-stepper';
 
-    steps.forEach(function (step, index) {
+    steps.forEach(function(step, index) {
       var stepDiv = document.createElement('div');
       stepDiv.className = 'ui-step';
-
+      
       if (index < currentStepIndex) {
         stepDiv.classList.add('completed');
       } else if (index === currentStepIndex) {
@@ -9455,7 +9574,7 @@ var UIStepper = (function () {
       // Allow clicking if callback is provided
       if (step.onClick) {
         stepDiv.style.cursor = 'pointer';
-        stepDiv.addEventListener('click', function () {
+        stepDiv.addEventListener('click', function() {
           step.onClick(index);
         });
       }
@@ -9466,9 +9585,9 @@ var UIStepper = (function () {
         circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">check</span>';
       } else {
         if (step.icon) {
-          circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;">' + step.icon + '</span>';
+            circle.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;">' + step.icon + '</span>';
         } else {
-          circle.innerText = (index + 1);
+            circle.innerText = (index + 1);
         }
       }
 
@@ -9505,7 +9624,7 @@ var UITimeline = (function () {
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-timeline';
 
-    events.forEach(function (ev) {
+    events.forEach(function(ev) {
       var item = document.createElement('div');
       item.className = 'timeline-item ' + (ev.type || '');
 
@@ -9670,20 +9789,20 @@ var UIFileUpload = (function () {
     wrapper.appendChild(hint);
 
     // Xử lý sự kiện Drag & Drop css ảo diệu
-    wrapper.addEventListener('dragover', function (e) {
+    wrapper.addEventListener('dragover', function(e) {
       wrapper.classList.add('dragover');
     });
 
-    wrapper.addEventListener('dragleave', function (e) {
+    wrapper.addEventListener('dragleave', function(e) {
       wrapper.classList.remove('dragover');
     });
 
-    wrapper.addEventListener('drop', function (e) {
+    wrapper.addEventListener('drop', function(e) {
       wrapper.classList.remove('dragover');
     });
 
     if (typeof config.onChange === 'function') {
-      input.addEventListener('change', function (e) {
+      input.addEventListener('change', function(e) {
         if (e.target.files && e.target.files.length > 0) {
           config.onChange(e.target.files[0]);
         }
@@ -9705,7 +9824,7 @@ var UIFileUpload = (function () {
  * Bắt sự kiện Click Chuột Phải -> Hiện Menu thả xuống tùy chỉnh (Ví dụ: Tick/Bỏ Tick dòng, Đổi trạng thái)
  */
 var UIContextMenu = (function () {
-
+  
   var currentMenu = null;
   var activeTrigger = null;
 
@@ -9733,13 +9852,13 @@ var UIContextMenu = (function () {
 
     var menu = document.createElement('div');
     menu.className = 'ui-context-menu';
-
+    
     // Đặt visibility hidden và vị trí 0 để đo kích thước chuẩn, tránh bị trình duyệt ép nhỏ khi đặt ở sát mép phải
     menu.style.visibility = 'hidden';
     menu.style.top = '0px';
     menu.style.left = '0px';
 
-    items.forEach(function (item) {
+    items.forEach(function(item) {
       if (item === '|') {
         var div = document.createElement('div');
         div.className = 'context-menu-divider';
@@ -9747,11 +9866,11 @@ var UIContextMenu = (function () {
       } else {
         var btn = document.createElement('div');
         btn.className = 'context-menu-item';
-
+        
         var iconHtml = item.icon ? '<span class="material-symbols-outlined">' + item.icon + '</span>' : '';
         btn.innerHTML = iconHtml + '<span style="white-space: nowrap;">' + item.label + '</span>';
-
-        btn.onclick = function () {
+        
+        btn.onclick = function() {
           hide();
           if (typeof item.onClick === 'function') item.onClick();
         };
@@ -9764,7 +9883,7 @@ var UIContextMenu = (function () {
     currentMenu = menu;
 
     // Tính toán và điều chỉnh vị trí để không bị khuất màn hình (Edge detection)
-    requestAnimationFrame(function () {
+    requestAnimationFrame(function() {
       var rect = menu.getBoundingClientRect();
       var left, top;
 
@@ -9799,12 +9918,12 @@ var UIContextMenu = (function () {
       // Tràn lề dưới (trừ khi trang rất dài, thì tính theo scroll)
       if (top - window.scrollY + rect.height > window.innerHeight) {
         if (e && e.type === 'contextmenu') {
-          top = e.pageY - rect.height; // Lật lên trên con trỏ chuột
+           top = e.pageY - rect.height; // Lật lên trên con trỏ chuột
         } else if (activeTrigger) {
-          var triggerRect = activeTrigger.getBoundingClientRect();
-          top = triggerRect.top + window.scrollY - rect.height - 8; // Lật lên trên nút
+           var triggerRect = activeTrigger.getBoundingClientRect();
+           top = triggerRect.top + window.scrollY - rect.height - 8; // Lật lên trên nút
         } else if (e) {
-          top = e.pageY - rect.height - 8; // Lật lên trên con trỏ chuột
+           top = e.pageY - rect.height - 8; // Lật lên trên con trỏ chuột
         }
       }
 
@@ -9882,7 +10001,7 @@ var UIAccordion = (function () {
     wrapper.appendChild(header);
     wrapper.appendChild(body);
 
-    header.addEventListener('click', function () {
+    header.addEventListener('click', function() {
       wrapper.classList.toggle('open');
     });
 
@@ -9908,9 +10027,9 @@ var UITreeView = (function () {
   function buildNodes(nodes) {
     var ul = document.createElement('ul');
 
-    nodes.forEach(function (node) {
+    nodes.forEach(function(node) {
       var li = document.createElement('li');
-
+      
       var nodeWrapper = document.createElement('div');
       nodeWrapper.className = 'ui-tree-node';
 
@@ -9939,7 +10058,7 @@ var UITreeView = (function () {
         li.appendChild(childUl);
 
         // Click to toggle
-        nodeWrapper.addEventListener('click', function () {
+        nodeWrapper.addEventListener('click', function() {
           childUl.classList.toggle('open');
           toggle.innerText = childUl.classList.contains('open') ? 'expand_more' : 'chevron_right';
           icon.innerText = childUl.classList.contains('open') ? 'folder_open' : 'folder';
@@ -9959,7 +10078,7 @@ var UITreeView = (function () {
   function create(data) {
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-tree';
-
+    
     var rootUl = buildNodes(data);
     rootUl.style.display = 'block'; // Root luôn mở
     rootUl.style.paddingLeft = '0'; // Xoá padding thừa của root
@@ -10000,7 +10119,7 @@ var UICalendar = (function () {
       // Header
       var header = document.createElement('div');
       header.className = 'calendar-header';
-
+      
       var titleContainer = document.createElement('div');
       titleContainer.className = 'calendar-month-picker';
 
@@ -10015,9 +10134,9 @@ var UICalendar = (function () {
       icon.style.color = 'var(--color-text-secondary)';
       titleContainer.appendChild(icon);
 
-      titleContainer.onclick = function () {
+      titleContainer.onclick = function() {
         if (document.getElementById('custom-month-picker-overlay')) return;
-
+        
         var overlay = document.createElement('div');
         overlay.id = 'custom-month-picker-overlay';
         overlay.style.position = 'fixed';
@@ -10026,44 +10145,44 @@ var UICalendar = (function () {
         overlay.style.width = '100%';
         overlay.style.height = '100%';
         overlay.style.zIndex = '9999';
-
+        
         var dropdown = document.createElement('div');
         dropdown.className = 'calendar-dropdown-picker';
         var rect = titleContainer.getBoundingClientRect();
         dropdown.style.top = (rect.bottom + 8) + 'px';
         dropdown.style.left = rect.left + 'px';
-        dropdown.onclick = function (ev) { ev.stopPropagation(); };
-
+        dropdown.onclick = function(ev) { ev.stopPropagation(); };
+        
         var yearHeader = document.createElement('div');
         yearHeader.className = 'calendar-dropdown-header';
-
+        
         var btnPrevYear = document.createElement('button');
         btnPrevYear.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
         btnPrevYear.style.width = '32px'; btnPrevYear.style.height = '32px';
         btnPrevYear.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>';
-
+        
         var yearLabel = document.createElement('div');
         yearLabel.className = 'calendar-dropdown-year-label';
         yearLabel.innerText = year;
-
+        
         var btnNextYear = document.createElement('button');
         btnNextYear.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
         btnNextYear.style.width = '32px'; btnNextYear.style.height = '32px';
         btnNextYear.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>';
-
+        
         var tempYear = year;
-
-        btnPrevYear.onclick = function () { tempYear--; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
-        btnNextYear.onclick = function () { tempYear++; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
-
+        
+        btnPrevYear.onclick = function() { tempYear--; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
+        btnNextYear.onclick = function() { tempYear++; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
+        
         yearHeader.appendChild(btnPrevYear);
         yearHeader.appendChild(yearLabel);
         yearHeader.appendChild(btnNextYear);
         dropdown.appendChild(yearHeader);
-
+        
         var monthsGrid = document.createElement('div');
         monthsGrid.className = 'calendar-dropdown-months-grid';
-
+        
         function renderMonths() {
           monthsGrid.innerHTML = '';
           var monthNames = ['Thg 1', 'Thg 2', 'Thg 3', 'Thg 4', 'Thg 5', 'Thg 6', 'Thg 7', 'Thg 8', 'Thg 9', 'Thg 10', 'Thg 11', 'Thg 12'];
@@ -10078,7 +10197,7 @@ var UICalendar = (function () {
               dot.className = 'month-event-dot';
               mBtn.appendChild(dot);
             }
-            mBtn.onclick = function () {
+            mBtn.onclick = function() {
               document.body.removeChild(overlay);
               currentYear = tempYear;
               currentMonth = m;
@@ -10092,7 +10211,7 @@ var UICalendar = (function () {
         // Load summary for current tempYear when navigating years
         function loadSummaryAndRender() {
           if (config.monthSummary && !config.monthSummary[tempYear] && typeof config.onLoadYearSummary === 'function') {
-            config.onLoadYearSummary(tempYear).then(function (s) {
+            config.onLoadYearSummary(tempYear).then(function(s) {
               config.monthSummary[tempYear] = s;
               renderMonths();
             });
@@ -10100,26 +10219,26 @@ var UICalendar = (function () {
             renderMonths();
           }
         }
-
+        
         loadSummaryAndRender();
         dropdown.appendChild(monthsGrid);
         overlay.appendChild(dropdown);
-        overlay.onclick = function () { document.body.removeChild(overlay); };
+        overlay.onclick = function() { document.body.removeChild(overlay); };
         document.body.appendChild(overlay);
       };
 
       header.appendChild(titleContainer);
-
+      
       var controls = document.createElement('div');
       controls.className = 'd-flex align-items-center gap-2';
-
+      
       var btnPrev = document.createElement('button');
       btnPrev.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
       btnPrev.style.width = '36px';
       btnPrev.style.height = '36px';
       btnPrev.title = 'Tháng trước';
       btnPrev.innerHTML = '<span class="material-symbols-outlined fs-5">chevron_left</span>';
-      btnPrev.onclick = function () {
+      btnPrev.onclick = function() {
         var m = month - 1;
         var y = year;
         if (m < 0) { m = 11; y--; }
@@ -10131,7 +10250,7 @@ var UICalendar = (function () {
       var btnToday = document.createElement('button');
       btnToday.className = 'btn btn-outline px-3 py-1 fw-bold rounded-pill';
       btnToday.innerText = 'Hôm nay';
-      btnToday.onclick = function () {
+      btnToday.onclick = function() {
         var y = today.getFullYear();
         var m = today.getMonth();
         currentYear = y; currentMonth = m;
@@ -10145,7 +10264,7 @@ var UICalendar = (function () {
       btnNext.style.height = '36px';
       btnNext.title = 'Tháng sau';
       btnNext.innerHTML = '<span class="material-symbols-outlined fs-5">chevron_right</span>';
-      btnNext.onclick = function () {
+      btnNext.onclick = function() {
         var m = month + 1;
         var y = year;
         if (m > 11) { m = 0; y++; }
@@ -10164,7 +10283,7 @@ var UICalendar = (function () {
       var daysHeader = document.createElement('div');
       daysHeader.className = 'calendar-days-header';
 
-      ['TH 2', 'TH 3', 'TH 4', 'TH 5', 'TH 6', 'TH 7', 'CN'].forEach(function (d) {
+      ['TH 2', 'TH 3', 'TH 4', 'TH 5', 'TH 6', 'TH 7', 'CN'].forEach(function(d) {
         var dDiv = document.createElement('div');
         dDiv.className = 'calendar-day-header';
         if (d === 'CN') dDiv.classList.add('sunday');
@@ -10182,7 +10301,7 @@ var UICalendar = (function () {
       var firstDay = jsFirstDay === 0 ? 6 : jsFirstDay - 1;
       var daysInMonth = new Date(year, month + 1, 0).getDate();
       var daysInPrevMonth = new Date(year, month, 0).getDate();
-
+      
       var cellIndex = 0;
 
       // Helper function to generate Lunar date HTML using native Intl API
@@ -10191,7 +10310,7 @@ var UICalendar = (function () {
           var formatter = new Intl.DateTimeFormat('vi-VN-u-ca-chinese', { day: 'numeric', month: 'numeric' });
           var parts = formatter.formatToParts(new Date(y, m, d));
           var lDay = '', lMonth = '';
-          parts.forEach(function (p) {
+          parts.forEach(function(p) {
             if (p.type === 'day') lDay = p.value;
             if (p.type === 'month') lMonth = p.value;
           });
@@ -10214,7 +10333,7 @@ var UICalendar = (function () {
         var empty = document.createElement('div');
         empty.className = 'calendar-day empty-day animate-pop';
         empty.style.animationDelay = (cellIndex * 0.015) + 's';
-
+        
         var dNum = document.createElement('div');
         dNum.className = 'calendar-day-number';
         var prevDateNum = daysInPrevMonth - firstDay + i + 1;
@@ -10223,9 +10342,9 @@ var UICalendar = (function () {
         if (prevM < 0) { prevM = 11; prevY--; }
         dNum.innerHTML = '<span class="solar-date">' + prevDateNum + '</span>' + _getLunarDateHTML(prevY, prevM, prevDateNum);
         empty.appendChild(dNum);
-
-        empty.onclick = (function (d, pY, pM) {
-          return function () {
+        
+        empty.onclick = (function(d, pY, pM) {
+          return function() {
             if (typeof config.onSelect === 'function') {
               var dateStr = pY + '-' + (pM + 1).toString().padStart(2, '0') + '-' + d.toString().padStart(2, '0');
               config.onSelect(dateStr, null);
@@ -10242,7 +10361,7 @@ var UICalendar = (function () {
         var dayCell = document.createElement('div');
         dayCell.className = 'calendar-day animate-pop';
         dayCell.style.animationDelay = (cellIndex * 0.015) + 's';
-
+        
         if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === i) {
           dayCell.classList.add('today');
         }
@@ -10255,53 +10374,53 @@ var UICalendar = (function () {
         // Thêm events
         var evtDiv = document.createElement('div');
         evtDiv.className = 'calendar-events';
-
+        
         var dayEvents = config.events ? config.events[i] : null;
-
+        
         if (dayEvents && dayEvents.length > 0) {
-          var cocCount = 0;
-          var hdCount = 0;
+           var cocCount = 0;
+           var hdCount = 0;
+           
+           dayEvents.forEach(function(e) {
+              if (e.rawData) {
+                 var lp = e.rawData.LoaiPhieu !== undefined ? e.rawData.LoaiPhieu : e.rawData.loaiPhieu;
+                 if (lp === 1) cocCount++;
+                 else hdCount++;
+              }
+           });
 
-          dayEvents.forEach(function (e) {
-            if (e.rawData) {
-              var lp = e.rawData.LoaiPhieu !== undefined ? e.rawData.LoaiPhieu : e.rawData.loaiPhieu;
-              if (lp === 1) cocCount++;
-              else hdCount++;
-            }
-          });
+           // Render Desktop Summary Labels với chấm tròn chỉ thị
+           if (cocCount > 0) {
+              var cocLabel = document.createElement('div');
+              cocLabel.className = 'calendar-event-label success';
+              cocLabel.title = 'Có ' + cocCount + ' Biên nhận cọc chỗ';
+              cocLabel.innerHTML = '<span class="dot"></span><span>' + cocCount + ' Cọc Chỗ</span>';
+              evtDiv.appendChild(cocLabel);
+           }
+           if (hdCount > 0) {
+              var hdLabel = document.createElement('div');
+              hdLabel.className = 'calendar-event-label primary';
+              hdLabel.title = 'Có ' + hdCount + ' Hợp đồng';
+              hdLabel.innerHTML = '<span class="dot"></span><span>' + hdCount + ' Hợp Đồng</span>';
+              evtDiv.appendChild(hdLabel);
+           }
 
-          // Render Desktop Summary Labels với chấm tròn chỉ thị
-          if (cocCount > 0) {
-            var cocLabel = document.createElement('div');
-            cocLabel.className = 'calendar-event-label success';
-            cocLabel.title = 'Có ' + cocCount + ' Biên nhận cọc chỗ';
-            cocLabel.innerHTML = '<span class="dot"></span><span>' + cocCount + ' Cọc Chỗ</span>';
-            evtDiv.appendChild(cocLabel);
-          }
-          if (hdCount > 0) {
-            var hdLabel = document.createElement('div');
-            hdLabel.className = 'calendar-event-label primary';
-            hdLabel.title = 'Có ' + hdCount + ' Hợp đồng';
-            hdLabel.innerHTML = '<span class="dot"></span><span>' + hdCount + ' Hợp Đồng</span>';
-            evtDiv.appendChild(hdLabel);
-          }
-
-          // Render Mobile Dots
-          if (cocCount > 0) {
-            var dotCoc = document.createElement('div');
-            dotCoc.className = 'calendar-event-dot success';
-            dayCell.appendChild(dotCoc);
-          }
-          if (hdCount > 0) {
-            var dotHd = document.createElement('div');
-            dotHd.className = 'calendar-event-dot primary';
-            dayCell.appendChild(dotHd);
-          }
+           // Render Mobile Dots
+           if (cocCount > 0) {
+              var dotCoc = document.createElement('div');
+              dotCoc.className = 'calendar-event-dot success';
+              dayCell.appendChild(dotCoc);
+           }
+           if (hdCount > 0) {
+              var dotHd = document.createElement('div');
+              dotHd.className = 'calendar-event-dot primary';
+              dayCell.appendChild(dotHd);
+           }
         }
         dayCell.appendChild(evtDiv);
 
-        dayCell.onclick = (function (d, evts) {
-          return function () {
+        dayCell.onclick = (function(d, evts) {
+          return function() {
             if (typeof config.onSelect === 'function') {
               var dateStr = year + '-' + (month + 1).toString().padStart(2, '0') + '-' + d.toString().padStart(2, '0');
               config.onSelect(dateStr, evts);
@@ -10320,7 +10439,7 @@ var UICalendar = (function () {
         var emptyEnd = document.createElement('div');
         emptyEnd.className = 'calendar-day empty-day animate-pop';
         emptyEnd.style.animationDelay = (cellIndex * 0.015) + 's';
-
+        
         var dNumEnd = document.createElement('div');
         dNumEnd.className = 'calendar-day-number';
         var nextDateNum = i + 1;
@@ -10329,9 +10448,9 @@ var UICalendar = (function () {
         if (nextM > 11) { nextM = 0; nextY++; }
         dNumEnd.innerHTML = '<span class="solar-date">' + nextDateNum + '</span>' + _getLunarDateHTML(nextY, nextM, nextDateNum);
         emptyEnd.appendChild(dNumEnd);
-
-        emptyEnd.onclick = (function (d, nY, nM) {
-          return function () {
+        
+        emptyEnd.onclick = (function(d, nY, nM) {
+          return function() {
             if (typeof config.onSelect === 'function') {
               var dateStr = nY + '-' + (nM + 1).toString().padStart(2, '0') + '-' + d.toString().padStart(2, '0');
               config.onSelect(dateStr, null);
@@ -10347,12 +10466,12 @@ var UICalendar = (function () {
     }
 
     render(currentYear, currentMonth);
-
-    wrapper.updateEvents = function (newEvents) {
+    
+    wrapper.updateEvents = function(newEvents) {
       config.events = newEvents;
       render(currentYear, currentMonth);
     };
-
+    
     return wrapper;
   }
 
@@ -10387,7 +10506,7 @@ var UISlider = (function () {
 
     var valDisplay = document.createElement('div');
     valDisplay.className = 'ui-slider-value';
-
+    
     function updateDisplay(val) {
       if (typeof config.formatValue === 'function') {
         valDisplay.innerText = config.formatValue(val);
@@ -10400,12 +10519,12 @@ var UISlider = (function () {
     wrapper.appendChild(slider);
     wrapper.appendChild(valDisplay);
 
-    slider.addEventListener('input', function (e) {
+    slider.addEventListener('input', function(e) {
       updateDisplay(e.target.value);
     });
 
     if (typeof config.onChange === 'function') {
-      slider.addEventListener('change', function (e) {
+      slider.addEventListener('change', function(e) {
         config.onChange(e.target.value);
       });
     }
@@ -10428,7 +10547,7 @@ var UIToast = (function () {
 
   // Auto-init container
   var container = null;
-  document.addEventListener('DOMContentLoaded', function () {
+  document.addEventListener('DOMContentLoaded', function() {
     if (!document.getElementById('ui-toast-container')) {
       container = document.createElement('div');
       container.id = 'ui-toast-container';
@@ -10469,15 +10588,15 @@ var UIToast = (function () {
     container.appendChild(toast);
 
     // Trigger animate in
-    requestAnimationFrame(function () {
+    requestAnimationFrame(function() {
       toast.classList.add('show');
     });
 
     // Tự động tắt sau 3 giây
-    setTimeout(function () {
+    setTimeout(function() {
       toast.classList.remove('show');
       // Đợi animation chạy xong rồi xóa node
-      setTimeout(function () {
+      setTimeout(function() {
         if (toast.parentNode) toast.remove();
       }, 300);
     }, 3000);
@@ -10495,7 +10614,7 @@ var UIToast = (function () {
  * Một khung form nổi lên nhỏ gọn nằm cạnh Nút được bấm (Ví dụ: Form nhập nhanh số lượng)
  */
 var UIPopover = (function () {
-
+  
   var currentPopover = null;
 
   /**
@@ -10536,18 +10655,18 @@ var UIPopover = (function () {
     // Tránh tràn viền
     if (left < 10) left = 10;
     if (left + pWidth > window.innerWidth - 10) left = window.innerWidth - pWidth - 10;
-
+    
     popover.style.left = left + 'px';
 
     // Show animation
-    requestAnimationFrame(function () {
+    requestAnimationFrame(function() {
       popover.classList.add('show');
     });
 
     currentPopover = popover;
 
     // Click outside to hide
-    setTimeout(function () { // Delay xíu để không bắt nhầm sự kiện click hiện tại
+    setTimeout(function() { // Delay xíu để không bắt nhầm sự kiện click hiện tại
       document.addEventListener('click', hideOnOutsideClick);
     }, 10);
   }
@@ -10579,7 +10698,7 @@ var UIPopover = (function () {
  * Cấu trúc thanh Header trên cùng
  */
 var Header = (function () {
-
+  
   function render(containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
@@ -10633,7 +10752,7 @@ var Header = (function () {
     var $sidebarOverlay = document.getElementById('sidebar-overlay');
 
     if ($btnHamburger) {
-      $btnHamburger.addEventListener('click', function () {
+      $btnHamburger.addEventListener('click', function() {
         if ($sidebar) $sidebar.classList.add('open');
         if ($sidebarOverlay) $sidebarOverlay.classList.add('active');
       });
@@ -10877,7 +10996,7 @@ UIControls.createSearchDropdown = function (options) {
 
   var dropdown = document.createElement('div');
   dropdown.className = 'ui-search-dropdown-menu';
-
+  
   wrapper.appendChild(input);
   wrapper.appendChild(btn);
   wrapper.appendChild(dropdown);
@@ -10921,13 +11040,13 @@ UIControls.createSearchDropdown = function (options) {
     }
     dropdown.innerHTML = '<div class="p-3 text-center text-secondary">Đang tìm kiếm...</div>';
     showDropdown();
-
+    
     if (typeof options.onSearch === 'function') {
       options.onSearch(keyword, renderResults, hideDropdown);
     }
   });
 
-  input.addEventListener('keydown', function (e) {
+  input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
       btn.click();
@@ -10949,14 +11068,14 @@ UIControls.createSearchDropdown = function (options) {
  */
 var UISidePanel = (function () {
   function SidePanel(selectorOrElement) {
-    this.panel = typeof selectorOrElement === 'string'
-      ? document.querySelector(selectorOrElement)
+    this.panel = typeof selectorOrElement === 'string' 
+      ? document.querySelector(selectorOrElement) 
       : selectorOrElement;
-
+      
     if (!this.panel) return;
 
     this.panel.classList.add('ui-side-panel');
-
+    
     // Ensure initial state is off-screen and display:none
     this.panel.style.display = 'none';
     this.panel.style.right = '-1000px';
@@ -10970,37 +11089,37 @@ var UISidePanel = (function () {
     }
 
     var self = this;
-
+    
     // Bind close buttons
     var closeBtns = this.panel.querySelectorAll('[data-dismiss="side-panel"]');
-    closeBtns.forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
+    closeBtns.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
         e.preventDefault();
         self.hide();
       });
     });
 
-    this.overlay.addEventListener('click', function () {
+    this.overlay.addEventListener('click', function() {
       self.hide();
     });
   }
 
-  SidePanel.prototype.show = function () {
+  SidePanel.prototype.show = function() {
     var self = this;
     this.panel.style.display = 'flex';
     this.overlay.classList.add('show');
     // Tiny delay to allow display:flex to register before animation
-    setTimeout(function () {
+    setTimeout(function() {
       self.panel.classList.add('show');
     }, 10);
   };
 
-  SidePanel.prototype.hide = function () {
+  SidePanel.prototype.hide = function() {
     var self = this;
     this.overlay.classList.remove('show');
     this.panel.classList.remove('show');
     // Wait for transition to finish before display:none
-    setTimeout(function () {
+    setTimeout(function() {
       if (!self.panel.classList.contains('show')) {
         self.panel.style.display = 'none';
         self.panel.style.right = '-1000px';
@@ -11025,7 +11144,7 @@ var ScreenCapture = (function () {
   var currentRect = null;
   var currentCallback = null;
   var ww = 0, wh = 0;
-
+  
   var mode = 'select'; // 'select' | 'draw'
   var shapes = []; // {left, top, width, height}
   var shapeStartX = 0, shapeStartY = 0;
@@ -11036,10 +11155,10 @@ var ScreenCapture = (function () {
 
   function initOverlay() {
     if (overlayCanvas) return;
-
+    
     ww = window.innerWidth;
     wh = window.innerHeight;
-
+    
     mode = 'select';
     shapes = [];
     currentRect = null;
@@ -11051,19 +11170,19 @@ var ScreenCapture = (function () {
     overlayCanvas.className = 'screen-capture-canvas';
     overlayCanvas.width = ww;
     overlayCanvas.height = wh;
-
+    
     overlayCanvas.style.position = 'fixed';
     overlayCanvas.style.top = '0';
     overlayCanvas.style.left = '0';
     overlayCanvas.style.zIndex = '999990';
     overlayCanvas.style.cursor = 'crosshair';
-
+    
     ctx = overlayCanvas.getContext('2d');
-
+    
     document.body.appendChild(overlayCanvas);
-
-    drawMask(0, 0, 0, 0);
-
+    
+    drawMask(0, 0, 0, 0); 
+    
     overlayCanvas.addEventListener('mousedown', onMouseDown);
     overlayCanvas.addEventListener('mousemove', onMouseMove);
     overlayCanvas.addEventListener('mouseup', onMouseUp);
@@ -11101,8 +11220,8 @@ var ScreenCapture = (function () {
     btn.style.justifyContent = 'center';
     btn.style.color = '#374151';
     btn.style.borderRadius = '4px';
-    btn.onmouseover = function () { if (!btn.classList.contains('active')) btn.style.background = '#F3F4F6'; };
-    btn.onmouseout = function () { if (!btn.classList.contains('active')) btn.style.background = 'transparent'; };
+    btn.onmouseover = function() { if(!btn.classList.contains('active')) btn.style.background = '#F3F4F6'; };
+    btn.onmouseout = function() { if(!btn.classList.contains('active')) btn.style.background = 'transparent'; };
     btn.onclick = onClick;
     return btn;
   }
@@ -11119,25 +11238,25 @@ var ScreenCapture = (function () {
       toolbar.style.display = 'flex';
       toolbar.style.gap = '2px';
       toolbar.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)';
-
-      var btnRect = createToolbarBtn('crop_square', 'Vẽ khung đỏ', function () {
+      
+      var btnRect = createToolbarBtn('crop_square', 'Vẽ khung đỏ', function() {
         isShapeModeActive = true;
         btnRect.style.background = '#E0E7FF';
         btnRect.style.color = '#4F46E5';
         btnRect.classList.add('active');
         overlayCanvas.style.cursor = 'crosshair';
       });
-
-      var btnCopy = createToolbarBtn('content_copy', 'Copy (Ctrl+C)', function () {
+      
+      var btnCopy = createToolbarBtn('content_copy', 'Copy (Ctrl+C)', function() {
         captureAndAction();
       });
       btnCopy.style.color = '#10B981';
 
-      var btnClose = createToolbarBtn('close', 'Hủy (ESC)', function () {
+      var btnClose = createToolbarBtn('close', 'Hủy (ESC)', function() {
         destroyOverlay();
       });
       btnClose.style.color = '#F43F5E';
-
+      
       toolbar.appendChild(btnRect);
       var divider = document.createElement('div');
       divider.style.width = '1px';
@@ -11146,18 +11265,18 @@ var ScreenCapture = (function () {
       toolbar.appendChild(divider);
       toolbar.appendChild(btnCopy);
       toolbar.appendChild(btnClose);
-
+      
       document.body.appendChild(toolbar);
     }
-
+    
     toolbar.style.display = 'flex';
-
+    
     // Position toolbar at bottom right of the selection
     var tLeft = currentRect.left + currentRect.width - 120;
     var tTop = currentRect.top + currentRect.height + 10;
     if (tLeft < 10) tLeft = 10;
     if (tTop + 50 > wh) tTop = currentRect.top - 50;
-
+    
     toolbar.style.left = tLeft + 'px';
     toolbar.style.top = tTop + 'px';
   }
@@ -11175,7 +11294,7 @@ var ScreenCapture = (function () {
 
   function drawMask(x, y, w, h) {
     if (!ctx) return;
-
+    
     ctx.clearRect(0, 0, ww, wh); // Xóa sạch canvas
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, ww, wh);
@@ -11188,14 +11307,14 @@ var ScreenCapture = (function () {
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(x, y, w, h);
       }
-
+      
       if (!isDrawing && w === 0) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(ww / 2 - 150, 20, 300, 40);
+        ctx.fillRect(ww/2 - 150, 20, 300, 40);
         ctx.fillStyle = '#ffffff';
         ctx.font = '14px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('Nhấn và kéo chuột để chọn vùng', ww / 2, 45);
+        ctx.fillText('Nhấn và kéo chuột để chọn vùng', ww/2, 45);
       }
     } else if (mode === 'draw') {
       ctx.clearRect(currentRect.left, currentRect.top, currentRect.width, currentRect.height);
@@ -11203,14 +11322,14 @@ var ScreenCapture = (function () {
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       ctx.strokeRect(currentRect.left, currentRect.top, currentRect.width, currentRect.height);
-
+      
       ctx.strokeStyle = '#EF4444'; // Red
       ctx.lineWidth = 3;
-
-      shapes.forEach(function (s) {
+      
+      shapes.forEach(function(s) {
         ctx.strokeRect(s.left, s.top, s.width, s.height);
       });
-
+      
       if (isDrawing && currentShape && isShapeModeActive) {
         ctx.strokeRect(currentShape.left, currentShape.top, currentShape.width, currentShape.height);
       }
@@ -11225,13 +11344,13 @@ var ScreenCapture = (function () {
       drawMask(startX, startY, 0, 0);
     } else if (mode === 'draw') {
       if (!isShapeModeActive) return; // Không cho vẽ nếu chưa click nút hình
-
+      
       var cx = e.clientX;
       var cy = e.clientY;
-
+      
       // Chỉ cho phép vẽ bên trong vùng đã chọn
       if (cx >= currentRect.left && cx <= currentRect.left + currentRect.width &&
-        cy >= currentRect.top && cy <= currentRect.top + currentRect.height) {
+          cy >= currentRect.top && cy <= currentRect.top + currentRect.height) {
         isDrawing = true;
         shapeStartX = cx;
         shapeStartY = cy;
@@ -11248,7 +11367,7 @@ var ScreenCapture = (function () {
     var currentY = e.clientY;
 
     if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(function () {
+    rafId = requestAnimationFrame(function() {
       if (mode === 'select') {
         var left = Math.min(startX, currentX);
         var top = Math.min(startY, currentY);
@@ -11257,16 +11376,16 @@ var ScreenCapture = (function () {
         drawMask(left, top, width, height);
       } else if (mode === 'draw') {
         if (!isShapeModeActive) return;
-
+        
         // Giới hạn trong currentRect
         var limitedX = Math.max(currentRect.left, Math.min(currentX, currentRect.left + currentRect.width));
         var limitedY = Math.max(currentRect.top, Math.min(currentY, currentRect.top + currentRect.height));
-
+        
         var sLeft = Math.min(shapeStartX, limitedX);
         var sTop = Math.min(shapeStartY, limitedY);
         var sWidth = Math.abs(limitedX - shapeStartX);
         var sHeight = Math.abs(limitedY - shapeStartY);
-
+        
         currentShape = { left: sLeft, top: sTop, width: sWidth, height: sHeight };
         drawMask();
       }
@@ -11276,7 +11395,7 @@ var ScreenCapture = (function () {
   function onMouseUp(e) {
     if (!isDrawing) return;
     isDrawing = false;
-
+    
     if (mode === 'select') {
       var endX = e.clientX;
       var endY = e.clientY;
@@ -11292,7 +11411,7 @@ var ScreenCapture = (function () {
         drawMask();
         showToolbar();
       } else {
-        destroyOverlay();
+        destroyOverlay(); 
       }
     } else if (mode === 'draw') {
       if (currentShape && currentShape.width > 5 && currentShape.height > 5) {
@@ -11323,7 +11442,7 @@ var ScreenCapture = (function () {
     shapeContainer.style.pointerEvents = 'none';
     shapeContainer.style.zIndex = '999998';
 
-    shapes.forEach(function (s) {
+    shapes.forEach(function(s) {
       var div = document.createElement('div');
       div.style.position = 'absolute';
       div.style.left = (s.left + window.scrollX) + 'px';
@@ -11337,11 +11456,11 @@ var ScreenCapture = (function () {
     document.body.appendChild(shapeContainer);
 
     destroyOverlay(); // Xóa canvas
-
+    
     if (typeof UIToast !== 'undefined') UIToast.show('Đang xử lý ảnh...', 'info');
 
     var isDone = false;
-    var timeoutId = setTimeout(function () {
+    var timeoutId = setTimeout(function() {
       if (!isDone) {
         if (typeof UIToast !== 'undefined') UIToast.show('Xử lý ảnh quá lâu!', 'error');
         if (shapeContainer.parentNode) document.body.removeChild(shapeContainer);
@@ -11359,11 +11478,11 @@ var ScreenCapture = (function () {
         scale: 1,
         logging: false,
         backgroundColor: null
-      }).then(function (canvas) {
+      }).then(function(canvas) {
         if (isDone) return;
         isDone = true;
         clearTimeout(timeoutId);
-
+        
         if (shapeContainer.parentNode) document.body.removeChild(shapeContainer);
 
         if (currentCallback) {
@@ -11380,23 +11499,23 @@ var ScreenCapture = (function () {
           if (typeof UIToast !== 'undefined') UIToast.show('Đã lưu ảnh về máy!', 'success');
         }
 
-        canvas.toBlob(function (blob) {
+        canvas.toBlob(function(blob) {
           if (!blob) return fallbackDownload();
           if (navigator.clipboard && window.ClipboardItem) {
-            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function () {
+            navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function() {
               if (typeof UIToast !== 'undefined') UIToast.show('Đã copy ảnh!', 'success');
-            }).catch(function () { fallbackDownload(); });
+            }).catch(function() { fallbackDownload(); });
           } else {
             fallbackDownload();
           }
         });
-      }).catch(function () {
+      }).catch(function() {
         if (isDone) return;
         isDone = true;
         clearTimeout(timeoutId);
         if (shapeContainer.parentNode) document.body.removeChild(shapeContainer);
       });
-    } catch (err) {
+    } catch(err) {
       if (isDone) return;
       isDone = true;
       clearTimeout(timeoutId);
@@ -11437,18 +11556,18 @@ var ScreenCapture = (function () {
       formNameContainer.style.display = 'flex';
       formNameContainer.style.gap = '10px';
       formNameContainer.style.alignItems = 'center';
-
+      
       var lblForm = document.createElement('label');
       lblForm.innerText = 'Lấy danh sách cột từ Form:';
       lblForm.style.fontWeight = '500';
       lblForm.style.whiteSpace = 'nowrap';
-
+      
       var txtFormName = document.createElement('input');
       txtFormName.className = 'ui-input';
       txtFormName.placeholder = 'Ví dụ: frmCustomer';
       txtFormName.value = targetFormName;
       txtFormName.style.flex = '1';
-
+      
       var btnLoadFieldsWrapper = document.createElement('div');
       btnLoadFieldsWrapper.innerHTML = UIButton.createHTML({ text: 'Tải Cột', type: 'secondary', icon: 'sync' });
       var btnLoadFields = btnLoadFieldsWrapper.firstElementChild;
@@ -11466,47 +11585,47 @@ var ScreenCapture = (function () {
 
       var fields = []; // Tên các cột của form đích
 
-      var fetchFields = function (formName) {
+      var fetchFields = function(formName) {
         if (!formName) return;
         if (typeof ApiClient !== 'undefined') {
           btnLoadFields.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang tải...';
           ApiClient.post('/api/API_DanhSachTruongGiaoDien', { FormName: formName, Username: 'admin', Limit: 1000 })
-            .then(function (res) {
+            .then(function(res) {
               btnLoadFields.innerHTML = '<span class="material-symbols-outlined">sync</span> Tải Cột';
               fields = res.list || res.records || res.data || res || [];
               if (Array.isArray(fields) && fields.length > 0) {
                 var allSelects = conditionsList.querySelectorAll('select.field-select');
-                allSelects.forEach(function (sel) { populateFieldSelect(sel, fields); });
+                allSelects.forEach(function(sel) { populateFieldSelect(sel, fields); });
                 txtFormName.style.borderColor = 'var(--color-success)';
               } else {
                 txtFormName.style.borderColor = 'var(--color-danger)';
                 Alert.warning('Lỗi', 'Không tìm thấy cột nào cho form: ' + formName);
               }
-            }).catch(function (e) {
+            }).catch(function(e) { 
               btnLoadFields.innerHTML = '<span class="material-symbols-outlined">sync</span> Tải Cột';
-              console.error('Lỗi load cột', e);
+              console.error('Lỗi load cột', e); 
             });
         }
       };
 
-      btnLoadFields.onclick = function () { fetchFields(txtFormName.value.trim()); };
+      btnLoadFields.onclick = function() { fetchFields(txtFormName.value.trim()); };
 
       // Phân tích cú pháp rule hiện tại
-      var parseRule = function (ruleStr) {
+      var parseRule = function(ruleStr) {
         if (!ruleStr) return [];
         var isOr = ruleStr.includes('|');
         var parts = ruleStr.split(isOr ? '|' : '&');
-        return parts.map(function (p) {
+        return parts.map(function(p) {
           var operator = p.includes('!=') ? '!=' : '=';
           var kv = p.split(operator);
           return { field: kv[0], operator: operator, value: kv[1] || '' };
-        }).filter(function (r) { return r.field !== ''; });
+        }).filter(function(r) { return r.field !== ''; });
       };
 
       var rules = parseRule(currentRule);
       if (rules.length === 0) rules.push({ field: '', operator: '=', value: '' });
 
-      var renderRow = function (r) {
+      var renderRow = function(r) {
         var row = document.createElement('div');
         row.style.display = 'flex';
         row.style.gap = '10px';
@@ -11528,7 +11647,7 @@ var ScreenCapture = (function () {
         opSelect.className = 'ui-input';
         opSelect.style.flex = '3';
         opSelect.innerHTML = '<option value="=" ' + (r.operator === '=' ? 'selected' : '') + '>Bằng (=)</option>' +
-          '<option value="!=" ' + (r.operator === '!=' ? 'selected' : '') + '>Khác (!=)</option>';
+                             '<option value="!=" ' + (r.operator === '!=' ? 'selected' : '') + '>Khác (!=)</option>';
 
         // Value
         var valInput = document.createElement('input');
@@ -11542,7 +11661,7 @@ var ScreenCapture = (function () {
         var delBtnWrapper = document.createElement('div');
         delBtnWrapper.innerHTML = UIButton.createHTML({ text: '', type: 'danger', icon: 'delete', className: 'btn-icon-only' });
         var delBtn = delBtnWrapper.firstElementChild;
-        delBtn.onclick = function () { conditionsList.removeChild(row); };
+        delBtn.onclick = function() { conditionsList.removeChild(row); };
 
         row.appendChild(fieldSelect);
         row.appendChild(opSelect);
@@ -11553,21 +11672,21 @@ var ScreenCapture = (function () {
         return fieldSelect;
       };
 
-      rules.forEach(function (r) { renderRow(r); });
+      rules.forEach(function(r) { renderRow(r); });
 
       var addBtnWrapper = document.createElement('div');
       addBtnWrapper.innerHTML = UIButton.createHTML({ text: 'Thêm điều kiện', type: 'secondary', icon: 'add' });
       var addBtn = addBtnWrapper.firstElementChild;
       addBtn.style.width = '100%';
-      addBtn.onclick = function () {
+      addBtn.onclick = function() {
         var fs = renderRow({ field: '', operator: '=', value: '' });
         populateFieldSelect(fs, fields);
       };
       body.appendChild(addBtn);
 
-      var populateFieldSelect = function (selectEl, fieldData) {
+      var populateFieldSelect = function(selectEl, fieldData) {
         selectEl.innerHTML = '<option value="">-- Chọn cột --</option>';
-        fieldData.forEach(function (f) {
+        fieldData.forEach(function(f) {
           var selected = (selectEl.dataset.val === f.FieldName) ? 'selected' : '';
           selectEl.innerHTML += '<option value="' + f.FieldName + '" ' + selected + '>' + f.FieldName + ' (' + f.CaptionVN + ')</option>';
         });
@@ -11575,7 +11694,7 @@ var ScreenCapture = (function () {
 
       // Tự động load nếu có sẵn tên form
       if (targetFormName) {
-        fetchFields(targetFormName);
+         fetchFields(targetFormName);
       }
 
       // Footer
@@ -11590,18 +11709,18 @@ var ScreenCapture = (function () {
       logicSelectWrapper.style.alignItems = 'center';
       logicSelectWrapper.style.gap = '10px';
       logicSelectWrapper.innerHTML = '<span style="font-weight: 500;">Nối bằng:</span>';
-
+      
       var logicSelect = document.createElement('select');
       logicSelect.className = 'ui-input';
       logicSelect.style.width = '140px';
       logicSelect.innerHTML = '<option value="&">VÀ (AND)</option><option value="|">HOẶC (OR)</option>';
       if (currentRule.includes('|')) logicSelect.value = '|';
       logicSelectWrapper.appendChild(logicSelect);
-
+      
       var actionGroup = document.createElement('div');
       actionGroup.style.display = 'flex';
       actionGroup.style.gap = '10px';
-      actionGroup.innerHTML =
+      actionGroup.innerHTML = 
         UIButton.createHTML({ text: 'Hủy', type: 'secondary', className: 'btn-cancel-rule' }) +
         UIButton.createHTML({ text: 'Lưu Quy Tắc', type: 'primary', icon: 'save', className: 'btn-save-rule' });
 
@@ -11617,14 +11736,14 @@ var ScreenCapture = (function () {
       });
 
       // Gắn sự kiện cho các nút footer
-      footer.querySelector('.btn-cancel-rule').onclick = function () {
+      footer.querySelector('.btn-cancel-rule').onclick = function() {
         ruleModal.closeNow();
       };
 
-      footer.querySelector('.btn-save-rule').onclick = function () {
+      footer.querySelector('.btn-save-rule').onclick = function() {
         var finalRules = [];
         var rows = conditionsList.children;
-        for (var i = 0; i < rows.length; i++) {
+        for(var i=0; i<rows.length; i++) {
           var fld = rows[i].children[0].value;
           var op = rows[i].children[1].value;
           var val = rows[i].children[2].value;
@@ -11634,7 +11753,7 @@ var ScreenCapture = (function () {
         }
         var joiner = logicSelect.value;
         var resultString = finalRules.join(joiner);
-
+        
         if (onSave) onSave(resultString);
         ruleModal.closeNow();
       };
@@ -11669,6 +11788,20 @@ window.MetadataModuleConfig = (function () {
     }
   };
 
+  var FORM_FIELD_CONFIG_FACTORIES = {
+    'wa_nguoidungfrm.branchid': function () {
+      return {
+        renderRule: 'ms',
+        dataSource: 'CF_BranchListFrm',
+        dataSourceMethod: 'POST',
+        valueField: 'BranchID',
+        labelField: 'BranchName',
+        allowCustomValue: false,
+        multiple: true
+      };
+    }
+  };
+
   function _readStoredBranches() {
     try {
       var raw = window.APP_SETTINGS
@@ -11697,8 +11830,10 @@ window.MetadataModuleConfig = (function () {
     return typeof value === 'string' ? value : '';
   }
 
-  function getFieldConfig(fieldName) {
-    var factory = FIELD_CONFIG_FACTORIES[String(fieldName || '').trim().toLowerCase()];
+  function getFieldConfig(fieldName, formName) {
+    var normalizedField = String(fieldName || '').trim().toLowerCase();
+    var formFieldKey = String(formName || '').trim().toLowerCase() + '.' + normalizedField;
+    var factory = FORM_FIELD_CONFIG_FACTORIES[formFieldKey] || FIELD_CONFIG_FACTORIES[normalizedField];
     return factory ? factory() : {};
   }
 
@@ -14294,14 +14429,14 @@ window.DynamicFormEngine = (function () {
       cb: 'sl',
       combo: 'sl',
       dropdown: 'sl',
-      dropcheck: 'sl'
+      dropcheck: 'ms'
     };
     return aliases[normalized] || normalized;
   }
 
   function _buildOptionTable(dataList, field, maxCols) {
     if (!Array.isArray(dataList) || dataList.length === 0) {
-      return { keys: [], headers: ['Mã', 'Tên'], data: [], colFilterIndex: 1 };
+      return { keys: [], headers: ['Mã', 'Tên'], data: [], valueIndex: 0, colFilterIndex: 1 };
     }
 
     var keys = Object.keys(dataList[0]);
@@ -14342,6 +14477,7 @@ window.DynamicFormEngine = (function () {
           return row[key] !== null && row[key] !== undefined ? row[key] : '';
         });
       }),
+      valueIndex: 0,
       colFilterIndex: Math.max(0, orderedKeys.indexOf(labelKey))
     };
   }
@@ -14552,7 +14688,7 @@ window.DynamicFormEngine = (function () {
           var finalRenderRule = _normalizeRenderRule(item.renderRule || item.formatId || item.FormatID);
           var finalLabel = item.label || item.CaptionVN;
 
-          var inheritedOverrides = MetadataModuleConfig.getFieldConfig(fieldName);
+          var inheritedOverrides = MetadataModuleConfig.getFieldConfig(fieldName, MODULE_CONFIG.FormName);
           var moduleOverrides = {};
           if (MODULE_CONFIG.fieldOverrides) {
             var overrideKey = Object.keys(MODULE_CONFIG.fieldOverrides).find(function (k) {
@@ -14573,6 +14709,7 @@ window.DynamicFormEngine = (function () {
             if (overrides.valueField !== undefined) item.valueField = overrides.valueField;
             if (overrides.labelField !== undefined) item.labelField = overrides.labelField;
             if (overrides.allowCustomValue !== undefined) item.allowCustomValue = overrides.allowCustomValue;
+            if (overrides.multiple !== undefined) item.multiple = overrides.multiple;
             if (overrides.position !== undefined) finalPosition = overrides.position;
             if (overrides.label !== undefined) finalLabel = overrides.label;
           }
@@ -14591,6 +14728,7 @@ window.DynamicFormEngine = (function () {
               if (ff.valueField !== undefined) item.valueField = ff.valueField;
               if (ff.labelField !== undefined) item.labelField = ff.labelField;
               if (ff.allowCustomValue !== undefined) item.allowCustomValue = ff.allowCustomValue;
+              if (ff.multiple !== undefined) item.multiple = ff.multiple;
               if (ff.position !== undefined) finalPosition = ff.position;
               if (ff.label !== undefined) finalLabel = ff.label;
               if (ff.html !== undefined) item.html = ff.html;
@@ -14614,6 +14752,7 @@ window.DynamicFormEngine = (function () {
             valueField: item.valueField || item.ValueField || '',
             labelField: item.labelField || item.LabelField || '',
             allowCustomValue: item.allowCustomValue !== false,
+            multiple: item.multiple === true || finalRenderRule === 'ms',
             validateRule: rawValidate,
             dependsOn: (item.dependsOn || item.DependsOn || '').trim(),
             visibleRule: rawVisible,
@@ -14645,6 +14784,7 @@ window.DynamicFormEngine = (function () {
                 valueField: cf.valueField || '',
                 labelField: cf.labelField || '',
                 allowCustomValue: cf.allowCustomValue !== false,
+                multiple: cf.multiple === true || cf.renderRule === 'ms',
                 html: cf.html || ''
               });
             }
@@ -17856,7 +17996,7 @@ window.DynamicFormEngine = (function () {
           inputEl = UIInput.createDate(field);
         } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
           inputEl = UIInput.createTime(field);
-        } else if (field.renderRule === 'sl' || field.renderRule === 'select') {
+        } else if (field.renderRule === 'sl' || field.renderRule === 'select' || field.renderRule === 'ms') {
           inputEl = document.createElement('div');
           inputEl.className = 'form-group';
           inputEl.style.marginBottom = '0';
@@ -17883,8 +18023,15 @@ window.DynamicFormEngine = (function () {
                 placeholder: '-- Chọn --',
                 headers: ['ID', 'Tên'],
                 data: staticData,
+                multiple: field.multiple === true || field.renderRule === 'ms',
+                initialValue: field.value,
+                valueIndex: 0,
+                forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
+                readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
                 colFilterIndex: 1,
-                onSelect: function (r) { hiddenInput.value = r[0]; }
+                onSelect: function (r) {
+                  hiddenInput.value = (field.multiple === true || field.renderRule === 'ms') ? r : r[0];
+                }
               });
               var newDisplayInput = newCombo.querySelector('input.ui-input');
               var matched = staticData.find(function (r) { return r[0] == field.value; });
@@ -17910,14 +18057,22 @@ window.DynamicFormEngine = (function () {
                 var optionTable = _buildOptionTable(dataList, field, 0);
                 var newCombo = UIControls.createDataComboBox({
                   placeholder: '-- Chọn --', headers: optionTable.headers, data: optionTable.data, colFilterIndex: optionTable.colFilterIndex,
+                  multiple: field.multiple === true || field.renderRule === 'ms',
+                  initialValue: field.value,
+                  valueIndex: optionTable.valueIndex,
+                  forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
                   showAddNew: field.allowCustomValue !== false && !(typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns),
-                  readonlyInput: field.allowCustomValue === false,
+                  readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
                   onF2: function () {
                     newCombo.querySelector('.ui-input').focus();
                   },
-                  onSelect: function (r) { hiddenInput.value = r[0]; },
+                  onSelect: function (r) {
+                    hiddenInput.value = (field.multiple === true || field.renderRule === 'ms') ? r : r[0];
+                  },
                   onChange: function (val) {
-                    hiddenInput.value = field.allowCustomValue === false ? '' : val;
+                    hiddenInput.value = (field.multiple === true || field.renderRule === 'ms')
+                      ? val
+                      : (field.allowCustomValue === false ? '' : val);
                   }
                 });
                 var newDisplayInput = newCombo.querySelector('input.ui-input');
@@ -18419,7 +18574,7 @@ window.DynamicFormEngine = (function () {
         inputEl = UIInput.createDate(field);
       } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
         inputEl = UIInput.createTime(field);
-      } else if (field.renderRule === 'sl' || field.renderRule === 'select') {
+      } else if (field.renderRule === 'sl' || field.renderRule === 'select' || field.renderRule === 'ms') {
         var formGroupWrapper = document.createElement('div');
         formGroupWrapper.className = 'form-group';
 
@@ -18443,14 +18598,6 @@ window.DynamicFormEngine = (function () {
         formGroupWrapper.appendChild(hiddenInput);
 
         if (field.dataSource) {
-          if (field.name === 'BranchID') {
-            var userBranches = _getUserBranches() || [];
-            if (userBranches.length > 0) {
-              field.dataSource = 'STATIC:' + userBranches.map(function (b) {
-                return b.id + '|' + (b.name || b.id);
-              }).join(',');
-            }
-          }
           if (String(field.dataSource).toUpperCase().startsWith('STATIC:')) {
             var staticStr = field.dataSource.substring(7);
             var staticData = staticStr.split(',').map(function (s) {
@@ -18461,6 +18608,12 @@ window.DynamicFormEngine = (function () {
             var lazyStaticCombo = UIControls.createDataComboBox({
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
+              multiple: field.multiple === true || field.renderRule === 'ms',
+              initialValue: field.value,
+              valueIndex: 0,
+              colFilterIndex: 1,
+              forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
+              readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
               onSearch: function (q, page) {
                 return new Promise(function (resolve) {
@@ -18476,18 +18629,33 @@ window.DynamicFormEngine = (function () {
                   if (q) {
                     filtered = filtered.filter(function (r) { return r[1].toLowerCase().indexOf(q.toLowerCase()) > -1; });
                   }
-                  resolve({ headers: ['Mã', 'Tên'], data: filtered, colFilterIndex: 1 });
+                  resolve({
+                    headers: ['Mã', 'Tên'],
+                    data: filtered,
+                    valueIndex: 0,
+                    colFilterIndex: 1,
+                    forceMultiColumn: field.multiple === true || field.renderRule === 'ms'
+                  });
                 });
               },
               onSelect: function (row) {
-                hiddenInput.value = row[0]; // Cập nhật ID
+                hiddenInput.value = (field.multiple === true || field.renderRule === 'ms') ? row : row[0];
                 hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
               }
             });
 
             var displayInput = lazyStaticCombo.querySelector('input.ui-input');
-            var matched = staticData.find(function (r) { return r[0] == field.value; });
-            if (matched && displayInput) displayInput.value = matched[1];
+            if (field.multiple === true || field.renderRule === 'ms') {
+              var selectedStaticIds = String(field.value || '').split(',').map(function (value) { return value.trim(); }).filter(Boolean);
+              var selectedStaticLabels = selectedStaticIds.map(function (value) {
+                var selectedRow = staticData.find(function (r) { return String(r[0]) === value; });
+                return selectedRow ? selectedRow[1] : value;
+              });
+              if (displayInput) displayInput.value = selectedStaticLabels.join(', ');
+            } else {
+              var matched = staticData.find(function (r) { return r[0] == field.value; });
+              if (matched && displayInput) displayInput.value = matched[1];
+            }
 
             hiddenInput.fetchDataForValue = function () {
               var displayInp = lazyStaticCombo.querySelector('input.ui-input');
@@ -18584,17 +18752,28 @@ window.DynamicFormEngine = (function () {
             var lazyCombo = UIControls.createDataComboBox({
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
+              multiple: field.multiple === true || field.renderRule === 'ms',
+              initialValue: field.value,
+              valueIndex: 0,
+              forceMultiColumn: field.multiple === true || field.renderRule === 'ms',
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
               showAddNew: field.allowCustomValue !== false && !(typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns),
-              readonlyInput: field.allowCustomValue === false,
+              readonlyInput: field.allowCustomValue === false || field.multiple === true || field.renderRule === 'ms',
               onF2: function () {
                 lazyCombo.querySelector('.ui-input').focus();
               },
               onSearch: searchApiCall,
               onChange: function (val) {
-                hiddenInput.value = field.allowCustomValue === false ? '' : val;
+                hiddenInput.value = (field.multiple === true || field.renderRule === 'ms')
+                  ? val
+                  : (field.allowCustomValue === false ? '' : val);
               },
               onSelect: function (row) {
+                if (field.multiple === true || field.renderRule === 'ms') {
+                  hiddenInput.value = row;
+                  hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                  return;
+                }
                 hiddenInput.value = row[0];
 
                 // === AUTO FILL LOGIC ===
@@ -18640,6 +18819,15 @@ window.DynamicFormEngine = (function () {
             if (field.value) {
               searchApiCall('', 1).then(function (res) {
                 var displayInput = lazyCombo.querySelector('input.ui-input');
+                if (field.multiple === true || field.renderRule === 'ms') {
+                  var selectedIds = String(field.value).split(',').map(function (value) { return value.trim(); }).filter(Boolean);
+                  var selectedLabels = selectedIds.map(function (value) {
+                    var selectedRow = res.data.find(function (r) { return String(r[0]) === value; });
+                    return selectedRow ? selectedRow[res.colFilterIndex !== undefined ? res.colFilterIndex : 1] : value;
+                  });
+                  if (displayInput) displayInput.value = selectedLabels.join(', ');
+                  return;
+                }
                 var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
                 if (matched && displayInput) displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
                 else if (displayInput) displayInput.value = field.value; // Fallback
@@ -20266,6 +20454,7 @@ document.addEventListener('DOMContentLoaded', function () {
   };
   window.APP_MODULES['WA_NGUOIDUNGFRM'] = {
     FormName: 'WA_NguoiDungFrm',
+    PrimaryKey: 'UserName',
     TitleAdd: 'Thêm người dùng',
     TitleEdit: 'Sửa người dùng',
     TitleView: 'Chi tiết người dùng'

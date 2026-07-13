@@ -83,6 +83,7 @@ document.addEventListener('DOMContentLoaded', function () {
   };
   window.APP_MODULES['WA_NGUOIDUNGFRM'] = {
     FormName: 'WA_NguoiDungFrm',
+    PrimaryKey: 'UserName',
     TitleAdd: 'Thêm người dùng',
     TitleEdit: 'Sửa người dùng',
     TitleView: 'Chi tiết người dùng'
