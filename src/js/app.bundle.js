@@ -1,4 +1,5 @@
-﻿/* --- mockData.js --- */
+/* GENERATED FILE - DO NOT EDIT DIRECTLY */
+/* --- js/data/mockData.js --- */
 /**
  * Mock Data
  * Dữ liệu mẫu dùng chung cho toàn bộ hệ thống trong lúc chờ tích hợp API thật
@@ -124,8 +125,7 @@ var MockData = {
   ]
 };
 
-
-/* --- apiClient.js --- */
+/* --- js/utils/apiClient.js --- */
 /**
  * API Client Helper
  * Gói gọn logic gọi Fetch API, tự động gắn Base URL, Token, và xử lý lỗi chung.
@@ -282,8 +282,7 @@ const ApiClient = (function () {
 // Xuất ra để có thể dùng toàn cục trong file JS khác
 window.ApiClient = ApiClient;
 
-
-/* --- permission.js --- */
+/* --- js/utils/permission.js --- */
 /**
  * Permission Utility
  * Quản lý phân quyền hiển thị UI
@@ -326,8 +325,7 @@ var Permission = (function () {
   };
 })();
 
-
-/* --- DocumentExportPlugin.js --- */
+/* --- js/utils/DocumentExportPlugin.js --- */
 /**
  * DocumentExportPlugin (HR-management Version)
  * ─────────────────────────────────────────────────────────────────────
@@ -802,8 +800,7 @@ var DocumentExportPlugin = (function () {
   return { getExtraButtons: getExtraButtons };
 })();
 
-
-/* --- FormBuilderPlugin.js --- */
+/* --- js/utils/FormBuilderPlugin.js --- */
 /**
  * FormBuilderPlugin
  * ─────────────────────────────────────────────────────────────────────
@@ -1244,8 +1241,7 @@ var FormBuilderPlugin = (function () {
 
 })();
 
-
-/* --- WorkflowTransferPlugin.js --- */
+/* --- js/utils/WorkflowTransferPlugin.js --- */
 /**
  * WorkflowTransferPlugin
  * ─────────────────────────────────────────────────────────────────────
@@ -1398,8 +1394,7 @@ var WorkflowTransferPlugin = (function () {
     return { getExtraButtons: getExtraButtons };
 })();
 
-
-/* --- EventBus.js --- */
+/* --- js/core/EventBus.js --- */
 /**
  * Global Event Bus - Lõi Pub/Sub để các component giao tiếp với nhau
  * Giúp đồng bộ dữ liệu toàn hệ thống mà không cần truyền biến phức tạp
@@ -1436,8 +1431,7 @@ var EventBus = (function() {
   };
 })();
 
-
-/* --- KeyboardManager.js --- */
+/* --- js/core/KeyboardManager.js --- */
 /**
  * KeyboardManager — Quản lý phím tắt tập trung
  * Hỗ trợ các phím chuyên dụng: F2, F3, F4, Space, Enter, Esc
@@ -1493,8 +1487,7 @@ var KeyboardManager = (function () {
   return { init: init };
 })();
 
-
-/* --- FormatUtils.js --- */
+/* --- js/utils/FormatUtils.js --- */
 /**
  * Format Utility
  * Các hàm tiện ích dùng chung (Tiền tệ, Thời gian, Số)
@@ -1536,8 +1529,7 @@ var FormatUtils = (function () {
   };
 })();
 
-
-/* --- UITooltip.js --- */
+/* --- js/utils/UITooltip.js --- */
 /**
  * UITooltip — JS-driven tooltip dùng position: fixed
  * Không bị clip bởi overflow:hidden/auto của bất kỳ container nào.
@@ -1619,8 +1611,7 @@ var UITooltip = (function () {
   return { show: show, hide: hide };
 })();
 
-
-/* --- PrintUtils.js --- */
+/* --- js/utils/PrintUtils.js --- */
 /**
  * Print Utility
  * Phục vụ nghiệp vụ IN phiếu và IN lưới từ ứng dụng CSR (Client Side Render)
@@ -1666,8 +1657,7 @@ var PrintUtils = (function () {
   };
 })();
 
-
-/* --- CalendarService.js --- */
+/* --- js/services/CalendarService.js --- */
 /**
  * Lớp Dịch vụ Quản lý Dữ liệu Lịch (Calendar Service)
  * Đảm nhiệm việc fetch dữ liệu API, quản lý In-memory Cache, và format dữ liệu
@@ -1854,8 +1844,7 @@ var CalendarService = (function () {
   };
 })();
 
-
-/* --- SystemDataService.js --- */
+/* --- js/services/SystemDataService.js --- */
 /**
  * Lớp Dịch vụ lấy dữ liệu Danh mục dùng chung (Sảnh, Ca Tiệc...)
  * Đảm nhiệm việc fetch dữ liệu API, quản lý In-memory Cache để tái sử dụng
@@ -1973,8 +1962,7 @@ var SystemDataService = (function() {
   };
 })();
 
-
-/* --- BookingService.js --- */
+/* --- js/services/BookingService.js --- */
 /**
  * BookingService
  * Quản lý toàn bộ API call liên quan đến Biên nhận Cọc chỗ (Booking).
@@ -2124,8 +2112,7 @@ var BookingService = (function () {
   };
 })();
 
-
-/* --- VisitorService.js --- */
+/* --- js/services/VisitorService.js --- */
 /**
  * VisitorService
  * Quản lý toàn bộ API call liên quan đến Khách Tham Quan.
@@ -2167,8 +2154,7 @@ var VisitorService = (function () {
   };
 })();
 
-
-/* --- CheckoutService.js --- */
+/* --- js/services/CheckoutService.js --- */
 /**
  * CheckoutService
  * Quản lý toàn bộ API call liên quan đến Quyết Toán Tiệc.
@@ -2275,8 +2261,7 @@ var CheckoutService = (function () {
   };
 })();
 
-
-/* --- PermissionsService.js --- */
+/* --- js/services/PermissionsService.js --- */
 /**
  * PermissionsService
  * Quản lý toàn bộ API call liên quan đến Phân Quyền Người Dùng.
@@ -2405,8 +2390,7 @@ var PermissionsService = (function () {
   };
 })();
 
-
-/* --- MenusService.js --- */
+/* --- js/services/MenusService.js --- */
 /**
  * MenusService
  * Quản lý toàn bộ API call liên quan đến Quản lý Menu Hệ thống.
@@ -2512,8 +2496,7 @@ var MenusService = (function () {
   };
 })();
 
-
-/* --- ReportService.js --- */
+/* --- js/services/ReportService.js --- */
 /**
  * Dịch vụ Báo cáo (ReportService)
  */
@@ -2579,8 +2562,7 @@ var ReportService = (function () {
   };
 })();
 
-
-/* --- PeriodManager.js --- */
+/* --- js/services/PeriodManager.js --- */
 // Quản lý Kỳ kế toán (Period Manager) - Tích hợp Real DB (SY_Period)
 (function() {
   window.PeriodManager = {
@@ -2640,8 +2622,7 @@ var ReportService = (function () {
   window.PeriodManager.init();
 })();
 
-
-/* --- CompareBadge.js --- */
+/* --- components/compare-badge/CompareBadge.js --- */
 /**
  * CompareBadge Component
  * ─────────────────────────────────────────────
@@ -2749,8 +2730,7 @@ var CompareBadge = (function () {
   };
 })();
 
-
-/* --- MetricCard.js --- */
+/* --- components/metric-card/MetricCard.js --- */
 /**
  * MetricCard Component
  * ─────────────────────────────────────────────
@@ -2902,8 +2882,7 @@ var MetricCard = (function () {
   };
 })();
 
-
-/* --- SparklineChart.js --- */
+/* --- components/sparkline/SparklineChart.js --- */
 /**
  * SparklineChart Component
  * ─────────────────────────────────────────────
@@ -3107,8 +3086,7 @@ var SparklineChart = (function () {
   };
 })();
 
-
-/* --- KVTable.js --- */
+/* --- components/kv-table/KVTable.js --- */
 /**
  * KVTable Component (Key-Value Table)
  * ─────────────────────────────────────────────
@@ -3239,8 +3217,7 @@ var KVTable = (function () {
   };
 })();
 
-
-/* --- HallGauge.js --- */
+/* --- components/hall-gauge/HallGauge.js --- */
 /**
  * HallGauge Component
  * ─────────────────────────────────────────────
@@ -3367,8 +3344,7 @@ var HallGauge = (function () {
   };
 })();
 
-
-/* --- SectionPanel.js --- */
+/* --- components/section-panel/SectionPanel.js --- */
 /**
  * SectionPanel Component
  * ─────────────────────────────────────────────
@@ -3559,8 +3535,7 @@ var SectionPanel = (function () {
   };
 })();
 
-
-/* --- ReportFilterDialog.js --- */
+/* --- components/report-filter/ReportFilterDialog.js --- */
 /**
  * ReportFilterDialog Component
  * ─────────────────────────────────────────────
@@ -4074,8 +4049,7 @@ var ReportFilterDialog = (function () {
   };
 })();
 
-
-/* --- UIUtils.js --- */
+/* --- components/ui-utils/UIUtils.js --- */
 /**
  * Shared UI Utilities for Components
  */
@@ -4480,9 +4454,7 @@ UIControls.utils = (function () {
   };
 })();
 
-
-
-/* --- Navbar.js --- */
+/* --- components/navbar/Navbar.js --- */
 /**
  * Navbar Component
  * Thanh điều hướng ngang trên cùng — thay thế sidebar dọc.
@@ -5216,8 +5188,7 @@ var Navbar = (function () {
   };
 })();
 
-
-/* --- Checkbox.js --- */
+/* --- components/checkbox/Checkbox.js --- */
 /**
  * Custom Checkbox Component
  */
@@ -5247,8 +5218,7 @@ UIControls.createCheckbox = function(options) {
   return wrapper;
 };
 
-
-/* --- Radio.js --- */
+/* --- components/radio/Radio.js --- */
 /**
  * Custom Radio Component
  */
@@ -5303,8 +5273,7 @@ UIControls.createRadioGroup = function(options) {
   return group;
 };
 
-
-/* --- DataComboBox.js --- */
+/* --- components/data-combobox/DataComboBox.js --- */
 /**
  * Data ComboBox Component
  */
@@ -5807,8 +5776,7 @@ UIControls.createDataComboBox = function (options) {
   return container;
 };
 
-
-/* --- GridDropdown.js --- */
+/* --- components/grid-dropdown/GridDropdown.js --- */
 /**
  * Grid Dropdown Component
  */
@@ -5892,8 +5860,7 @@ UIControls.createGridDropdown = function(options) {
   return wrapper;
 };
 
-
-/* --- LoadingSpinner.js --- */
+/* --- components/loading-spinner/LoadingSpinner.js --- */
 /**
  * Loading Spinner Component
  * Hiện vòng xoay tải trang toàn màn hình
@@ -5940,8 +5907,7 @@ var LoadingSpinner = (function () {
   };
 })();
 
-
-/* --- Alert.js --- */
+/* --- components/alert/Alert.js --- */
 /**
  * Alert (Toast) Component
  * Hiển thị thông báo trượt góc phải màn hình
@@ -6029,8 +5995,7 @@ var Alert = (function () {
   };
 })();
 
-
-/* --- ConfirmModal.js --- */
+/* --- components/confirm-modal/ConfirmModal.js --- */
 /**
  * Confirm Modal Component
  * Hộp thoại hỏi ý kiến (Xóa/Lưu dữ liệu)
@@ -6133,8 +6098,7 @@ window.addEventListener('popstate', function (e) {
   }
 });
 
-
-/* --- Modal.js --- */
+/* --- components/modal/Modal.js --- */
 /**
  * Generic Modal Builder
  * Mở các Pop-up Window Nhập liệu / Báo cáo không cần code cứng HTML
@@ -6234,9 +6198,7 @@ window.addEventListener('popstate', function (e) {
   }
 });
 
-
-
-/* --- Pagination.js --- */
+/* --- components/pagination/Pagination.js --- */
 /**
  * Pagination Component
  * Trình phân trang cho DataGrid
@@ -6374,8 +6336,7 @@ var Pagination = (function () {
   };
 })();
 
-
-/* --- FilterComponent.js --- */
+/* --- components/filter/FilterComponent.js --- */
 /**
  * Filter Component
  * Thanh công cụ lọc dữ liệu
@@ -6795,8 +6756,7 @@ var FilterComponent = (function () {
   };
 })();
 
-
-/* --- Input.js --- */
+/* --- components/input/Input.js --- */
 /**
  * Input Component
  * Sinh ra các ô nhập liệu (Text, Number, Date...) kèm Label bằng DOM Node chuẩn.
@@ -7165,8 +7125,7 @@ var UIInput = (function () {
   };
 })();
 
-
-/* --- Button.js --- */
+/* --- components/button/Button.js --- */
 /**
  * Button Component
  * Sinh Nút bấm (Button) bằng DOM manipulation.
@@ -7417,8 +7376,7 @@ var UIButton = (function () {
   };
 })();
 
-
-/* --- Icon.js --- */
+/* --- components/icon/Icon.js --- */
 /**
  * Icon Component
  * Quản lý và render Icon (Hỗ trợ cả Material Symbols và Icon font riêng biệt)
@@ -7472,8 +7430,7 @@ var UIIcon = (function () {
   };
 })();
 
-
-/* --- ActionToolbar.js --- */
+/* --- components/action-toolbar/ActionToolbar.js --- */
 /**
  * Action Toolbar Component
  * Thanh công cụ chuẩn 6 nút: Thêm, Sửa, Xóa, Lọc, In, Đóng theo REQUIREMENT.md
@@ -7523,8 +7480,7 @@ var UIActionToolbar = (function () {
   };
 })();
 
-
-/* --- Card.js --- */
+/* --- components/card/Card.js --- */
 /**
  * Card Component
  * Sinh khối bao bọc Card chuẩn xác bằng JS.
@@ -7576,8 +7532,7 @@ var UICard = (function () {
   };
 })();
 
-
-/* --- Table.js --- */
+/* --- components/table/Table.js --- */
 /**
  * Table Component
  * Sinh ra DataGrid Table với JS.
@@ -8578,7 +8533,7 @@ var UITable = (function () {
   };
 })();
 
-/* --- Tabs.js --- */
+/* --- components/tabs/Tabs.js --- */
 /**
  * Tabs Component
  * Quản lý chuyển đổi các Tab (Ví dụ: Tab Bàn tiệc, Tab Khác...)
@@ -8647,8 +8602,7 @@ var UITabs = (function () {
   };
 })();
 
-
-/* --- NestedTabs.js --- */
+/* --- components/tabs/NestedTabs.js --- */
 /**
  * UINestedTabs — Tab phân cấp 2 cấp (Cha → Con) + Kéo thả sắp xếp
  * ──────────────────────────────────────────────────────────────────
@@ -9421,8 +9375,7 @@ var UINestedTabs = (function () {
 
 })();
 
-
-/* --- TotalBar.js --- */
+/* --- components/total-bar/TotalBar.js --- */
 /**
  * Total Bar Component
  * Thanh tổng cộng ở cuối bảng / trang (Ví dụ: Tổng chi phí, Tổng doanh thu)
@@ -9456,8 +9409,7 @@ var UITotalBar = (function () {
   };
 })();
 
-
-/* --- Badge.js --- */
+/* --- components/badge/Badge.js --- */
 /**
  * Badge Component
  * Sinh ra các nhãn trạng thái (Ví dụ: Đã Thanh Toán, Còn trống, Hủy)
@@ -9490,8 +9442,7 @@ var UIBadge = (function () {
   };
 })();
 
-
-/* --- Chart.js --- */
+/* --- components/chart/Chart.js --- */
 /**
  * Chart.js Wrapper Component 
  * Cần nạp Chart.js CDN trong index.html
@@ -9542,8 +9493,7 @@ var UIChart = (function () {
   };
 })();
 
-
-/* --- Stepper.js --- */
+/* --- components/stepper/Stepper.js --- */
 /**
  * Stepper Component
  * Sinh thanh điều hướng tiến trình nhiều bước (VD: Step 1 -> Step 2 -> Step 3)
@@ -9608,8 +9558,7 @@ var UIStepper = (function () {
   };
 })();
 
-
-/* --- Timeline.js --- */
+/* --- components/timeline/Timeline.js --- */
 /**
  * Timeline Component
  * Sinh ra Danh sách Lịch sử thao tác (VD: Cọc lần 1 -> Đổi cọc -> Cọc lần 2 -> Ký Hợp Đồng)
@@ -9665,8 +9614,7 @@ var UITimeline = (function () {
   };
 })();
 
-
-/* --- EmptyState.js --- */
+/* --- components/empty-state/EmptyState.js --- */
 /**
  * EmptyState Component
  * Trạng thái trống (VD: Chưa có khách hàng, chưa có hợp đồng)
@@ -9750,8 +9698,7 @@ var UIEmptyState = (function () {
   };
 })();
 
-
-/* --- FileUpload.js --- */
+/* --- components/file-upload/FileUpload.js --- */
 /**
  * File Upload Component
  * Cung cấp vùng Drag & Drop để upload Ảnh Món Ăn, Logo...
@@ -9817,8 +9764,7 @@ var UIFileUpload = (function () {
   };
 })();
 
-
-/* --- ContextMenu.js --- */
+/* --- components/context-menu/ContextMenu.js --- */
 /**
  * Context Menu Component
  * Bắt sự kiện Click Chuột Phải -> Hiện Menu thả xuống tùy chỉnh (Ví dụ: Tick/Bỏ Tick dòng, Đổi trạng thái)
@@ -9959,8 +9905,7 @@ var UIContextMenu = (function () {
   };
 })();
 
-
-/* --- Accordion.js --- */
+/* --- components/accordion/Accordion.js --- */
 /**
  * Accordion Component (Mở rộng / Thu gọn)
  * Áp dụng cho các Form quá dài cần gom nhóm lại
@@ -10013,8 +9958,7 @@ var UIAccordion = (function () {
   };
 })();
 
-
-/* --- TreeView.js --- */
+/* --- components/tree/TreeView.js --- */
 /**
  * TreeView Component
  * Hiển thị dạng hình cây thư mục (Dùng cho Phân Quyền, Danh mục nhóm)
@@ -10092,8 +10036,7 @@ var UITreeView = (function () {
   };
 })();
 
-
-/* --- Calendar.js --- */
+/* --- components/calendar/Calendar.js --- */
 /**
  * Calendar Component
  * Sinh lịch công việc cơ bản bằng JS. Không dùng thư viện nặng.
@@ -10480,8 +10423,7 @@ var UICalendar = (function () {
   };
 })();
 
-
-/* --- Slider.js --- */
+/* --- components/slider/Slider.js --- */
 /**
  * Slider Component
  * Thanh kéo trượt chọn giá trị (Ví dụ: Khoảng giá, Phần trăm giảm giá)
@@ -10537,8 +10479,7 @@ var UISlider = (function () {
   };
 })();
 
-
-/* --- Toast.js --- */
+/* --- components/toast/Toast.js --- */
 /**
  * Toast Component
  * Khác với Alert (Gây gián đoạn), Toast hiện lên lặng lẽ ở góc và tự biến mất sau 3s
@@ -10607,8 +10548,7 @@ var UIToast = (function () {
   };
 })();
 
-
-/* --- Popover.js --- */
+/* --- components/popover/Popover.js --- */
 /**
  * Popover Component
  * Một khung form nổi lên nhỏ gọn nằm cạnh Nút được bấm (Ví dụ: Form nhập nhanh số lượng)
@@ -10691,8 +10631,7 @@ var UIPopover = (function () {
   };
 })();
 
-
-/* --- Header.js --- */
+/* --- components/header/Header.js --- */
 /**
  * Header Component
  * Cấu trúc thanh Header trên cùng
@@ -10764,8 +10703,7 @@ var Header = (function () {
   };
 })();
 
-
-/* --- Sidebar.js --- */
+/* --- components/sidebar/Sidebar.js --- */
 /**
  * Sidebar Component
  * Cấu trúc thanh điều hướng bên trái
@@ -10965,8 +10903,7 @@ var Sidebar = (function () {
   };
 })();
 
-
-/* --- SearchDropdown.js --- */
+/* --- components/search-dropdown/SearchDropdown.js --- */
 /**
  * Search Dropdown Component
  * Autocomplete / Custom search results list with input and search button
@@ -11060,8 +10997,7 @@ UIControls.createSearchDropdown = function (options) {
   return wrapper;
 };
 
-
-/* --- SidePanel.js --- */
+/* --- components/side-panel/SidePanel.js --- */
 /**
  * SidePanel Component (Right Drawer)
  * Automatically handles overlays, sliding animations, and shadow-safe hiding.
@@ -11130,8 +11066,7 @@ var UISidePanel = (function () {
   return SidePanel;
 })();
 
-
-/* --- ScreenCapture.js --- */
+/* --- components/screen-capture/ScreenCapture.js --- */
 /* ═══════════════════════════════════════════
    SCREEN CAPTURE COMPONENT (Canvas-based)
    ═══════════════════════════════════════════ */
@@ -11533,8 +11468,7 @@ var ScreenCapture = (function () {
   };
 })();
 
-
-/* --- RuleBuilderDialog.js --- */
+/* --- components/rule-builder/RuleBuilderDialog.js --- */
 (function (global) {
   'use strict';
 
@@ -11763,8 +11697,7 @@ var ScreenCapture = (function () {
   global.RuleBuilderDialog = RuleBuilderDialog;
 })(window);
 
-
-/* --- MetadataModuleConfig.js --- */
+/* --- js/core/MetadataModuleConfig.js --- */
 /**
  * Shared metadata-first helpers for dynamic HR modules.
  * Business values stay in database metadata; JavaScript only supplies behavior.
@@ -11952,8 +11885,7 @@ window.MetadataModuleConfig = (function () {
   };
 })();
 
-
-/* --- WizardForm.js --- */
+/* --- js/core/WizardForm.js --- */
 /**
  * WizardForm — Multi-Step Add Form
  * ─────────────────────────────────────────────────────────
@@ -13851,8 +13783,7 @@ var WizardForm = (function () {
   return { open: open };
 })();
 
-
-/* --- DynamicFormEngine.js --- */
+/* --- js/core/DynamicFormEngine.js --- */
 /**
  * Dynamic Form Engine - Generic Metadata-Driven UI Engine
  */
@@ -20367,8 +20298,7 @@ window.DynamicFormEngine = (function () {
   return { render: render };
 })();
 
-
-/* --- index.js --- */
+/* --- js/core/index.js --- */
 /**
  * Bootstraps the application layout & interactions
  */
@@ -21797,8 +21727,7 @@ window.SapCaTuDong = function () {
   window.SapCaTuDong_ByID(sapCaInput ? sapCaInput.value : '', btn);
 };
 
-
-/* --- router.js --- */
+/* --- js/core/router.js --- */
 /**
  * Router — Hash-based SPA routing cho Quản lý Nhân sự
  * ─────────────────────────────────────────────────────
@@ -22227,5 +22156,3 @@ var Router = (function () {
     fetchTemplate: fetchTemplate   // Cho page modules dùng chung cache layer
   };
 })();
-
-
