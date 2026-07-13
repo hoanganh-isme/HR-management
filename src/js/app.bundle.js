@@ -20397,106 +20397,319 @@ window.DynamicFormEngine = (function () {
   return { render: render };
 })();
 
-/* --- js/core/index.js --- */
-/**
- * Bootstraps the application layout & interactions
- */
-document.addEventListener('DOMContentLoaded', function () {
-  // 0. Global Auth Logic
-  window.logoutApp = function () {
-    // Gọi API đăng xuất (background)
-    if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.AUTH.LOGOUT) {
-      ApiClient.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).catch(function () { });
-    }
+/* --- js/modules/system/user-groups.module.js --- */
+(function () {
+  'use strict';
 
-    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
-    if (typeof ApiClient !== 'undefined' && ApiClient.deleteCookie) {
-      ApiClient.deleteCookie('auth_token');
-    }
-
-    window.location.href = 'login.html';
-  };
-
-  // 0.5 Kiểm tra đăng nhập (Auth Guard)
-  var token = typeof ApiClient !== 'undefined' && ApiClient.getCookie ? ApiClient.getCookie('auth_token') : null;
-  if (!token) {
-    window.location.href = 'login.html';
-    return;
-  }
-
-  // 0.6 Khởi tạo hệ thống Phân quyền (RBAC)
-  window.AppPermissions = {
-    _cache: null,
-
-    _init: function () {
-      try {
-        var navCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem('pmql_nav_cache')) || 'null');
-        var userCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', 'null') : localStorage.getItem('pmql_user')) || 'null');
-
-        var isAdmin = MetadataModuleConfig.isAdminUser(userCache);
-
-        this._cache = {
-          isAdmin: isAdmin,
-          dict: {}
-        };
-
-        if (navCache && navCache.rawRecords) {
-          navCache.rawRecords.forEach(function (r) {
-            if (r.formName) {
-              this._cache.dict[r.formName.toLowerCase()] = r;
-            }
-          }.bind(this));
-        }
-      } catch (e) {
-        console.error('Error init AppPermissions', e);
-      }
-    },
-
-    hasPermission: function (formName, action) {
-      if (!this._cache) this._init();
-      if (!this._cache) return false;
-
-      if (this._cache.isAdmin) return true; // Admin bypass
-
-      if (!formName) return true; // Các module ko định danh thì cho phép qua
-      var perm = this._cache.dict[formName.toLowerCase()];
-      if (!perm) return false; // Không có trong phân quyền thì tịt
-
-      // action có thể là 'IsAdd', 'IsUpdate', 'IsDelete', 'IsRun', v.v.
-      return (perm[action] == 1 || perm[action] === true);
-    }
-  };
-  // 1. Khởi tạo trình quản lý phím tắt
-  if (typeof KeyboardManager !== 'undefined') {
-    KeyboardManager.init();
-  }
-
-  // 2. Khởi tạo Router
-  // Cấu hình các form có DetailTabs (Master-Detail)
-  window.APP_MODULES = window.APP_MODULES || {};
-  window.APP_MODULES['WA_NGUOIDUNGNHOMFRM'] = {
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_NguoiDungNhomFrm',
+    base: 'dynamic-crud',
+    config: {
     FormName: 'WA_NguoiDungNhomFrm',
     PrimaryKey: 'UserGroupID',
     TitleAdd: 'Thêm nhóm',
     TitleEdit: 'Sửa nhóm',
     TitleView: 'Chi tiết nhóm'
-  };
-  window.APP_MODULES['WA_NGUOIDUNGFRM'] = {
+    }
+  }));
+})();
+
+/* --- js/modules/system/users.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_NguoiDungFrm',
+    base: 'dynamic-crud',
+    config: {
     FormName: 'WA_NguoiDungFrm',
     PrimaryKey: 'UserName',
     TitleAdd: 'Thêm người dùng',
     TitleEdit: 'Sửa người dùng',
     TitleView: 'Chi tiết người dùng'
-  };
-  window.APP_MODULES['WA_TIMESHEETDAYFRM'] = {
-    FormName: 'WA_TimeSheetDayFrm',
-    PrimaryKey: 'UserAutoID',
-    HideAddBtn: true,
-    HideEditBtn: true,
-    HideDeleteBtn: true,
-    HidePrintBtn: true
-  };
-  window.APP_MODULES['WA_CALAMVIECFRM'] = {
+    }
+  }));
+})();
+
+/* --- js/modules/people/employees.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_PersonFullFrm',
+    base: 'dynamic-crud',
+    config: {
+    FormName: 'WA_PersonFullFrm',
+    PrimaryKey: 'PersonID',
+    IsFullPageDetail: false,
+    isPersonForm: true,
+    AttachmentApi: 'API_PersonAttach',
+    HideAddNewInDropdowns: true,
+    fieldOverrides: {
+      PersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
+      NewPersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
+      PersonName: { required: true, IsRequired: true },
+      PersonStatus: { required: true, IsRequired: true }
+    },
+    wizardHooks: {
+      resolveAutoId: MetadataModuleConfig.createSequentialIdResolver({
+        formName: 'WA_PersonFullFrm',
+        idField: 'PersonID'
+      })
+    },
+    UseSplitLayout: false,
+    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem hồ sơ chi tiết',
+    SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
+    SplitLayoutDetailWidth: '950px',
+    ModalWidth: '960px',
+    HideAddBtn: false,
+    HideEditBtn: false,
+    HideDeleteBtn: false,
+    AllowDblClickToView: true,
+    HideDetailTabsInModal: true,
+    FilterKeywordLabel: 'Mã/Tên nhân viên',
+    SearchPlaceholder: 'Tìm kiếm',
+    WizardSteps: [
+      { label: 'Thông tin công việc', icon: 'work', description: 'Vị trí và phòng ban', fields: ['PersonID', 'PersonName', 'PersonStatus', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 'ShiftID'] },
+      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch & Liên hệ', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'HonNhan', 'PeoplesName', 'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienNay', 'EducationName', 'CareerName', 'NguoiLienHe', 'MoiQuanHe', 'NguoiLienHeSoDT'] },
+      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['SocialID', 'SocialDate', 'NgayKetThucBH', 'ChamCong', 'SoTheBHYT', 'ThoiGianHuongBHYT', 'HospitalName', 'SoHopDong', 'LoaiHopDong', 'NgayHopDong', 'NgayHetHopDong', 'MaNVChamCong'] },
+      { label: 'Tài chính & Khác', icon: 'account_balance', description: 'Ngân hàng & Thông tin phụ', fields: ['BankHolder', 'BankAccountNo', 'BankName', 'BankLocation', 'NewPersonID', 'CardNo', 'ProvineName', 'NgayNghiViec'] },
+      { label: 'Xác nhận', icon: 'fact_check', description: 'Kiểm tra thông tin trước khi lưu', fields: [] }
+    ],
+    Filters: [
+      {
+        id: 'PersonStatus',
+        label: 'Trạng thái nhân sự',
+        type: 'select',
+        dataSource: 'API_ComboPersonStatus'
+      }
+    ],
+    DetailTabs: [
+      {
+        label: 'Quá trình làm việc và lương, phụ cấp',
+        api: 'API_PersonFull_T1_Salary',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['TrangThai', 'TuNgay', 'DenNgay', 'MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'GhiChu'],
+        headers: {
+          TrangThai: 'Trạng thái',
+          TuNgay: 'Từ ngày',
+          DenNgay: 'Đến ngày',
+          MucLuong: 'Mức lương',
+          LuongBaoHiem: 'Lương đóng BH',
+          PCCongTac: 'PC Công tác',
+          PCTrachNhiem: 'PC Trách nhiệm',
+          PCKhac: 'Phụ cấp khác',
+          GhiChu: 'Ghi chú'
+        }
+      },
+      {
+        label: 'Khen thưởng - Kỷ luật',
+        api: 'API_PersonFull_T3_KTKL',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['NoiDungKTKL', 'SoNgay', 'GhiChu'],
+        headers: {
+          NoiDungKTKL: 'Nội dung KTKL',
+          SoNgay: 'Số ngày',
+          GhiChu: 'Ghi chú'
+        }
+      },
+      {
+        label: 'Khai báo phép năm',
+        api: 'API_PersonFull_T4_NghiPhep',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['Nam', 'SoNgay', 'PhepThamNien', 'SoNgayDaSuDung', 'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat', 'GhiChu'],
+        headers: {
+          Nam: 'Năm',
+          SoNgay: 'Số ngày',
+          PhepThamNien: 'Phép thâm niên',
+          SoNgayDaSuDung: 'Đã dùng',
+          SoNgayConLai: 'Còn lại',
+          PhepTonNamTruoc: 'Phép tồn',
+          SoNgayPhepTet: 'Phép Tết',
+          SoNgayPhepOm: 'Phép ốm',
+          NgayCapNhat: 'Cập nhật',
+          GhiChu: 'Ghi chú'
+        }
+      },
+      {
+        label: 'Gia cảnh & Liên hệ',
+        api: 'API_PersonFull_T5_Relation',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['RelationID', 'PersonRelationName', 'NgaySinh', 'DiaChiThuongTru', 'DiaChiHienNay', 'IsNguoiPhuThuoc', 'GiamTruTuThang', 'GiamTruDenThang'],
+        headers: {
+          RelationID: 'Mã gia cảnh',
+          PersonRelationName: 'Tên thân nhân',
+          NgaySinh: 'Ngày sinh',
+          DiaChiThuongTru: 'Địa chỉ thường trú',
+          DiaChiHienNay: 'Địa chỉ hiện nay',
+          IsNguoiPhuThuoc: 'Phụ thuộc',
+          GiamTruTuThang: 'Giảm từ',
+          GiamTruDenThang: 'Giảm đến'
+        }
+      },
+      {
+        label: 'Lịch sử hợp đồng',
+        api: 'API_PersonFull_T6_HopDong',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['MaHopDong', 'PersonName', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'LoaiHopDong', 'LuongCoBan', 'MucDong', 'NoiDung'],
+        headers: {
+          MaHopDong: 'Mã HĐ',
+          PersonName: 'Họ tên',
+          NgayKyHopDong: 'Ngày ký',
+          NgayCoHieuLuc: 'Ngày hiệu lực',
+          NgayHetHieuLuc: 'Ngày hết hạn',
+          LoaiHopDong: 'Loại HĐ',
+          LuongCoBan: 'Lương cơ bản',
+          MucDong: 'Mức đóng',
+          NoiDung: 'Nội dung'
+        }
+      },
+      {
+        label: 'Lịch sử công tác',
+        api: 'API_PersonFull_T7_CongTac',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['PhongBan', 'TitleName', 'PostionName', 'Quanly', 'ShiftID', 'NgayThayDoi', 'UserName'],
+        headers: {
+          PhongBan: 'Bộ phận',
+          TitleName: 'Chức danh',
+          PostionName: 'Vị trí',
+          Quanly: 'Quản lý',
+          ShiftID: 'Ca làm việc',
+          NgayThayDoi: 'Ngày thay đổi',
+          UserName: 'Người cập nhật'
+        }
+      },
+      {
+        label: 'Lịch sử công việc',
+        api: 'API_PersonFull_T8_Log',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['UserName', 'LogDate', 'BranchID', 'StatusID', 'Notes'],
+        headers: {
+          UserName: 'Tài khoản',
+          LogDate: 'Ngày log',
+          BranchID: 'Chi nhánh',
+          StatusID: 'Trạng thái',
+          Notes: 'Ghi chú'
+        }
+      },
+      {
+        label: 'Giấy tờ',
+        api: 'API_PersonFull_T9_GiayTo',
+        editable: false,
+        filterField: 'PersonID',
+        fields: ['DocumentID', 'LoaiGiayTo', 'TuNgay', 'DenNgay', 'Notes'],
+        headers: {
+          DocumentID: 'Mã tài liệu',
+          LoaiGiayTo: 'Loại giấy tờ',
+          TuNgay: 'Từ ngày',
+          DenNgay: 'Đến ngày',
+          Notes: 'Ghi chú'
+        }
+      }
+    ]
+    }
+  }));
+})();
+
+/* --- js/modules/recruitment/candidates.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_DanhSachUngVienFrm',
+    base: 'dynamic-crud',
+    config: {
+    FormName: 'WA_DanhSachUngVienFrm',
+    PrimaryKey: 'CandidateID',
+    ModalWidth: '960px',
+    isCandidateForm: true,
+    AttachmentApi: 'API_CandidateAttach',
+    useCandidateAttachmentApi: true,
+    HideBranchStep: true,
+    wizardHooks: {
+      resolveAutoId: function (branchId, apiUrl, currentUser, cb) {
+        // Sinh mã ứng viên: UV + 6 số ngẫu nhiên theo thời gian
+        var candidateId = 'UV' + new Date().getTime().toString().slice(-6);
+        cb(candidateId, 'UV', null);
+      }
+    },
+    WizardSteps: [
+      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch', fields: ['CandidateID', 'FullName', 'GioiTinh', 'NgaySinh', 'SoCCCD', 'NgayCap', 'NoiCap', 'TinhTrangHonNhan', 'SoDienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienTai', 'LinkedIn'] },
+      { label: 'Thông tin ứng tuyển', icon: 'work', description: 'Vị trí và phòng ban', fields: ['ViTriUngTuyen', 'PhongBan', 'NguonUngTuyen', 'NgayUngTuyen', 'MucLuongMongMuon', 'NgayCoTheDiLam'] },
+      { label: 'Kỹ năng', icon: 'star', description: 'Chuyên môn & Mềm', fields: ['KyNangChuyenMon', 'KyNangMem', 'NgoaiNgu', 'TinHoc'] },
+      { label: 'Đánh giá & Kết quả', icon: 'fact_check', description: 'Nhận xét của HR', fields: ['TrangThaiHR', 'NguoiPhuTrach', 'DiemDanhGia', 'NhanXetHR', 'MucLuongDeXuat', 'KetQuaCuoiCung', 'NgayOnboard', 'GhiChuChung'] }
+    ],
+    DetailTabs: [
+      {
+        label: 'Phỏng vấn',
+        api: 'API_QuanLyUngVien_PhongVan',
+        filterField: 'CandidateID',
+        fields: ['VongPhongVan', 'NgayPhongVan', 'NguoiPhongVan', 'KetQuaVong', 'NhanXetChiTiet'],
+        headers: {
+          VongPhongVan: 'Vòng phỏng vấn',
+          NgayPhongVan: 'Ngày Phỏng Vấn',
+          NguoiPhongVan: 'Người phỏng vấn',
+          KetQuaVong: 'Kết quả phỏng vấn',
+          NhanXetChiTiet: 'Nhận xét chi tiết'
+        }
+      },
+      {
+        label: 'Kinh nghiệm',
+        api: 'API_QuanLyUngVien_KinhNghiem',
+        filterField: 'CandidateID',
+        fields: ['CongTyCu', 'ViTriCongTac', 'TuThangNam', 'DenThangNam', 'MoTaCongViec'],
+        headers: {
+          CongTyCu: 'Công ty cũ',
+          ViTriCongTac: 'Vị trí công tác',
+          TuThangNam: 'Từ ngày',
+          DenThangNam: 'Đến ngày',
+          MoTaCongViec: 'Mô tả công việc'
+        }
+      },
+      {
+        label: 'Học vấn',
+        api: 'API_QuanLyUngVien_HocVan',
+        filterField: 'CandidateID',
+        fields: ['TruongDaoTao', 'ChuyenNganh', 'TuNam', 'DenNam', 'BangCap'],
+        headers: {
+          TruongDaoTao: 'Trường đào tạo',
+          ChuyenNganh: 'Chuyên ngành',
+          TuNam: 'Từ năm',
+          DenNam: 'Đến năm',
+          BangCap: 'Bằng cấp'
+        }
+      },
+      {
+        label: 'Chứng chỉ',
+        api: 'API_QuanLyUngVien_ChungChi',
+        filterField: 'CandidateID',
+        fields: ['TenChungChi', 'ToChucCap', 'NgayCap'],
+        headers: {
+          TenChungChi: 'Tên chứng chỉ',
+          ToChucCap: 'Tổ chức cấp',
+          NgayCap: 'Ngày cấp'
+        }
+      }
+    ]
+    }
+  }));
+})();
+
+/* --- js/modules/time/shift-planning.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_CaLamViecFrm',
+    base: 'dynamic-crud',
+    config: {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
     ModalWidth: '860px',
@@ -20710,9 +20923,36 @@ document.addEventListener('DOMContentLoaded', function () {
       { name: 'ShiftIDThu7', position: 'grid|1-7' },
       { name: 'ShiftIDChuNhat', position: 'grid|1-7' }
     ]
-  };
+    }
+  }));
+})();
 
-  window.APP_MODULES['WA_QUANLYNGHIPHEPNAMFRM'] = {
+/* --- js/modules/time/timesheet.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_TimeSheetDayFrm',
+    base: 'dynamic-crud',
+    config: {
+    FormName: 'WA_TimeSheetDayFrm',
+    PrimaryKey: 'UserAutoID',
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    HidePrintBtn: true
+    }
+  }));
+})();
+
+/* --- js/modules/leave/annual-leave.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_QuanLyNghiPhepNamFrm',
+    base: 'dynamic-crud',
+    config: {
     FormName: 'WA_QuanLyNghiPhepNamFrm',
     PrimaryKey: 'PersonID',
     ModalWidth: '960px',
@@ -20742,274 +20982,240 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     ]
-  };
-  window.APP_MODULES['WA_KINHPHICONGDOANFRM'] = {
-    FormName: 'WA_KinhPhiCongDoanFrm',
-    PrimaryKey: 'UserAutoID'
-  };
+    }
+  }));
+})();
 
-  window.APP_MODULES['WA_PERSONFULLFRM'] = {
-    FormName: 'WA_PersonFullFrm',
-    PrimaryKey: 'PersonID',
-    IsFullPageDetail: false,
-    isPersonForm: true,
-    AttachmentApi: 'API_PersonAttach',
-    HideAddNewInDropdowns: true,
-    fieldOverrides: {
-      PersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
-      NewPersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
-      PersonName: { required: true, IsRequired: true },
-      PersonStatus: { required: true, IsRequired: true }
-    },
-    wizardHooks: {
-      resolveAutoId: MetadataModuleConfig.createSequentialIdResolver({
-        formName: 'WA_PersonFullFrm',
-        idField: 'PersonID'
-      })
-    },
+/* --- js/modules/contracts/employment-contract.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_HopDongLaoDongFrm',
+    base: 'dynamic-crud',
+    config: {
+    FormName: 'WA_HopDongLaoDongFrm',
+    PrimaryKey: 'MaHopDong',
     UseSplitLayout: false,
-    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem hồ sơ chi tiết',
-    SplitLayoutEmptyText: 'Không có chi tiết hồ sơ nhân viên',
-    SplitLayoutDetailWidth: '950px',
-    ModalWidth: '960px',
-    HideAddBtn: false,
-    HideEditBtn: false,
-    HideDeleteBtn: false,
+    SplitLayoutSelectText: 'Vui lòng chọn hợp đồng lao động để xem chi tiết',
+    SplitLayoutEmptyText: 'Không có phụ cấp nào trong hợp đồng này',
+    SplitLayoutDetailWidth: '960px',
+    ModalWidth: '1020px',
+    FilterKeywordLabel: 'Tìm nhanh',
+    SearchPlaceholder: 'Nhập mã hợp đồng hoặc tên nhân viên...',
     AllowDblClickToView: true,
-    HideDetailTabsInModal: true,
-    FilterKeywordLabel: 'Mã/Tên nhân viên',
-    SearchPlaceholder: 'Tìm kiếm',
-    WizardSteps: [
-      { label: 'Thông tin công việc', icon: 'work', description: 'Vị trí và phòng ban', fields: ['PersonID', 'PersonName', 'PersonStatus', 'BranchID', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'NgayVaoLam', 'NgayThuViec', 'ShiftID'] },
-      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch & Liên hệ', fields: ['GioiTinh', 'NgaySinh', 'NoiSinh', 'CMND', 'CMNDNgayCap', 'CMNDNoiCap', 'HonNhan', 'PeoplesName', 'ReligionName', 'Nationality', 'DienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienNay', 'EducationName', 'CareerName', 'NguoiLienHe', 'MoiQuanHe', 'NguoiLienHeSoDT'] },
-      { label: 'Hợp đồng & BHXH', icon: 'description', description: 'Hợp đồng và Bảo hiểm', fields: ['SocialID', 'SocialDate', 'NgayKetThucBH', 'ChamCong', 'SoTheBHYT', 'ThoiGianHuongBHYT', 'HospitalName', 'SoHopDong', 'LoaiHopDong', 'NgayHopDong', 'NgayHetHopDong', 'MaNVChamCong'] },
-      { label: 'Tài chính & Khác', icon: 'account_balance', description: 'Ngân hàng & Thông tin phụ', fields: ['BankHolder', 'BankAccountNo', 'BankName', 'BankLocation', 'NewPersonID', 'CardNo', 'ProvineName', 'NgayNghiViec'] },
-      { label: 'Xác nhận', icon: 'fact_check', description: 'Kiểm tra thông tin trước khi lưu', fields: [] }
-    ],
+    HideDetailTabsInModal: false,
+    HideBulkAddBtn: true,
+    RowNameField: 'MaHopDong',
+
+    // ── Bộ lọc thanh toolbar ─────────────────────────────────
     Filters: [
       {
-        id: 'PersonStatus',
-        label: 'Trạng thái nhân sự',
+        id: 'NamLap',
+        label: 'Năm lập',
         type: 'select',
-        dataSource: 'API_ComboPersonStatus'
+        dataSource: 'API_HopDongLaoDong_NamLap'
+      },
+      {
+        id: 'BranchID',
+        label: 'Chi nhánh',
+        type: 'select',
+        dataSource: 'CF_BranchListFrm'
+      },
+      {
+        id: 'LoaiHD',
+        label: 'Loại HD',
+        type: 'select',
+        dataSource: 'API_HopDongLaoDong_LoaiHD'
       }
     ],
-    DetailTabs: [
-      {
-        label: 'Quá trình làm việc và lương, phụ cấp',
-        api: 'API_PersonFull_T1_Salary',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['TrangThai', 'TuNgay', 'DenNgay', 'MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'GhiChu'],
-        headers: {
-          TrangThai: 'Trạng thái',
-          TuNgay: 'Từ ngày',
-          DenNgay: 'Đến ngày',
-          MucLuong: 'Mức lương',
-          LuongBaoHiem: 'Lương đóng BH',
-          PCCongTac: 'PC Công tác',
-          PCTrachNhiem: 'PC Trách nhiệm',
-          PCKhac: 'Phụ cấp khác',
-          GhiChu: 'Ghi chú'
-        }
-      },
-      {
-        label: 'Khen thưởng - Kỷ luật',
-        api: 'API_PersonFull_T3_KTKL',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['NoiDungKTKL', 'SoNgay', 'GhiChu'],
-        headers: {
-          NoiDungKTKL: 'Nội dung KTKL',
-          SoNgay: 'Số ngày',
-          GhiChu: 'Ghi chú'
-        }
-      },
-      {
-        label: 'Khai báo phép năm',
-        api: 'API_PersonFull_T4_NghiPhep',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['Nam', 'SoNgay', 'PhepThamNien', 'SoNgayDaSuDung', 'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat', 'GhiChu'],
-        headers: {
-          Nam: 'Năm',
-          SoNgay: 'Số ngày',
-          PhepThamNien: 'Phép thâm niên',
-          SoNgayDaSuDung: 'Đã dùng',
-          SoNgayConLai: 'Còn lại',
-          PhepTonNamTruoc: 'Phép tồn',
-          SoNgayPhepTet: 'Phép Tết',
-          SoNgayPhepOm: 'Phép ốm',
-          NgayCapNhat: 'Cập nhật',
-          GhiChu: 'Ghi chú'
-        }
-      },
-      {
-        label: 'Gia cảnh & Liên hệ',
-        api: 'API_PersonFull_T5_Relation',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['RelationID', 'PersonRelationName', 'NgaySinh', 'DiaChiThuongTru', 'DiaChiHienNay', 'IsNguoiPhuThuoc', 'GiamTruTuThang', 'GiamTruDenThang'],
-        headers: {
-          RelationID: 'Mã gia cảnh',
-          PersonRelationName: 'Tên thân nhân',
-          NgaySinh: 'Ngày sinh',
-          DiaChiThuongTru: 'Địa chỉ thường trú',
-          DiaChiHienNay: 'Địa chỉ hiện nay',
-          IsNguoiPhuThuoc: 'Phụ thuộc',
-          GiamTruTuThang: 'Giảm từ',
-          GiamTruDenThang: 'Giảm đến'
-        }
-      },
-      {
-        label: 'Lịch sử hợp đồng',
-        api: 'API_PersonFull_T6_HopDong',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['MaHopDong', 'PersonName', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'LoaiHopDong', 'LuongCoBan', 'MucDong', 'NoiDung'],
-        headers: {
-          MaHopDong: 'Mã HĐ',
-          PersonName: 'Họ tên',
-          NgayKyHopDong: 'Ngày ký',
-          NgayCoHieuLuc: 'Ngày hiệu lực',
-          NgayHetHieuLuc: 'Ngày hết hạn',
-          LoaiHopDong: 'Loại HĐ',
-          LuongCoBan: 'Lương cơ bản',
-          MucDong: 'Mức đóng',
-          NoiDung: 'Nội dung'
-        }
-      },
-      {
-        label: 'Lịch sử công tác',
-        api: 'API_PersonFull_T7_CongTac',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['PhongBan', 'TitleName', 'PostionName', 'Quanly', 'ShiftID', 'NgayThayDoi', 'UserName'],
-        headers: {
-          PhongBan: 'Bộ phận',
-          TitleName: 'Chức danh',
-          PostionName: 'Vị trí',
-          Quanly: 'Quản lý',
-          ShiftID: 'Ca làm việc',
-          NgayThayDoi: 'Ngày thay đổi',
-          UserName: 'Người cập nhật'
-        }
-      },
-      {
-        label: 'Lịch sử công việc',
-        api: 'API_PersonFull_T8_Log',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['UserName', 'LogDate', 'BranchID', 'StatusID', 'Notes'],
-        headers: {
-          UserName: 'Tài khoản',
-          LogDate: 'Ngày log',
-          BranchID: 'Chi nhánh',
-          StatusID: 'Trạng thái',
-          Notes: 'Ghi chú'
-        }
-      },
-      {
-        label: 'Giấy tờ',
-        api: 'API_PersonFull_T9_GiayTo',
-        editable: false,
-        filterField: 'PersonID',
-        fields: ['DocumentID', 'LoaiGiayTo', 'TuNgay', 'DenNgay', 'Notes'],
-        headers: {
-          DocumentID: 'Mã tài liệu',
-          LoaiGiayTo: 'Loại giấy tờ',
-          TuNgay: 'Từ ngày',
-          DenNgay: 'Đến ngày',
-          Notes: 'Ghi chú'
-        }
-      }
-    ]
-  };
 
-
-
-  window.APP_MODULES['WA_DANHSACHUNGVIENFRM'] = {
-    FormName: 'WA_DanhSachUngVienFrm',
-    PrimaryKey: 'CandidateID',
-    ModalWidth: '960px',
-    isCandidateForm: true,
-    AttachmentApi: 'API_CandidateAttach',
-    useCandidateAttachmentApi: true,
-    HideBranchStep: true,
-    wizardHooks: {
-      resolveAutoId: function (branchId, apiUrl, currentUser, cb) {
-        // Sinh mã ứng viên: UV + 6 số ngẫu nhiên theo thời gian
-        var candidateId = 'UV' + new Date().getTime().toString().slice(-6);
-        cb(candidateId, 'UV', null);
-      }
+    // Cấu hình ghi đè lên SY_FormatFields từ Database
+    fieldOverrides: {
+      PersonStatus: { renderRule: 'sl', dataSource: 'API_ComboPersonStatus' }
     },
-    WizardSteps: [
-      { label: 'Thông tin cá nhân', icon: 'contact_page', description: 'Sơ yếu lý lịch', fields: ['CandidateID', 'FullName', 'GioiTinh', 'NgaySinh', 'SoCCCD', 'NgayCap', 'NoiCap', 'TinhTrangHonNhan', 'SoDienThoai', 'Email', 'DiaChiThuongTru', 'DiaChiHienTai', 'LinkedIn'] },
-      { label: 'Thông tin ứng tuyển', icon: 'work', description: 'Vị trí và phòng ban', fields: ['ViTriUngTuyen', 'PhongBan', 'NguonUngTuyen', 'NgayUngTuyen', 'MucLuongMongMuon', 'NgayCoTheDiLam'] },
-      { label: 'Kỹ năng', icon: 'star', description: 'Chuyên môn & Mềm', fields: ['KyNangChuyenMon', 'KyNangMem', 'NgoaiNgu', 'TinHoc'] },
-      { label: 'Đánh giá & Kết quả', icon: 'fact_check', description: 'Nhận xét của HR', fields: ['TrangThaiHR', 'NguoiPhuTrach', 'DiemDanhGia', 'NhanXetHR', 'MucLuongDeXuat', 'KetQuaCuoiCung', 'NgayOnboard', 'GhiChuChung'] }
-    ],
+
+    // ── Tab chi tiết phụ cấp trong hợp đồng ─────────────────────────────
     DetailTabs: [
       {
-        label: 'Phỏng vấn',
-        api: 'API_QuanLyUngVien_PhongVan',
-        filterField: 'CandidateID',
-        fields: ['VongPhongVan', 'NgayPhongVan', 'NguoiPhongVan', 'KetQuaVong', 'NhanXetChiTiet'],
+        label: 'Phụ cấp trong hợp đồng',
+        api: 'API_HopDongLaoDong_ChiTiet',
+        filterField: 'MaHopDong',
+        editable: true,
+        customButtons: [
+          {
+            id: 'btn-multi-select-phucap',
+            label: 'Chọn nhiều phụ cấp',
+            icon: 'checklist',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var lookupPayload = { List: 'WA_BangPhuCapFrm', Func: 'View', Keyword: '' };
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách phụ cấp...', 'info', 0);
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', lookupPayload).then(function (res) {
+                if (loadingMsg) loadingMsg.close();
+                var dataList = res.list || res.records || [];
+                UIControls.utils.showMultiSelectGridModal({
+                  title: 'Chọn phụ cấp',
+                  dataList: dataList,
+                  ctx: ctx,
+                  keyField: 'MaPhuCap',
+                  headers: ['Mã phụ cấp', 'Tên phụ cấp', 'Tiền PC', 'PC Ngày', 'PC Tháng', 'Ghi chú'],
+                  fields: ['MaPhuCap', 'TenPhuCap', 'TienPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'GhiChu'],
+                  mapRow: function (rowData) {
+                    var newRow = {};
+                    newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                    newRow['MaPhuCap'] = rowData.MaPhuCap;
+                    newRow['TenPhuCap'] = rowData.TenPhuCap;
+                    newRow['TienPhuCap'] = rowData.TienPhuCap;
+                    newRow['TienPhuCapNgay'] = rowData.TienPhuCapNgay;
+                    newRow['TienPhuCapThang'] = rowData.TienPhuCapThang;
+                    newRow['GhiChu'] = rowData.GhiChu || '';
+                    return newRow;
+                  }
+                });
+              }).catch(function (err) {
+                if (loadingMsg) loadingMsg.close();
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
+                else alert('Lỗi khi tải danh sách');
+              });
+            }
+          }
+        ],
+        fields: ['MaPhuCap', 'TenPhuCap', 'TienPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'GhiChu'],
+        lookupConfig: {
+          MaPhuCap: {
+            headers: ['Mã PC', 'Tên phụ cấp', 'PC ngày', 'PC tháng'],
+            colFilterIndex: 0,
+            apiList: 'WA_BangPhuCapFrm',
+            getPayload: function () { return { List: 'WA_BangPhuCapFrm', Func: 'View' }; },
+            mapData: function (rowData, gridRow, isSearch) {
+              var getV = function (keys, idx) {
+                if (Array.isArray(rowData)) return rowData[idx] != null ? rowData[idx] : '';
+                for (var i = 0; i < keys.length; i++) {
+                  if (rowData[keys[i]] !== undefined && rowData[keys[i]] !== null) return rowData[keys[i]];
+                }
+                for (var k in rowData) {
+                  var lk = k.toLowerCase();
+                  for (var j = 0; j < keys.length; j++) {
+                    if (lk === keys[j].toLowerCase() && rowData[k] !== null) return rowData[k];
+                  }
+                }
+                return '';
+              };
+
+              if (isSearch) {
+                return [
+                  getV(['MaPhuCap'], 0),
+                  getV(['TenPhuCap'], 1),
+                  getV(['TienPhuCapNgay'], 3),
+                  getV(['TienPhuCapThang'], 4),
+                  getV(['TienPhuCap'], -1) || 0
+                ];
+              }
+
+              gridRow.TenPhuCap = getV(['TenPhuCap'], 1);
+              gridRow.TienPhuCapNgay = getV(['TienPhuCapNgay'], 2) || 0; // Notice index 2 in returned array
+              gridRow.TienPhuCapThang = getV(['TienPhuCapThang'], 3) || 0;
+              gridRow.TienPhuCap = getV(['TienPhuCap'], 4) || 0;
+
+              ['TenPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'TienPhuCap'].forEach(function (fName) {
+                if (!gridRow._tr) return;
+                var td = gridRow._tr.querySelector('td[data-field="' + fName + '"]');
+                if (td) {
+                  var inp = td.querySelector('input');
+                  if (inp) inp.value = gridRow[fName];
+                }
+              });
+            }
+          }
+        },
         headers: {
-          VongPhongVan: 'Vòng phỏng vấn',
-          NgayPhongVan: 'Ngày Phỏng Vấn',
-          NguoiPhongVan: 'Người phỏng vấn',
-          KetQuaVong: 'Kết quả phỏng vấn',
-          NhanXetChiTiet: 'Nhận xét chi tiết'
+          MaPhuCap: 'Mã phụ cấp',
+          TenPhuCap: 'Tên phụ cấp',
+          TienPhuCap: 'Tiền phụ cấp',
+          TienPhuCapNgay: 'PC theo ngày',
+          TienPhuCapThang: 'PC theo tháng',
+          GhiChu: 'Ghi chú'
         }
       },
       {
-        label: 'Kinh nghiệm',
-        api: 'API_QuanLyUngVien_KinhNghiem',
-        filterField: 'CandidateID',
-        fields: ['CongTyCu', 'ViTriCongTac', 'TuThangNam', 'DenThangNam', 'MoTaCongViec'],
+        label: 'Tài liệu đính kèm',
+        type: 'attachments',
+        api: 'API_HopDongLaoDong_Attach',
+        filterField: 'MaHopDong',
+        fields: ['FileName', 'FileType', 'STT', 'FileSize', 'Content'],
         headers: {
-          CongTyCu: 'Công ty cũ',
-          ViTriCongTac: 'Vị trí công tác',
-          TuThangNam: 'Từ ngày',
-          DenThangNam: 'Đến ngày',
-          MoTaCongViec: 'Mô tả công việc'
-        }
-      },
-      {
-        label: 'Học vấn',
-        api: 'API_QuanLyUngVien_HocVan',
-        filterField: 'CandidateID',
-        fields: ['TruongDaoTao', 'ChuyenNganh', 'TuNam', 'DenNam', 'BangCap'],
-        headers: {
-          TruongDaoTao: 'Trường đào tạo',
-          ChuyenNganh: 'Chuyên ngành',
-          TuNam: 'Từ năm',
-          DenNam: 'Đến năm',
-          BangCap: 'Bằng cấp'
-        }
-      },
-      {
-        label: 'Chứng chỉ',
-        api: 'API_QuanLyUngVien_ChungChi',
-        filterField: 'CandidateID',
-        fields: ['TenChungChi', 'ToChucCap', 'NgayCap'],
-        headers: {
-          TenChungChi: 'Tên chứng chỉ',
-          ToChucCap: 'Tổ chức cấp',
-          NgayCap: 'Ngày cấp'
+          FileName: 'Tên tệp',
+          FileType: 'Loại tệp',
+          STT: 'Số thứ tự',
+          FileSize: 'Kích thước'
         }
       }
     ]
-  };
+    }
+  }));
+})();
 
-  window.APP_MODULES['WA_LUONGKHOANFRM'] = {
+/* --- js/modules/payroll/payroll.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_PayrollFrm',
+    base: 'dynamic-crud',
+    config: {
+    FormName: 'WA_PayrollFrm',
+    PrimaryKey: 'DocumentID',
+    UseSplitLayout: false,
+    SplitLayoutSelectText: 'Vui lòng chọn chứng từ lương để xem chi tiết',
+    SplitLayoutEmptyText: 'Không có chi tiết bảng lương nào cho nhân viên này',
+    SplitLayoutDetailWidth: '950px',
+    ModalWidth: '960px',
+    FilterKeywordLabel: 'Mã/Tên nhân viên',
+    SearchPlaceholder: 'Nhập mã/tên nhân viên hoặc số chứng từ...',
+    DetailTabs: [
+      {
+        label: 'Chi tiết bảng lương',
+        api: 'API_Payroll_Detail',
+        filterField: 'DocumentID',
+        fields: ['Code', 'Mota', 'SoTien', 'Notes'],
+        headers: {
+          Code: 'Mã',
+          Mota: 'Khoản mục',
+          SoTien: 'Số tiền',
+          Notes: 'Ghi chú'
+        }
+      }
+    ]
+    }
+  }));
+})();
+
+/* --- js/modules/payroll/piecework.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_LuongKhoanFrm',
+    base: 'dynamic-crud',
+    config: {
     FormName: 'WA_LuongKhoanFrm',
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã hoặc tên nhân viên...'
-  };
+    }
+  }));
+})();
 
-  window.APP_MODULES['WA_BANGPHUCAPFRM'] = {
+/* --- js/modules/payroll/allowance.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_BangPhuCapFrm',
+    base: 'dynamic-crud',
+    config: {
     FormName: 'WA_BangPhuCapFrm',
     PrimaryKey: 'MaPhuCap',
     UseSplitLayout: false,
@@ -21036,9 +21242,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     ]
-  };
+    }
+  }));
+})();
 
-  window.APP_MODULES['WA_BAOHIEMFRM'] = {
+/* --- js/modules/insurance/insurance.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_BaoHiemFrm',
+    base: 'dynamic-crud',
+    config: {
     FormName: 'WA_BaoHiemFrm',
     PrimaryKey: 'DocumentID',
     UseSplitLayout: false,
@@ -21271,197 +21486,101 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     ]
+    }
+  }));
+})();
+
+/* --- js/modules/insurance/union-fee.module.js --- */
+(function () {
+  'use strict';
+
+  ModuleRegistry.register(ModuleDefinition.create({
+    id: 'WA_KinhPhiCongDoanFrm',
+    base: 'dynamic-crud',
+    config: {
+    FormName: 'WA_KinhPhiCongDoanFrm',
+    PrimaryKey: 'UserAutoID'
+    }
+  }));
+})();
+
+/* --- js/core/index.js --- */
+/**
+ * Bootstraps the application layout & interactions
+ */
+document.addEventListener('DOMContentLoaded', function () {
+  // 0. Global Auth Logic
+  window.logoutApp = function () {
+    // Gọi API đăng xuất (background)
+    if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.AUTH.LOGOUT) {
+      ApiClient.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).catch(function () { });
+    }
+
+    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
+    if (typeof ApiClient !== 'undefined' && ApiClient.deleteCookie) {
+      ApiClient.deleteCookie('auth_token');
+    }
+
+    window.location.href = 'login.html';
   };
 
-  window.APP_MODULES['WA_PAYROLLFRM'] = {
-    FormName: 'WA_PayrollFrm',
-    PrimaryKey: 'DocumentID',
-    UseSplitLayout: false,
-    SplitLayoutSelectText: 'Vui lòng chọn chứng từ lương để xem chi tiết',
-    SplitLayoutEmptyText: 'Không có chi tiết bảng lương nào cho nhân viên này',
-    SplitLayoutDetailWidth: '950px',
-    ModalWidth: '960px',
-    FilterKeywordLabel: 'Mã/Tên nhân viên',
-    SearchPlaceholder: 'Nhập mã/tên nhân viên hoặc số chứng từ...',
-    DetailTabs: [
-      {
-        label: 'Chi tiết bảng lương',
-        api: 'API_Payroll_Detail',
-        filterField: 'DocumentID',
-        fields: ['Code', 'Mota', 'SoTien', 'Notes'],
-        headers: {
-          Code: 'Mã',
-          Mota: 'Khoản mục',
-          SoTien: 'Số tiền',
-          Notes: 'Ghi chú'
+  // 0.5 Kiểm tra đăng nhập (Auth Guard)
+  var token = typeof ApiClient !== 'undefined' && ApiClient.getCookie ? ApiClient.getCookie('auth_token') : null;
+  if (!token) {
+    window.location.href = 'login.html';
+    return;
+  }
+
+  // 0.6 Khởi tạo hệ thống Phân quyền (RBAC)
+  window.AppPermissions = {
+    _cache: null,
+
+    _init: function () {
+      try {
+        var navCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem('pmql_nav_cache')) || 'null');
+        var userCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', 'null') : localStorage.getItem('pmql_user')) || 'null');
+
+        var isAdmin = MetadataModuleConfig.isAdminUser(userCache);
+
+        this._cache = {
+          isAdmin: isAdmin,
+          dict: {}
+        };
+
+        if (navCache && navCache.rawRecords) {
+          navCache.rawRecords.forEach(function (r) {
+            if (r.formName) {
+              this._cache.dict[r.formName.toLowerCase()] = r;
+            }
+          }.bind(this));
         }
+      } catch (e) {
+        console.error('Error init AppPermissions', e);
       }
-    ]
-  };
-
-  window.APP_MODULES['WA_HOPDONGLAODONGFRM'] = {
-    FormName: 'WA_HopDongLaoDongFrm',
-    PrimaryKey: 'MaHopDong',
-    UseSplitLayout: false,
-    SplitLayoutSelectText: 'Vui lòng chọn hợp đồng lao động để xem chi tiết',
-    SplitLayoutEmptyText: 'Không có phụ cấp nào trong hợp đồng này',
-    SplitLayoutDetailWidth: '960px',
-    ModalWidth: '1020px',
-    FilterKeywordLabel: 'Tìm nhanh',
-    SearchPlaceholder: 'Nhập mã hợp đồng hoặc tên nhân viên...',
-    AllowDblClickToView: true,
-    HideDetailTabsInModal: false,
-    HideBulkAddBtn: true,
-    RowNameField: 'MaHopDong',
-
-    // ── Bộ lọc thanh toolbar ─────────────────────────────────
-    Filters: [
-      {
-        id: 'NamLap',
-        label: 'Năm lập',
-        type: 'select',
-        dataSource: 'API_HopDongLaoDong_NamLap'
-      },
-      {
-        id: 'BranchID',
-        label: 'Chi nhánh',
-        type: 'select',
-        dataSource: 'CF_BranchListFrm'
-      },
-      {
-        id: 'LoaiHD',
-        label: 'Loại HD',
-        type: 'select',
-        dataSource: 'API_HopDongLaoDong_LoaiHD'
-      }
-    ],
-
-    // Cấu hình ghi đè lên SY_FormatFields từ Database
-    fieldOverrides: {
-      PersonStatus: { renderRule: 'sl', dataSource: 'API_ComboPersonStatus' }
     },
 
-    // ── Tab chi tiết phụ cấp trong hợp đồng ─────────────────────────────
-    DetailTabs: [
-      {
-        label: 'Phụ cấp trong hợp đồng',
-        api: 'API_HopDongLaoDong_ChiTiet',
-        filterField: 'MaHopDong',
-        editable: true,
-        customButtons: [
-          {
-            id: 'btn-multi-select-phucap',
-            label: 'Chọn nhiều phụ cấp',
-            icon: 'checklist',
-            className: 'btn-outline-success',
-            onClick: function (ctx) {
-              var lookupPayload = { List: 'WA_BangPhuCapFrm', Func: 'View', Keyword: '' };
-              var loadingMsg = null;
-              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách phụ cấp...', 'info', 0);
+    hasPermission: function (formName, action) {
+      if (!this._cache) this._init();
+      if (!this._cache) return false;
 
-              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', lookupPayload).then(function (res) {
-                if (loadingMsg) loadingMsg.close();
-                var dataList = res.list || res.records || [];
-                UIControls.utils.showMultiSelectGridModal({
-                  title: 'Chọn phụ cấp',
-                  dataList: dataList,
-                  ctx: ctx,
-                  keyField: 'MaPhuCap',
-                  headers: ['Mã phụ cấp', 'Tên phụ cấp', 'Tiền PC', 'PC Ngày', 'PC Tháng', 'Ghi chú'],
-                  fields: ['MaPhuCap', 'TenPhuCap', 'TienPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'GhiChu'],
-                  mapRow: function (rowData) {
-                    var newRow = {};
-                    newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
-                    newRow['MaPhuCap'] = rowData.MaPhuCap;
-                    newRow['TenPhuCap'] = rowData.TenPhuCap;
-                    newRow['TienPhuCap'] = rowData.TienPhuCap;
-                    newRow['TienPhuCapNgay'] = rowData.TienPhuCapNgay;
-                    newRow['TienPhuCapThang'] = rowData.TienPhuCapThang;
-                    newRow['GhiChu'] = rowData.GhiChu || '';
-                    return newRow;
-                  }
-                });
-              }).catch(function (err) {
-                if (loadingMsg) loadingMsg.close();
-                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
-                else alert('Lỗi khi tải danh sách');
-              });
-            }
-          }
-        ],
-        fields: ['MaPhuCap', 'TenPhuCap', 'TienPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'GhiChu'],
-        lookupConfig: {
-          MaPhuCap: {
-            headers: ['Mã PC', 'Tên phụ cấp', 'PC ngày', 'PC tháng'],
-            colFilterIndex: 0,
-            apiList: 'WA_BangPhuCapFrm',
-            getPayload: function () { return { List: 'WA_BangPhuCapFrm', Func: 'View' }; },
-            mapData: function (rowData, gridRow, isSearch) {
-              var getV = function (keys, idx) {
-                if (Array.isArray(rowData)) return rowData[idx] != null ? rowData[idx] : '';
-                for (var i = 0; i < keys.length; i++) {
-                  if (rowData[keys[i]] !== undefined && rowData[keys[i]] !== null) return rowData[keys[i]];
-                }
-                for (var k in rowData) {
-                  var lk = k.toLowerCase();
-                  for (var j = 0; j < keys.length; j++) {
-                    if (lk === keys[j].toLowerCase() && rowData[k] !== null) return rowData[k];
-                  }
-                }
-                return '';
-              };
+      if (this._cache.isAdmin) return true; // Admin bypass
 
-              if (isSearch) {
-                return [
-                  getV(['MaPhuCap'], 0),
-                  getV(['TenPhuCap'], 1),
-                  getV(['TienPhuCapNgay'], 3),
-                  getV(['TienPhuCapThang'], 4),
-                  getV(['TienPhuCap'], -1) || 0
-                ];
-              }
+      if (!formName) return true; // Các module ko định danh thì cho phép qua
+      var perm = this._cache.dict[formName.toLowerCase()];
+      if (!perm) return false; // Không có trong phân quyền thì tịt
 
-              gridRow.TenPhuCap = getV(['TenPhuCap'], 1);
-              gridRow.TienPhuCapNgay = getV(['TienPhuCapNgay'], 2) || 0; // Notice index 2 in returned array
-              gridRow.TienPhuCapThang = getV(['TienPhuCapThang'], 3) || 0;
-              gridRow.TienPhuCap = getV(['TienPhuCap'], 4) || 0;
-
-              ['TenPhuCap', 'TienPhuCapNgay', 'TienPhuCapThang', 'TienPhuCap'].forEach(function (fName) {
-                if (!gridRow._tr) return;
-                var td = gridRow._tr.querySelector('td[data-field="' + fName + '"]');
-                if (td) {
-                  var inp = td.querySelector('input');
-                  if (inp) inp.value = gridRow[fName];
-                }
-              });
-            }
-          }
-        },
-        headers: {
-          MaPhuCap: 'Mã phụ cấp',
-          TenPhuCap: 'Tên phụ cấp',
-          TienPhuCap: 'Tiền phụ cấp',
-          TienPhuCapNgay: 'PC theo ngày',
-          TienPhuCapThang: 'PC theo tháng',
-          GhiChu: 'Ghi chú'
-        }
-      },
-      {
-        label: 'Tài liệu đính kèm',
-        type: 'attachments',
-        api: 'API_HopDongLaoDong_Attach',
-        filterField: 'MaHopDong',
-        fields: ['FileName', 'FileType', 'STT', 'FileSize', 'Content'],
-        headers: {
-          FileName: 'Tên tệp',
-          FileType: 'Loại tệp',
-          STT: 'Số thứ tự',
-          FileSize: 'Kích thước'
-        }
-      }
-    ]
+      // action có thể là 'IsAdd', 'IsUpdate', 'IsDelete', 'IsRun', v.v.
+      return (perm[action] == 1 || perm[action] === true);
+    }
   };
+  // 1. Khởi tạo trình quản lý phím tắt
+  if (typeof KeyboardManager !== 'undefined') {
+    KeyboardManager.init();
+  }
 
+  // 2. Khởi tạo Router
+  // Cấu hình các form có DetailTabs (Master-Detail)
+  window.APP_MODULES = window.APP_MODULES || {};
 
   // Cấu hình Plugin Button "Tạo bảng lương tháng"
   if (!window.FormActionPlugins) window.FormActionPlugins = [];
