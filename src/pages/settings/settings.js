@@ -29,7 +29,7 @@ var SettingsPage = (function () {
 
   function _buildCompanyInfoTab() {
     var wrapper = document.createElement('div');
-    wrapper.innerHTML = '<div class="p-4"><div style="font-size:var(--font-size-lg); font-weight:600; margin-bottom:24px;">Thông tin Nhà hàng Quản lý Tiệc Cưới</div><div class="row g-4"><div class="col-md-6"><div class="form-group mb-4"><label>Tên nhà hàng / Công ty</label><input type="text" class="ui-input w-100" value="NHÀ HÀNG TIỆC CƯỚI CÁNH HOA ĐÊM" placeholder="Nhập tên doanh nghiệp..."></div><div class="form-group mb-4"><label>Địa chỉ</label><input type="text" class="ui-input w-100" value="123 Nguyễn Văn Cừ, Phường 4, Quận 5, TP.HCM" placeholder="Địa chỉ cơ sở..."></div><div class="row g-3 mb-4"><div class="col-6"><div class="form-group"><label>Số điện thoại</label><input type="text" class="ui-input w-100" value="0909.123.456"></div></div><div class="col-6"><div class="form-group"><label>Quỹ tiền mặt ban đầu</label><input type="text" class="ui-input w-100 text-end" value="500,000,000"></div></div></div></div><div class="col-md-6"><div class="form-group mb-4"><label>Logo Doanh Nghiệp (Dùng trên Phiếu/Hợp đồng)</label><div id="logo-upload-wrapper"></div><small style="color:var(--color-text-secondary); display:block; margin-top:8px;">Hệ thống sẽ lưu file thành logo.jpg trong thư mục mặc định.</small></div><div class="p-3" style="background: var(--color-background); border:1px dashed var(--color-border-strong); border-radius:8px;"><div class="fw-semibold mb-2">Ghi chú hệ thống</div><ul style="font-size:var(--font-size-sm); color:var(--color-text-secondary); margin:0; padding-left:16px; line-height:1.6;"><li>Thông tin liên hệ này sẽ được in trực tiếp lên các biểu mẫu Hợp đồng & Phiếu thu.</li><li>Logo nên dùng ảnh PNG nền trong suốt, kích thước 400x400px.</li></ul></div></div></div><div class="d-flex gap-2 pt-3 mt-4" style="border-top:1px solid var(--color-border);">' + UIButton.createHTML({ text: 'Cập Nhật Thông Tin', type: 'primary', onClick: "UIToast.show('Đã lưu thông tin doanh nghiệp.')" }) + '</div></div>';
+    wrapper.innerHTML = '<div class="p-4"><div style="font-size:var(--font-size-lg); font-weight:600; margin-bottom:24px;">Thông tin Công ty / Hệ thống</div><div class="row g-4"><div class="col-md-6"><div class="form-group mb-4"><label>Tên Công ty</label><input type="text" class="ui-input w-100" value="" data-setting="CompanyName" placeholder="Nhập tên doanh nghiệp..."></div><div class="form-group mb-4"><label>Địa chỉ</label><input type="text" class="ui-input w-100" value="" placeholder="Địa chỉ cơ sở..."></div><div class="row g-3 mb-4"><div class="col-6"><div class="form-group"><label>Số điện thoại</label><input type="text" class="ui-input w-100" value=""></div></div><div class="col-6"><div class="form-group"><label>Quỹ tiền mặt ban đầu</label><input type="text" class="ui-input w-100 text-end" value=""></div></div></div></div><div class="col-md-6"><div class="form-group mb-4"><label>Logo Doanh Nghiệp (Dùng trên Phiếu/Hợp đồng)</label><div id="logo-upload-wrapper"></div><small style="color:var(--color-text-secondary); display:block; margin-top:8px;">Logo được đọc từ cấu hình hệ thống.</small></div><div class="p-3" style="background: var(--color-background); border:1px dashed var(--color-border-strong); border-radius:8px;"><div class="fw-semibold mb-2">Ghi chú hệ thống</div><ul style="font-size:var(--font-size-sm); color:var(--color-text-secondary); margin:0; padding-left:16px; line-height:1.6;"><li>Thông tin liên hệ này sẽ được in trực tiếp lên các biểu mẫu Hợp đồng & Phiếu thu.</li><li>Logo nên dùng ảnh PNG nền trong suốt, kích thước 400x400px.</li></ul></div></div></div><div class="d-flex gap-2 pt-3 mt-4" style="border-top:1px solid var(--color-border);">' + UIButton.createHTML({ text: 'Cập Nhật Thông Tin', type: 'primary', onClick: "UIToast.show('Đã lưu thông tin doanh nghiệp.')" }) + '</div></div>';
 
     var uploadNode = UIFileUpload.create({
       accept: 'image/jpeg, image/png',
@@ -60,6 +60,12 @@ var SettingsPage = (function () {
       }
     });
     wrapper.querySelector('#logo-upload-wrapper').appendChild(uploadNode);
+    if (typeof SystemSettingsService !== 'undefined') {
+      SystemSettingsService.load().then(function (settings) {
+        var companyName = wrapper.querySelector('[data-setting="CompanyName"]');
+        if (companyName) companyName.value = settings.CompanyName || '';
+      });
+    }
     return wrapper;
   }
 
@@ -147,7 +153,8 @@ var SettingsPage = (function () {
     var colRight = document.createElement('div');
     colRight.className = 'col-md-6';
     colRight.style.cssText = 'border-left:1px solid var(--color-border); padding-left:32px;';
-    colRight.innerHTML = '<div class="d-flex align-items-center gap-2 mb-3" style="font-size:var(--font-size-lg); font-weight:600;">' + UIIcon.createHTML('cloud_download', 'color:var(--color-primary)') + 'Sao lưu Dữ liệu Hệ thống</div><p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:24px; line-height:1.5;">Hệ thống sẽ nén toàn bộ CSDL hiện tại thành file .bak hoặc .sql để tải xuống.<br>Tên file mặc định: <code style="background: rgba(148, 163, 184, 0.1); padding:2px 6px; border-radius:4px;">PMQLTiec_2026_10_25.bak</code></p>' + UIButton.createHTML({ text: 'Tải File Sao Lưu Ngay', icon: 'save', type: 'secondary', className: 'w-100 d-flex justify-content-center gap-2', onClick: "Alert.success('Backup thành công!')" });
+    var backupPrefix = window.APP_SETTINGS ? APP_SETTINGS.appCode.toUpperCase() : 'HRM';
+    colRight.innerHTML = '<div class="d-flex align-items-center gap-2 mb-3" style="font-size:var(--font-size-lg); font-weight:600;">' + UIIcon.createHTML('cloud_download', 'color:var(--color-primary)') + 'Sao lưu Dữ liệu Hệ thống</div><p style="font-size:14px; color:var(--color-text-secondary); margin-bottom:24px; line-height:1.5;">Hệ thống sẽ nén toàn bộ CSDL hiện tại thành file .bak hoặc .sql để tải xuống.<br>Tên file mặc định: <code style="background: rgba(148, 163, 184, 0.1); padding:2px 6px; border-radius:4px;">' + backupPrefix + '_2026_10_25.bak</code></p>' + UIButton.createHTML({ text: 'Tải File Sao Lưu Ngay', icon: 'save', type: 'secondary', className: 'w-100 d-flex justify-content-center gap-2', onClick: "Alert.success('Backup thành công!')" });
     row.appendChild(colRight);
 
     container.appendChild(row);
