@@ -60,7 +60,7 @@ var FormBuilderPlugin = (function () {
       </div>
       <div class="form-group mb-3">
         <label class="form-label fw-bold">Tên Bảng/View trong DB (ObjectName):</label>
-        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: v_DanhSachKhachHang">
+        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: HR_PersonView">
         <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
       </div>
     `;

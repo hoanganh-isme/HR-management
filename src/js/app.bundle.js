@@ -248,6 +248,103 @@ window.LegacyCompatibility = (function () {
   };
 })();
 
+/* --- js/app/AppBootstrap.js --- */
+window.AppBootstrap = (function () {
+  function startRouter() {
+    if (typeof Router === 'undefined') return;
+    if (!AppStorage.getStored('user', null)) { Router.init(); return; }
+    BranchRepository.getAll().then(function (response) {
+      var branches = Array.isArray(response) ? response : (response.data || response.list || response.records || []);
+      AppStorage.setStored('sys_branches', JSON.stringify(branches));
+      Router.init();
+    }).catch(function () { Router.init(); });
+  }
+
+  function renderNavbar() {
+    if (!AppStorage.getStored('user', null) || typeof Navbar === 'undefined') return;
+    Navbar.render('navbar-container');
+    if (Navbar.getLayout() !== 'vertical') return;
+    var verticalMain = document.getElementById('vertical-main');
+    var content = document.getElementById('app-content');
+    if (verticalMain && content && !verticalMain.contains(content)) verticalMain.appendChild(content);
+  }
+
+  function applyTheme() {
+    var savedFont = AppStorage.getStored('font_family', null);
+    if (savedFont) document.documentElement.style.setProperty('--font-family', '"' + savedFont + '", sans-serif');
+    function applyColorMode() {
+      var theme = AppStorage.getStored('theme', null) || ThemeConfig.defaultTheme;
+      var dark = theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.body.classList.toggle('dark-theme', dark);
+    }
+    applyColorMode();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      if ((AppStorage.getStored('theme', null) || 'auto') === 'auto') applyColorMode();
+    });
+    var colors = {
+      indigo: ['#4F46E5', '#4338CA', '#3730A3', 'rgba(79, 70, 229, 0.1)'],
+      emerald: ['#10B981', '#059669', '#047857', 'rgba(16, 185, 129, 0.1)'],
+      rose: ['#E11D48', '#BE123C', '#9F1239', 'rgba(225, 29, 72, 0.1)'],
+      amber: ['#F59E0B', '#D97706', '#B45309', 'rgba(245, 158, 11, 0.1)'],
+      sky: ['#0EA5E9', '#0284C7', '#0369A1', 'rgba(14, 165, 233, 0.1)']
+    };
+    var selected = colors[AppStorage.getStored('color', null)];
+    if (selected) {
+      ['--color-primary', '--color-primary-hover', '--color-primary-dark', '--color-primary-light'].forEach(function (name, index) {
+        document.documentElement.style.setProperty(name, selected[index]);
+      });
+    }
+  }
+
+  function start() {
+    window.APP_MODULES = ModuleRegistry.toLegacyMap();
+    if (typeof KeyboardManager !== 'undefined') KeyboardManager.init();
+    startRouter();
+    renderNavbar();
+    applyTheme();
+  }
+  return { start: start };
+})();
+
+/* --- js/shared/ResponsiveDataRenderer.js --- */
+window.ResponsiveDataRenderer = (function () {
+  function visibleFields(schema) {
+    return (schema || []).filter(function (field) { return field.MobileVisible !== false && field.mobileVisible !== false; })
+      .sort(function (left, right) { return (left.MobileOrder || left.mobileOrder || 999) - (right.MobileOrder || right.mobileOrder || 999); });
+  }
+
+  function render(options) {
+    options = options || {};
+    var config = Object.assign({ desktop: 'table', mobile: 'card', breakpoint: 768 }, options.moduleConfig && options.moduleConfig.responsive || {});
+    if (window.innerWidth >= config.breakpoint || config.mobile !== 'card') return false;
+    var fields = visibleFields(options.schema);
+    options.container.innerHTML = '';
+    var list = document.createElement('div');
+    list.className = 'responsive-data-cards';
+    (options.rows || []).forEach(function (row) {
+      var card = document.createElement('article');
+      card.className = 'responsive-data-card';
+      fields.forEach(function (field) {
+        var item = document.createElement('div');
+        item.className = 'responsive-data-card__field';
+        var label = document.createElement('span');
+        label.className = 'responsive-data-card__label';
+        label.textContent = field.label || field.CaptionVN || field.name || field.FieldName;
+        var value = document.createElement('strong');
+        value.className = 'responsive-data-card__value';
+        var key = field.name || field.FieldName;
+        value.textContent = row[key] == null ? '' : String(row[key]);
+        item.appendChild(label); item.appendChild(value); card.appendChild(item);
+      });
+      if (typeof options.onView === 'function') card.addEventListener('click', function () { options.onView(row); });
+      list.appendChild(card);
+    });
+    options.container.appendChild(list);
+    return true;
+  }
+  return { render: render };
+})();
+
 /* --- js/data/GatewayClient.js --- */
 window.GatewayClient = (function () {
   function endpoint(options) {
@@ -884,7 +981,7 @@ var FormBuilderPlugin = (function () {
       </div>
       <div class="form-group mb-3">
         <label class="form-label fw-bold">Tên Bảng/View trong DB (ObjectName):</label>
-        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: v_DanhSachKhachHang">
+        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: HR_PersonView">
         <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
       </div>
     `;
@@ -11367,6 +11464,16 @@ window.ModuleRegistry = (function () {
   };
 })();
 
+/* --- js/core/metadata/MetadataService.js --- */
+window.MetadataService = {
+  loadFields: function (formName) {
+    return GatewayClient.execute('API_LayCacTruongGiaoDien', { FormName: formName });
+  },
+  getFieldBehavior: function (formName, fieldName) {
+    return MetadataModuleConfig.getFieldConfig(fieldName, formName);
+  }
+};
+
 /* --- js/core/registry/FormActionRegistry.js --- */
 window.FormActionRegistry = (function () {
   var handlers = {};
@@ -11409,6 +11516,16 @@ window.FieldRendererRegistry = (function () {
 
 /* --- js/core/registry/DetailTabRegistry.js --- */
 window.DetailTabRegistry = PluginRegistry;
+
+/* --- js/core/router/RouteRegistry.js --- */
+window.RouteRegistry = (function () {
+  var routes = {};
+  function register(path, definition) { routes[String(path)] = definition; }
+  function get(path) { return routes[String(path)] || null; }
+  function has(path) { return !!get(path); }
+  function getAll() { return Object.assign({}, routes); }
+  return { register: register, get: get, has: has, getAll: getAll };
+})();
 
 /* --- js/core/MetadataModuleConfig.js --- */
 /**
@@ -21682,94 +21799,8 @@ document.addEventListener('DOMContentLoaded', function () {
       return (perm[action] == 1 || perm[action] === true);
     }
   };
-  // 1. Khởi tạo trình quản lý phím tắt
-  if (typeof KeyboardManager !== 'undefined') {
-    KeyboardManager.init();
-  }
 
-  // 2. Khởi tạo Router
-  // Cấu hình các form có DetailTabs (Master-Detail)
-  window.APP_MODULES = window.APP_MODULES || {};
-
-
-  if (typeof Router !== 'undefined') {
-    var currentUser = AppStorage.getStored('user', null);
-    if (currentUser && typeof ApiClient !== 'undefined') {
-      ApiClient.post('/api/API_Gateway_Router', {
-        List: 'CF_BranchListFrm',
-        FormName: 'CF_BranchListFrm',
-        Func: 'View',
-        Limit: 1000
-      }).then(function (res) {
-        var branchList = Array.isArray(res) ? res : (res.data || res.list || res.records || []);
-        AppStorage.setStored('sys_branches', JSON.stringify(branchList));
-        Router.init();
-      }).catch(function () {
-        Router.init();
-      });
-    } else {
-      Router.init();
-    }
-  }
-
-  // 3. Khởi tạo Navbar (chỉ render nếu đã đăng nhập)
-  var currentUser = AppStorage.getStored('user', null);
-  if (currentUser && typeof Navbar !== 'undefined') {
-    Navbar.render('navbar-container');
-
-    // Nếu mode là vertical, chuyển #app-content vào vertical-main
-    if (Navbar.getLayout() === 'vertical') {
-      var $vertMain = document.getElementById('vertical-main');
-      var $content = document.getElementById('app-content');
-      if ($vertMain && $content && !$vertMain.contains($content)) {
-        $vertMain.appendChild($content);
-      }
-    }
-  }
-
-  // 4. Khởi tạo cấu hình giao diện
-  var savedFont = AppStorage.getStored('font_family', null);
-  if (savedFont) {
-    document.documentElement.style.setProperty('--font-family', '"' + savedFont + '", sans-serif');
-  }
-
-  var savedTheme = AppStorage.getStored('theme', null) || 'auto';
-  if (savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    document.body.classList.add('dark-theme');
-  } else {
-    document.body.classList.remove('dark-theme');
-  }
-
-  // Lắng nghe sự thay đổi giao diện từ hệ thống (khi chuyển qua chế độ tiết kiệm pin hoặc Dark Mode)
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-    var currentTheme = AppStorage.getStored('theme', null) || 'auto';
-    if (currentTheme === 'auto') {
-      if (e.matches) {
-        document.body.classList.add('dark-theme');
-      } else {
-        document.body.classList.remove('dark-theme');
-      }
-    }
-  });
-
-  var savedColor = AppStorage.getStored('color', null);
-  if (savedColor) {
-    var COLORS = [
-      { id: 'indigo', primary: '#4F46E5', hover: '#4338CA', dark: '#3730A3', light: 'rgba(79, 70, 229, 0.1)' },
-      { id: 'emerald', primary: '#10B981', hover: '#059669', dark: '#047857', light: 'rgba(16, 185, 129, 0.1)' },
-      { id: 'rose', primary: '#E11D48', hover: '#BE123C', dark: '#9F1239', light: 'rgba(225, 29, 72, 0.1)' },
-      { id: 'amber', primary: '#F59E0B', hover: '#D97706', dark: '#B45309', light: 'rgba(245, 158, 11, 0.1)' },
-      { id: 'sky', primary: '#0EA5E9', hover: '#0284C7', dark: '#0369A1', light: 'rgba(14, 165, 233, 0.1)' }
-    ];
-    var colorDef = COLORS.find(function (c) { return c.id === savedColor; });
-    if (colorDef) {
-      document.documentElement.style.setProperty('--color-primary', colorDef.primary);
-      document.documentElement.style.setProperty('--color-primary-hover', colorDef.hover);
-      document.documentElement.style.setProperty('--color-primary-dark', colorDef.dark);
-      document.documentElement.style.setProperty('--color-primary-light', colorDef.light);
-    }
-  }
-
+  AppBootstrap.start();
 });
 
 /* --- js/core/router.js --- */
