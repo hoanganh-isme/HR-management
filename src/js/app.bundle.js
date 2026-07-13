@@ -282,6 +282,61 @@ const ApiClient = (function () {
 // Xuất ra để có thể dùng toàn cục trong file JS khác
 window.ApiClient = ApiClient;
 
+/* --- js/data/GatewayClient.js --- */
+window.GatewayClient = (function () {
+  function endpoint(options) {
+    return (options && options.endpoint) || '/api/API_Gateway_Router';
+  }
+
+  function request(listName, func, data, options) {
+    options = options || {};
+    var payload = Object.assign({}, options.payload || {}, {
+      List: listName,
+      FormName: options.formName || listName,
+      Func: func
+    });
+    if (options.limit !== undefined) payload.Limit = options.limit;
+    if (options.page !== undefined) payload.Page = options.page;
+    if (options.keyword !== undefined) payload.Keyword = options.keyword;
+    if (data !== undefined) payload.JsonData = typeof data === 'string' ? data : JSON.stringify(data || {});
+    return ApiClient.post(endpoint(options), payload);
+  }
+
+  return {
+    view: function (listName, options) { return request(listName, 'View', undefined, options); },
+    save: function (listName, data, options) { return request(listName, 'Save', data, options); },
+    delete: function (listName, ids, options) { return request(listName, 'Delete', ids, options); },
+    execute: function (listName, data, options) {
+      options = options || {};
+      return request(listName, options.func || 'View', data, options);
+    }
+  };
+})();
+
+/* --- js/data/BaseRepository.js --- */
+window.BaseRepository = function (listName, options) {
+  this.listName = listName;
+  this.options = options || {};
+};
+BaseRepository.prototype.view = function (options) { return GatewayClient.view(this.listName, Object.assign({}, this.options, options)); };
+BaseRepository.prototype.save = function (data, options) { return GatewayClient.save(this.listName, data, Object.assign({}, this.options, options)); };
+BaseRepository.prototype.delete = function (ids, options) { return GatewayClient.delete(this.listName, ids, Object.assign({}, this.options, options)); };
+BaseRepository.prototype.execute = function (data, options) { return GatewayClient.execute(this.listName, data, Object.assign({}, this.options, options)); };
+
+/* --- js/data/LookupRepository.js --- */
+window.LookupRepository = {
+  load: function (listName, options) {
+    return GatewayClient.view(listName, Object.assign({ limit: 1000 }, options || {}));
+  }
+};
+
+/* --- js/data/BranchRepository.js --- */
+window.BranchRepository = {
+  getAll: function () {
+    return GatewayClient.view('CF_BranchListFrm', { limit: 1000 });
+  }
+};
+
 /* --- js/utils/permission.js --- */
 /**
  * Permission Utility
@@ -11796,6 +11851,34 @@ window.ModuleRegistry = (function () {
   };
 })();
 
+/* --- js/core/registry/FormActionRegistry.js --- */
+window.FormActionRegistry = (function () {
+  var handlers = {};
+  function register(code, handler) {
+    if (!code || typeof handler !== 'function') throw new Error('Action code and handler are required');
+    handlers[String(code)] = handler;
+  }
+  function registerMany(map) {
+    Object.keys(map || {}).forEach(function (code) { register(code, map[code]); });
+  }
+  function get(code) { return handlers[String(code)] || null; }
+  function run(code, context) {
+    var handler = get(code);
+    if (!handler) throw new Error('Action handler is not registered: ' + code);
+    return handler(context || {});
+  }
+  return { register: register, registerMany: registerMany, get: get, run: run };
+})();
+
+/* --- js/core/registry/PluginRegistry.js --- */
+window.PluginRegistry = (function () {
+  var plugins = {};
+  function register(code, plugin) { plugins[String(code)] = plugin; return plugin; }
+  function get(code) { return plugins[String(code)] || null; }
+  function getAll() { return Object.keys(plugins).map(function (code) { return plugins[code]; }); }
+  return { register: register, get: get, getAll: getAll };
+})();
+
 /* --- js/core/MetadataModuleConfig.js --- */
 /**
  * Shared metadata-first helpers for dynamic HR modules.
@@ -20397,6 +20480,62 @@ window.DynamicFormEngine = (function () {
   return { render: render };
 })();
 
+/* --- js/plugins/shift/ShiftActions.js --- */
+window.ShiftActions = (function () {
+  function autoAssignById(sapCaID, callerBtn) {
+    if (!sapCaID) {
+      if (typeof Alert !== 'undefined') Alert.warning('Chưa lưu', 'Vui lòng Lưu thay đổi trước khi chạy Sắp ca tự động');
+      return;
+    }
+    var originalHtml = callerBtn ? callerBtn.innerHTML : '';
+    if (callerBtn) {
+      callerBtn.disabled = true;
+      callerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
+    }
+    return ApiClient.post('/api/HR_CaLamViec_SapCaStp', { SapCaID: sapCaID })
+      .then(function (res) {
+        if (res && res.code === 0) {
+          if (typeof Alert !== 'undefined') Alert.success('Thành công', 'Đã sắp ca tự động thành công');
+          var refreshBtn = document.querySelector('.btn-refresh-tab');
+          if (refreshBtn) refreshBtn.click();
+          else if (window.DynamicFormEngine && typeof window.DynamicFormEngine.reloadDetailTabs === 'function') window.DynamicFormEngine.reloadDetailTabs();
+        } else if (typeof Alert !== 'undefined') {
+          Alert.error('Lỗi', res && res.msg ? res.msg : 'Chạy sắp ca thất bại');
+        }
+        return res;
+      })
+      .catch(function (error) {
+        if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Lỗi hệ thống khi gọi API sắp ca');
+        throw error;
+      })
+      .finally(function () {
+        if (callerBtn) {
+          callerBtn.disabled = false;
+          callerBtn.innerHTML = originalHtml;
+        }
+      });
+  }
+
+  function autoAssignFromForm() {
+    var form = document.querySelector('.df-master-wrapper, .split-master-detail-container');
+    if (!form) {
+      if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy form');
+      return;
+    }
+    var sapCaInput = form.querySelector('[name="SapCaID"]');
+    var button = form.querySelector('button[onclick="window.SapCaTuDong()"]');
+    return autoAssignById(sapCaInput ? sapCaInput.value : '', button);
+  }
+
+  FormActionRegistry.register('ShiftActions.autoAssign', function (context) {
+    return autoAssignById(context.sapCaID, context.callerBtn);
+  });
+  return { autoAssignById: autoAssignById, autoAssignFromForm: autoAssignFromForm };
+})();
+
+window.SapCaTuDong_ByID = window.ShiftActions.autoAssignById;
+window.SapCaTuDong = window.ShiftActions.autoAssignFromForm;
+
 /* --- js/modules/system/user-groups.module.js --- */
 (function () {
   'use strict';
@@ -21504,6 +21643,228 @@ window.DynamicFormEngine = (function () {
   }));
 })();
 
+/* --- js/plugins/payroll/PayrollActions.js --- */
+(function () {
+  'use strict';
+
+  // Cấu hình Plugin Button "Tạo bảng lương tháng"
+  if (!window.FormActionPlugins) window.FormActionPlugins = [];
+  window.FormActionPlugins = window.FormActionPlugins.filter(function (p) { return p.id !== 'payroll_plugin'; });
+  window.FormActionPlugins.push({
+    id: 'payroll_plugin',
+    getExtraButtons: function (formName, getSelected, config, onReload) {
+      if (formName !== 'WA_PayrollFrm') return [];
+      return [
+        {
+          text: 'Tạo bảng lương tháng',
+          icon: 'calculate',
+          type: 'primary',
+          onClick: function () {
+            if (typeof ApiClient === 'undefined') return;
+
+            var loadingToast = typeof UIToast !== 'undefined' ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
+
+            GatewayClient.view('SY_Period', { limit: 1000 }).then(function (res) {
+              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
+
+              var records = res.records || (Array.isArray(res) ? res : []);
+              if (records.length === 0) {
+                if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Không tìm thấy kỳ lương nào trong hệ thống!');
+                return;
+              }
+
+              // Sắp xếp kỳ giảm dần
+              records.sort(function (a, b) {
+                return String(b.PeriodID).localeCompare(String(a.PeriodID));
+              });
+
+              var selectOptions = records.map(function (p) {
+                return '<option value="' + p.PeriodID + '">' + p.PeriodID + ' (' + (p.PeriodName || p.PeriodID) + ')</option>';
+              }).join('');
+
+              var selectHtml =
+                '<div style="text-align: left; margin-top: 10px;">' +
+                '  <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn kỳ lương cần tính toán:</label>' +
+                '  <select id="payroll-process-period" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
+                selectOptions +
+                '  </select>' +
+                '</div>';
+
+              if (typeof ConfirmModal !== 'undefined') {
+                ConfirmModal.show({
+                  title: 'Tạo Bảng Lương Tháng',
+                  message: selectHtml,
+                  confirmText: 'Tính Lương',
+                  confirmClass: 'btn-primary',
+                  onConfirm: function () {
+                    var selectedPeriod = document.getElementById('payroll-process-period').value;
+                    if (!selectedPeriod) return;
+
+                    if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.show(true, 'Đang tính toán bảng lương kỳ ' + selectedPeriod + '...');
+
+                    GatewayClient.execute('WA_PayRoll_Process_Stp', { PeriodID: selectedPeriod }).then(function (result) {
+                      if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
+
+                      var resData = Array.isArray(result) ? result[0] : (result.records && result.records[0] ? result.records[0] : result);
+                      var code = resData.code !== undefined ? resData.code : (resData.Code !== undefined ? resData.Code : 0);
+                      var msg = resData.msg || resData.Msg || resData.message || 'Thành công';
+
+                      if (code == 0) {
+                        if (typeof Alert !== 'undefined') Alert.success('Thành công', msg);
+                        if (window.currentFilters) {
+                          window.currentFilters['PeriodID'] = selectedPeriod;
+                        } else {
+                          window.currentFilters = { PeriodID: selectedPeriod };
+                        }
+                        if (typeof onReload === 'function') onReload();
+                      } else {
+                        if (typeof Alert !== 'undefined') Alert.error('Lỗi tính lương', msg);
+                      }
+                    }).catch(function (err) {
+                      if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
+                      console.error('Lỗi tính lương:', err);
+                      if (typeof Alert !== 'undefined') Alert.error('Lỗi kết nối', err.message || 'Không thể kết nối đến máy chủ.');
+                    });
+                  }
+                });
+              }
+            }).catch(function (err) {
+              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
+              console.error('Lỗi tải kỳ lương:', err);
+              if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không thể tải danh sách kỳ lương.');
+            });
+          }
+        }
+      ];
+    }
+  });
+})();
+
+/* --- js/plugins/timesheet/TimesheetActions.js --- */
+(function () {
+  'use strict';
+
+  // Cấu hình Plugin Button "Tạo bảng chấm công" cho trang WA_TimeSheetDayFrm
+  if (!window.FormActionPlugins) window.FormActionPlugins = [];
+  window.FormActionPlugins = window.FormActionPlugins.filter(function (p) { return p.id !== 'timesheet_day_plugin'; });
+  window.FormActionPlugins.push({
+    id: 'timesheet_day_plugin',
+    getExtraButtons: function (formName, getSelected, config, onReload) {
+      if (formName !== 'WA_TimeSheetDayFrm') return [];
+      return [
+        {
+          text: 'Tạo bảng chấm công',
+          icon: 'today',
+          type: 'primary',
+          onClick: function () {
+            if (typeof ApiClient === 'undefined') return;
+
+            var loadingToast = typeof UIToast !== 'undefined' ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
+
+            GatewayClient.view('SY_Period', { limit: 1000 }).then(function (res) {
+              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
+
+              var records = res.records || (Array.isArray(res) ? res : []);
+              if (records.length === 0) {
+                if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Không tìm thấy kỳ chấm công nào trong hệ thống!');
+                return;
+              }
+
+              // Sắp xếp kỳ giảm dần
+              records.sort(function (a, b) {
+                return String(b.PeriodID).localeCompare(String(a.PeriodID));
+              });
+
+              var selectOptions = records.map(function (p) {
+                return '<option value="' + p.PeriodID + '">' + p.PeriodID + ' (' + (p.PeriodName || p.PeriodID) + ')</option>';
+              }).join('');
+
+              // Tải thêm danh sách chi nhánh phục vụ việc chọn chi nhánh khi tạo
+              GatewayClient.view('API_DanhSachChiNhanh', { limit: 1000 }).then(function (branchRes) {
+                var branches = branchRes.list || branchRes.records || [];
+                var branchOptions = '<option value="">-- Tất cả Chi nhánh --</option>';
+                if (branches && branches.length > 0) {
+                  branchOptions += branches.map(function (b) {
+                    return '<option value="' + b.BranchID + '">' + (b.BranchName || b.BranchID) + '</option>';
+                  }).join('');
+                }
+
+                var selectHtml =
+                  '<div style="text-align: left; margin-top: 10px;">' +
+                  '  <div class="mb-3">' +
+                  '    <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn kỳ chấm công:</label>' +
+                  '    <select id="timesheet-process-period" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
+                  selectOptions +
+                  '    </select>' +
+                  '  </div>' +
+                  '  <div class="mb-2">' +
+                  '    <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn chi nhánh:</label>' +
+                  '    <select id="timesheet-process-branch" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
+                  branchOptions +
+                  '    </select>' +
+                  '  </div>' +
+                  '</div>';
+
+                if (typeof ConfirmModal !== 'undefined') {
+                  ConfirmModal.show({
+                    title: 'Tạo Bảng Chấm Công Hàng Ngày',
+                    message: selectHtml,
+                    confirmText: 'Tạo Bảng',
+                    confirmClass: 'btn-primary',
+                    onConfirm: function () {
+                      var selectedPeriod = document.getElementById('timesheet-process-period').value;
+                      var selectedBranch = document.getElementById('timesheet-process-branch').value;
+                      if (!selectedPeriod) return;
+
+                      if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.show(true, 'Đang tạo bảng chấm công kỳ ' + selectedPeriod + '...');
+
+                      GatewayClient.execute('WA_TimeSheetDay_Process_Stp', {
+                        PeriodID: selectedPeriod,
+                        BranchID: selectedBranch
+                      }).then(function (result) {
+                        if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
+
+                        var resData = Array.isArray(result) ? result[0] : (result.records && result.records[0] ? result.records[0] : result);
+                        var code = resData.code !== undefined ? resData.code : (resData.Code !== undefined ? resData.Code : 0);
+                        var msg = resData.msg || resData.Msg || resData.message || 'Thành công';
+
+                        if (code == 0) {
+                          if (typeof Alert !== 'undefined') Alert.success('Thành công', msg);
+                          if (window.currentFilters) {
+                            window.currentFilters['PeriodID'] = selectedPeriod;
+                            window.currentFilters['BranchID'] = selectedBranch;
+                          } else {
+                            window.currentFilters = { PeriodID: selectedPeriod, BranchID: selectedBranch };
+                          }
+                          if (typeof onReload === 'function') onReload();
+                        } else {
+                          if (typeof Alert !== 'undefined') Alert.error('Lỗi tạo bảng', msg);
+                        }
+                      }).catch(function (err) {
+                        if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
+                        console.error('Lỗi tạo bảng chấm công:', err);
+                        if (typeof Alert !== 'undefined') Alert.error('Lỗi kết nối', err.message || 'Không thể kết nối đến máy chủ.');
+                      });
+                    }
+                  });
+                }
+              }).catch(function (err) {
+                if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
+                console.error('Lỗi tải danh sách chi nhánh:', err);
+                if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không thể tải danh sách chi nhánh.');
+              });
+            }).catch(function (err) {
+              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
+              console.error('Lỗi tải kỳ chấm công:', err);
+              if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không thể tải danh sách kỳ.');
+            });
+          }
+        }
+      ];
+    }
+  });
+})();
+
 /* --- js/core/index.js --- */
 /**
  * Bootstraps the application layout & interactions
@@ -21582,234 +21943,6 @@ document.addEventListener('DOMContentLoaded', function () {
   // Cấu hình các form có DetailTabs (Master-Detail)
   window.APP_MODULES = window.APP_MODULES || {};
 
-  // Cấu hình Plugin Button "Tạo bảng lương tháng"
-  if (!window.FormActionPlugins) window.FormActionPlugins = [];
-  window.FormActionPlugins = window.FormActionPlugins.filter(function (p) { return p.id !== 'payroll_plugin'; });
-  window.FormActionPlugins.push({
-    id: 'payroll_plugin',
-    getExtraButtons: function (formName, getSelected, config, onReload) {
-      if (formName !== 'WA_PayrollFrm') return [];
-      return [
-        {
-          text: 'Tạo bảng lương tháng',
-          icon: 'calculate',
-          type: 'primary',
-          onClick: function () {
-            if (typeof ApiClient === 'undefined') return;
-
-            var loadingToast = typeof UIToast !== 'undefined' ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
-
-            ApiClient.post('/api/API_Gateway_Router', {
-              List: 'SY_Period',
-              Func: 'View',
-              Limit: 1000
-            }).then(function (res) {
-              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
-
-              var records = res.records || (Array.isArray(res) ? res : []);
-              if (records.length === 0) {
-                if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Không tìm thấy kỳ lương nào trong hệ thống!');
-                return;
-              }
-
-              // Sắp xếp kỳ giảm dần
-              records.sort(function (a, b) {
-                return String(b.PeriodID).localeCompare(String(a.PeriodID));
-              });
-
-              var selectOptions = records.map(function (p) {
-                return '<option value="' + p.PeriodID + '">' + p.PeriodID + ' (' + (p.PeriodName || p.PeriodID) + ')</option>';
-              }).join('');
-
-              var selectHtml =
-                '<div style="text-align: left; margin-top: 10px;">' +
-                '  <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn kỳ lương cần tính toán:</label>' +
-                '  <select id="payroll-process-period" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
-                selectOptions +
-                '  </select>' +
-                '</div>';
-
-              if (typeof ConfirmModal !== 'undefined') {
-                ConfirmModal.show({
-                  title: 'Tạo Bảng Lương Tháng',
-                  message: selectHtml,
-                  confirmText: 'Tính Lương',
-                  confirmClass: 'btn-primary',
-                  onConfirm: function () {
-                    var selectedPeriod = document.getElementById('payroll-process-period').value;
-                    if (!selectedPeriod) return;
-
-                    if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.show(true, 'Đang tính toán bảng lương kỳ ' + selectedPeriod + '...');
-
-                    ApiClient.post('/api/API_Gateway_Router', {
-                      List: 'WA_PayRoll_Process_Stp',
-                      Func: 'View',
-                      JsonData: JSON.stringify({ PeriodID: selectedPeriod })
-                    }).then(function (result) {
-                      if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
-
-                      var resData = Array.isArray(result) ? result[0] : (result.records && result.records[0] ? result.records[0] : result);
-                      var code = resData.code !== undefined ? resData.code : (resData.Code !== undefined ? resData.Code : 0);
-                      var msg = resData.msg || resData.Msg || resData.message || 'Thành công';
-
-                      if (code == 0) {
-                        if (typeof Alert !== 'undefined') Alert.success('Thành công', msg);
-                        if (window.currentFilters) {
-                          window.currentFilters['PeriodID'] = selectedPeriod;
-                        } else {
-                          window.currentFilters = { PeriodID: selectedPeriod };
-                        }
-                        if (typeof onReload === 'function') onReload();
-                      } else {
-                        if (typeof Alert !== 'undefined') Alert.error('Lỗi tính lương', msg);
-                      }
-                    }).catch(function (err) {
-                      if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
-                      console.error('Lỗi tính lương:', err);
-                      if (typeof Alert !== 'undefined') Alert.error('Lỗi kết nối', err.message || 'Không thể kết nối đến máy chủ.');
-                    });
-                  }
-                });
-              }
-            }).catch(function (err) {
-              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
-              console.error('Lỗi tải kỳ lương:', err);
-              if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không thể tải danh sách kỳ lương.');
-            });
-          }
-        }
-      ];
-    }
-  });
-
-  // Cấu hình Plugin Button "Tạo bảng chấm công" cho trang WA_TimeSheetDayFrm
-  if (!window.FormActionPlugins) window.FormActionPlugins = [];
-  window.FormActionPlugins = window.FormActionPlugins.filter(function (p) { return p.id !== 'timesheet_day_plugin'; });
-  window.FormActionPlugins.push({
-    id: 'timesheet_day_plugin',
-    getExtraButtons: function (formName, getSelected, config, onReload) {
-      if (formName !== 'WA_TimeSheetDayFrm') return [];
-      return [
-        {
-          text: 'Tạo bảng chấm công',
-          icon: 'today',
-          type: 'primary',
-          onClick: function () {
-            if (typeof ApiClient === 'undefined') return;
-
-            var loadingToast = typeof UIToast !== 'undefined' ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
-
-            ApiClient.post('/api/API_Gateway_Router', {
-              List: 'SY_Period',
-              Func: 'View',
-              Limit: 1000
-            }).then(function (res) {
-              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
-
-              var records = res.records || (Array.isArray(res) ? res : []);
-              if (records.length === 0) {
-                if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Không tìm thấy kỳ chấm công nào trong hệ thống!');
-                return;
-              }
-
-              // Sắp xếp kỳ giảm dần
-              records.sort(function (a, b) {
-                return String(b.PeriodID).localeCompare(String(a.PeriodID));
-              });
-
-              var selectOptions = records.map(function (p) {
-                return '<option value="' + p.PeriodID + '">' + p.PeriodID + ' (' + (p.PeriodName || p.PeriodID) + ')</option>';
-              }).join('');
-
-              // Tải thêm danh sách chi nhánh phục vụ việc chọn chi nhánh khi tạo
-              ApiClient.post('/api/API_Gateway_Router', {
-                List: 'API_DanhSachChiNhanh',
-                Func: 'View',
-                Limit: 1000
-              }).then(function (branchRes) {
-                var branches = branchRes.list || branchRes.records || [];
-                var branchOptions = '<option value="">-- Tất cả Chi nhánh --</option>';
-                if (branches && branches.length > 0) {
-                  branchOptions += branches.map(function (b) {
-                    return '<option value="' + b.BranchID + '">' + (b.BranchName || b.BranchID) + '</option>';
-                  }).join('');
-                }
-
-                var selectHtml =
-                  '<div style="text-align: left; margin-top: 10px;">' +
-                  '  <div class="mb-3">' +
-                  '    <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn kỳ chấm công:</label>' +
-                  '    <select id="timesheet-process-period" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
-                  selectOptions +
-                  '    </select>' +
-                  '  </div>' +
-                  '  <div class="mb-2">' +
-                  '    <label style="font-weight: 600; font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px;">Chọn chi nhánh:</label>' +
-                  '    <select id="timesheet-process-branch" class="ui-input" style="width: 100%; height: 38px; border: 1px solid var(--color-border-strong); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 14px; outline: none; padding: 0 10px;">' +
-                  branchOptions +
-                  '    </select>' +
-                  '  </div>' +
-                  '</div>';
-
-                if (typeof ConfirmModal !== 'undefined') {
-                  ConfirmModal.show({
-                    title: 'Tạo Bảng Chấm Công Hàng Ngày',
-                    message: selectHtml,
-                    confirmText: 'Tạo Bảng',
-                    confirmClass: 'btn-primary',
-                    onConfirm: function () {
-                      var selectedPeriod = document.getElementById('timesheet-process-period').value;
-                      var selectedBranch = document.getElementById('timesheet-process-branch').value;
-                      if (!selectedPeriod) return;
-
-                      if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.show(true, 'Đang tạo bảng chấm công kỳ ' + selectedPeriod + '...');
-
-                      ApiClient.post('/api/API_Gateway_Router', {
-                        List: 'WA_TimeSheetDay_Process_Stp',
-                        Func: 'View',
-                        JsonData: JSON.stringify({ PeriodID: selectedPeriod, BranchID: selectedBranch })
-                      }).then(function (result) {
-                        if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
-
-                        var resData = Array.isArray(result) ? result[0] : (result.records && result.records[0] ? result.records[0] : result);
-                        var code = resData.code !== undefined ? resData.code : (resData.Code !== undefined ? resData.Code : 0);
-                        var msg = resData.msg || resData.Msg || resData.message || 'Thành công';
-
-                        if (code == 0) {
-                          if (typeof Alert !== 'undefined') Alert.success('Thành công', msg);
-                          if (window.currentFilters) {
-                            window.currentFilters['PeriodID'] = selectedPeriod;
-                            window.currentFilters['BranchID'] = selectedBranch;
-                          } else {
-                            window.currentFilters = { PeriodID: selectedPeriod, BranchID: selectedBranch };
-                          }
-                          if (typeof onReload === 'function') onReload();
-                        } else {
-                          if (typeof Alert !== 'undefined') Alert.error('Lỗi tạo bảng', msg);
-                        }
-                      }).catch(function (err) {
-                        if (typeof LoadingSpinner !== 'undefined') LoadingSpinner.hide();
-                        console.error('Lỗi tạo bảng chấm công:', err);
-                        if (typeof Alert !== 'undefined') Alert.error('Lỗi kết nối', err.message || 'Không thể kết nối đến máy chủ.');
-                      });
-                    }
-                  });
-                }
-              }).catch(function (err) {
-                if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
-                console.error('Lỗi tải danh sách chi nhánh:', err);
-                if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không thể tải danh sách chi nhánh.');
-              });
-            }).catch(function (err) {
-              if (loadingToast && typeof UIToast !== 'undefined') UIToast.hide(loadingToast);
-              console.error('Lỗi tải kỳ chấm công:', err);
-              if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không thể tải danh sách kỳ.');
-            });
-          }
-        }
-      ];
-    }
-  });
 
   if (typeof Router !== 'undefined') {
     var currentUser = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
@@ -21890,60 +22023,6 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
 });
-
-// --- CUSTOM FUNCTIONS FOR WA_CaLamViecFrm ---
-
-// Hàm lõi: nhận SapCaID trực tiếp, không cần query DOM
-window.SapCaTuDong_ByID = function (sapCaID, callerBtn) {
-  if (!sapCaID) {
-    if (typeof Alert !== 'undefined') Alert.warning('Chưa lưu', 'Vui lòng Lưu thay đổi trước khi chạy Sắp ca tự động');
-    return;
-  }
-
-  var originalHtml = callerBtn ? callerBtn.innerHTML : '';
-  if (callerBtn) {
-    callerBtn.disabled = true;
-    callerBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
-  }
-
-  var payload = {
-    SapCaID: sapCaID
-  };
-
-  ApiClient.post('/api/HR_CaLamViec_SapCaStp', payload)
-    .then(function (res) {
-      if (res && res.code === 0) {
-        if (typeof Alert !== 'undefined') Alert.success('Thành công', 'Đã sắp ca tự động thành công');
-        // Reload detail grid (Bảng ca chi tiết)
-        var refreshBtn = document.querySelector('.btn-refresh-tab');
-        if (refreshBtn) {
-          refreshBtn.click();
-        } else if (typeof window.DynamicFormEngine !== 'undefined' && typeof window.DynamicFormEngine.reloadDetailTabs === 'function') {
-          window.DynamicFormEngine.reloadDetailTabs();
-        }
-      } else {
-        if (typeof Alert !== 'undefined') Alert.error('Lỗi', res && res.msg ? res.msg : 'Chạy sắp ca thất bại');
-      }
-    })
-    .catch(function (err) {
-      if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Lỗi hệ thống khi gọi API sắp ca');
-    })
-    .finally(function () {
-      if (callerBtn) {
-        callerBtn.disabled = false;
-        callerBtn.innerHTML = originalHtml;
-      }
-    });
-};
-
-// Backward compat: nút "Sắp ca tự động" cũ trong FormFields vẫn hoạt động
-window.SapCaTuDong = function () {
-  var form = document.querySelector('.df-master-wrapper, .split-master-detail-container');
-  if (!form) { if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy form'); return; }
-  var sapCaInput = form.querySelector('[name="SapCaID"]');
-  var btn = form.querySelector('button[onclick="window.SapCaTuDong()"]');
-  window.SapCaTuDong_ByID(sapCaInput ? sapCaInput.value : '', btn);
-};
 
 /* --- js/core/router.js --- */
 /**
