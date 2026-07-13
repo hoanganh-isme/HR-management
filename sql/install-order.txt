@@ -1,0 +1,39 @@
+# Run from the repository root with SQLCMD mode enabled.
+# 1. Core API
+sql/API/API_LuuTruongGiaoDien.sql
+sql/API/API_DongBoTruongGiaoDien.sql
+sql/API/API_DangKyFormWeb.sql
+sql/API/API_TheoDoiTaiNguyenFormWeb.sql
+
+# 2. Existing module business procedures (no business logic is duplicated here)
+sql/API/APINEW/API_KinhPhiCongDoan.sql
+sql/API/APINEW/API_BaoHiem.sql
+sql/API/APINEW/API_BaoHiem_Detail.sql
+sql/API/APINEW/WA_BaoHiemFrm_Save.sql
+sql/API/APINEW/TinhBHStp.sql
+sql/API/APINEW/API_Payroll.sql
+sql/API/APINEW/API_Payroll_Detail.sql
+sql/API/WA_PayRoll_Process_Stp.sql
+sql/API/APINEW/API_CaLamViec.sql
+sql/API/APINEW/API_CaLamViec_Detail.sql
+sql/API/APINEW/API_HopDongLaoDong.sql
+sql/API/APINEW/API_HopDongLaoDong_ChiTiet.sql
+sql/API/APINEW/API_HopDongLaoDong_Attach.sql
+sql/API/APINEW/API_HoSoNhanVien.sql
+
+# 3. Script-owned shared metadata seed
+sql/Modules/Core/insert_SharedFieldDictionary.sql
+
+# 4. Canonical form/API registration
+sql/Insert/Insert_WA_KinhPhiCongDoanFrm.sql
+sql/Modules/Insurance/register_Insurance.sql
+sql/Modules/Payroll/register_Payroll.sql
+sql/Modules/Shift/register_Shift.sql
+sql/Modules/Contract/register_Contract.sql
+sql/Modules/Employee/register_Employee.sql
+sql/Modules/ReferenceData/register_ReferenceData.sql
+
+# 5. Verification
+sql/Modules/Core/verify_CoreRegistration.sql
+sql/verify-registration.sql
+sql/verify-idempotency.sql
