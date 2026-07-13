@@ -37,9 +37,7 @@ window.MetadataModuleConfig = (function () {
 
   function _readStoredBranches() {
     try {
-      var raw = window.APP_SETTINGS
-        ? window.APP_SETTINGS.getStored('sys_branches', '[]')
-        : window.localStorage.getItem('pmql_sys_branches');
+      var raw = AppStorage.getStored('sys_branches', '[]');
       var rows = JSON.parse(raw || '[]');
       return Array.isArray(rows) ? rows : [];
     } catch (e) {

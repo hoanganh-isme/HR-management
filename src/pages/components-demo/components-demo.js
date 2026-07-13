@@ -565,7 +565,7 @@ var ComponentsDemoPage = (function () {
     if (!el || typeof UICard === 'undefined') { if (el) el.innerHTML = '<p style="color:var(--color-text-secondary)">UICard chưa được khai báo.</p>'; return; }
     var card = UICard.create({
       title: 'Thông tin Hợp đồng #HD-260101',
-      bodyContent: '<div class="p-3"><p><b>Khách hàng:</b> Trương Tuấn Anh & Trần Thủy Tiên</p><p><b>Sảnh:</b> Diamond Hall — 45 bàn mặn, 2 chay</p><p><b>Ngày tổ chức:</b> 25/11/2026</p><p><b>Tổng tiền:</b> <span style="color:var(--color-success); font-weight:600;">₫180,000,000</span></p></div>'
+      bodyContent: '<div class="p-3"><p><b>Nhân viên:</b> Nguyễn Văn An</p><p><b>Phòng ban:</b> Nhân sự</p><p><b>Ngày hiệu lực:</b> 25/11/2026</p><p><b>Trạng thái:</b> <span style="color:var(--color-success); font-weight:600;">Đang làm việc</span></p></div>'
     });
     el.appendChild(card);
   }
@@ -592,9 +592,9 @@ var ComponentsDemoPage = (function () {
         { field: 'status', render: function (v) { return UIBadge.createHTML(v, v === 'Đã ký' ? 'success' : 'warning'); } }
       ],
       data: [
-        { stt: 1, maHD: 'HD-260101', khach: 'Nguyễn Văn A - Lê Thị B', sanh: 'Diamond Hall', soBan: 45, status: 'Đã ký' },
-        { stt: 2, maHD: 'HD-260102', khach: 'Trần Hữu C - Đinh Bích D', sanh: 'Ruby Hall', soBan: 30, status: 'Chờ cọc' },
-        { stt: 3, maHD: 'HD-260103', khach: 'Hoàng E - Ngô F', sanh: 'Sapphire Hall', soBan: 60, status: 'Đã ký' }
+        { stt: 1, maHD: 'HDLD-260101', khach: 'Nguyễn Văn An', sanh: 'Phòng Nhân sự', soBan: 1, status: 'Hiệu lực' },
+        { stt: 2, maHD: 'HDLD-260102', khach: 'Trần Thị Bình', sanh: 'Phòng Kế toán', soBan: 1, status: 'Sắp hết hạn' },
+        { stt: 3, maHD: 'HDLD-260103', khach: 'Lê Minh Châu', sanh: 'Phòng Vận hành', soBan: 1, status: 'Hiệu lực' }
       ]
     });
     el.appendChild(table);

@@ -1,0 +1,2 @@
+window.DetailTabRegistry = PluginRegistry;
+

@@ -192,6 +192,8 @@ UIControls.createDataComboBox = function (options) {
     input.title = labels.join(', ');
   }
 
+  syncDisplayValue();
+
   function renderTable(displayData) {
     if (UIControls.utils) {
       tableWrapper.innerHTML = UIControls.utils.createDropdownTableHTML(
@@ -216,7 +218,8 @@ UIControls.createDataComboBox = function (options) {
           row.classList.add('active');
         }
 
-        row.addEventListener('click', function () {
+        row.addEventListener('click', function (event) {
+          event.stopPropagation();
           if (isMultiple) {
             var selectedIndex = selectedValues.indexOf(dataValue);
             if (selectedIndex === -1) selectedValues.push(dataValue);

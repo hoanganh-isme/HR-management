@@ -1,4 +1,5 @@
-﻿/* --- design-tokens.css --- */
+/* GENERATED FILE - DO NOT EDIT DIRECTLY */
+/* --- css/design-tokens.css --- */
 /* ═══════════════════════════════════════════
    Design Tokens — TailAdmin Style
    Dành cho Quản lý Nhân sự
@@ -127,8 +128,7 @@ body.dark-theme .theme-option {
   background-color: var(--color-surface) !important;
 }
 
-
-/* --- global.css --- */
+/* --- css/global.css --- */
 /* ═══════════════════════════════════════════
    Global Styles — Reset & Core Layout (TailAdmin Clone)
    ═══════════════════════════════════════════ */
@@ -896,7 +896,7 @@ button[onclick*="SapCaTuDong"] {
     z-index: 9999999 !important;
 }
 
-/* --- navbar.css --- */
+/* --- css/layouts/navbar.css --- */
 /* ═══════════════════════════════════════════
    TOP NAVBAR — Replaces sidebar layout
    ═══════════════════════════════════════════ */
@@ -2024,8 +2024,7 @@ body.dark-theme .icon-btn:hover {
   }
 }
 
-
-/* --- sidebar.css --- */
+/* --- css/layouts/sidebar.css --- */
 /* ═══════════════════════════════════════════
    SIDEBAR COMPONENTS
    ═══════════════════════════════════════════ */
@@ -2171,8 +2170,7 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   visibility: visible;
 }
 
-
-/* --- header.css --- */
+/* --- css/layouts/header.css --- */
 /* ═══════════════════════════════════════════
    HEADER COMPONENTS
    ═══════════════════════════════════════════ */
@@ -2262,9 +2260,7 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   }
 }
 
-
-
-/* --- dashboard.css --- */
+/* --- css/layouts/dashboard.css --- */
 /* ═══════════════════════════════════════════
    DASHBOARD LAYOUT CSS
    Chỉ chứa grid layout classes đặc thù của dashboard.
@@ -3005,8 +3001,15 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   }
 }
 
+/* --- css/layouts/responsive-data.css --- */
+.responsive-data-cards { display: grid; gap: 10px; padding: 10px; }
+.responsive-data-card { padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+.responsive-data-card__field { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.responsive-data-card__label { color: var(--color-text-secondary); font-size: 12px; }
+.responsive-data-card__value { color: var(--color-text); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
+@media (min-width: 768px) { .responsive-data-cards { display: none; } }
 
-/* --- compare-badge.css --- */
+/* --- components/compare-badge/compare-badge.css --- */
 /* ═══════════════════════════════════════════
    COMPARE BADGE COMPONENT
    So sánh kỳ trước: +12.5% ▲ / -3.2% ▼
@@ -3076,8 +3079,7 @@ body.dark-theme .compare-badge--neutral {
   background: rgba(148, 163, 184, 0.12);
 }
 
-
-/* --- metric-card.css --- */
+/* --- components/metric-card/metric-card.css --- */
 /* ═══════════════════════════════════════════
    METRIC CARD COMPONENT
    KPI card: icon + label + value lớn + sub
@@ -3199,8 +3201,7 @@ body.dark-theme .compare-badge--neutral {
   }
 }
 
-
-/* --- sparkline.css --- */
+/* --- components/sparkline/sparkline.css --- */
 /* ═══════════════════════════════════════════
    SPARKLINE CHART COMPONENT
    Mini trend chart trên Canvas
@@ -3217,8 +3218,7 @@ body.dark-theme .compare-badge--neutral {
   align-items: flex-end;
 }
 
-
-/* --- kv-table.css --- */
+/* --- components/kv-table/kv-table.css --- */
 /* ═══════════════════════════════════════════
    KV TABLE COMPONENT
    Bảng 2 cột: key ↔ value tài chính
@@ -3301,13 +3301,13 @@ body.dark-theme .kvtable__row--total {
   flex-shrink: 0;
 }
 
-
-/* --- hall-gauge.css --- */
+/* --- components/status-gauge/status-gauge.css --- */
 /* ═══════════════════════════════════════════
-   HALL GAUGE COMPONENT
+   STATUS GAUGE COMPONENT
    Progress gauge: tổng / đang / xong
    ═══════════════════════════════════════════ */
 
+.status-gauge,
 .hall-gauge {
   display: flex;
   flex-direction: column;
@@ -3316,6 +3316,7 @@ body.dark-theme .kvtable__row--total {
 }
 
 /* Title */
+.status-gauge__title,
 .hall-gauge__title {
   display: flex;
   align-items: center;
@@ -3325,18 +3326,21 @@ body.dark-theme .kvtable__row--total {
   color: var(--color-text-secondary);
 }
 
+.status-gauge__icon,
 .hall-gauge__icon {
   font-size: 16px !important;
   color: var(--color-primary);
 }
 
 /* Big count */
+.status-gauge__count,
 .hall-gauge__count {
   display: flex;
   align-items: baseline;
   gap: 6px;
 }
 
+.status-gauge__count-num,
 .hall-gauge__count-num {
   font-size: 32px;
   font-weight: 800;
@@ -3345,6 +3349,7 @@ body.dark-theme .kvtable__row--total {
   letter-spacing: -1px;
 }
 
+.status-gauge__count-label,
 .hall-gauge__count-label {
   font-size: 12px;
   color: var(--color-text-secondary);
@@ -3352,12 +3357,14 @@ body.dark-theme .kvtable__row--total {
 }
 
 /* Bar */
+.status-gauge__bar-row,
 .hall-gauge__bar-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.status-gauge__bar,
 .hall-gauge__bar {
   flex: 1;
   height: 8px;
@@ -3366,16 +3373,19 @@ body.dark-theme .kvtable__row--total {
   overflow: hidden;
 }
 
+body.dark-theme .status-gauge__bar,
 body.dark-theme .hall-gauge__bar {
   background: rgba(79, 70, 229, 0.20);
 }
 
+.status-gauge__fill,
 .hall-gauge__fill {
   height: 100%;
   border-radius: 999px;
   transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.status-gauge__pct,
 .hall-gauge__pct {
   font-size: 13px;
   font-weight: 700;
@@ -3384,6 +3394,7 @@ body.dark-theme .hall-gauge__bar {
 }
 
 /* Sub text */
+.status-gauge__sub,
 .hall-gauge__sub {
   display: flex;
   justify-content: space-between;
@@ -3392,13 +3403,13 @@ body.dark-theme .hall-gauge__bar {
   gap: 8px;
 }
 
+.status-gauge__sub strong,
 .hall-gauge__sub strong {
   color: var(--color-text);
   font-weight: 600;
 }
 
-
-/* --- section-panel.css --- */
+/* --- components/section-panel/section-panel.css --- */
 /* ═══════════════════════════════════════════
    SECTION PANEL COMPONENT
    Kế thừa .card + .card-header từ card.css
@@ -3534,7 +3545,7 @@ body.dark-theme .section-panel .card-header {
   }
 }
 
-/* --- report-filter.css --- */
+/* --- components/report-filter/report-filter.css --- */
 /* ═══════════════════════════════════════════
    REPORT FILTER DIALOG COMPONENT
    Dialog "Chọn báo cáo" với fields động từ API
@@ -3644,8 +3655,7 @@ body.dark-theme .section-panel .card-header {
   }
 }
 
-
-/* --- accordion.css --- */
+/* --- components/accordion/accordion.css --- */
 /* ═══════════════════════════════════════════
    ACCORDION COMPONENT
    ═══════════════════════════════════════════ */
@@ -3696,8 +3706,7 @@ body.dark-theme .section-panel .card-header {
   border-top: 1px solid var(--color-border);
 }
 
-
-/* --- alert.css --- */
+/* --- components/alert/alert.css --- */
 /* ═══════════════════════════════════════════
    ALERT / TOAST COMPONENT
    ═══════════════════════════════════════════ */
@@ -3822,8 +3831,7 @@ body.dark-theme .section-panel .card-header {
 .toast.danger  .toast-timer { background: var(--color-danger); }
 .toast.warning .toast-timer { background: var(--color-warning); }
 
-
-/* --- badge.css --- */
+/* --- components/badge/badge.css --- */
 /* ═══════════════════════════════════════════
    BADGE COMPONENT
    ═══════════════════════════════════════════ */
@@ -3856,8 +3864,7 @@ body.dark-theme .section-panel .card-header {
   color: var(--color-primary);
 }
 
-
-/* --- button.css --- */
+/* --- components/button/button.css --- */
 /* ═══════════════════════════════════════════
    BUTTON COMPONENTS
    ═══════════════════════════════════════════ */
@@ -4192,8 +4199,7 @@ body.dark-theme .section-panel .card-header {
   }
 }
 
-
-/* --- calendar.css --- */
+/* --- components/calendar/calendar.css --- */
 /* ═══════════════════════════════════════════
    PREMIUM CALENDAR (Lịch công việc) CSS
    ═══════════════════════════════════════════ */
@@ -4650,8 +4656,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- card.css --- */
+/* --- components/card/card.css --- */
 /* ═══════════════════════════════════════════
    CARD COMPONENTS
    ═══════════════════════════════════════════ */
@@ -4701,8 +4706,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- chart.css --- */
+/* --- components/chart/chart.css --- */
 /* ═══════════════════════════════════════════
    CHART COMPONENT
    ═══════════════════════════════════════════ */
@@ -4757,8 +4761,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- checkbox.css --- */
+/* --- components/checkbox/checkbox.css --- */
 /* ═══════════════════════════════════════════
    PREMIUM CUSTOM CONTROLS (CHECKBOX, COMBOBOX, TABLE DROPDOWN)
    ═══════════════════════════════════════════ */
@@ -4824,9 +4827,7 @@ body.dark-theme .calendar-days-header {
   outline-offset: 2px;
 }
 
-
-
-/* --- radio.css --- */
+/* --- components/radio/radio.css --- */
 /* ═══════════════════════════════════════════
    PREMIUM CUSTOM CONTROLS (RADIO)
    ═══════════════════════════════════════════ */
@@ -4897,8 +4898,7 @@ body.dark-theme .calendar-days-header {
   flex-wrap: wrap;
 }
 
-
-/* --- combobox.css --- */
+/* --- components/data-combobox/combobox.css --- */
 /* 2. COMBO BOX & INPUT WRAPPERS */
 .combo-box-container {
   display: flex;
@@ -5052,8 +5052,7 @@ body.dark-theme .calendar-days-header {
   flex-shrink: 0;
 }
 
-
-/* --- context-menu.css --- */
+/* --- components/context-menu/context-menu.css --- */
 /* ═══════════════════════════════════════════
    CONTEXT MENU COMPONENT (Menu chuột phải)
    ═══════════════════════════════════════════ */
@@ -5102,8 +5101,7 @@ body.dark-theme .calendar-days-header {
   margin: 4px 0;
 }
 
-
-/* --- empty-state.css --- */
+/* --- components/empty-state/empty-state.css --- */
 /* ═══════════════════════════════════════════
    EMPTY STATE COMPONENT (Trạng thái rỗng)
    ═══════════════════════════════════════════ */
@@ -5141,8 +5139,7 @@ body.dark-theme .calendar-days-header {
   margin-bottom: 24px;
 }
 
-
-/* --- file-upload.css --- */
+/* --- components/file-upload/file-upload.css --- */
 /* ═══════════════════════════════════════════
    FILE UPLOAD COMPONENT (Khu vực tải lên)
    ═══════════════════════════════════════════ */
@@ -5192,8 +5189,7 @@ body.dark-theme .calendar-days-header {
   color: var(--color-text-secondary);
 }
 
-
-/* --- filter.css --- */
+/* --- components/filter/filter.css --- */
 /* ═══════════════════════════════════════════
    FILTER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5264,8 +5260,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- form.css --- */
+/* --- components/input/form.css --- */
 /* ═══════════════════════════════════════════
    FORM COMPONENTS
    ═══════════════════════════════════════════ */
@@ -5313,7 +5308,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   display: none !important;
 }
 
-/* --- grid-dropdown.css --- */
+/* --- components/grid-dropdown/grid-dropdown.css --- */
 /* Grid Cell Input wrapper */
 .grid-cell-dropdown-wrapper {
   position: relative;
@@ -5338,8 +5333,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   border-radius: 2px;
 }
 
-
-/* --- loading-spinner.css --- */
+/* --- components/loading-spinner/loading-spinner.css --- */
 /* ═══════════════════════════════════════════
    LOADING SPINNER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5389,8 +5383,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   100% { transform: rotate(360deg); }
 }
 
-
-/* --- modal.css --- */
+/* --- components/modal/modal.css --- */
 /* ═══════════════════════════════════════════
    MODAL COMPONENTS
    ═══════════════════════════════════════════ */
@@ -5482,8 +5475,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 }
 
-
-/* --- pagination.css --- */
+/* --- components/pagination/pagination.css --- */
 /* ═══════════════════════════════════════════
    DATAGRID PAGER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5633,8 +5625,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 }
 
-
-/* --- popover.css --- */
+/* --- components/popover/popover.css --- */
 /* ═══════════════════════════════════════════
    POPOVER COMPONENT (Khung nổi)
    ═══════════════════════════════════════════ */
@@ -5671,8 +5662,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   padding: 16px;
 }
 
-
-/* --- search-bar.css --- */
+/* --- components/header/search-bar.css --- */
 /* ═══════════════════════════════════════════
    SEARCH BAR COMPONENT
    ═══════════════════════════════════════════ */
@@ -5704,8 +5694,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   font-weight: 500;
 }
 
-
-/* --- shared-dropdown.css --- */
+/* --- components/ui-utils/shared-dropdown.css --- */
 /* 3. DATAGRID DROPDOWN MENU (FOR COMBOBOX/GRID CELL) */
 .data-dropdown-menu {
   /* position & top/left set dynamically by UIUtils.computeDropdownPosition (fixed) */
@@ -5766,6 +5755,26 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   line-height: 1.4;
 }
 
+.dropdown-table .dropdown-check-column {
+  width: 40px;
+  min-width: 40px;
+  padding-left: 10px;
+  padding-right: 10px;
+  text-align: center;
+}
+
+.dropdown-table .dropdown-check-column input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.dropdown-table tbody tr.active {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
 /* Soft UI cho chế độ 1 cột (giống select list mobile) */
 .dropdown-table.single-column td {
   padding: 10px 14px;
@@ -5810,9 +5819,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 }
 
-
-
-/* --- skeleton.css --- */
+/* --- components/skeleton/skeleton.css --- */
 /* ═══════════════════════════════════════════
    SKELETON LOADER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5858,8 +5865,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   border-radius: 50%;
 }
 
-
-/* --- slider.css --- */
+/* --- components/slider/slider.css --- */
 /* ═══════════════════════════════════════════
    SLIDER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5905,8 +5911,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   text-align: right;
 }
 
-
-/* --- stepper.css --- */
+/* --- components/stepper/stepper.css --- */
 /* ═══════════════════════════════════════════
    STEPPER COMPONENT (Trình tự nhiều bước)
    ═══════════════════════════════════════════ */
@@ -6022,8 +6027,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   align-items: flex-start !important;
 }
 
-
-/* --- table.css --- */
+/* --- components/table/table.css --- */
 /* ═══════════════════════════════════════════
    DATAGRID TABLE COMPONENTS
    ═══════════════════════════════════════════ */
@@ -6623,7 +6627,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 }
 
-/* --- tabs.css --- */
+/* --- components/tabs/tabs.css --- */
 /* ═══════════════════════════════════════════
    TABS / SEGMENT COMPONENT
    ═══════════════════════════════════════════ */
@@ -7294,7 +7298,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 }
 
-/* --- timeline.css --- */
+/* --- components/timeline/timeline.css --- */
 /* ═══════════════════════════════════════════
    TIMELINE COMPONENT (Lịch sử trạng thái)
    ═══════════════════════════════════════════ */
@@ -7373,8 +7377,7 @@ body.dark-theme .data-table tbody tr:hover {
   margin-top: 4px;
 }
 
-
-/* --- toast.css --- */
+/* --- components/toast/toast.css --- */
 /* ═══════════════════════════════════════════
    TOAST COMPONENT (Thông báo đẩy)
    ═══════════════════════════════════════════ */
@@ -7451,7 +7454,7 @@ body.dark-theme .data-table tbody tr:hover {
   font-weight: 500;
 }
 
-/* --- tooltip.css --- */
+/* --- components/tooltip/tooltip.css --- */
 /* ═══════════════════════════════════════════
    TOOLTIP COMPONENT — JS-driven (position: fixed)
    CSS chỉ định style cho #ui-tooltip element được JS tạo ra
@@ -7488,8 +7491,7 @@ body.dark-theme .data-table tbody tr:hover {
   border-color: transparent transparent #1E293B transparent;
 }
 
-
-/* --- total-bar.css --- */
+/* --- components/total-bar/total-bar.css --- */
 /* ═══════════════════════════════════════════
    TOTAL BAR COMPONENT
    ═══════════════════════════════════════════ */
@@ -7517,8 +7519,7 @@ body.dark-theme .data-table tbody tr:hover {
   color: var(--color-primary);
 }
 
-
-/* --- tree.css --- */
+/* --- components/tree/tree.css --- */
 /* ═══════════════════════════════════════════
    TREE VIEW COMPONENT (Danh mục hình cây)
    ═══════════════════════════════════════════ */
@@ -7583,8 +7584,7 @@ body.dark-theme .data-table tbody tr:hover {
   font-size: 18px;
 }
 
-
-/* --- user-profile.css --- */
+/* --- components/user-profile/user-profile.css --- */
 /* ═══════════════════════════════════════════
    USER PROFILE / AVATAR COMPONENT
    ═══════════════════════════════════════════ */
@@ -7629,8 +7629,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 }
 
-
-/* --- search-dropdown.css --- */
+/* --- components/search-dropdown/search-dropdown.css --- */
 /* ═══════════════════════════════════════════
    SEARCH DROPDOWN COMPONENT
    ═══════════════════════════════════════════ */
@@ -7682,8 +7681,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 }
 
-
-/* --- side-panel.css --- */
+/* --- components/side-panel/side-panel.css --- */
 /* ═══════════════════════════════════════════
    SIDE PANEL COMPONENT (Right Drawer)
    ═══════════════════════════════════════════ */
@@ -7731,8 +7729,7 @@ body.dark-theme .data-table tbody tr:hover {
   opacity: 1 !important;
 }
 
-
-/* --- screen-capture.css --- */
+/* --- components/screen-capture/screen-capture.css --- */
 /* ═══════════════════════════════════════════
    SCREEN CAPTURE COMPONENT CSS
    ═══════════════════════════════════════════ */
@@ -7769,5 +7766,3 @@ body.dark-theme .data-table tbody tr:hover {
 .screen-capture-toolbar button .material-symbols-outlined {
   font-size: 18px;
 }
-
-
