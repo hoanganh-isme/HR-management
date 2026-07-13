@@ -47,30 +47,30 @@ window.DynamicFormEngine = (function () {
 
   // ── Helpers ──────────────────────────────────────────────
   function _currentGroup() {
-    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+    var u = AppContext.getCurrentUser();
     return MetadataModuleConfig.getUserGroupId(u);
   }
 
   function _currentUser() {
-    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+    var u = AppContext.getCurrentUser();
     return u.Username || u.UserName || u.username || '';
   }
 
   /**
    * Lấy danh sách chi nhánh được gán cho user hiện tại.
-   * Đọc từ pmql_user.BranchID (lưu trong bảng SY_User).
+   * Đọc từ user hiện tại (lưu trong bảng SY_User).
    * BranchID có thể là 1 giá trị hoặc comma-separated: "COBI, DONGDU, ESTELLA".
    * Nếu BranchID = NULL/rỗng và user là admin → trả về toàn bộ chi nhánh.
    * Trả về Array<{ id: string, name: string }>
    */
   function _getUserBranches() {
     try {
-      var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+      var u = AppContext.getCurrentUser();
       var branchRaw = (u.BranchID || u.branchID || u.branchId || u.Branch || '').toString().trim();
       var isAdmin = MetadataModuleConfig.isAdminUser(u);
 
       // Load ALL_BRANCHES từ local storage
-      var sysBranches = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('sys_branches', '[]') : localStorage.getItem('pmql_sys_branches')) || '[]');
+      var sysBranches = JSON.parse(AppStorage.getStored('sys_branches', '[]') || '[]');
       var ALL_BRANCHES = sysBranches.map(function (b) {
         return {
           id: (b.BranchID || b.branchID || b.branchId || '').toString().trim(),
@@ -2065,7 +2065,7 @@ window.DynamicFormEngine = (function () {
 
       // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
       var _sessionUser = {};
-      try { _sessionUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}'); } catch (e) { }
+      try { _sessionUser = AppContext.getCurrentUser(); } catch (e) { }
       var _branchID = (_sessionUser.BranchID || '').toString().trim();
 
       var query = {
@@ -5060,10 +5060,16 @@ window.DynamicFormEngine = (function () {
         flexDiv.appendChild(btn);
         wrapper.appendChild(flexDiv);
         inputEl = wrapper;
-      } else if (field.renderRule === 'html') {
+      } else if (field.renderRule === 'html' || field.renderRule === 'component') {
         var htmlWrapper = document.createElement('div');
         htmlWrapper.style.width = '100%';
-        htmlWrapper.innerHTML = field.html || '';
+        var componentCode = field.componentCode || field.ComponentCode;
+        if (componentCode && FieldRendererRegistry.has(componentCode)) {
+          var renderedComponent = DynamicFormRenderer.renderComponent(componentCode, { field: field, row: row, container: htmlWrapper });
+          if (renderedComponent && renderedComponent.nodeType) htmlWrapper.appendChild(renderedComponent);
+        } else {
+          LegacyCompatibility.renderLegacyHtml(htmlWrapper, field.html || '', field.name);
+        }
         inputEl = htmlWrapper;
       } else {
         inputEl = UIInput.createText(field);

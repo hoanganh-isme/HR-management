@@ -2,6 +2,13 @@
     "js":  [
                "js/data/mockData.js",
                "js/utils/apiClient.js",
+               "js/config/AppConfig.js",
+               "js/config/ApiEndpoints.js",
+               "js/config/ThemeConfig.js",
+               "js/config/FeatureFlags.js",
+               "js/app/AppStorage.js",
+               "js/app/AppContext.js",
+               "js/app/LegacyCompatibility.js",
                "js/data/GatewayClient.js",
                "js/data/BaseRepository.js",
                "js/data/LookupRepository.js",

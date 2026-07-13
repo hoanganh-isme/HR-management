@@ -197,7 +197,7 @@
       // Dòng 1: Tên bảng ca, Sắp ca, Nút
       { name: 'TenBangCa', position: 'grid|4' },
       { name: 'SapCaID', position: 'grid|4' },
-      { name: 'btnSapCaTuDong', position: 'grid|4', renderRule: 'html', html: '<button type="button" class="btn btn-outline-primary" style="margin-top:28px;width:100%;" onclick="window.SapCaTuDong()"><span class="material-symbols-outlined" style="vertical-align:middle;">auto_fix_high</span> Sắp ca tự động</button>' },
+      { name: 'btnSapCaTuDong', position: 'grid|4', renderRule: 'component', componentCode: 'SHIFT_AUTO_ASSIGN_BUTTON' },
       // Dòng 2: Từ ngày, Đến ngày
       { name: 'TuNgay', position: 'grid|6' },
       { name: 'DenNgay', position: 'grid|6' },

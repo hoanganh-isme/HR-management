@@ -282,6 +282,98 @@ const ApiClient = (function () {
 // Xuất ra để có thể dùng toàn cục trong file JS khác
 window.ApiClient = ApiClient;
 
+/* --- js/config/AppConfig.js --- */
+window.AppConfig = { appCode: 'hrm', legacyAppCode: 'pmql' };
+
+/* --- js/config/ApiEndpoints.js --- */
+window.ApiEndpoints = { gateway: '/api/API_Gateway_Router' };
+
+/* --- js/config/ThemeConfig.js --- */
+window.ThemeConfig = {
+  colors: ['indigo', 'emerald', 'rose', 'amber', 'sky'],
+  defaultTheme: 'auto'
+};
+
+/* --- js/config/FeatureFlags.js --- */
+window.FeatureFlags = { responsiveCards: true, safeFormulaRules: true, componentRenderers: true };
+
+/* --- js/app/AppStorage.js --- */
+window.AppStorage = (function () {
+  var currentPrefix = 'hrm_';
+  var legacyPrefix = 'pmql_';
+
+  function currentKey(key) { return currentPrefix + key; }
+  function legacyKey(key) { return legacyPrefix + key; }
+  function read(storage, key, fallback) {
+    var value = storage.getItem(currentKey(key));
+    if (value === null) value = storage.getItem(legacyKey(key));
+    return value === null ? fallback : value;
+  }
+  function write(storage, key, value) { storage.setItem(currentKey(key), value); return value; }
+  function remove(storage, key) { storage.removeItem(currentKey(key)); storage.removeItem(legacyKey(key)); }
+
+  return {
+    getStored: function (key, fallback) { return read(localStorage, key, fallback); },
+    setStored: function (key, value) { return write(localStorage, key, value); },
+    removeStored: function (key) { remove(localStorage, key); },
+    getSession: function (key, fallback) { return read(sessionStorage, key, fallback); },
+    setSession: function (key, value) { return write(sessionStorage, key, value); },
+    removeSession: function (key) { remove(sessionStorage, key); },
+    currentKey: currentKey,
+    legacyKey: legacyKey
+  };
+})();
+
+/* --- js/app/AppContext.js --- */
+window.AppContext = {
+  getCurrentUser: function () {
+    try { return JSON.parse(AppStorage.getStored('user', '{}') || '{}'); } catch (error) { return {}; }
+  },
+  getUserName: function () {
+    var user = this.getCurrentUser();
+    return user.UserName || user.username || user.userName || '';
+  }
+};
+
+/* --- js/app/LegacyCompatibility.js --- */
+window.LegacyCompatibility = (function () {
+  var blockedTags = ['script', 'iframe', 'object', 'embed'];
+
+  function sanitizeHtml(html) {
+    var template = document.createElement('template');
+    template.innerHTML = String(html || '');
+    blockedTags.forEach(function (tag) {
+      Array.from(template.content.querySelectorAll(tag)).forEach(function (node) { node.remove(); });
+    });
+    Array.from(template.content.querySelectorAll('*')).forEach(function (node) {
+      Array.from(node.attributes).forEach(function (attribute) {
+        var name = attribute.name.toLowerCase();
+        var value = String(attribute.value || '').trim().toLowerCase();
+        if (name.indexOf('on') === 0 || ((name === 'href' || name === 'src') && value.indexOf('javascript:') === 0)) {
+          node.removeAttribute(attribute.name);
+        }
+      });
+    });
+    return template.innerHTML;
+  }
+
+  function renderLegacyHtml(container, html, fieldName) {
+    console.warn('[Deprecated] Legacy HTML renderer used for field ' + (fieldName || 'unknown'));
+    container.innerHTML = sanitizeHtml(html);
+    if (String(html || '').indexOf('SapCaTuDong') !== -1) {
+      var shiftButton = container.querySelector('button');
+      if (shiftButton) shiftButton.addEventListener('click', function () { window.SapCaTuDong(); });
+    }
+    return container;
+  }
+
+  return {
+    sanitizeHtml: sanitizeHtml,
+    renderLegacyHtml: renderLegacyHtml,
+    storage: AppStorage
+  };
+})();
+
 /* --- js/data/GatewayClient.js --- */
 window.GatewayClient = (function () {
   function endpoint(options) {
@@ -11934,9 +12026,7 @@ window.MetadataModuleConfig = (function () {
 
   function _readStoredBranches() {
     try {
-      var raw = window.APP_SETTINGS
-        ? window.APP_SETTINGS.getStored('sys_branches', '[]')
-        : window.localStorage.getItem('pmql_sys_branches');
+      var raw = AppStorage.getStored('sys_branches', '[]');
       var rows = JSON.parse(raw || '[]');
       return Array.isArray(rows) ? rows : [];
     } catch (e) {
@@ -12281,7 +12371,7 @@ var WizardForm = (function () {
     // Nếu không có danh sách chi nhánh → fallback đọc từ localStorage
     if (!userBranches || userBranches.length === 0) {
       try {
-        var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+        var u = AppContext.getCurrentUser();
         var raw = u.ChiNhanhList || u.Branches || u.BranchCodes || u.ChiNhanh || [];
         if (Array.isArray(raw)) {
           userBranches = raw.map(function (b) {
@@ -14180,30 +14270,30 @@ window.DynamicFormEngine = (function () {
 
   // ── Helpers ──────────────────────────────────────────────
   function _currentGroup() {
-    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+    var u = AppContext.getCurrentUser();
     return MetadataModuleConfig.getUserGroupId(u);
   }
 
   function _currentUser() {
-    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+    var u = AppContext.getCurrentUser();
     return u.Username || u.UserName || u.username || '';
   }
 
   /**
    * Lấy danh sách chi nhánh được gán cho user hiện tại.
-   * Đọc từ pmql_user.BranchID (lưu trong bảng SY_User).
+   * Đọc từ user hiện tại (lưu trong bảng SY_User).
    * BranchID có thể là 1 giá trị hoặc comma-separated: "COBI, DONGDU, ESTELLA".
    * Nếu BranchID = NULL/rỗng và user là admin → trả về toàn bộ chi nhánh.
    * Trả về Array<{ id: string, name: string }>
    */
   function _getUserBranches() {
     try {
-      var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+      var u = AppContext.getCurrentUser();
       var branchRaw = (u.BranchID || u.branchID || u.branchId || u.Branch || '').toString().trim();
       var isAdmin = MetadataModuleConfig.isAdminUser(u);
 
       // Load ALL_BRANCHES từ local storage
-      var sysBranches = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('sys_branches', '[]') : localStorage.getItem('pmql_sys_branches')) || '[]');
+      var sysBranches = JSON.parse(AppStorage.getStored('sys_branches', '[]') || '[]');
       var ALL_BRANCHES = sysBranches.map(function (b) {
         return {
           id: (b.BranchID || b.branchID || b.branchId || '').toString().trim(),
@@ -16198,7 +16288,7 @@ window.DynamicFormEngine = (function () {
 
       // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
       var _sessionUser = {};
-      try { _sessionUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}'); } catch (e) { }
+      try { _sessionUser = AppContext.getCurrentUser(); } catch (e) { }
       var _branchID = (_sessionUser.BranchID || '').toString().trim();
 
       var query = {
@@ -19193,10 +19283,16 @@ window.DynamicFormEngine = (function () {
         flexDiv.appendChild(btn);
         wrapper.appendChild(flexDiv);
         inputEl = wrapper;
-      } else if (field.renderRule === 'html') {
+      } else if (field.renderRule === 'html' || field.renderRule === 'component') {
         var htmlWrapper = document.createElement('div');
         htmlWrapper.style.width = '100%';
-        htmlWrapper.innerHTML = field.html || '';
+        var componentCode = field.componentCode || field.ComponentCode;
+        if (componentCode && FieldRendererRegistry.has(componentCode)) {
+          var renderedComponent = DynamicFormRenderer.renderComponent(componentCode, { field: field, row: row, container: htmlWrapper });
+          if (renderedComponent && renderedComponent.nodeType) htmlWrapper.appendChild(renderedComponent);
+        } else {
+          LegacyCompatibility.renderLegacyHtml(htmlWrapper, field.html || '', field.name);
+        }
         inputEl = htmlWrapper;
       } else {
         inputEl = UIInput.createText(field);
@@ -20704,6 +20800,16 @@ window.ShiftActions = (function () {
   FormActionRegistry.register('ShiftActions.autoAssign', function (context) {
     return autoAssignById(context.sapCaID, context.callerBtn);
   });
+  FieldRendererRegistry.register('SHIFT_AUTO_ASSIGN_BUTTON', function () {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-outline-primary';
+    button.style.marginTop = '28px';
+    button.style.width = '100%';
+    button.innerHTML = '<span class="material-symbols-outlined" style="vertical-align:middle;">auto_fix_high</span> Sắp ca tự động';
+    button.addEventListener('click', autoAssignFromForm);
+    return button;
+  });
   return { autoAssignById: autoAssignById, autoAssignFromForm: autoAssignFromForm };
 })();
 
@@ -21215,7 +21321,7 @@ window.SapCaTuDong = window.ShiftActions.autoAssignFromForm;
       // Dòng 1: Tên bảng ca, Sắp ca, Nút
       { name: 'TenBangCa', position: 'grid|4' },
       { name: 'SapCaID', position: 'grid|4' },
-      { name: 'btnSapCaTuDong', position: 'grid|4', renderRule: 'html', html: '<button type="button" class="btn btn-outline-primary" style="margin-top:28px;width:100%;" onclick="window.SapCaTuDong()"><span class="material-symbols-outlined" style="vertical-align:middle;">auto_fix_high</span> Sắp ca tự động</button>' },
+      { name: 'btnSapCaTuDong', position: 'grid|4', renderRule: 'component', componentCode: 'SHIFT_AUTO_ASSIGN_BUTTON' },
       // Dòng 2: Từ ngày, Đến ngày
       { name: 'TuNgay', position: 'grid|6' },
       { name: 'DenNgay', position: 'grid|6' },
@@ -22051,7 +22157,7 @@ document.addEventListener('DOMContentLoaded', function () {
       ApiClient.post(API_CONFIG.ENDPOINTS.AUTH.LOGOUT).catch(function () { });
     }
 
-    if (window.APP_SETTINGS) APP_SETTINGS.removeStored('user'); else localStorage.removeItem('pmql_user');
+    AppStorage.removeStored('user');
     if (typeof ApiClient !== 'undefined' && ApiClient.deleteCookie) {
       ApiClient.deleteCookie('auth_token');
     }
@@ -22072,8 +22178,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     _init: function () {
       try {
-        var navCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem('pmql_nav_cache')) || 'null');
-        var userCache = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', 'null') : localStorage.getItem('pmql_user')) || 'null');
+        var navCache = JSON.parse(AppStorage.getSession('nav_cache', 'null') || 'null');
+        var userCache = JSON.parse(AppStorage.getStored('user', 'null') || 'null');
 
         var isAdmin = MetadataModuleConfig.isAdminUser(userCache);
 
@@ -22119,7 +22225,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
   if (typeof Router !== 'undefined') {
-    var currentUser = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
+    var currentUser = AppStorage.getStored('user', null);
     if (currentUser && typeof ApiClient !== 'undefined') {
       ApiClient.post('/api/API_Gateway_Router', {
         List: 'CF_BranchListFrm',
@@ -22128,7 +22234,7 @@ document.addEventListener('DOMContentLoaded', function () {
         Limit: 1000
       }).then(function (res) {
         var branchList = Array.isArray(res) ? res : (res.data || res.list || res.records || []);
-        if (window.APP_SETTINGS) APP_SETTINGS.setStored('sys_branches', JSON.stringify(branchList)); else localStorage.setItem('pmql_sys_branches', JSON.stringify(branchList));
+        AppStorage.setStored('sys_branches', JSON.stringify(branchList));
         Router.init();
       }).catch(function () {
         Router.init();
@@ -22139,7 +22245,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // 3. Khởi tạo Navbar (chỉ render nếu đã đăng nhập)
-  var currentUser = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
+  var currentUser = AppStorage.getStored('user', null);
   if (currentUser && typeof Navbar !== 'undefined') {
     Navbar.render('navbar-container');
 
@@ -22154,12 +22260,12 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // 4. Khởi tạo cấu hình giao diện
-  var savedFont = window.APP_SETTINGS ? APP_SETTINGS.getStored('font_family', null) : localStorage.getItem('pmql_font_family');
+  var savedFont = AppStorage.getStored('font_family', null);
   if (savedFont) {
     document.documentElement.style.setProperty('--font-family', '"' + savedFont + '", sans-serif');
   }
 
-  var savedTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
+  var savedTheme = AppStorage.getStored('theme', null) || 'auto';
   if (savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     document.body.classList.add('dark-theme');
   } else {
@@ -22168,7 +22274,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Lắng nghe sự thay đổi giao diện từ hệ thống (khi chuyển qua chế độ tiết kiệm pin hoặc Dark Mode)
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
-    var currentTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
+    var currentTheme = AppStorage.getStored('theme', null) || 'auto';
     if (currentTheme === 'auto') {
       if (e.matches) {
         document.body.classList.add('dark-theme');
@@ -22178,7 +22284,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  var savedColor = window.APP_SETTINGS ? APP_SETTINGS.getStored('color', null) : localStorage.getItem('pmql_color');
+  var savedColor = AppStorage.getStored('color', null);
   if (savedColor) {
     var COLORS = [
       { id: 'indigo', primary: '#4F46E5', hover: '#4338CA', dark: '#3730A3', light: 'rgba(79, 70, 229, 0.1)' },
@@ -22557,12 +22663,12 @@ var Router = (function () {
       return Promise.resolve();
     }
     return ApiClient.get(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION, { silent: true }).then(function (res) {
-      var localVer = window.APP_SETTINGS ? APP_SETTINGS.getStored('permission_ver', null) : localStorage.getItem('pmql_permission_ver');
+      var localVer = AppStorage.getStored('permission_ver', null);
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
 
       if (svVersion && svVersion !== localVer) {
-        var userJson = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
+        var userJson = AppStorage.getStored('user', null);
         var userObj = userJson ? JSON.parse(userJson) : {};
         return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {
           var permMap = {};
@@ -22584,8 +22690,8 @@ var Router = (function () {
             APP_SETTINGS.setStored('permissions', JSON.stringify(permMap));
             APP_SETTINGS.setStored('permission_ver', svVersion);
           } else {
-            localStorage.setItem('pmql_permissions', JSON.stringify(permMap));
-            localStorage.setItem('pmql_permission_ver', svVersion);
+            AppStorage.setStored('permissions', JSON.stringify(permMap));
+            AppStorage.setStored('permission_ver', svVersion);
           }
         }).catch(function (e) {
           console.error('[Router] Lỗi tải quyền mới:', e);

@@ -47,9 +47,18 @@ window.ShiftActions = (function () {
   FormActionRegistry.register('ShiftActions.autoAssign', function (context) {
     return autoAssignById(context.sapCaID, context.callerBtn);
   });
+  FieldRendererRegistry.register('SHIFT_AUTO_ASSIGN_BUTTON', function () {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-outline-primary';
+    button.style.marginTop = '28px';
+    button.style.width = '100%';
+    button.innerHTML = '<span class="material-symbols-outlined" style="vertical-align:middle;">auto_fix_high</span> Sắp ca tự động';
+    button.addEventListener('click', autoAssignFromForm);
+    return button;
+  });
   return { autoAssignById: autoAssignById, autoAssignFromForm: autoAssignFromForm };
 })();
 
 window.SapCaTuDong_ByID = window.ShiftActions.autoAssignById;
 window.SapCaTuDong = window.ShiftActions.autoAssignFromForm;
-

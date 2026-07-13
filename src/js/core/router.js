@@ -356,12 +356,12 @@ var Router = (function () {
       return Promise.resolve();
     }
     return ApiClient.get(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION, { silent: true }).then(function (res) {
-      var localVer = window.APP_SETTINGS ? APP_SETTINGS.getStored('permission_ver', null) : localStorage.getItem('pmql_permission_ver');
+      var localVer = AppStorage.getStored('permission_ver', null);
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
 
       if (svVersion && svVersion !== localVer) {
-        var userJson = window.APP_SETTINGS ? APP_SETTINGS.getStored('user', null) : localStorage.getItem('pmql_user');
+        var userJson = AppStorage.getStored('user', null);
         var userObj = userJson ? JSON.parse(userJson) : {};
         return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {
           var permMap = {};
@@ -383,8 +383,8 @@ var Router = (function () {
             APP_SETTINGS.setStored('permissions', JSON.stringify(permMap));
             APP_SETTINGS.setStored('permission_ver', svVersion);
           } else {
-            localStorage.setItem('pmql_permissions', JSON.stringify(permMap));
-            localStorage.setItem('pmql_permission_ver', svVersion);
+            AppStorage.setStored('permissions', JSON.stringify(permMap));
+            AppStorage.setStored('permission_ver', svVersion);
           }
         }).catch(function (e) {
           console.error('[Router] Lỗi tải quyền mới:', e);
