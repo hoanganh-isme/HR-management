@@ -67,6 +67,8 @@
                "components/side-panel/SidePanel.js",
                "components/screen-capture/ScreenCapture.js",
                "components/rule-builder/RuleBuilderDialog.js",
+               "js/core/metadata/ModuleDefinition.js",
+               "js/core/metadata/ModuleRegistry.js",
                "js/core/MetadataModuleConfig.js",
                "js/core/WizardForm.js",
                "js/core/DynamicFormEngine.js",
