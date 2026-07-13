@@ -33,12 +33,6 @@ var DocumentExportPlugin = (function () {
       ? window.API_CONFIG.ENDPOINTS.ROUTER
       : '/api/API_Gateway_Router';
 
-    var payload = {
-      List: 'HR_HopDongAddfile',
-      Func: 'View',
-      Keyword: config.sqlListName || 'WA_HopDongLaoDongFrm'
-    };
-
     // Tạo overlay nền mờ chờ tải dữ liệu (loading overlay)
     var overlay = document.createElement('div');
     overlay.style.position = 'fixed';
@@ -61,27 +55,10 @@ var DocumentExportPlugin = (function () {
     overlay.appendChild(loadingText);
     document.body.appendChild(overlay);
 
-    // Dùng ApiClient hoặc Fetch để lấy data
-    var headers = { 'Content-Type': 'application/json' };
-    var token = '';
-    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') {
-      token = ApiClient.getCookie('auth_token');
-    } else {
-      var match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
-      if (match) token = decodeURIComponent(match[1]);
-    }
-    if (token) {
-      headers['Authorization'] = 'Bearer ' + token;
-    }
-
-    var fetchUrl = endpoint.startsWith('http') ? endpoint : (window.API_CONFIG.BASE_URL + endpoint);
-
-    fetch(fetchUrl, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(payload)
+    GatewayClient.run({ sp: 'HR_HopDongAddfile', func: 'View' }, undefined, {
+      endpoint: endpoint,
+      keyword: config.sqlListName || 'WA_HopDongLaoDongFrm'
     })
-      .then(function (res) { return res.json(); })
       .then(function (res) {
         // Gỡ loading text
         overlay.removeChild(loadingText);
@@ -388,7 +365,7 @@ var DocumentExportPlugin = (function () {
         convertFields: config.convertFields || [],
         // branchId từ localStorage (backend sẽ tự xác thực lại bằng SY_User)
         branchId: (function() {
-          try { return (JSON.parse(localStorage.getItem('pmql_user') || '{}')).BranchID || null; } catch(e) { return null; }
+          try { return (JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}')).BranchID || null; } catch(e) { return null; }
         })()
       })
     })

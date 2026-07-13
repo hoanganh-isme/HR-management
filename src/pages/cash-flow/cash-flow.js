@@ -35,12 +35,11 @@ var CashFlowPage = (function () {
   }
 
   function _loadSummaryData() {
-    if (typeof ApiClient !== 'undefined' && typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS.ROUTER) {
+    if (typeof GatewayClient !== 'undefined' && typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS.ROUTER) {
       // Gọi API thực tế thông qua Gateway Router lấy danh sách Phiếu Thu
-      ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
-        Func: 'View', // Sửa Action thành Func theo chuẩn của Gateway Router
-        List: 'frmPhieuThu',
-        Limit: 10000  // Lấy nhiều dòng để tính tổng
+      GatewayClient.run({ sp: 'frmPhieuThu', func: 'View' }, undefined, {
+        endpoint: API_CONFIG.ENDPOINTS.ROUTER,
+        limit: 10000
       }).then(function(res) {
         console.log('--- RAW API RESPONSE ---', res); // Debug log để xem format thật
         var records = res.list || res.records || res.data || res.Data || [];

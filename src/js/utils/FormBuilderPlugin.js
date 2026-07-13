@@ -60,7 +60,7 @@ var FormBuilderPlugin = (function () {
       </div>
       <div class="form-group mb-3">
         <label class="form-label fw-bold">Tên Bảng/View trong DB (ObjectName):</label>
-        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: v_DanhSachKhachHang">
+        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: HR_PersonView">
         <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
       </div>
     `;
@@ -160,17 +160,13 @@ var FormBuilderPlugin = (function () {
   function _openVisualLayoutBuilder(targetFormName, moduleConfig, onReloadFormEngine) {
     var loadingModal = UIModal.show({ title: 'Đang tải layout...', content: '<div class="text-center p-4">Đang tải cấu hình form...</div>', buttons: [] });
 
-    var payload = {
-      List: 'frmFormBuilder',
-      Func: 'View',
-      Keyword: targetFormName,
-      Limit: 1000,
-      JsonData: JSON.stringify({ FormName: targetFormName })
-    };
-
     var fetchEndpoint = (window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.SYSTEM && window.API_CONFIG.ENDPOINTS.SYSTEM.GET_FIELDS_LIST) || moduleConfig.ApiSearch || '/api/API_Gateway_Router';
 
-    ApiClient.post(fetchEndpoint, payload)
+    GatewayClient.run({ sp: 'frmFormBuilder', func: 'View' }, { FormName: targetFormName }, {
+      endpoint: fetchEndpoint,
+      keyword: targetFormName,
+      limit: 1000
+    })
       .then(function (res) {
         loadingModal.closeNow();
         var fields = res.list || res.records || [];
@@ -413,15 +409,9 @@ var FormBuilderPlugin = (function () {
   function _sendSequentialToDB(endpoint, payloads) {
     return payloads.reduce(function(promise, payload) {
       return promise.then(function() {
-        var finalPayload = payload;
-        if (endpoint === '/api/API_Gateway_Router') {
-          finalPayload = {
-            List: payload.FormName,
-            Func: 'Save',
-            JsonData: JSON.stringify(payload)
-          };
-        }
-        return ApiClient.post(endpoint, finalPayload).then(function(res) {
+        var operation = { sp: payload.FormName, func: 'Save', endpoint: endpoint };
+        if (endpoint && endpoint !== ApiEndpoints.gateway) operation.transport = 'direct';
+        return GatewayClient.run(operation, payload).then(function(res) {
             if (res && res.code !== 0) throw new Error(res.msg || 'Lỗi lưu trường ' + payload.FieldName);
         });
       });

@@ -4,10 +4,9 @@
     _cache: {},
     init: function() {
       var _this = this;
-      if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER) {
-        ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
-          List: 'SY_Period',
-          Func: 'View'
+      if (typeof GatewayClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER) {
+        GatewayClient.run({ sp: 'SY_Period', func: 'View' }, undefined, {
+          endpoint: API_CONFIG.ENDPOINTS.ROUTER
         }).then(function(res) {
           var records = res.records || (Array.isArray(res) ? res : []);
           records.forEach(function(r) {
@@ -27,15 +26,14 @@
       var y = parseInt(year);
       this._cache[m + '/' + y] = isLocked;
 
-      if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS.ROUTER) {
+      if (typeof GatewayClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS.ROUTER) {
         var periodId = String(y) + (m < 10 ? '0' + m : m); // YYYYMM format, vd: 201801
-        ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
-          List: 'SY_Period',
-          Func: 'Edit', // hoặc Update tùy cấu hình router DB
-          Data: {
+        GatewayClient.run({ sp: 'SY_Period', func: 'Edit' }, undefined, {
+          endpoint: API_CONFIG.ENDPOINTS.ROUTER,
+          payload: { Data: {
             PeriodID: periodId,
             isLock: isLocked ? 1 : 0
-          }
+          } }
         }).catch(function(e) { console.error('Lỗi update Khóa Kỳ:', e); });
       }
     },
