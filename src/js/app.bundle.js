@@ -11879,6 +11879,21 @@ window.PluginRegistry = (function () {
   return { register: register, get: get, getAll: getAll };
 })();
 
+/* --- js/core/registry/FieldRendererRegistry.js --- */
+window.FieldRendererRegistry = (function () {
+  var renderers = {};
+  function register(code, renderer) { renderers[String(code)] = renderer; }
+  function has(code) { return typeof renderers[String(code)] === 'function'; }
+  function render(code, context) {
+    if (!has(code)) throw new Error('Field renderer is not registered: ' + code);
+    return renderers[String(code)](context || {});
+  }
+  return { register: register, has: has, render: render };
+})();
+
+/* --- js/core/registry/DetailTabRegistry.js --- */
+window.DetailTabRegistry = PluginRegistry;
+
 /* --- js/core/MetadataModuleConfig.js --- */
 /**
  * Shared metadata-first helpers for dynamic HR modules.
@@ -13964,6 +13979,156 @@ var WizardForm = (function () {
 
   return { open: open };
 })();
+
+/* --- js/core/dynamic-form/SafeFormulaEvaluator.js --- */
+window.SafeFormulaEvaluator = (function () {
+  var functions = {
+    min: Math.min,
+    max: Math.max,
+    round: Math.round,
+    ceil: Math.ceil,
+    floor: Math.floor,
+    abs: Math.abs
+  };
+
+  function tokenize(expression) {
+    var tokens = [];
+    var index = 0;
+    while (index < expression.length) {
+      var rest = expression.slice(index);
+      var whitespace = /^\s+/.exec(rest);
+      if (whitespace) { index += whitespace[0].length; continue; }
+      var number = /^(?:\d+(?:\.\d*)?|\.\d+)/.exec(rest);
+      if (number) { tokens.push({ type: 'number', value: Number(number[0]) }); index += number[0].length; continue; }
+      var identifier = /^[A-Za-z_][A-Za-z0-9_]*/.exec(rest);
+      if (identifier) { tokens.push({ type: 'identifier', value: identifier[0].toLowerCase() }); index += identifier[0].length; continue; }
+      var character = rest.charAt(0);
+      if ('+-*/%(),'.indexOf(character) !== -1) { tokens.push({ type: character, value: character }); index += 1; continue; }
+      throw new Error('Unsupported formula token at position ' + index);
+    }
+    return tokens;
+  }
+
+  function evaluate(formula, fields) {
+    var expression = String(formula || '').replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, function (_, fieldName) {
+      var value = fields && fields[fieldName];
+      var number = Number(value === '' || value == null ? 0 : value);
+      if (!Number.isFinite(number)) throw new Error('Formula field is not numeric: ' + fieldName);
+      return String(number);
+    });
+    var tokens = tokenize(expression);
+    var position = 0;
+
+    function peek(type) { return tokens[position] && tokens[position].type === type; }
+    function consume(type) {
+      if (!peek(type)) throw new Error('Expected ' + type + ' in formula');
+      return tokens[position++];
+    }
+    function primary() {
+      if (peek('number')) return consume('number').value;
+      if (peek('(')) { consume('('); var value = additive(); consume(')'); return value; }
+      if (peek('identifier')) {
+        var name = consume('identifier').value;
+        if (!functions[name]) throw new Error('Formula function is not allowed: ' + name);
+        consume('(');
+        var args = [];
+        if (!peek(')')) {
+          args.push(additive());
+          while (peek(',')) { consume(','); args.push(additive()); }
+        }
+        consume(')');
+        return functions[name].apply(Math, args);
+      }
+      throw new Error('Invalid formula expression');
+    }
+    function unary() {
+      if (peek('+')) { consume('+'); return unary(); }
+      if (peek('-')) { consume('-'); return -unary(); }
+      return primary();
+    }
+    function multiplicative() {
+      var value = unary();
+      while (peek('*') || peek('/') || peek('%')) {
+        var operator = tokens[position++].type;
+        var right = unary();
+        value = operator === '*' ? value * right : (operator === '/' ? value / right : value % right);
+      }
+      return value;
+    }
+    function additive() {
+      var value = multiplicative();
+      while (peek('+') || peek('-')) {
+        var operator = tokens[position++].type;
+        var right = multiplicative();
+        value = operator === '+' ? value + right : value - right;
+      }
+      return value;
+    }
+
+    var result = additive();
+    if (position !== tokens.length || !Number.isFinite(result)) throw new Error('Formula did not produce a finite number');
+    return result;
+  }
+
+  return { evaluate: evaluate };
+})();
+
+/* --- js/core/dynamic-form/DynamicFormState.js --- */
+window.DynamicFormState = function (initialState) {
+  this.reset(initialState);
+};
+DynamicFormState.prototype.reset = function (state) {
+  state = state || {};
+  this.page = state.page || 1;
+  this.limit = state.limit || 15;
+  this.filters = Object.assign({}, state.filters || {});
+  this.selected = [];
+};
+DynamicFormState.prototype.setFilters = function (filters) { this.filters = Object.assign({}, filters || {}); this.page = 1; };
+
+/* --- js/core/dynamic-form/DynamicFormRepository.js --- */
+window.DynamicFormRepository = function (moduleConfig) {
+  this.config = moduleConfig || {};
+};
+DynamicFormRepository.prototype.view = function (options) { return GatewayClient.view(this.config.FormName, Object.assign({ endpoint: this.config.ApiSearch }, options || {})); };
+DynamicFormRepository.prototype.save = function (data) { return GatewayClient.save(this.config.FormName, data, { endpoint: this.config.ApiSave }); };
+DynamicFormRepository.prototype.delete = function (ids) { return GatewayClient.delete(this.config.FormName, ids, { endpoint: this.config.ApiDelete }); };
+
+/* --- js/core/dynamic-form/DynamicFormSchemaService.js --- */
+window.DynamicFormSchemaService = {
+  getFieldBehavior: function (fieldName, formName) {
+    return window.MetadataModuleConfig ? MetadataModuleConfig.getFieldConfig(fieldName, formName) : {};
+  }
+};
+
+/* --- js/core/dynamic-form/DynamicFormValidator.js --- */
+window.DynamicFormValidator = {
+  required: function (schema, values) {
+    return (schema || []).filter(function (field) {
+      return field.required && (values[field.name] === '' || values[field.name] == null);
+    });
+  }
+};
+
+/* --- js/core/dynamic-form/DynamicFormRuntime.js --- */
+window.DynamicFormRuntime = function (moduleConfig) {
+  this.config = moduleConfig || {};
+  this.state = new DynamicFormState();
+  this.repository = new DynamicFormRepository(this.config);
+};
+
+/* --- js/core/dynamic-form/DynamicFormRenderer.js --- */
+window.DynamicFormRenderer = {
+  renderComponent: function (code, context) {
+    return FieldRendererRegistry.render(code, context);
+  }
+};
+
+/* --- js/core/dynamic-form/DynamicDetailManager.js --- */
+window.DynamicDetailManager = { reload: function (engine) { if (engine && engine.reloadDetailTabs) return engine.reloadDetailTabs(); } };
+
+/* --- js/core/dynamic-form/DynamicAttachmentManager.js --- */
+window.DynamicAttachmentManager = { clearPendingAvatar: function () { window._pendingAvatar = null; } };
 
 /* --- js/core/DynamicFormEngine.js --- */
 /**
@@ -19204,13 +19369,8 @@ window.DynamicFormEngine = (function () {
         // 1. Tính toán giá trị tự động (FormulaRule)
         globalFormSchema.forEach(function (f) {
           if (f.formulaRule) {
-            var formula = f.formulaRule;
-            for (var key in currentModalFormState) {
-              var v = parseFloat(currentModalFormState[key]) || 0;
-              formula = formula.split('{' + key + '}').join(v);
-            }
             try {
-              var result = new Function('return ' + formula)();
+              var result = SafeFormulaEvaluator.evaluate(f.formulaRule, currentModalFormState);
               if (!isNaN(result) && isFinite(result)) {
                 var targetInput = body.querySelector('input[name="' + f.name + '"]');
                 if (targetInput && targetInput.value != result) {
@@ -19219,7 +19379,9 @@ window.DynamicFormEngine = (function () {
                   targetInput.dispatchEvent(new Event('change', { bubbles: true }));
                 }
               }
-            } catch (e) { }
+            } catch (formulaError) {
+              console.warn('[DynamicForm] Unsupported FormulaRule for ' + f.name, formulaError.message);
+            }
           }
         });
 
@@ -20477,7 +20639,19 @@ window.DynamicFormEngine = (function () {
       });
   }
 
-  return { render: render };
+  return {
+    render: render,
+    services: {
+      Runtime: window.DynamicFormRuntime,
+      State: window.DynamicFormState,
+      Repository: window.DynamicFormRepository,
+      Schema: window.DynamicFormSchemaService,
+      Validator: window.DynamicFormValidator,
+      Renderer: window.DynamicFormRenderer,
+      Details: window.DynamicDetailManager,
+      Attachments: window.DynamicAttachmentManager
+    }
+  };
 })();
 
 /* --- js/plugins/shift/ShiftActions.js --- */

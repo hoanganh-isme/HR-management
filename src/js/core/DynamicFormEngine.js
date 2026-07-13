@@ -5236,13 +5236,8 @@ window.DynamicFormEngine = (function () {
         // 1. Tính toán giá trị tự động (FormulaRule)
         globalFormSchema.forEach(function (f) {
           if (f.formulaRule) {
-            var formula = f.formulaRule;
-            for (var key in currentModalFormState) {
-              var v = parseFloat(currentModalFormState[key]) || 0;
-              formula = formula.split('{' + key + '}').join(v);
-            }
             try {
-              var result = new Function('return ' + formula)();
+              var result = SafeFormulaEvaluator.evaluate(f.formulaRule, currentModalFormState);
               if (!isNaN(result) && isFinite(result)) {
                 var targetInput = body.querySelector('input[name="' + f.name + '"]');
                 if (targetInput && targetInput.value != result) {
@@ -5251,7 +5246,9 @@ window.DynamicFormEngine = (function () {
                   targetInput.dispatchEvent(new Event('change', { bubbles: true }));
                 }
               }
-            } catch (e) { }
+            } catch (formulaError) {
+              console.warn('[DynamicForm] Unsupported FormulaRule for ' + f.name, formulaError.message);
+            }
           }
         });
 
@@ -6509,5 +6506,17 @@ window.DynamicFormEngine = (function () {
       });
   }
 
-  return { render: render };
+  return {
+    render: render,
+    services: {
+      Runtime: window.DynamicFormRuntime,
+      State: window.DynamicFormState,
+      Repository: window.DynamicFormRepository,
+      Schema: window.DynamicFormSchemaService,
+      Validator: window.DynamicFormValidator,
+      Renderer: window.DynamicFormRenderer,
+      Details: window.DynamicDetailManager,
+      Attachments: window.DynamicAttachmentManager
+    }
+  };
 })();
