@@ -121,7 +121,9 @@ BEGIN
         FROM OPENJSON(@Data) jd
         JOIN sys.columns c ON c.object_id = OBJECT_ID(@TableName) AND LOWER(c.name) = LOWER(jd.[key]) COLLATE DATABASE_DEFAULT
         WHERE jd.[key] COLLATE DATABASE_DEFAULT NOT LIKE '\_%' ESCAPE '\'  -- Bỏ qua các key hệ thống bắt đầu bằng _
-          AND LOWER(jd.[key]) COLLATE DATABASE_DEFAULT NOT IN ('isedit', 'username'); -- Bỏ qua flag hệ thống FE gửi xuống
+          AND LOWER(jd.[key]) COLLATE DATABASE_DEFAULT <> 'isedit'
+          -- UserName chỉ là dữ liệu nghiệp vụ khi metadata khai báo nó làm khóa chính.
+          AND (LOWER(jd.[key]) COLLATE DATABASE_DEFAULT <> 'username' OR LOWER(@PrimaryKey) = 'username');
 
         -- 2. Kết hợp với kiểu dữ liệu của cột để tự động định dạng / chuyển đổi thông minh
         SELECT 

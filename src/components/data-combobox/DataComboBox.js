@@ -4,6 +4,17 @@
 var UIControls = window.UIControls || {};
 
 UIControls.createDataComboBox = function (options) {
+  options = options || {};
+  var isMultiple = options.multiple === true;
+  var valueIndex = options.valueIndex !== undefined ? options.valueIndex : 0;
+
+  function parseValues(value) {
+    if (Array.isArray(value)) return value.map(String).map(function (item) { return item.trim(); }).filter(Boolean);
+    return String(value || '').split(',').map(function (item) { return item.trim(); }).filter(Boolean);
+  }
+
+  var committedValues = parseValues(options.initialValue);
+  var selectedValues = committedValues.slice();
   var container = document.createElement('div');
   container.className = 'combo-box-container';
 
@@ -13,6 +24,7 @@ UIControls.createDataComboBox = function (options) {
   input.className = 'ui-input';
   input.placeholder = (options.placeholder !== undefined) ? options.placeholder : 'Tìm kiếm...';
   if (options.id) input.id = options.id;
+  if (isMultiple) input.value = committedValues.join(', ');
 
   // Actions block – chỉ giữ nút mũi tên
   var actions = document.createElement('div');
@@ -29,7 +41,7 @@ UIControls.createDataComboBox = function (options) {
     btnArrow.disabled = true;
     container.classList.add('ui-input-disabled');
     btnArrow.innerHTML = '<span class="material-symbols-outlined">lock</span>';
-  } else if (options.readonlyInput) {
+  } else if (options.readonlyInput || isMultiple) {
     input.readOnly = true;
     input.style.cursor = 'pointer';
     input.style.background = 'var(--color-background)'; // slight gray background to indicate read-only
@@ -75,7 +87,7 @@ UIControls.createDataComboBox = function (options) {
   btnAddNew.type = 'button';
   btnAddNew.className = 'dd-footer-add-btn';
   btnAddNew.innerHTML = '<span class="material-symbols-outlined">add</span> Thêm mới';
-  
+
   // Mặc định là ẩn, chỉ hiện khi có yêu cầu từ options
   btnAddNew.style.display = options.showAddNew ? 'flex' : 'none';
 
@@ -88,10 +100,26 @@ UIControls.createDataComboBox = function (options) {
   var leftFooter = document.createElement('div');
   leftFooter.appendChild(btnAddNew);
 
+  var multiActions = document.createElement('div');
+  multiActions.style.cssText = 'display:' + (isMultiple ? 'flex' : 'none') + ';gap:8px;align-items:center;';
+
+  var btnCancel = document.createElement('button');
+  btnCancel.type = 'button';
+  btnCancel.className = 'btn btn-light';
+  btnCancel.textContent = 'Hủy';
+
+  var btnConfirm = document.createElement('button');
+  btnConfirm.type = 'button';
+  btnConfirm.className = 'btn btn-primary';
+  btnConfirm.textContent = 'Chọn';
+
+  multiActions.appendChild(btnCancel);
+  multiActions.appendChild(btnConfirm);
+
   // Pagination Elements
   var currentPage = 1;
   var currentQuery = '';
-  
+
   var paginationWrapper = document.createElement('div');
   paginationWrapper.className = 'dd-pagination';
   paginationWrapper.style.display = 'none';
@@ -116,12 +144,12 @@ UIControls.createDataComboBox = function (options) {
   btnNext.style.cssText = 'border:1px solid var(--color-border); background:var(--color-surface); cursor:pointer; border-radius:6px; display:flex; align-items:center; justify-content:center; width:28px; height:28px; color:var(--color-text-secondary); transition:all 0.2s;';
 
   // Hover effects
-  [btnPrev, btnNext].forEach(function(btn) {
-    btn.onmouseover = function() { this.style.borderColor = 'var(--color-primary)'; this.style.color = 'var(--color-primary)'; this.style.background = 'rgba(251, 191, 36, 0.05)'; };
-    btn.onmouseout = function() { this.style.borderColor = 'var(--color-border)'; this.style.color = 'var(--color-text-secondary)'; this.style.background = 'var(--color-surface)'; };
+  [btnPrev, btnNext].forEach(function (btn) {
+    btn.onmouseover = function () { this.style.borderColor = 'var(--color-primary)'; this.style.color = 'var(--color-primary)'; this.style.background = 'rgba(251, 191, 36, 0.05)'; };
+    btn.onmouseout = function () { this.style.borderColor = 'var(--color-border)'; this.style.color = 'var(--color-text-secondary)'; this.style.background = 'var(--color-surface)'; };
   });
 
-  btnPrev.addEventListener('click', function(e) {
+  btnPrev.addEventListener('click', function (e) {
     e.stopPropagation();
     if (currentPage > 1) {
       currentPage--;
@@ -129,7 +157,7 @@ UIControls.createDataComboBox = function (options) {
     }
   });
 
-  btnNext.addEventListener('click', function(e) {
+  btnNext.addEventListener('click', function (e) {
     e.stopPropagation();
     currentPage++;
     loadData(currentQuery, currentPage);
@@ -141,6 +169,7 @@ UIControls.createDataComboBox = function (options) {
 
   footer.appendChild(leftFooter);
   footer.appendChild(paginationWrapper);
+  footer.appendChild(multiActions);
 
   dropdown.appendChild(searchWrapper);
   dropdown.appendChild(tableWrapper);
@@ -148,6 +177,20 @@ UIControls.createDataComboBox = function (options) {
 
   // ── Data & Render ───────────────────────────────────────────────
   var fullData = options.data || [];
+
+  function getRowValue(row) {
+    return row && row[valueIndex] !== undefined && row[valueIndex] !== null ? String(row[valueIndex]) : '';
+  }
+
+  function syncDisplayValue() {
+    if (!isMultiple) return;
+    var labels = committedValues.map(function (value) {
+      var matched = fullData.find(function (row) { return getRowValue(row) === value; });
+      return matched ? String(matched[options.colFilterIndex || 0] || value) : value;
+    });
+    input.value = labels.join(', ');
+    input.title = labels.join(', ');
+  }
 
   function renderTable(displayData) {
     if (UIControls.utils) {
@@ -160,12 +203,27 @@ UIControls.createDataComboBox = function (options) {
       rows.forEach(function (row) {
         var dataRow = displayData[row.getAttribute('data-index')];
         var rowVal = (dataRow[options.colFilterIndex || 0] || '').toString().toLowerCase();
+        var dataValue = getRowValue(dataRow);
+
+        if (isMultiple) {
+          var checked = selectedValues.indexOf(dataValue) !== -1;
+          row.classList.toggle('active', checked);
+          var checkbox = row.querySelector('.cb-multi-item');
+          if (checkbox) checkbox.checked = checked;
+        }
 
         if (currentInputVal && rowVal === currentInputVal) {
           row.classList.add('active');
         }
 
         row.addEventListener('click', function () {
+          if (isMultiple) {
+            var selectedIndex = selectedValues.indexOf(dataValue);
+            if (selectedIndex === -1) selectedValues.push(dataValue);
+            else selectedValues.splice(selectedIndex, 1);
+            renderTable(displayData);
+            return;
+          }
           input.value = dataRow[options.colFilterIndex || 0];
           hideDropdown();
           if (typeof options.onSelect === 'function') {
@@ -173,6 +231,25 @@ UIControls.createDataComboBox = function (options) {
           }
         });
       });
+
+      if (isMultiple) {
+        var selectAll = tableWrapper.querySelector('.cb-multi-all');
+        if (selectAll) {
+          var visibleValues = displayData.map(getRowValue).filter(Boolean);
+          selectAll.checked = visibleValues.length > 0 && visibleValues.every(function (value) {
+            return selectedValues.indexOf(value) !== -1;
+          });
+          selectAll.addEventListener('click', function (event) {
+            event.stopPropagation();
+            visibleValues.forEach(function (value) {
+              var index = selectedValues.indexOf(value);
+              if (selectAll.checked && index === -1) selectedValues.push(value);
+              if (!selectAll.checked && index !== -1) selectedValues.splice(index, 1);
+            });
+            renderTable(displayData);
+          });
+        }
+      }
     }
   }
 
@@ -215,11 +292,13 @@ UIControls.createDataComboBox = function (options) {
         if (result && !Array.isArray(result) && result.data) {
           if (result.headers) options.headers = result.headers;
           if (result.colFilterIndex !== undefined) options.colFilterIndex = result.colFilterIndex;
+          if (result.valueIndex !== undefined) valueIndex = result.valueIndex;
           if (result.forceMultiColumn !== undefined) options.forceMultiColumn = result.forceMultiColumn;
           result = result.data;
         }
         if (Array.isArray(result)) {
           fullData = result;
+          syncDisplayValue();
           renderTable(fullData);
           if (options.enablePagination) {
             paginationWrapper.style.display = 'flex';
@@ -256,6 +335,7 @@ UIControls.createDataComboBox = function (options) {
       document.body.appendChild(dropdown);
     }
     searchInput.value = '';
+    if (isMultiple) selectedValues = committedValues.slice();
 
     loadData('', 1);
 
@@ -264,9 +344,9 @@ UIControls.createDataComboBox = function (options) {
     }
     dropdown.classList.add('active');
     attachScrollListeners();
-    setTimeout(function () { 
+    setTimeout(function () {
       if (document.activeElement !== input) {
-        searchInput.focus(); 
+        searchInput.focus();
       }
     }, 50);
   }
@@ -276,6 +356,25 @@ UIControls.createDataComboBox = function (options) {
     dropdown.classList.remove('active');
     if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
   }
+
+  btnCancel.addEventListener('click', function (event) {
+    event.stopPropagation();
+    selectedValues = committedValues.slice();
+    hideDropdown();
+  });
+
+  btnConfirm.addEventListener('click', function (event) {
+    event.stopPropagation();
+    committedValues = selectedValues.slice();
+    syncDisplayValue();
+    var value = committedValues.join(',');
+    if (typeof options.onChange === 'function') options.onChange(value);
+    if (typeof options.onSelect === 'function') {
+      var rows = fullData.filter(function (row) { return committedValues.indexOf(getRowValue(row)) !== -1; });
+      options.onSelect(value, rows);
+    }
+    hideDropdown();
+  });
 
   // ── Search bên trong dropdown ───────────────────────────────────
   var _searchDebounce = null;
@@ -310,14 +409,14 @@ UIControls.createDataComboBox = function (options) {
   });
 
   input.addEventListener('click', function (e) {
-    if (options.readonlyInput) {
+    if (options.readonlyInput || isMultiple) {
       e.preventDefault();
       dropdown.classList.contains('active') ? hideDropdown() : showDropdown();
     }
   });
 
   input.addEventListener('mousedown', function (e) {
-    if (options.readonlyInput) {
+    if (options.readonlyInput || isMultiple) {
       e.preventDefault(); // Prevent focus and blinking cursor
     }
   });
@@ -362,6 +461,7 @@ UIControls.createDataComboBox = function (options) {
 
 
   input.addEventListener('blur', function () {
+    if (isMultiple) return;
     var val = input.value.trim().toLowerCase();
     if (val && fullData.length > 0) {
       var exactMatch = fullData.find(function (row) {
@@ -383,6 +483,16 @@ UIControls.createDataComboBox = function (options) {
 
   container.appendChild(input);
   container.appendChild(actions);
+
+  container.setValue = function (value) {
+    if (!isMultiple) {
+      input.value = value || '';
+      return;
+    }
+    committedValues = parseValues(value);
+    selectedValues = committedValues.slice();
+    syncDisplayValue();
+  };
 
   return container;
 };

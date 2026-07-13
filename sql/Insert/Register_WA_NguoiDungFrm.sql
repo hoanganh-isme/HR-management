@@ -47,7 +47,7 @@ VALUES (
     N'Danh sách người dùng',
     'User List',
     'SY_User',
-    'UserID'
+    'UserName'
 );
 GO
 
@@ -71,11 +71,7 @@ GO
 -- 7. TINH CHỈNH TIÊU ĐỀ CÁC CỘT VÀ KIỂU DỮ LIỆU
 -- =========================================================================
 UPDATE dbo.SY_FormatFields 
-SET CaptionVN = N'Mã đăng nhập', CaptionEN = 'User ID', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1, IsReadOnlyEdit = 1
-WHERE FormName = 'WA_NguoiDungFrm' AND FieldName = 'UserID';
-
-UPDATE dbo.SY_FormatFields 
-SET CaptionVN = N'Tên người dùng', CaptionEN = 'User Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 
+SET CaptionVN = N'Tên đăng nhập', CaptionEN = 'User Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1, IsReadOnlyEdit = 1
 WHERE FormName = 'WA_NguoiDungFrm' AND FieldName = 'UserName';
 
 UPDATE dbo.SY_FormatFields 

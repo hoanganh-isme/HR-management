@@ -54,6 +54,7 @@ window.APP_SETTINGS = {
     legacyAppCode: 'pmql',
     productName: 'Quản lý Nhân sự',
     productTitle: 'HR Management',
+    adminGroupIds: ['Admin'],
     documentDefaultUserName: 'Nhân viên nhân sự',
     disabledLegacyRoutes: [
         '/categories',

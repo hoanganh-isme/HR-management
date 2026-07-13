@@ -5755,7 +5755,9 @@ BEGIN
         FROM OPENJSON(@Data) jd
         JOIN sys.columns c ON c.object_id = OBJECT_ID(@TableName) AND LOWER(c.name) = LOWER(jd.[key]) COLLATE DATABASE_DEFAULT
         WHERE jd.[key] COLLATE DATABASE_DEFAULT NOT LIKE '\_%' ESCAPE '\'  -- Bá» qua cÃ¡c key há»‡ thá»‘ng báº¯t Ä‘áº§u báº±ng _
-          AND LOWER(jd.[key]) COLLATE DATABASE_DEFAULT NOT IN ('isedit', 'username'); -- Bá» qua flag há»‡ thá»‘ng FE gá»­i xuá»‘ng
+          AND LOWER(jd.[key]) COLLATE DATABASE_DEFAULT <> 'isedit'
+          -- UserName chá»‰ lÃ  dá»¯ liá»‡u nghiá»‡p vá»¥ khi metadata khai bÃ¡o nÃ³ lÃ m khÃ³a chÃ­nh.
+          AND (LOWER(jd.[key]) COLLATE DATABASE_DEFAULT <> 'username' OR LOWER(@PrimaryKey) = 'username');
 
         -- 2. Káº¿t há»£p vá»›i kiá»ƒu dá»¯ liá»‡u cá»§a cá»™t Ä‘á»ƒ tá»± Ä‘á»™ng Ä‘á»‹nh dáº¡ng / chuyá»ƒn Ä‘á»•i thÃ´ng minh
         SELECT 

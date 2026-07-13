@@ -21,8 +21,7 @@ var DashboardPage = (function () {
 
   function _getAccessScope() {
     var user = _readCurrentUser();
-    var group = (user.UserGroupID || user.userGroupID || user.userGroupId || user.Group || user.GroupID || user.NhomQuyen || '').toString().trim().toLowerCase();
-    var isAdmin = group === 'admin';
+    var isAdmin = MetadataModuleConfig.isAdminUser(user);
     var rawBranches = user.BranchID || user.branchID || user.branchId || user.Branches || user.BranchCodes || '';
     var branchIds = [];
 

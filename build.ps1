@@ -127,6 +127,7 @@ $jsFiles = @(
   "components\side-panel\SidePanel.js",
   "components\screen-capture\ScreenCapture.js",
   "components\rule-builder\RuleBuilderDialog.js",
+  "js\core\MetadataModuleConfig.js",
   "js\core\WizardForm.js",
   "js\core\DynamicFormEngine.js",
   "js\core\index.js",

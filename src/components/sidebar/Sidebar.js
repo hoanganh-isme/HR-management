@@ -70,7 +70,7 @@ var Sidebar = (function () {
     if (!container) return;
 
     var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
-    var groupId = u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var groupId = MetadataModuleConfig.getUserGroupId(u);
 
     // Thử load từ cache giống Navbar
     try {

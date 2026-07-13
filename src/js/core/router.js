@@ -277,7 +277,7 @@ var Router = (function () {
         _fadeOut($content)
           .then(function () {
             if (currentNav !== _navId) throw new Error('ABORTED');
-            if (route.script) {
+            if (route.script && !(route.pageFn && window[route.pageFn])) {
               return _loadScript(route.script);
             }
             return Promise.resolve();

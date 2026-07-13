@@ -125,17 +125,23 @@ UIControls.utils = (function () {
       visibleIndexes.push(firstValid !== -1 ? firstValid : 0);
     }
 
-    var theadHTML = visibleIndexes.map(idx => `<th>${headers[idx]}</th>`).join('');
+    var multipleHeader = options.multiple ? '<th class="dropdown-check-column"><input type="checkbox" class="cb-multi-all" aria-label="Chọn tất cả"></th>' : '';
+    var theadHTML = multipleHeader + visibleIndexes.map(idx => `<th>${headers[idx]}</th>`).join('');
     var tbodyHTML = data.map(function (row, rIdx) {
+      var valueIndex = options.valueIndex !== undefined ? options.valueIndex : 0;
+      var rowValue = row[valueIndex] !== undefined && row[valueIndex] !== null ? String(row[valueIndex]) : '';
+      var checkboxCell = options.multiple
+        ? '<td class="dropdown-check-column"><input type="checkbox" class="cb-multi-item" value="' + rowValue + '" aria-label="Chọn dòng"></td>'
+        : '';
       var cells = visibleIndexes.map(function (idx) {
         var cls = (idx === colHighlightIndex && visibleIndexes.length > 1) ? 'highlight-col' : '';
         return `<td class="${cls}">${row[idx] || ''}</td>`;
       }).join('');
-      return `<tr data-index="${rIdx}">${cells}</tr>`;
+      return `<tr data-index="${rIdx}">${checkboxCell}${cells}</tr>`;
     }).join('');
 
     var isSingleCol = visibleIndexes.length <= 1;
-    var headerStyle = isSingleCol ? ' style="display:none;"' : '';
+    var headerStyle = isSingleCol && !options.multiple ? ' style="display:none;"' : '';
     var tblClass = isSingleCol ? 'dropdown-table single-column' : 'dropdown-table';
 
     return `

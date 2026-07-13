@@ -1,4 +1,4 @@
-/**
+﻿/**
  * WizardForm — Multi-Step Add Form
  * ─────────────────────────────────────────────────────────
  * Kích hoạt bằng cách thêm WizardSteps vào MODULE_CONFIG
@@ -13,7 +13,7 @@
  *
  * Config mới:
  *   - config.userBranches  : Array chi nhánh user được gán  [{ id:'VP', name:'Văn Phòng' }, ...]
- *   - config.moduleConfig.BranchPrefixMap : object map  { 'VP':'VP', 'TDG':'TDG', ... }
+ *   - config.moduleConfig.wizardHooks.resolveAutoId : resolver dùng metadata/dữ liệu hiện hữu
  *   - config.moduleConfig.ApiSearch       : endpoint để query PersonID list
  *
  * File này export hàm WizardForm.open(config) để DynamicFormEngine gọi.
@@ -251,7 +251,7 @@ var WizardForm = (function () {
     btnClose.type = 'button';
     btnClose.title = 'Đóng (Esc)';
     btnClose.innerHTML = '<span class="material-symbols-outlined" style="font-size:22px;">close</span>';
-    btnClose.onclick = function() { _close(false); };
+    btnClose.onclick = function () { _close(false); };
 
     titleRow.appendChild(titleLeft);
     titleRow.appendChild(btnClose);
@@ -360,7 +360,7 @@ var WizardForm = (function () {
         // Thu thập data hiện tại
         _collect();
         var hasData = currentStep > 0 || Object.keys(formState).length > 0;
-        
+
         if (hasData) {
           if (typeof ConfirmModal !== 'undefined') {
             ConfirmModal.show({
@@ -368,7 +368,7 @@ var WizardForm = (function () {
               message: 'Bạn đang có dữ liệu chưa lưu. Bạn có chắc chắn muốn thoát và hủy bỏ toàn bộ các thay đổi này không?',
               confirmText: 'Đồng ý thoát',
               confirmClass: 'btn-danger',
-              onConfirm: function() { _close(true); }
+              onConfirm: function () { _close(true); }
             });
             var confirmEl = document.getElementById('confirm-modal-overlay');
             if (confirmEl) confirmEl.style.zIndex = '10005';
@@ -380,7 +380,7 @@ var WizardForm = (function () {
           }
         }
       }
-      
+
       overlay.style.opacity = '0';
       overlay.style.transition = 'opacity 0.18s';
       if (typeof _onKeydown === 'function') document.removeEventListener('keydown', _onKeydown);
@@ -684,18 +684,18 @@ var WizardForm = (function () {
       } else {
         // Only show avatar on the very first data step (step 0 if no branch, step 1 if branch is present)
         var isFirstDataStep = hideBranch ? (uiIdx === 0) : (uiIdx === 1);
-        
+
         if (isFirstDataStep && moduleConfig.AttachmentApi) {
           var bodyWrapper = document.createElement('div');
           bodyWrapper.className = 'wz-step-body-wrapper';
-          
+
           // Render photo box on the left
           var photoArea = document.createElement('div');
           photoArea.className = 'wz-avatar-col';
 
           var frame = document.createElement('div');
           frame.className = 'wz-avatar-frame';
-          
+
           var img = document.createElement('img');
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
           var defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
@@ -731,12 +731,12 @@ var WizardForm = (function () {
               img.src = defaultAvatar;
             }
           }
-          
-          img.onerror = function () { 
+
+          img.onerror = function () {
             var self = this;
             var pkField = formSchema.PrimaryKey || 'PersonID';
             var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
-            
+
             if (!pkVal || !moduleConfig.AttachmentApi) {
               self.src = defaultAvatar;
               return;
@@ -759,27 +759,27 @@ var WizardForm = (function () {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(fetchPayload)
             })
-            .then(function(res) { return res.json(); })
-            .then(function(data) {
-             if (data && data.code === 0 && data.records && data.records.length > 0) {
-                 var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
-                 if (b64 && b64.length > 10) {
-                   if (b64.startsWith('data:image')) {
-                     self.src = b64;
-                   } else {
-                     var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
-                     self.src = 'data:' + mimeType + ';base64,' + b64;
-                   }
-                 } else {
-                   self.src = defaultAvatar;
-                 }
-             } else {
-                 self.src = defaultAvatar;
-             }
-            })
-            .catch(function(err) {
-               self.src = defaultAvatar;
-            });
+              .then(function (res) { return res.json(); })
+              .then(function (data) {
+                if (data && data.code === 0 && data.records && data.records.length > 0) {
+                  var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                  if (b64 && b64.length > 10) {
+                    if (b64.startsWith('data:image')) {
+                      self.src = b64;
+                    } else {
+                      var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                      self.src = 'data:' + mimeType + ';base64,' + b64;
+                    }
+                  } else {
+                    self.src = defaultAvatar;
+                  }
+                } else {
+                  self.src = defaultAvatar;
+                }
+              })
+              .catch(function (err) {
+                self.src = defaultAvatar;
+              });
           };
           frame.appendChild(img);
 
@@ -791,7 +791,7 @@ var WizardForm = (function () {
           var btnUpload = document.createElement('button');
           btnUpload.className = 'btn btn-outline btn-sm w-100 wz-avatar-btn';
           btnUpload.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">photo_camera</span> Tải ảnh lên';
-          
+
           var handleUploadClick = function () {
             var input = document.createElement('input');
             input.type = 'file';
@@ -802,7 +802,7 @@ var WizardForm = (function () {
                 var reader = new FileReader();
                 reader.onload = function (re) {
                   img.src = re.target.result;
-                  photoInput.value = re.target.result; 
+                  photoInput.value = re.target.result;
 
                   var dataUrl = re.target.result;
                   var base64Content = dataUrl.split(',')[1] || dataUrl;
@@ -820,7 +820,7 @@ var WizardForm = (function () {
                     formState.HinhAnh = '0x' + hexStr;
                     formState.Base64Content = base64Content;
                     formState.Content = '0x' + hexStr;
-                    
+
                     window._pendingWizardAvatar = {
                       file: file,
                       base64Content: base64Content,
@@ -834,7 +834,7 @@ var WizardForm = (function () {
             };
             input.click();
           };
-          
+
           btnUpload.onclick = handleUploadClick;
           frame.onclick = handleUploadClick;
 
@@ -845,12 +845,12 @@ var WizardForm = (function () {
           var fieldsArea = document.createElement('div');
           fieldsArea.className = 'wz-fields-col';
           fieldsArea.style.cssText = 'flex: 1; min-width: 0;';
-          
+
           bodyWrapper.appendChild(photoArea);
           bodyWrapper.appendChild(fieldsArea);
-          
+
           content.appendChild(bodyWrapper);
-          
+
           _renderFields(fieldsArea, step.fields);
         } else {
           _renderFields(content, step.fields);
@@ -950,14 +950,14 @@ var WizardForm = (function () {
         var wrapper = document.createElement('div');
         wrapper.className = colClass;
         wrapper.style.animation = 'wz-fadein 0.16s ease';
-        
+
         // Loại bỏ placeholder để UI thoáng hơn, tránh rối mắt khi form dài
         var inputs = inputEl.querySelectorAll('input, textarea');
         for (var i = 0; i < inputs.length; i++) {
           inputs[i].removeAttribute('placeholder');
           inputs[i].placeholder = '';
         }
-        
+
         wrapper.appendChild(inputEl);
         grid.appendChild(wrapper);
       });
@@ -1025,12 +1025,12 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
-            
+
             // Lọc bớt cột nếu field có cấu hình hiddenColumns
             var displayKeys = keys;
             if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
-              var hcols = field.hiddenColumns.map(function(c){ return c.toUpperCase(); });
-              displayKeys = keys.filter(function(k){ return hcols.indexOf(k.toUpperCase()) === -1; });
+              var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+              displayKeys = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
             }
 
             list.forEach(function (d) {
@@ -1253,7 +1253,7 @@ var WizardForm = (function () {
     // ── Khởi tạo ──────────────────────────────────────────────────────
     document.getElementById('modal-container').appendChild(overlay);
     history.pushState({ wizardOpen: true }, null, window.location.href);
-    
+
     if (hideBranch) {
       // Tự động resolve ID khi bỏ qua bước chọn chi nhánh
       var pkName = moduleConfig.PrimaryKey || 'PersonID';
@@ -1468,20 +1468,20 @@ var WizardForm = (function () {
             img.src = defaultAvatar;
           }
         }
-        
-        img.onerror = function () { 
+
+        img.onerror = function () {
           // Nếu ảnh tĩnh lỗi (chưa cấu hình backend /Images/), ta thử gọi API để lấy Base64 Content từ Database
           var self = this;
           var pkField = formSchema.PrimaryKey || 'PersonID';
           var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
-          
+
           if (!pkVal || !moduleConfig.AttachmentApi) {
             self.src = defaultAvatar;
             return;
           }
 
           var attachApi = moduleConfig.AttachmentApi;
-          
+
           var fetchPayload = {
             List: attachApi,
             Func: 'View',
@@ -1493,34 +1493,34 @@ var WizardForm = (function () {
           };
 
           var apiUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
-          
+
           fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(fetchPayload)
           })
-          .then(res => res.json())
-          .then(data => {
-             // API_Gateway_Router usually returns { code, msg, records: [...] }
-             if (data && data.code === 0 && data.records && data.records.length > 0) {
-                 var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
-                 if (b64 && b64.length > 10) {
-                   if (b64.startsWith('data:image')) {
-                     self.src = b64;
-                   } else {
-                     var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
-                     self.src = 'data:' + mimeType + ';base64,' + b64;
-                   }
-                 } else {
-                   self.src = defaultAvatar;
-                 }
-             } else {
-                 self.src = defaultAvatar;
-             }
-          })
-          .catch(err => {
-             self.src = defaultAvatar;
-          });
+            .then(res => res.json())
+            .then(data => {
+              // API_Gateway_Router usually returns { code, msg, records: [...] }
+              if (data && data.code === 0 && data.records && data.records.length > 0) {
+                var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
+                if (b64 && b64.length > 10) {
+                  if (b64.startsWith('data:image')) {
+                    self.src = b64;
+                  } else {
+                    var mimeType = b64.startsWith('iVBORw') ? 'image/png' : 'image/jpeg';
+                    self.src = 'data:' + mimeType + ';base64,' + b64;
+                  }
+                } else {
+                  self.src = defaultAvatar;
+                }
+              } else {
+                self.src = defaultAvatar;
+              }
+            })
+            .catch(err => {
+              self.src = defaultAvatar;
+            });
         };
         frame.appendChild(img);
 
@@ -1601,15 +1601,15 @@ var WizardForm = (function () {
     var btnCancel = document.createElement('button');
     btnCancel.className = 'btn btn-outline';
     btnCancel.innerText = 'Hủy bỏ';
-    btnCancel.onclick = function() {
+    btnCancel.onclick = function () {
       if (!isViewMode && config.isViewMode) {
         // Was opened in view mode, but now in edit mode. Revert!
         isViewMode = true;
         formState = Object.assign({}, rowData); // Revert data
-        
+
         var titleText = moduleConfig.TitleView || 'Thông tin cá nhân';
         title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">person</span> ' + titleText;
-        
+
         btnSave.innerHTML = '<span class="material-symbols-outlined">edit</span> Sửa';
         btnSave.onclick = function () {
           isViewMode = false;
@@ -1619,7 +1619,7 @@ var WizardForm = (function () {
           btnSave.onclick = _onSaveData;
           _renderTabContent();
         };
-        
+
         _renderTabContent();
       } else {
         btnClose.click();
@@ -1824,11 +1824,11 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
-            
+
             var displayKeys = keys;
             if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
-              var hcols = field.hiddenColumns.map(function(c){ return c.toUpperCase(); });
-              displayKeys = keys.filter(function(k){ return hcols.indexOf(k.toUpperCase()) === -1; });
+              var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
+              displayKeys = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
             }
 
             list.forEach(function (d) {

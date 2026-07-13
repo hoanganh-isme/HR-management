@@ -358,8 +358,8 @@ var Navbar = (function () {
     if (!container) return;
 
     var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
-    var groupId = currentUser.UserGroupID || currentUser.userGroupID || currentUser.Group || currentUser.GroupID || currentUser.NhomQuyen || 'Admin';
-    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
+    var groupId = MetadataModuleConfig.getUserGroupId(currentUser);
+    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Người dùng';
 
     // Check version server trước — nếu khác cache thì tự clear (bắt được thay đổi từ máy Admin)
     if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
@@ -465,7 +465,7 @@ var Navbar = (function () {
 
     // UPDATE USER INFO IN DOM AFTER RENDER
     var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
-    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
+    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Người dùng';
     var navUserName = document.getElementById('nav-user-name');
     var vertNavUserName = document.getElementById('vert-nav-user-name');
     var navAvatar = document.getElementById('nav-avatar-img');
