@@ -1,6 +1,5 @@
 {
     "js":  [
-               "js/data/mockData.js",
                "js/utils/apiClient.js",
                "js/config/AppConfig.js",
                "js/config/ApiEndpoints.js",
@@ -16,7 +15,6 @@
                "js/utils/permission.js",
                "js/utils/DocumentExportPlugin.js",
                "js/utils/FormBuilderPlugin.js",
-               "js/utils/WorkflowTransferPlugin.js",
                "js/core/EventBus.js",
                "js/core/KeyboardManager.js",
                "js/utils/FormatUtils.js",
@@ -24,9 +22,6 @@
                "js/utils/PrintUtils.js",
                "js/services/CalendarService.js",
                "js/services/SystemDataService.js",
-               "js/services/BookingService.js",
-               "js/services/VisitorService.js",
-               "js/services/CheckoutService.js",
                "js/services/PermissionsService.js",
                "js/services/MenusService.js",
                "js/services/ReportService.js",
