@@ -1,5 +1,4 @@
-USE [QLTiec]
-GO
+
 
 /****** Object:  StoredProcedure [dbo].[API_LayDanhSachMenuTatCa] ******/
 SET ANSI_NULLS ON

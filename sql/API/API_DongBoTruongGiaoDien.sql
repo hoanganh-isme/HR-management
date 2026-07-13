@@ -1,5 +1,3 @@
-USE [QLTiec]
-GO
 
 IF OBJECT_ID('API_DongBoTruongGiaoDien', 'P') IS NOT NULL
     DROP PROCEDURE API_DongBoTruongGiaoDien;

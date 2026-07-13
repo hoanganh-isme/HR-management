@@ -29,7 +29,7 @@ var ReportFilterDialog = (function () {
   // ── Helpers ──────────────────────────────────────────────────
 
   function _currentUser() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
     return u.Username || u.UserName || u.username || 'Admin';
   }
 

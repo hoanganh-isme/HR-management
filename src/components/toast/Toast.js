@@ -7,9 +7,13 @@ var UIToast = (function () {
   // Auto-init container
   var container = null;
   document.addEventListener('DOMContentLoaded', function() {
-    container = document.createElement('div');
-    container.id = 'toast-container';
-    document.body.appendChild(container);
+    if (!document.getElementById('ui-toast-container')) {
+      container = document.createElement('div');
+      container.id = 'ui-toast-container';
+      document.body.appendChild(container);
+    } else {
+      container = document.getElementById('ui-toast-container');
+    }
   });
 
   /**

@@ -18,6 +18,14 @@ var AppearancePage = (function () {
     { id: 'dark', name: 'Bản Phát triển (Tối)', desc: 'Giao diện hiện đại, nền tối dịu mắt.', icon: 'dark_mode' }
   ];
 
+  var FONTS = [
+    { id: 'Plus Jakarta Sans', desc: 'Sang trọng, sắc nét', isDefault: true },
+    { id: 'Inter', desc: 'Hiện đại, dễ đọc' },
+    { id: 'Roboto', desc: 'Tiêu chuẩn cổ điển' },
+    { id: 'Nunito', desc: 'Bo tròn, thân thiện' },
+    { id: 'Arial', desc: 'Dễ nhìn cho kế toán' }
+  ];
+
   function render($container) {
     fetch('./src/pages/appearance/appearance.html')
       .then(function(res) { return res.text(); })
@@ -51,12 +59,13 @@ var AppearancePage = (function () {
   function _renderFontOptions() {
     var container = document.getElementById('font-options-container');
     if (!container) return;
-    var currentFont = localStorage.getItem('pmql_font_family') || 'Plus Jakarta Sans';
+    var currentFont = (window.APP_SETTINGS ? APP_SETTINGS.getStored('font_family', null) : localStorage.getItem('pmql_font_family')) || 'Plus Jakarta Sans';
 
-    container.innerHTML = _buildFontCard('Plus Jakarta Sans', 'Sang trọng, sắc nét', currentFont, true)
-      + _buildFontCard('Inter', 'Hiện đại, dễ đọc', currentFont, false)
-      + _buildFontCard('Roboto', 'Tiêu chuẩn cổ điển', currentFont, false)
-      + _buildFontCard('Nunito', 'Bo tròn, thân thiện', currentFont, false);
+    var html = '';
+    FONTS.forEach(function(fontDef) {
+       html += _buildFontCard(fontDef.id, fontDef.desc, currentFont, fontDef.isDefault);
+    });
+    container.innerHTML = html;
   }
 
   function _buildFontCard(fontName, desc, currentFont, isDefault) {
@@ -71,7 +80,7 @@ var AppearancePage = (function () {
   function _renderThemeOptions() {
     var container = document.getElementById('theme-options-container');
     if (!container) return;
-    var currentTheme = localStorage.getItem('pmql_theme') || 'auto';
+    var currentTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
 
     var html = '';
     THEMES.forEach(function(themeDef) {
@@ -88,7 +97,7 @@ var AppearancePage = (function () {
   function _renderColorOptions() {
     var container = document.getElementById('color-options-container');
     if (!container) return;
-    var currentColor = localStorage.getItem('pmql_color') || 'indigo';
+    var currentColor = (window.APP_SETTINGS ? APP_SETTINGS.getStored('color', null) : localStorage.getItem('pmql_color')) || 'indigo';
 
     var html = '';
     COLORS.forEach(function(colorDef) {
@@ -135,9 +144,9 @@ var AppearancePage = (function () {
   }
 
   function changeFont(fontFamily, el) {
-    var currentFont = localStorage.getItem('pmql_font_family') || 'Plus Jakarta Sans';
+    var currentFont = (window.APP_SETTINGS ? APP_SETTINGS.getStored('font_family', null) : localStorage.getItem('pmql_font_family')) || 'Plus Jakarta Sans';
     if (currentFont === fontFamily) return;
-    localStorage.setItem('pmql_font_family', fontFamily);
+    if (window.APP_SETTINGS) APP_SETTINGS.setStored('font_family', fontFamily); else localStorage.setItem('pmql_font_family', fontFamily);
     document.documentElement.style.setProperty('--font-family', '"' + fontFamily + '", sans-serif');
 
     var allOptions = document.querySelectorAll('.font-option');
@@ -160,9 +169,9 @@ var AppearancePage = (function () {
   }
 
   function changeTheme(themeId, el) {
-    var currentTheme = localStorage.getItem('pmql_theme') || 'auto';
+    var currentTheme = (window.APP_SETTINGS ? APP_SETTINGS.getStored('theme', null) : localStorage.getItem('pmql_theme')) || 'auto';
     if (currentTheme === themeId && el) return;
-    localStorage.setItem('pmql_theme', themeId);
+    if (window.APP_SETTINGS) APP_SETTINGS.setStored('theme', themeId); else localStorage.setItem('pmql_theme', themeId);
     
     var isDark = themeId === 'dark' || (themeId === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -196,13 +205,13 @@ var AppearancePage = (function () {
   }
 
   function changeColor(colorId, el) {
-    var currentColor = localStorage.getItem('pmql_color') || 'indigo';
+    var currentColor = (window.APP_SETTINGS ? APP_SETTINGS.getStored('color', null) : localStorage.getItem('pmql_color')) || 'indigo';
     if (currentColor === colorId) return;
     
     var colorDef = COLORS.find(function(c) { return c.id === colorId; });
     if (!colorDef) return;
 
-    localStorage.setItem('pmql_color', colorId);
+    if (window.APP_SETTINGS) APP_SETTINGS.setStored('color', colorId); else localStorage.setItem('pmql_color', colorId);
     document.documentElement.style.setProperty('--color-primary', colorDef.primary);
     document.documentElement.style.setProperty('--color-primary-hover', colorDef.hover);
     document.documentElement.style.setProperty('--color-primary-dark', colorDef.dark);

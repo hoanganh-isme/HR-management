@@ -3,6 +3,37 @@
    ═══════════════════════════════════════ -->
 
 <!-- ══ BODY: 2 cột ══════════════════════════════════════════ -->
+<style>
+/* Tùy chỉnh CSS để làm mềm giao diện sidebar, giống với ảnh 2 */
+.ui-nested-tabs__sidebar {
+  padding: 12px 0 !important;
+  background: transparent !important;
+}
+.ui-nested-tab-parent-btn--v, .ui-nested-tab-child-btn--v {
+  border-radius: 8px !important;
+  margin: 4px 12px !important;
+  padding: 10px 14px !important;
+  transition: all 0.2s ease !important;
+}
+.ui-nested-tab-parent-btn--v.active, .ui-nested-tab-child-btn--v.active {
+  background: rgba(60, 80, 224, 0.1) !important;
+  color: var(--color-primary) !important;
+  font-weight: 600 !important;
+  border: none !important;
+  border-left: 4px solid var(--color-primary) !important;
+  border-radius: 4px 8px 8px 4px !important;
+}
+.ui-nested-tab-parent-btn--v.active::before,
+.ui-nested-tab-child-btn--v.active::before {
+  display: none !important;
+}
+.ui-nested-tab-parent-btn--v:hover:not(.active), .ui-nested-tab-child-btn--v:hover:not(.active) {
+  background: rgba(0, 0, 0, 0.04) !important;
+}
+.ui-nested-tabs__vertical-content {
+  padding: 24px !important;
+}
+</style>
 <div class="row g-4" style="animation: slideUp 0.3s ease forwards; align-items: flex-start;">
 
   <!-- CỘT TRÁI — Cây Menu (UINestedTabs) -->

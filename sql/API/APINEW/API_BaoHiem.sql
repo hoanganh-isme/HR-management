@@ -1,5 +1,3 @@
-USE X26DIMTUTAC
-GO
 
 IF OBJECT_ID('dbo.API_BaoHiem', 'P') IS NOT NULL
     DROP PROCEDURE dbo.API_BaoHiem;
@@ -30,7 +28,7 @@ BEGIN
         BH.PeriodID,
         BH.LoaiBaoHiem,
         BH.BranchID,
-        (BH.PeriodID + BH.LoaiBaoHiem) AS PeriodKeyID,
+        CONCAT(BH.PeriodID, '_', BH.LoaiBaoHiem) AS PeriodKeyID,
         BH.UserCreate,
         BH.UserUpdate,
         BH.DateUpdate,

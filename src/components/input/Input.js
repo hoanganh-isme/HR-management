@@ -31,9 +31,7 @@ var UIInput = (function () {
     if (config.name) input.name = config.name;
     
     var finalPlaceholder = config.placeholder;
-    if (!finalPlaceholder && config.label && inputType !== 'checkbox' && inputType !== 'radio' && inputType !== 'date') {
-      finalPlaceholder = 'Nhập ' + config.label.toLowerCase() + '...';
-    }
+    // Removed auto-placeholder generation to clean up UI as requested by user
     if (finalPlaceholder) input.placeholder = finalPlaceholder;
     
     if (config.value !== undefined) input.value = config.value;
@@ -84,7 +82,45 @@ var UIInput = (function () {
         config.value = rawVal.split(' ')[0];
       }
     }
-    return _createBaseWrapper(config, 'date').wrapper;
+    var obj = _createBaseWrapper(config, 'text');
+    if (config.value) {
+      obj.input.value = config.value;
+    }
+
+    // Thêm icon lịch (tùy chọn)
+    var icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined';
+    icon.innerText = 'calendar_today';
+    icon.style.position = 'absolute';
+    icon.style.right = '10px';
+    icon.style.top = '36px'; // canh giữa theo height của input
+    icon.style.color = 'var(--color-text-secondary)';
+    icon.style.pointerEvents = 'none';
+    icon.style.fontSize = '18px';
+    
+    // Đảm bảo wrapper là relative để canh vị trí icon
+    obj.wrapper.style.position = 'relative';
+    
+    // Ẩn icon nếu đang dùng label inline hoặc config khác
+    if (!config.label) icon.style.top = '10px';
+    obj.wrapper.appendChild(icon);
+
+    if (typeof window.flatpickr !== 'undefined') {
+      window.flatpickr(obj.input, {
+        altInput: true,
+        altFormat: "d/m/Y",
+        dateFormat: "Y-m-d",
+        defaultDate: config.value ? new Date(config.value) : null,
+        locale: "vn",
+        allowInput: true
+      });
+    } else {
+      // Fallback nếu không có flatpickr
+      obj.input.type = 'date';
+      if (config.value) obj.input.value = config.value;
+    }
+
+    return obj.wrapper;
   }
 
   /**
@@ -202,7 +238,7 @@ var UIInput = (function () {
 
     var defaultOpt = document.createElement('option');
     defaultOpt.value = '';
-    defaultOpt.innerText = '-- Vui lòng chọn --';
+    defaultOpt.innerText = '';
     select.appendChild(defaultOpt);
 
     (options || []).forEach(function(opt) {

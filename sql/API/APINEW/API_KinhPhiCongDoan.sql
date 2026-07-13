@@ -1,6 +1,8 @@
 CREATE OR ALTER PROCEDURE [dbo].[API_KinhPhiCongDoan]
     @Keyword NVARCHAR(100) = NULL,
     @BranchID VARCHAR(MAX) = NULL,
+    @PeriodID VARCHAR(20) = NULL,
+    @PhongBan VARCHAR(50) = NULL,
     @User VARCHAR(50) = NULL
 AS
 BEGIN
@@ -15,7 +17,7 @@ BEGIN
 
     -- 2. Truy vấn dữ liệu chính trả về cho Grid trên Web
     SELECT 
-        KP.[UserAutoID]
+        KP.[UserAutoID],
         KP.[PersonID],
         KP.[PersonName],
         KP.[ChucDanhChuyenMon],
@@ -23,7 +25,9 @@ BEGIN
         KP.[KinhPhiNopCongDoanVN],
         KP.[CongDoanVN],
         KP.[CongDoanCTY],
-        P.BranchID
+        P.BranchID,
+        KP.[PeriodID],
+        P.[LoaiHD]
     FROM [dbo].[HR_KinhPhiCongDoanTbl] KP
     LEFT JOIN [dbo].[HR_PersonView] P ON KP.PersonID = P.PersonID
     WHERE 
@@ -35,15 +39,18 @@ BEGIN
         -- Bộ lọc Chi nhánh (Hỗ trợ chọn nhiều chi nhánh dạng chuỗi cắt STRING_SPLIT)
         AND (ISNULL(@BranchID, '') = '' 
              OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
+        AND (ISNULL(@PeriodID, '') = '' OR KP.PeriodID = @PeriodID)
+        AND (ISNULL(@PhongBan, '') = '' OR P.PhongBan = @PhongBan)
     ORDER BY  KP.PersonID;
 END
 GO
 
 -- =========================================================================
--- Helper API: Lấy danh sách nhân viên kèm Mức đóng BH, Chức danh, Chi nhánh
+-- Helper API: Lấy danh sách nhân viên kèm tính toán Kinh Phí Công Đoàn
 -- Dùng để làm nguồn dữ liệu (DataSource) tìm kiếm chọn nhân viên cho Form
+-- Tự động trả về các trường tính toán để Frontend tự động map vào Form
 -- =========================================================================
-CREATE OR ALTER PROCEDURE [dbo].[API_KinhPhiCongDoan_PersonList]
+CREATE OR ALTER PROCEDURE [dbo].[API_Calculate_MucDong_CongDoan]
     @Keyword NVARCHAR(200) = ''
 AS
 BEGIN
@@ -52,12 +59,29 @@ BEGIN
     SELECT 
         PV.PersonID, 
         PV.PersonName, 
-        BHCT.MucDong, 
+        BHCT.MucDong,
         ISNULL(HD.ChucDanhChuyenMonHD, PV.ChucDanhChuyenMon) AS ChucDanhChuyenMon, 
-        PV.BranchID
-    FROM [dbo].[HR_PersonView] PV 
-    LEFT JOIN [dbo].[HR_BaoHiemChiTietTbl] BHCT ON PV.PersonID = BHCT.PersonID 
-    LEFT JOIN [dbo].[HR_HopDongTbl] HD ON PV.PersonID = HD.PersonID
+        PV.BranchID,
+        BHCT.PeriodID,
+        PV.LoaiHD,
+        -- Tính toán các trường tự động
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 AS DECIMAL(18,2)) AS KinhPhiNopCongDoanVN,
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 * 0.25 AS DECIMAL(18,2)) AS CongDoanVN,
+        CAST(ISNULL(BHCT.MucDong, 0) * 0.02 * 0.75 AS DECIMAL(18,2)) AS CongDoanCTY
+    FROM [dbo].[HR_PersonView] PV
+    OUTER APPLY (
+        SELECT TOP 1 CT.MucDong, BH.PeriodID
+        FROM dbo.HR_BaoHiemChiTietTbl CT
+        INNER JOIN dbo.HR_BaoHiemTbl BH ON BH.DocumentID = CT.DocumentID
+        WHERE CT.PersonID = PV.PersonID
+        ORDER BY BH.PeriodID DESC, CT.UserAutoID DESC
+    ) BHCT
+    OUTER APPLY (
+        SELECT TOP 1 H.ChucDanhChuyenMonHD
+        FROM dbo.HR_HopDongTbl H
+        WHERE H.PersonID = PV.PersonID
+        ORDER BY H.NgayKyHopDong DESC
+    ) HD
     WHERE @Keyword = '' 
        OR PV.PersonID LIKE '%' + @Keyword + '%' 
        OR PV.PersonName LIKE N'%' + @Keyword + '%';

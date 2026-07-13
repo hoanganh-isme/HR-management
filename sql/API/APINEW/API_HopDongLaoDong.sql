@@ -40,6 +40,7 @@ BEGIN
         H.ChucVuNguoiKy,
         H.DiaDiemLamViec,
         H.PersonStatus,
+        S.PersonStatusName,
         H.UserCreate,
         H.UserUpdate,
         H.DateUpdate,
@@ -56,6 +57,7 @@ BEGIN
         P.DiaChiThuongTru
     FROM dbo.HR_HopDongTbl H
     LEFT JOIN dbo.HR_PersonTbl P ON H.PersonID = P.PersonID
+    LEFT JOIN dbo.HR_PersonStatusTbl S ON H.PersonStatus = S.PersonStatus
     WHERE 1=1
       AND (ISNULL(@Keyword, '') = '' 
            OR H.MaHopDong LIKE '%' + @Keyword + '%' 

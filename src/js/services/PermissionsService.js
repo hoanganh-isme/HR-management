@@ -11,8 +11,8 @@ var PermissionsService = (function () {
   }
 
   function _currentGroupId() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var u = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+    return MetadataModuleConfig.getUserGroupId(u);
   }
 
   /**

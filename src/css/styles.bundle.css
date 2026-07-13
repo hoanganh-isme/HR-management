@@ -1,7 +1,8 @@
-﻿/* --- design-tokens.css --- */
+/* GENERATED FILE - DO NOT EDIT DIRECTLY */
+/* --- css/design-tokens.css --- */
 /* ═══════════════════════════════════════════
    Design Tokens — TailAdmin Style
-   Dành cho Quản lý Tiệc Cưới
+   Dành cho Quản lý Nhân sự
    ═══════════════════════════════════════════ */
 
 :root {
@@ -35,7 +36,7 @@
   /* Glass header */
 
   /* Text & Typography */
-  --color-text: #1E293B;
+  --color-text: #000000;
   /* Slate 800 */
   --color-text-secondary: #64748B;
   /* Slate 500 */
@@ -63,7 +64,7 @@
   --spacing-xl: 24px;
 
   /* Typography */
-  --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-md: 15px;
@@ -127,8 +128,7 @@ body.dark-theme .theme-option {
   background-color: var(--color-surface) !important;
 }
 
-
-/* --- global.css --- */
+/* --- css/global.css --- */
 /* ═══════════════════════════════════════════
    Global Styles — Reset & Core Layout (TailAdmin Clone)
    ═══════════════════════════════════════════ */
@@ -776,6 +776,23 @@ body.dark-theme .nav-item:hover span.icon {
   width: calc(25% - 8px) !important;
 }
 
+/* TABLET & SMALL DESKTOP (992px - 1399px) - Fallback to 3 columns if 4 columns are too squeezed */
+@media (max-width: 1399px) {
+  .df-col-3 {
+    width: calc(33.333% - 7px) !important;
+  }
+}
+
+/* TABLET PORTRAIT (769px - 991px) - Fallback to 2 columns */
+@media (max-width: 991px) {
+
+  .df-col-3,
+  .df-col-4 {
+    width: calc(50% - 5px) !important;
+  }
+}
+
+/* MOBILE (<= 768px) - 1 Column Full Width */
 @media (max-width: 768px) {
 
   /* Trên Mobile: 
@@ -788,10 +805,12 @@ body.dark-theme .nav-item:hover span.icon {
     width: 100% !important;
   }
 
-  .df-master-wrapper, .df-avatar-group-wrapper {
+  .df-master-wrapper,
+  .df-avatar-group-wrapper {
     flex-direction: column !important;
     align-items: center !important;
   }
+
   .df-master-wrapper .photo-box-wrapper {
     width: 100% !important;
   }
@@ -800,12 +819,84 @@ body.dark-theme .nav-item:hover span.icon {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
-/* --- navbar.css --- */
+/* CUSTOM TABULATOR CHO KẾ TOÁN */
+.tabulator {
+  font-size: 12.5px !important;
+  /* Giảm cỡ chữ xuống mức tiêu chuẩn Excel */
+}
+
+.tabulator-row {
+  border-bottom: 1px solid #cbd5e1 !important;
+  margin-bottom: 0 !important;
+}
+
+.tabulator-row .tabulator-cell {
+  border-right: 1px solid #cbd5e1 !important;
+}
+
+.tabulator-row .tabulator-cell:last-child {
+  border-right: none !important;
+}
+
+.tabulator-row.tabulator-row-even {
+  background-color: #f8fafc !important;
+}
+
+.tabulator-row.tabulator-row-odd {
+  background-color: #ffffff !important;
+}
+
+.tabulator-row.tabulator-selectable:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.tabulator-header {
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.tabulator-header .tabulator-col {
+  background-color: #f1f5f9 !important;
+  border-right: 1px solid #cbd5e1 !important;
+  font-weight: 600;
+}
+
+.tabulator-header .tabulator-col:last-child {
+  border-right: none !important;
+}
+
+.tabulator-header .tabulator-col .tabulator-col-content {
+  padding: 8px 10px !important;
+}
+
+/* ẨN TÍNH NĂNG LỌC CỘT MẶC ĐỊNH */
+.tabulator .tabulator-header .tabulator-header-filter {
+  display: none !important;
+}
+
+/* HIỆN LẠI KHI CÓ CLASS SHOW-FILTERS */
+.tabulator.show-filters .tabulator-header .tabulator-header-filter {
+    display: block !important;
+}
+
+/* Ẩn nút Sắp ca tự động cũ do SY_FrmCfg sinh ra ở thân form (vì đã chuyển lên header action bar) */
+button[onclick*="SapCaTuDong"] {
+    display: none !important;
+}
+
+/* Fix lỗi datepicker (Flatpickr) bị ẩn dưới Filter Overlay Panel */
+.flatpickr-calendar {
+    z-index: 9999999 !important;
+}
+
+/* --- css/layouts/navbar.css --- */
 /* ═══════════════════════════════════════════
    TOP NAVBAR — Replaces sidebar layout
    ═══════════════════════════════════════════ */
@@ -920,7 +1011,7 @@ body.dark-theme .nav-item:hover span.icon {
   gap: 4px;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
@@ -961,7 +1052,7 @@ body.dark-theme .nav-item:hover span.icon {
   gap: 4px;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
@@ -1034,9 +1125,10 @@ body.dark-theme .nav-item:hover span.icon {
   gap: 10px;
   padding: 9px 12px;
   border-radius: 8px;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   font-size: 13.5px;
   font-weight: 500;
+  font-family: var(--font-family);
   cursor: pointer;
   transition: all var(--transition-fast);
   letter-spacing: -0.01em;
@@ -1932,8 +2024,7 @@ body.dark-theme .icon-btn:hover {
   }
 }
 
-
-/* --- sidebar.css --- */
+/* --- css/layouts/sidebar.css --- */
 /* ═══════════════════════════════════════════
    SIDEBAR COMPONENTS
    ═══════════════════════════════════════════ */
@@ -2079,8 +2170,7 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   visibility: visible;
 }
 
-
-/* --- header.css --- */
+/* --- css/layouts/header.css --- */
 /* ═══════════════════════════════════════════
    HEADER COMPONENTS
    ═══════════════════════════════════════════ */
@@ -2170,16 +2260,493 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   }
 }
 
-
-
-/* --- dashboard.css --- */
+/* --- css/layouts/dashboard.css --- */
 /* ═══════════════════════════════════════════
    DASHBOARD LAYOUT CSS
-   Chỉ chứa grid layout classes đặc thù của dashboard
+   Chỉ chứa grid layout classes đặc thù của dashboard.
+   Không dùng inline styles trong JS — tất cả layout qua class.
    Các visual styles đã chuyển sang component CSS:
      - compare-badge.css, metric-card.css, sparkline.css
-   - kv-table.css, hall-gauge.css, section-panel.css
+     - kv-table.css, hall-gauge.css, section-panel.css
    ═══════════════════════════════════════════ */
+
+/* ─── WARNING BANNER ─── */
+.db-warning-banner {
+  display: flex;
+  align-items: center;
+  background-color: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  gap: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.db-warning-icon {
+  color: var(--color-danger, #f43f5e);
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.db-warning-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.db-warning-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  color: var(--color-danger, #f43f5e);
+  border: 1px solid rgba(244, 63, 94, 0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.db-warning-btn:hover {
+  background-color: rgba(244, 63, 94, 0.05);
+}
+
+/* ─── HEADER CONTROLS: Tab switcher + Filter dropdown ─── */
+.db-header-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;               /* Cho phép xuống dòng trên màn hình nhỏ */
+  gap: 10px 16px;                /* row-gap col-gap */
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Tab switcher — cuộn ngang trên mobile khi quá nhiều tabs */
+.db-tab-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;         /* Ẩn scrollbar Firefox */
+  -ms-overflow-style: none;      /* Ẩn scrollbar IE */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.db-tab-switcher::-webkit-scrollbar {
+  display: none;                 /* Ẩn scrollbar Chrome/Safari */
+}
+
+/* Tab button — không bị shrink để tránh bị thu nhỏ text */
+.db-tab-switcher .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md, 8px);
+}
+
+/* Filter wrapper */
+.db-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.db-filter-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.db-filter-select {
+  width: 170px;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md, 8px);
+  border-color: var(--color-border);
+}
+
+/* ─── TODAY GRID: 5 metric cards ngang liền mạch ─── */
+.db-today-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1.3fr 1fr 1fr 1fr;
+}
+
+/* Mỗi cell có border phải */
+.db-today-grid > * {
+  border-right: 1px solid var(--color-border);
+}
+.db-today-grid > *:last-child {
+  border-right: none;
+}
+
+/* ─── DEMOGRAPHICS GRID: 3 pie charts ─── */
+.db-demographics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* ─── DEPARTMENT GRID: 2 bar charts ─── */
+.db-department-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+/* Chart wrapper chiều cao tự nhiên — thay cho inline height */
+.db-chart-wrap {
+  width: 100%;
+  height: 180px;
+  position: relative;
+  padding: 8px 0;
+}
+
+.db-chart-wrap--tall {
+  width: 100%;
+  height: 360px;
+  position: relative;
+  padding: 12px 16px 8px;
+}
+
+/* Tiêu đề chart trong card */
+.db-chart-title {
+  margin: 0 0 14px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ─── REVENUE GRID: Lương — 3 cột ─── */
+.db-revenue-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.5fr;
+}
+
+.db-revenue-grid > * {
+  border-right: 1px solid var(--color-border);
+}
+.db-revenue-grid > *:last-child {
+  border-right: none;
+}
+
+.db-revenue-main {
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.db-revenue-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.db-revenue-value {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--color-text);
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.db-revenue-compare {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-compare-text {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.db-revenue-stat-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.db-rev-stat-item {
+  padding: 16px 20px;
+  flex: 1;
+}
+
+.db-rev-stat-divider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+.db-rev-stat-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.db-rev-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text);
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+}
+
+.db-rev-stat-value.success { color: var(--color-success); }
+
+.db-rev-stat-compare {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.db-rev-stat-sub {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+/* ─── BOTTOM GRID: Sinh nhật + Hợp đồng ─── */
+.db-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* .card trong bottom-grid: bỏ margin-bottom mặc định (gap đã xử lý) */
+.db-bottom-grid > .card {
+  margin-bottom: 0;
+}
+
+/* ════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   Sử dụng min-width strategy (mobile-first)
+   ════════════════════════════════════════════ */
+
+/* ─── Tablet lớn: ≤ 1300px ─── */
+@media (max-width: 1300px) {
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .db-revenue-grid {
+    grid-template-columns: 1.5fr 1fr 1fr;
+  }
+
+  .db-demographics-grid {
+    grid-template-columns: repeat(3, 1fr); /* Giữ nguyên */
+  }
+}
+
+/* ─── Tablet: ≤ 1024px ─── */
+@media (max-width: 1024px) {
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .db-department-grid {
+    grid-template-columns: 1fr; /* Stack dọc */
+  }
+
+  .db-chart-wrap--tall {
+    height: 280px;
+  }
+
+  .db-bottom-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ─── Mobile lớn: ≤ 900px ─── */
+@media (max-width: 900px) {
+  /* Header controls: wrap xuống dòng */
+  .db-header-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .db-tab-switcher {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .db-filter-wrap {
+    width: 100%;
+  }
+
+  .db-filter-select {
+    flex: 1;
+    width: 100%;
+  }
+
+  /* Metric grid: 2 cột */
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Demographics: 1 cột dọc */
+  .db-demographics-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Department: 1 cột dọc */
+  .db-department-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Revenue: stack dọc */
+  .db-revenue-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .db-revenue-main {
+    border-right: none !important;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .db-revenue-stat-col {
+    border-right: none !important;
+    flex-direction: row;
+  }
+
+  .db-rev-stat-divider {
+    width: 1px;
+    height: auto;
+  }
+
+  .db-rev-stat-item {
+    flex: 1;
+  }
+
+  /* Bottom: 1 cột */
+  .db-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Mobile nhỏ: ≤ 600px ─── */
+@media (max-width: 600px) {
+  .db-tab-switcher .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  /* Metric grid: dùng border trick để tách cell */
+  .db-today-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  /* Card lẻ cuối cùng span full width */
+  .db-today-grid > *:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .db-today-grid > * {
+    border: none !important;
+    background: var(--color-surface);
+  }
+
+  /* Demographics: 2 cột nhỏ trên mobile — tẫt hơn 1 cột dọc dài */
+  .db-demographics-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Card biểu đồ tròn không có padding dư */
+  .db-demographics-grid .hr-widget-card {
+    padding: 10px 6px;
+  }
+
+  /* Chart wrapper — đủ cao cho donut + legend */
+  .db-chart-wrap {
+    height: 160px;
+  }
+
+  .db-chart-wrap--tall {
+    height: 200px;
+    padding: 8px 8px 4px;
+  }
+
+  /* Department: giữ 1 cột */
+  .db-department-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Revenue */
+  .db-revenue-value {
+    font-size: 22px;
+  }
+
+  .db-revenue-main {
+    padding: 16px 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Warning banner */
+  .db-warning-banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+
+  .db-warning-icon {
+    font-size: 20px;
+    margin-top: 2px;
+  }
+
+  .db-warning-text {
+    flex: 1 1 calc(100% - 36px);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+
+  .db-warning-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    margin-top: 2px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* Tiêu đề chart — nhỏ hơn trên mobile */
+  .db-chart-title {
+    font-size: 10px;
+    margin-bottom: 8px;
+    letter-spacing: 0.2px;
+  }
+}
+
 
 /* ─── WARNING BANNER ─── */
 .db-warning-banner {
@@ -2434,8 +3001,15 @@ body.dark-theme .sidebar-nav::-webkit-scrollbar-thumb {
   }
 }
 
+/* --- css/layouts/responsive-data.css --- */
+.responsive-data-cards { display: grid; gap: 10px; padding: 10px; }
+.responsive-data-card { padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+.responsive-data-card__field { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.responsive-data-card__label { color: var(--color-text-secondary); font-size: 12px; }
+.responsive-data-card__value { color: var(--color-text); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
+@media (min-width: 768px) { .responsive-data-cards { display: none; } }
 
-/* --- compare-badge.css --- */
+/* --- components/compare-badge/compare-badge.css --- */
 /* ═══════════════════════════════════════════
    COMPARE BADGE COMPONENT
    So sánh kỳ trước: +12.5% ▲ / -3.2% ▼
@@ -2505,8 +3079,7 @@ body.dark-theme .compare-badge--neutral {
   background: rgba(148, 163, 184, 0.12);
 }
 
-
-/* --- metric-card.css --- */
+/* --- components/metric-card/metric-card.css --- */
 /* ═══════════════════════════════════════════
    METRIC CARD COMPONENT
    KPI card: icon + label + value lớn + sub
@@ -2628,8 +3201,7 @@ body.dark-theme .compare-badge--neutral {
   }
 }
 
-
-/* --- sparkline.css --- */
+/* --- components/sparkline/sparkline.css --- */
 /* ═══════════════════════════════════════════
    SPARKLINE CHART COMPONENT
    Mini trend chart trên Canvas
@@ -2646,8 +3218,7 @@ body.dark-theme .compare-badge--neutral {
   align-items: flex-end;
 }
 
-
-/* --- kv-table.css --- */
+/* --- components/kv-table/kv-table.css --- */
 /* ═══════════════════════════════════════════
    KV TABLE COMPONENT
    Bảng 2 cột: key ↔ value tài chính
@@ -2730,13 +3301,13 @@ body.dark-theme .kvtable__row--total {
   flex-shrink: 0;
 }
 
-
-/* --- hall-gauge.css --- */
+/* --- components/status-gauge/status-gauge.css --- */
 /* ═══════════════════════════════════════════
-   HALL GAUGE COMPONENT
+   STATUS GAUGE COMPONENT
    Progress gauge: tổng / đang / xong
    ═══════════════════════════════════════════ */
 
+.status-gauge,
 .hall-gauge {
   display: flex;
   flex-direction: column;
@@ -2745,6 +3316,7 @@ body.dark-theme .kvtable__row--total {
 }
 
 /* Title */
+.status-gauge__title,
 .hall-gauge__title {
   display: flex;
   align-items: center;
@@ -2754,18 +3326,21 @@ body.dark-theme .kvtable__row--total {
   color: var(--color-text-secondary);
 }
 
+.status-gauge__icon,
 .hall-gauge__icon {
   font-size: 16px !important;
   color: var(--color-primary);
 }
 
 /* Big count */
+.status-gauge__count,
 .hall-gauge__count {
   display: flex;
   align-items: baseline;
   gap: 6px;
 }
 
+.status-gauge__count-num,
 .hall-gauge__count-num {
   font-size: 32px;
   font-weight: 800;
@@ -2774,6 +3349,7 @@ body.dark-theme .kvtable__row--total {
   letter-spacing: -1px;
 }
 
+.status-gauge__count-label,
 .hall-gauge__count-label {
   font-size: 12px;
   color: var(--color-text-secondary);
@@ -2781,12 +3357,14 @@ body.dark-theme .kvtable__row--total {
 }
 
 /* Bar */
+.status-gauge__bar-row,
 .hall-gauge__bar-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.status-gauge__bar,
 .hall-gauge__bar {
   flex: 1;
   height: 8px;
@@ -2795,16 +3373,19 @@ body.dark-theme .kvtable__row--total {
   overflow: hidden;
 }
 
+body.dark-theme .status-gauge__bar,
 body.dark-theme .hall-gauge__bar {
   background: rgba(79, 70, 229, 0.20);
 }
 
+.status-gauge__fill,
 .hall-gauge__fill {
   height: 100%;
   border-radius: 999px;
   transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.status-gauge__pct,
 .hall-gauge__pct {
   font-size: 13px;
   font-weight: 700;
@@ -2813,6 +3394,7 @@ body.dark-theme .hall-gauge__bar {
 }
 
 /* Sub text */
+.status-gauge__sub,
 .hall-gauge__sub {
   display: flex;
   justify-content: space-between;
@@ -2821,13 +3403,13 @@ body.dark-theme .hall-gauge__bar {
   gap: 8px;
 }
 
+.status-gauge__sub strong,
 .hall-gauge__sub strong {
   color: var(--color-text);
   font-weight: 600;
 }
 
-
-/* --- section-panel.css --- */
+/* --- components/section-panel/section-panel.css --- */
 /* ═══════════════════════════════════════════
    SECTION PANEL COMPONENT
    Kế thừa .card + .card-header từ card.css
@@ -2963,7 +3545,7 @@ body.dark-theme .section-panel .card-header {
   }
 }
 
-/* --- report-filter.css --- */
+/* --- components/report-filter/report-filter.css --- */
 /* ═══════════════════════════════════════════
    REPORT FILTER DIALOG COMPONENT
    Dialog "Chọn báo cáo" với fields động từ API
@@ -3073,8 +3655,7 @@ body.dark-theme .section-panel .card-header {
   }
 }
 
-
-/* --- accordion.css --- */
+/* --- components/accordion/accordion.css --- */
 /* ═══════════════════════════════════════════
    ACCORDION COMPONENT
    ═══════════════════════════════════════════ */
@@ -3125,8 +3706,7 @@ body.dark-theme .section-panel .card-header {
   border-top: 1px solid var(--color-border);
 }
 
-
-/* --- alert.css --- */
+/* --- components/alert/alert.css --- */
 /* ═══════════════════════════════════════════
    ALERT / TOAST COMPONENT
    ═══════════════════════════════════════════ */
@@ -3251,8 +3831,7 @@ body.dark-theme .section-panel .card-header {
 .toast.danger  .toast-timer { background: var(--color-danger); }
 .toast.warning .toast-timer { background: var(--color-warning); }
 
-
-/* --- badge.css --- */
+/* --- components/badge/badge.css --- */
 /* ═══════════════════════════════════════════
    BADGE COMPONENT
    ═══════════════════════════════════════════ */
@@ -3285,8 +3864,7 @@ body.dark-theme .section-panel .card-header {
   color: var(--color-primary);
 }
 
-
-/* --- button.css --- */
+/* --- components/button/button.css --- */
 /* ═══════════════════════════════════════════
    BUTTON COMPONENTS
    ═══════════════════════════════════════════ */
@@ -3361,10 +3939,9 @@ body.dark-theme .section-panel .card-header {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--color-surface);
-  padding: 6px 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
+  background: transparent;
+  padding: 0;
+  border: none;
   max-width: 100%;
   overflow-x: auto;
   -ms-overflow-style: none;
@@ -3373,10 +3950,17 @@ body.dark-theme .section-panel .card-header {
 .button-bar::-webkit-scrollbar {
   display: none;
 }
+/* Ép kích thước đồng nhất cho tất cả các nút trong action bar */
+.button-bar .btn {
+  padding: 6px 12px !important;
+  font-size: 14px;
+  height: 36px;
+  border-radius: 6px;
+}
 /* Wrapper ngoài giữ shadow (shadow bị clip nếu đặt trực tiếp vào overflow:auto) */
 #customers-btn-container .button-bar,
 .toolbar-host .button-bar {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 .btn-tool {
@@ -3385,7 +3969,7 @@ body.dark-theme .section-panel .card-header {
   background: transparent;
   color: var(--color-text-secondary);
   font-weight: 500;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   box-shadow: none;
   white-space: nowrap;
 }
@@ -3411,6 +3995,16 @@ body.dark-theme .section-panel .card-header {
 }
 
 /* OUTLINE BUTTONS */
+.btn-outline-secondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+.btn-outline-secondary:hover:not(:disabled) {
+  background: var(--color-background);
+  color: var(--color-text);
+  border-color: var(--color-text-secondary);
+}
 .btn-outline-primary {
   background: transparent;
   color: var(--color-primary);
@@ -3605,10 +4199,9 @@ body.dark-theme .section-panel .card-header {
   }
 }
 
-
-/* --- calendar.css --- */
+/* --- components/calendar/calendar.css --- */
 /* ═══════════════════════════════════════════
-   PREMIUM CALENDAR (Lịch Tiệc) CSS
+   PREMIUM CALENDAR (Lịch công việc) CSS
    ═══════════════════════════════════════════ */
 
 .ui-calendar-wrapper {
@@ -4063,8 +4656,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- card.css --- */
+/* --- components/card/card.css --- */
 /* ═══════════════════════════════════════════
    CARD COMPONENTS
    ═══════════════════════════════════════════ */
@@ -4114,8 +4706,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- chart.css --- */
+/* --- components/chart/chart.css --- */
 /* ═══════════════════════════════════════════
    CHART COMPONENT
    ═══════════════════════════════════════════ */
@@ -4170,8 +4761,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- checkbox.css --- */
+/* --- components/checkbox/checkbox.css --- */
 /* ═══════════════════════════════════════════
    PREMIUM CUSTOM CONTROLS (CHECKBOX, COMBOBOX, TABLE DROPDOWN)
    ═══════════════════════════════════════════ */
@@ -4237,9 +4827,7 @@ body.dark-theme .calendar-days-header {
   outline-offset: 2px;
 }
 
-
-
-/* --- radio.css --- */
+/* --- components/radio/radio.css --- */
 /* ═══════════════════════════════════════════
    PREMIUM CUSTOM CONTROLS (RADIO)
    ═══════════════════════════════════════════ */
@@ -4310,8 +4898,7 @@ body.dark-theme .calendar-days-header {
   flex-wrap: wrap;
 }
 
-
-/* --- combobox.css --- */
+/* --- components/data-combobox/combobox.css --- */
 /* 2. COMBO BOX & INPUT WRAPPERS */
 .combo-box-container {
   display: flex;
@@ -4465,8 +5052,7 @@ body.dark-theme .calendar-days-header {
   flex-shrink: 0;
 }
 
-
-/* --- context-menu.css --- */
+/* --- components/context-menu/context-menu.css --- */
 /* ═══════════════════════════════════════════
    CONTEXT MENU COMPONENT (Menu chuột phải)
    ═══════════════════════════════════════════ */
@@ -4515,8 +5101,7 @@ body.dark-theme .calendar-days-header {
   margin: 4px 0;
 }
 
-
-/* --- empty-state.css --- */
+/* --- components/empty-state/empty-state.css --- */
 /* ═══════════════════════════════════════════
    EMPTY STATE COMPONENT (Trạng thái rỗng)
    ═══════════════════════════════════════════ */
@@ -4554,8 +5139,7 @@ body.dark-theme .calendar-days-header {
   margin-bottom: 24px;
 }
 
-
-/* --- file-upload.css --- */
+/* --- components/file-upload/file-upload.css --- */
 /* ═══════════════════════════════════════════
    FILE UPLOAD COMPONENT (Khu vực tải lên)
    ═══════════════════════════════════════════ */
@@ -4605,8 +5189,7 @@ body.dark-theme .calendar-days-header {
   color: var(--color-text-secondary);
 }
 
-
-/* --- filter.css --- */
+/* --- components/filter/filter.css --- */
 /* ═══════════════════════════════════════════
    FILTER COMPONENT
    ═══════════════════════════════════════════ */
@@ -4677,8 +5260,7 @@ body.dark-theme .calendar-days-header {
   }
 }
 
-
-/* --- form.css --- */
+/* --- components/input/form.css --- */
 /* ═══════════════════════════════════════════
    FORM COMPONENTS
    ═══════════════════════════════════════════ */
@@ -4726,7 +5308,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   display: none !important;
 }
 
-/* --- grid-dropdown.css --- */
+/* --- components/grid-dropdown/grid-dropdown.css --- */
 /* Grid Cell Input wrapper */
 .grid-cell-dropdown-wrapper {
   position: relative;
@@ -4751,8 +5333,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   border-radius: 2px;
 }
 
-
-/* --- loading-spinner.css --- */
+/* --- components/loading-spinner/loading-spinner.css --- */
 /* ═══════════════════════════════════════════
    LOADING SPINNER COMPONENT
    ═══════════════════════════════════════════ */
@@ -4802,8 +5383,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   100% { transform: rotate(360deg); }
 }
 
-
-/* --- modal.css --- */
+/* --- components/modal/modal.css --- */
 /* ═══════════════════════════════════════════
    MODAL COMPONENTS
    ═══════════════════════════════════════════ */
@@ -4895,8 +5475,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 }
 
-
-/* --- pagination.css --- */
+/* --- components/pagination/pagination.css --- */
 /* ═══════════════════════════════════════════
    DATAGRID PAGER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5046,8 +5625,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 }
 
-
-/* --- popover.css --- */
+/* --- components/popover/popover.css --- */
 /* ═══════════════════════════════════════════
    POPOVER COMPONENT (Khung nổi)
    ═══════════════════════════════════════════ */
@@ -5084,8 +5662,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   padding: 16px;
 }
 
-
-/* --- search-bar.css --- */
+/* --- components/header/search-bar.css --- */
 /* ═══════════════════════════════════════════
    SEARCH BAR COMPONENT
    ═══════════════════════════════════════════ */
@@ -5117,8 +5694,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   font-weight: 500;
 }
 
-
-/* --- shared-dropdown.css --- */
+/* --- components/ui-utils/shared-dropdown.css --- */
 /* 3. DATAGRID DROPDOWN MENU (FOR COMBOBOX/GRID CELL) */
 .data-dropdown-menu {
   /* position & top/left set dynamically by UIUtils.computeDropdownPosition (fixed) */
@@ -5179,6 +5755,40 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   line-height: 1.4;
 }
 
+.dropdown-table .dropdown-check-column {
+  width: 40px;
+  min-width: 40px;
+  padding-left: 10px;
+  padding-right: 10px;
+  text-align: center;
+}
+
+.dropdown-table .dropdown-check-column input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.dropdown-table tbody tr.active {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+/* Soft UI cho chế độ 1 cột (giống select list mobile) */
+.dropdown-table.single-column td {
+  padding: 10px 14px;
+  border-bottom: none;
+  font-weight: 500;
+  white-space: normal;
+}
+.dropdown-table.single-column tbody tr {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.dropdown-table.single-column tbody tr:last-child {
+  border-bottom: none;
+}
+
 /* Nổi bật cột chính (ví dụ Tên nhân viên/Tên hàng) */
 .dropdown-table td.highlight-col {
   font-weight: 600;
@@ -5209,9 +5819,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   }
 }
 
-
-
-/* --- skeleton.css --- */
+/* --- components/skeleton/skeleton.css --- */
 /* ═══════════════════════════════════════════
    SKELETON LOADER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5257,8 +5865,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   border-radius: 50%;
 }
 
-
-/* --- slider.css --- */
+/* --- components/slider/slider.css --- */
 /* ═══════════════════════════════════════════
    SLIDER COMPONENT
    ═══════════════════════════════════════════ */
@@ -5304,8 +5911,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   text-align: right;
 }
 
-
-/* --- stepper.css --- */
+/* --- components/stepper/stepper.css --- */
 /* ═══════════════════════════════════════════
    STEPPER COMPONENT (Trình tự nhiều bước)
    ═══════════════════════════════════════════ */
@@ -5421,8 +6027,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   align-items: flex-start !important;
 }
 
-
-/* --- table.css --- */
+/* --- components/table/table.css --- */
 /* ═══════════════════════════════════════════
    DATAGRID TABLE COMPONENTS
    ═══════════════════════════════════════════ */
@@ -5620,14 +6225,14 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.dynamic-grid-card) .page-wrapper {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
   }
 
   body:has(.dynamic-grid-card) .dynamic-grid-card {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -5635,7 +6240,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.dynamic-grid-card) .dynamic-grid-card>.card-body {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -5643,7 +6248,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.dynamic-grid-card) #dynamic-grid-container {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -5651,7 +6256,7 @@ body.dark-theme .data-table tbody tr:hover {
 
   /* Make table wrapper fit the master container height & auto-scroll */
   body:has(.dynamic-grid-card) #dynamic-grid-container .table-wrapper {
-    flex: 0 1 auto;
+    flex: 1;
     overflow-y: auto;
     overflow-x: auto;
     min-height: 0;
@@ -5659,7 +6264,7 @@ body.dark-theme .data-table tbody tr:hover {
 
   /* Specific styles for Split Master-Detail layout */
   body:has(.split-master-detail-container) .split-master-detail-container {
-    flex: 0 1 auto;
+    flex: 1;
     display: flex;
     min-height: 0;
     align-items: stretch;
@@ -5673,7 +6278,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   body:has(.split-master-detail-container) #dynamic-detail-content {
-    flex: 0 1 auto;
+    flex: 1;
     overflow-y: auto;
   }
 
@@ -5689,8 +6294,19 @@ body.dark-theme .data-table tbody tr:hover {
   box-shadow: 0 1px 0 var(--color-border);
 }
 
+/* --- Global Sticky Pagination --- */
+.datagrid-pager {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 100 !important;
+  background-color: var(--color-surface) !important;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08) !important;
+  border-top: 1px solid var(--color-border) !important;
+}
+
 /* Responsive override to disable table height capping on mobile & stick pagination to viewport bottom */
 @media (max-width: 768px) {
+
   /* Tắt max-height trên mobile — cuộn tự nhiên */
   .table-wrapper {
     max-height: none !important;
@@ -5711,13 +6327,8 @@ body.dark-theme .data-table tbody tr:hover {
   }
 
   .datagrid-pager {
-    position: sticky !important;
     bottom: -16px !important;
     /* Offset the 16px mobile padding of .app-content */
-    z-index: 100 !important;
-    background-color: var(--color-surface) !important;
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08) !important;
-    border-top: 1px solid var(--color-border) !important;
     margin-left: -16px !important;
     margin-right: -16px !important;
     padding: 10px 16px !important;
@@ -5849,7 +6460,8 @@ body.dark-theme .data-table tbody tr:hover {
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
-    align-self: center; /* Ngăn chặn badge bị kéo giãn dọc */
+    align-self: center;
+    /* Ngăn chặn badge bị kéo giãn dọc */
     font-size: 11px !important;
     font-weight: 700 !important;
     color: var(--color-primary) !important;
@@ -5924,8 +6536,98 @@ body.dark-theme .data-table tbody tr:hover {
   .form-WA_PersonQuitFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
 
 
+  /* --- DATA HIGHLIGHTING FOR ACCOUNTING/HR --- */
+  /* Identifiers & Numbers */
+  .data-table tbody tr td[data-label="cccd" i],
+  .data-table tbody tr td[data-label*="s? h?p d?ng" i],
+  .data-table tbody tr td[data-label*="di?n tho?i" i],
+  .data-table tbody tr td[data-label*="m� nh�n vi�n" i],
+  .data-table tbody tr td[data-label*="m� nv" i] {
+    color: var(--color-primary) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.5px;
+  }
 
-/* --- tabs.css --- */
+  /* Dates */
+  .data-table tbody tr td[data-label*="ng�y sinh" i],
+  .data-table tbody tr td[data-label*="ng�y nh?n vi?c" i],
+  .data-table tbody tr td[data-label*="ng�y h?p d?ng" i],
+  .data-table tbody tr td[data-label*="ng�y k?t th�c" i],
+  .data-table tbody tr td[data-label*="ng�y ngh? vi?c" i] {
+    color: var(--color-text-secondary) !important;
+    font-weight: 500 !important;
+  }
+
+  /* Statuses */
+  .data-table tbody tr td[data-label*="tr?ng th�i" i] {
+    font-weight: 700 !important;
+    color: #10b981 !important;
+    /* Emerald green for statuses */
+  }
+
+  /* --- CLASS BASED HIGHLIGHTING FOR ACCOUNTING/HR --- */
+  .data-table tbody tr td.highlight-identifier {
+    color: var(--color-primary) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.5px;
+  }
+
+  .data-table tbody tr td.highlight-date {
+    color: var(--color-text-secondary) !important;
+    font-weight: 500 !important;
+  }
+
+  .data-table tbody tr td.highlight-status {
+    font-weight: 700 !important;
+    color: #10b981 !important;
+    /* Emerald green */
+  }
+
+  /* === DATA GRID HIGHLIGHTS & BADGES === */
+  .col-highlight-primary {
+    color: var(--color-primary) !important;
+    font-weight: 600 !important;
+  }
+
+  .col-highlight-danger {
+    color: var(--color-danger) !important;
+    font-weight: 600 !important;
+  }
+
+  .badge-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+    white-space: nowrap;
+  }
+
+  .badge-active {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #059669 !important;
+  }
+
+  .badge-warning {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #d97706 !important;
+  }
+
+  .badge-danger {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #dc2626 !important;
+  }
+
+  .badge-info {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #2563eb !important;
+  }
+}
+
+/* --- components/tabs/tabs.css --- */
 /* ═══════════════════════════════════════════
    TABS / SEGMENT COMPONENT
    ═══════════════════════════════════════════ */
@@ -6596,7 +7298,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 }
 
-/* --- timeline.css --- */
+/* --- components/timeline/timeline.css --- */
 /* ═══════════════════════════════════════════
    TIMELINE COMPONENT (Lịch sử trạng thái)
    ═══════════════════════════════════════════ */
@@ -6675,13 +7377,12 @@ body.dark-theme .data-table tbody tr:hover {
   margin-top: 4px;
 }
 
-
-/* --- toast.css --- */
+/* --- components/toast/toast.css --- */
 /* ═══════════════════════════════════════════
    TOAST COMPONENT (Thông báo đẩy)
    ═══════════════════════════════════════════ */
 
-#toast-container {
+#ui-toast-container {
   position: fixed;
   bottom: 24px;
   right: 24px;
@@ -6714,17 +7415,37 @@ body.dark-theme .data-table tbody tr:hover {
   opacity: 1;
 }
 
-.ui-toast.success { border-left-color: var(--color-success); background: linear-gradient(rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.1)), var(--color-surface); }
-.ui-toast.error { border-left-color: var(--color-danger); background: linear-gradient(rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.1)), var(--color-surface); }
-.ui-toast.warning { border-left-color: var(--color-warning); background: linear-gradient(rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.1)), var(--color-surface); }
+.ui-toast.success {
+  border-left-color: var(--color-success);
+  background: linear-gradient(rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.1)), var(--color-surface);
+}
+
+.ui-toast.error {
+  border-left-color: var(--color-danger);
+  background: linear-gradient(rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.1)), var(--color-surface);
+}
+
+.ui-toast.warning {
+  border-left-color: var(--color-warning);
+  background: linear-gradient(rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.1)), var(--color-surface);
+}
 
 .ui-toast-icon {
   font-size: 20px;
   color: var(--color-primary);
 }
-.ui-toast.success .ui-toast-icon { color: var(--color-success); }
-.ui-toast.error .ui-toast-icon   { color: var(--color-danger); }
-.ui-toast.warning .ui-toast-icon { color: var(--color-warning); }
+
+.ui-toast.success .ui-toast-icon {
+  color: var(--color-success);
+}
+
+.ui-toast.error .ui-toast-icon {
+  color: var(--color-danger);
+}
+
+.ui-toast.warning .ui-toast-icon {
+  color: var(--color-warning);
+}
 
 .ui-toast-content {
   flex: 1;
@@ -6733,10 +7454,7 @@ body.dark-theme .data-table tbody tr:hover {
   font-weight: 500;
 }
 
-
-
-
-/* --- tooltip.css --- */
+/* --- components/tooltip/tooltip.css --- */
 /* ═══════════════════════════════════════════
    TOOLTIP COMPONENT — JS-driven (position: fixed)
    CSS chỉ định style cho #ui-tooltip element được JS tạo ra
@@ -6773,8 +7491,7 @@ body.dark-theme .data-table tbody tr:hover {
   border-color: transparent transparent #1E293B transparent;
 }
 
-
-/* --- total-bar.css --- */
+/* --- components/total-bar/total-bar.css --- */
 /* ═══════════════════════════════════════════
    TOTAL BAR COMPONENT
    ═══════════════════════════════════════════ */
@@ -6802,8 +7519,7 @@ body.dark-theme .data-table tbody tr:hover {
   color: var(--color-primary);
 }
 
-
-/* --- tree.css --- */
+/* --- components/tree/tree.css --- */
 /* ═══════════════════════════════════════════
    TREE VIEW COMPONENT (Danh mục hình cây)
    ═══════════════════════════════════════════ */
@@ -6868,8 +7584,7 @@ body.dark-theme .data-table tbody tr:hover {
   font-size: 18px;
 }
 
-
-/* --- user-profile.css --- */
+/* --- components/user-profile/user-profile.css --- */
 /* ═══════════════════════════════════════════
    USER PROFILE / AVATAR COMPONENT
    ═══════════════════════════════════════════ */
@@ -6914,8 +7629,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 }
 
-
-/* --- search-dropdown.css --- */
+/* --- components/search-dropdown/search-dropdown.css --- */
 /* ═══════════════════════════════════════════
    SEARCH DROPDOWN COMPONENT
    ═══════════════════════════════════════════ */
@@ -6967,8 +7681,7 @@ body.dark-theme .data-table tbody tr:hover {
   }
 }
 
-
-/* --- side-panel.css --- */
+/* --- components/side-panel/side-panel.css --- */
 /* ═══════════════════════════════════════════
    SIDE PANEL COMPONENT (Right Drawer)
    ═══════════════════════════════════════════ */
@@ -7016,8 +7729,7 @@ body.dark-theme .data-table tbody tr:hover {
   opacity: 1 !important;
 }
 
-
-/* --- screen-capture.css --- */
+/* --- components/screen-capture/screen-capture.css --- */
 /* ═══════════════════════════════════════════
    SCREEN CAPTURE COMPONENT CSS
    ═══════════════════════════════════════════ */
@@ -7054,5 +7766,3 @@ body.dark-theme .data-table tbody tr:hover {
 .screen-capture-toolbar button .material-symbols-outlined {
   font-size: 18px;
 }
-
-

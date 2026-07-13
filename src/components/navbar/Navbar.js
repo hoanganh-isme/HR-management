@@ -9,7 +9,7 @@ var Navbar = (function () {
   /* ─────────────────────────────────────────
      Layout Mode (lưu vào localStorage)
   ───────────────────────────────────────── */
-  var LAYOUT_KEY = 'pmql_layout_mode';
+  var LAYOUT_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('layout_mode') : 'pmql_layout_mode';
   var LAYOUT_HORIZONTAL = 'horizontal';
   var LAYOUT_VERTICAL = 'vertical';
 
@@ -178,9 +178,9 @@ var Navbar = (function () {
         </button>
 
         <!-- Brand / Logo -->
-        <div class="navbar-brand" onclick="window.location.hash='#/'" style="display:flex; align-items:center;">
-          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
-          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px; margin-left: 16px;">
+        <div class="navbar-brand" onclick="window.location.hash='#/dashboard'" style="display:flex; align-items:center; cursor: pointer;">
+          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
+          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
         </div>
 
         <!-- Desktop Menu with scroll arrows -->
@@ -198,7 +198,7 @@ var Navbar = (function () {
 
         <!-- Right Actions -->
         <div class="navbar-right">
-          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
+          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); if (window.APP_SETTINGS) { APP_SETTINGS.setStored('theme', isDark ? 'dark' : 'light'); } else { localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); } this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
             <span class="material-symbols-outlined" id="header-theme-icon-horizontal">dark_mode</span>
           </div>
           <div class="navbar-icon-btn" id="navbar-btn-notif" title="Thông báo">
@@ -207,11 +207,11 @@ var Navbar = (function () {
           </div>
           <div class="navbar-user" id="navbar-user">
             <div class="user-avatar-nav">
-              <img src="https://ui-avatars.com/api/?name=Admin&background=3C50E0&color=fff" alt="User">
+              <img id="nav-avatar-img" src="https://ui-avatars.com/api/?name=User&background=3C50E0&color=fff" alt="User">
             </div>
             <div class="user-info-nav">
-              <div class="user-name-nav">Admin</div>
-              <div class="user-role-nav">Quản trị hệ thống</div>
+              <div class="user-name-nav" id="nav-user-name">Người dùng</div>
+              <div class="user-role-nav" id="nav-user-role">Nhân viên</div>
             </div>
             <span class="material-symbols-outlined expand-icon">expand_more</span>
 
@@ -243,9 +243,9 @@ var Navbar = (function () {
       <div class="mobile-drawer-overlay" id="mobile-drawer-overlay"></div>
       <div class="mobile-drawer" id="mobile-drawer">
         <div class="mobile-drawer-header">
-          <div class="mobile-drawer-brand" style="display:flex; align-items:center; justify-content:center; width:100%; margin: 12px 0;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+          <div class="mobile-drawer-brand" onclick="window.location.hash='#/dashboard'" style="display:flex; align-items:center; justify-content:center; width:100%; margin: 12px 0; cursor: pointer;">
+            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
+            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
           </div>
           <button class="mobile-drawer-close" id="mobile-drawer-close">
             <span class="material-symbols-outlined">arrow_back</span>
@@ -272,9 +272,9 @@ var Navbar = (function () {
         <!-- Sidebar -->
         <aside class="app-sidebar" id="app-sidebar">
           <div class="sidebar-header">
-            <div style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px;">
-              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 100px; height: 35px; border-radius: 6px;">
-              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 100px; height: 35px;">
+            <div onclick="window.location.hash='#/dashboard'" style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px; cursor: pointer;">
+              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
+              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
             </div>
             <button class="btn-close-sidebar" id="btn-close-sidebar">
               <span class="material-symbols-outlined">arrow_back</span>
@@ -304,7 +304,7 @@ var Navbar = (function () {
             </div>
 
             <div class="header-right">
-              <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
+              <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); if (window.APP_SETTINGS) { APP_SETTINGS.setStored('theme', isDark ? 'dark' : 'light'); } else { localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); } this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
                 <span class="material-symbols-outlined" id="header-theme-icon-vertical">dark_mode</span>
               </div>
               <div class="navbar-icon-btn" onclick="Alert.info('Thông báo', 'Bạn không có thông báo mới')">
@@ -313,11 +313,11 @@ var Navbar = (function () {
               </div>
               <div class="navbar-user" id="vertical-user-profile">
                 <div class="user-avatar-nav">
-                  <img src="https://ui-avatars.com/api/?name=Admin&background=3C50E0&color=fff" alt="User">
+                  <img id="vert-nav-avatar-img" src="https://ui-avatars.com/api/?name=User&background=3C50E0&color=fff" alt="User">
                 </div>
                 <div class="user-info-nav">
-                  <div class="user-name-nav">Admin</div>
-                  <div class="user-role-nav">Quản trị hệ thống</div>
+                  <div class="user-name-nav" id="vert-nav-user-name">Người dùng</div>
+                  <div class="user-role-nav" id="vert-nav-user-role">Nhân viên</div>
                 </div>
                 <span class="material-symbols-outlined expand-icon">expand_more</span>
 
@@ -351,24 +351,25 @@ var Navbar = (function () {
     _attachVerticalEvents();
   }
 
-  var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_KEY = window.APP_SETTINGS ? APP_SETTINGS.storageKey('nav_cache') : 'pmql_nav_cache';
 
   function render(containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
 
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    var groupId = u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+    var groupId = MetadataModuleConfig.getUserGroupId(currentUser);
+    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Người dùng';
 
     // Check version server trước — nếu khác cache thì tự clear (bắt được thay đổi từ máy Admin)
     if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
       SystemDataService.getMenuSyncVersion().then(function (serverVer) {
         try {
-          var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+          var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
           var cacheVer = cached && cached.syncVer ? cached.syncVer : null;
           // Nếu server version khác với cache version → xóa cache, fetch lại
           if (serverVer && cacheVer && serverVer !== cacheVer) {
-            sessionStorage.removeItem(CACHE_KEY);
+            if (window.APP_SETTINGS) APP_SETTINGS.removeSession('nav_cache'); else sessionStorage.removeItem(CACHE_KEY);
             cached = null;
           }
           if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
@@ -388,7 +389,7 @@ var Navbar = (function () {
     } else {
       // Fallback: không có SystemDataService → dùng cache như cũ
       try {
-        var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+        var cached = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getSession('nav_cache', 'null') : sessionStorage.getItem(CACHE_KEY)) || 'null');
         if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
           NAV_CONFIG = cached.config;
           if (cached.rawRecords && window.Router && typeof Router.addDynamicRoutes === 'function') {
@@ -419,12 +420,13 @@ var Navbar = (function () {
           }
           // Lưu cache kèm syncVer để lần sau so sánh
           try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+            var cachePayload = JSON.stringify({
               groupId: groupId,
               config: NAV_CONFIG,
               rawRecords: records,
               syncVer: syncVer || ''
-            }));
+            });
+            if (window.APP_SETTINGS) APP_SETTINGS.setSession('nav_cache', cachePayload); else sessionStorage.setItem(CACHE_KEY, cachePayload);
           } catch (e) { }
         }
         _doRender(container);
@@ -439,7 +441,7 @@ var Navbar = (function () {
 
   /* Xóa cache khi logout hoặc đổi nhóm quyền */
   function clearMenuCache() {
-    sessionStorage.removeItem(CACHE_KEY);
+    if (window.APP_SETTINGS) APP_SETTINGS.removeSession('nav_cache'); else sessionStorage.removeItem(CACHE_KEY);
     NAV_CONFIG = [];
   }
 
@@ -460,6 +462,19 @@ var Navbar = (function () {
     } else {
       _renderHorizontal(container);
     }
+
+    // UPDATE USER INFO IN DOM AFTER RENDER
+    var currentUser = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}');
+    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Người dùng';
+    var navUserName = document.getElementById('nav-user-name');
+    var vertNavUserName = document.getElementById('vert-nav-user-name');
+    var navAvatar = document.getElementById('nav-avatar-img');
+    var vertNavAvatar = document.getElementById('vert-nav-avatar-img');
+
+    if (navUserName) navUserName.textContent = userName;
+    if (vertNavUserName) vertNavUserName.textContent = userName;
+    if (navAvatar) navAvatar.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=3C50E0&color=fff";
+    if (vertNavAvatar) vertNavAvatar.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=3C50E0&color=fff";
 
     // Fetch and update Com1 setup value for user roles (outer nav only)
     if (window.SystemDataService && window.SystemDataService.getSetupValue) {

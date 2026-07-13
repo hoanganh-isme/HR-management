@@ -48,7 +48,14 @@ var UITable = (function () {
     // Ép style thu gọn khoảng cách (Compact Density) + Sticky Columns
     var styleDensity = document.createElement('style');
     styleDensity.innerHTML = `
-      .table-wrapper .data-table th,
+      .table-wrapper .data-table th {
+         padding: 6px 10px !important;
+         height: 36px !important;
+         font-size: 13px !important;
+         font-weight: 700 !important;
+         background-color: var(--color-surface-elevated, #f1f5f9) !important;
+         color: var(--color-text, #1e293b) !important;
+      }
       .table-wrapper .data-table td {
          padding: 6px 10px !important;
          height: 36px !important;
@@ -69,7 +76,7 @@ var UITable = (function () {
       .table-wrapper.has-sticky-cols .data-table thead th.sticky-col {
         position: sticky !important;
         z-index: 30 !important;  /* > 10 (th thường) và > resizer z-index: 10 */
-        background: var(--color-surface, #fff);
+        background: var(--color-surface-elevated, #f1f5f9) !important;
       }
       .table-wrapper.has-sticky-cols .data-table th.sticky-col-last,
       .table-wrapper.has-sticky-cols .data-table td.sticky-col-last {
@@ -84,13 +91,15 @@ var UITable = (function () {
         background: rgba(255,255,255,0.05);
       }
       body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background: var(--color-primary-light, rgba(67,97,238,0.18));
+        background-color: var(--color-surface, #1e293b) !important;
+        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.18)), var(--color-primary-light, rgba(67,97,238,0.18))) !important;
       }
       .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
         background: var(--color-surface-elevated, #f8fafc);
       }
       .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background: var(--color-primary-light, rgba(67,97,238,0.06));
+        background-color: var(--color-surface, #fff) !important;
+        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.06)), var(--color-primary-light, rgba(67,97,238,0.06))) !important;
       }
       @media (max-width: 768px) {
         .table-wrapper .data-table th,
@@ -202,6 +211,27 @@ var UITable = (function () {
               }
 
               var val = row[col.field];
+              var fieldName = (col.field || '').toLowerCase();
+              var headerLabel = (config.headers && config.headers[idx] && config.headers[idx].label ? config.headers[idx].label : '').toLowerCase();
+
+              // Tự động map trạng thái nếu là PersonStatus (để tránh hiển thị số 4, 1, 8 trên lưới)
+              if (fieldName === 'personstatus' || headerLabel.includes('trạng thái')) {
+                var statusMap = { '1': 'Thử việc', '4': 'Chính thức', '8': 'Nghỉ việc' };
+                val = statusMap[String(val)] || val;
+              }
+
+              if (fieldName.includes('cmnd') || fieldName.includes('cccd') || fieldName.includes('dienthoai') || fieldName.includes('sohopdong') || fieldName.includes('personid') || fieldName.includes('manhanvien') || fieldName === 'id' || fieldName === 'manv' || headerLabel.includes('cccd') || headerLabel.includes('mã nhân viên') || headerLabel.includes('điện thoại') || headerLabel.includes('hợp đồng')) {
+                td.style.color = 'var(--color-primary)';
+                td.style.fontWeight = '600';
+                td.style.fontVariantNumeric = 'tabular-nums';
+              } else if (fieldName.includes('ngay') || fieldName.includes('date') || headerLabel.includes('ngày') || headerLabel.includes('date')) {
+                td.style.color = '#475569'; // Slate 600 - subtle and premium for dates
+                td.style.fontWeight = '500';
+                td.style.fontVariantNumeric = 'tabular-nums'; // Ensures numbers align vertically without looking like a typewriter
+              } else if (fieldName.includes('status') || fieldName.includes('trangthai') || headerLabel.includes('trạng thái')) {
+                td.style.color = '#10b981';
+                td.style.fontWeight = '700';
+              }
               if (col.render) {
                 var rendered = col.render(val, row);
                 if (typeof rendered === 'string') td.innerHTML = rendered;
@@ -814,7 +844,7 @@ var UITable = (function () {
       if (changed) {
         var checkbox = tr.querySelector('.df-row-checkbox');
         if (checkbox) checkbox.checked = tr.classList.contains('active');
-        
+
         var idx = Array.from(tbody.children).indexOf(tr);
         // Dispatch custom event for frameworks (like DynamicFormEngine) to catch
         tbody.dispatchEvent(new CustomEvent('rowSelectionToggled', {

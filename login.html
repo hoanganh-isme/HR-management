@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.1, maximum-scale=5.0">
-  <title>Đăng nhập - Wedding CRM</title>
+  <title>Đăng nhập - Quản lý Nhân sự</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
@@ -13,8 +13,20 @@
 
   <!-- Theme Init -->
   <script>
+    var AppStorage = {
+      appCode: 'hrm',
+      legacyAppCode: 'pmql',
+      key: function (name) { return this.appCode + '_' + name; },
+      legacyKey: function (name) { return this.legacyAppCode + '_' + name; },
+      get: function (name, fallback) {
+        var value = localStorage.getItem(this.key(name));
+        if (value === null || value === undefined) value = localStorage.getItem(this.legacyKey(name));
+        return value !== null && value !== undefined ? value : fallback;
+      },
+      set: function (name, value) { localStorage.setItem(this.key(name), value); }
+    };
     (function () {
-      var savedTheme = localStorage.getItem('pmql_theme') || 'auto';
+      var savedTheme = AppStorage.get('theme', 'auto');
       if (savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.classList.add('dark-theme');
       }
@@ -477,7 +489,7 @@
 
     <!-- ═══ LEFT: HERO IMAGE ═══ -->
     <div class="hero-panel">
-      <img class="hero-img" src="./src/assets/LogoBanner.png" alt="Wedding banquet hall">
+      <img class="hero-img" src="./src/assets/LogoBanner.png" alt="HR management workspace">
       <div class="hero-content">
         <div class="hero-badge">
           <span></span> Nền tảng quản lý nhân sự
@@ -489,20 +501,6 @@
         <p class="hero-desc">
           Hệ thống quản lý nhân sự toàn diện.
         </p>
-        <div class="hero-stats">
-          <div class="hero-stat">
-            <span class="hero-stat-val">500+</span>
-            <span class="hero-stat-label">Nhân viên</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-val">12</span>
-            <span class="hero-stat-label">Sảnh tiệc</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-val">98%</span>
-            <span class="hero-stat-label">Hài lòng</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -601,7 +599,7 @@
         </form>
 
         <div class="form-footer">
-          <strong>© 2025 Wedding CRM</strong>
+          <strong>© Copy Right 2026</strong>
         </div>
       </div>
     </div>
@@ -638,13 +636,13 @@
         }
       }
 
-      var savedTheme = localStorage.getItem('pmql_theme') || 'auto';
+      var savedTheme = AppStorage.get('theme', 'auto');
       var isDark = savedTheme === 'dark' || (savedTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       updateThemeUI(isDark);
 
       btnTheme.addEventListener('click', function () {
         var currentlyDark = document.body.classList.contains('dark-theme');
-        localStorage.setItem('pmql_theme', !currentlyDark ? 'dark' : 'light');
+        AppStorage.set('theme', !currentlyDark ? 'dark' : 'light');
         updateThemeUI(!currentlyDark);
       });
     })();
@@ -710,7 +708,7 @@
                   localStorage.removeItem('remember_user');
                   localStorage.removeItem('remember_pw');
                 }
-                localStorage.setItem('pmql_user', JSON.stringify(res));
+                AppStorage.set('user', JSON.stringify(res));
                 window.location.href = 'index.html';
               } else {
                 throw new Error(res.msg || 'Tên đăng nhập hoặc mật khẩu không đúng');

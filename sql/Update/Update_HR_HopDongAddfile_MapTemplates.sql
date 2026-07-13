@@ -33,8 +33,6 @@ INSERT INTO dbo.HR_HopDongAddfile (FormName, LoaiHD, TemplateFile, GhiChu) VALUE
 ('WA_HopDongLaoDongFrm', N'HĐLĐ Song ngữ', N'HR_HopDongLaoDongReport.docx', N'Hợp đồng lao động mẫu 1 (Song ngữ Anh - Việt)'),
 ('WA_HopDongLaoDongFrm', N'HĐLĐ Tiếng Việt', N'HR_HopDongLaoDong2Report.docx', N'Hợp đồng lao động mẫu 2 (Tiếng Việt)'),
 ('WA_HopDongLaoDongFrm', N'HĐ Thử việc', N'HR_HopDongLaoDong3Report.docx', N'Hợp đồng thử việc mẫu 3 (Chung)'),
-('WA_HopDongLaoDongFrm', N'Thử việc', N'HR_HopDongLaoDong3Report.docx', N'Hợp đồng thử việc mẫu 3 (Chung)'),
-('WA_HopDongLaoDongFrm', N'Chính thức', N'HR_HopDongLaoDong2Report.docx', N'Mặc định Hợp đồng chính thức dùng mẫu Tiếng Việt');
 GO
 
 PRINT '>> Da nap thanh cong du lieu mapping file mau cho WA_HopDongLaoDongFrm!';

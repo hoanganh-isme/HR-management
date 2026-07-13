@@ -8,10 +8,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    SELECT 
+        SELECT 
         UserName,
         HoTen,
         UserGroupID,
+        BranchID, -- Đã thêm cột này
         Disable,
         EmployeeID,
         Manager

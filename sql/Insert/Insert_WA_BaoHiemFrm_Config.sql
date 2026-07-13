@@ -1,5 +1,3 @@
-USE [X26DIMTUTAC]
-GO
 
 -- =========================================================================
 -- 1. DỌN DẸP CẤU HÌNH CŨ CỦA MODULE BẢO HIỂM
@@ -18,8 +16,18 @@ DELETE FROM dbo.SY_FrmOptBtnTbl WHERE FormID IN ('WA_BaoHiemFrm', 'API_BaoHiem_D
 DELETE FROM dbo.SY_FrmCtrTbl WHERE FormID IN ('WA_BaoHiemFrm', 'API_BaoHiem_Detail') OR UserAutoID LIKE 'WA_BaoHiemFrm%' OR UserAutoID LIKE 'HR_BaoHiemFrm%';
 DELETE FROM dbo.SY_StTbl WHERE StringID LIKE 'WA_BaoHiemFrm%' OR StringID LIKE 'API_BaoHiem_Detail%';
 DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_BaoHiemFrm', 'API_BaoHiem_Detail');
-DELETE FROM dbo.WA_API WHERE list IN ('WA_BaoHiemFrm', 'API_BaoHiem_Detail', 'WA_BaoHiemFrm_PersonID', 'WA_BaoHiemFrm_Calculate');
+DELETE FROM dbo.WA_API WHERE list IN ('WA_BaoHiemFrm', 'API_BaoHiem_Detail', 'WA_BaoHiemFrm_PersonID', 'WA_BaoHiemFrm_Calculate', 'HR_BangThamSoTbl');
 DELETE FROM dbo.WA_Menu WHERE MenuID = '2022' OR FormName = 'WA_BaoHiemFrm';
+
+DELETE FROM SY_FrmCfg WHERE FID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_FrmDrdwTbl WHERE FormID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_FrmExpTbl WHERE FormID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_FrmFltTbl WHERE FormID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_FrmGrdActTbl WHERE FormID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_FrmMstActTbl WHERE FormID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_FrmOptBtnTbl WHERE FormID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_FrmCtrTbl WHERE FormID IN ('WA_BaoHiemFrm')
+DELETE FROM SY_StTbl WHERE StringID LIKE 'WA_BaoHiemFrm%' 
 GO
 
 -- =========================================================================
@@ -54,15 +62,12 @@ GO
 -- =========================================================================
 -- 3. ĐĂNG KÝ BẢNG CẤU HÌNH FORM (SY_FrmLstTbl)
 -- =========================================================================
--- Master Form: Chứng từ Bảo Hiểm
-DELETE FROM dbo.SY_FrmLstTbl WHERE FormID = 'WA_BaoHiemFrm';
+DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN ('WA_BaoHiemFrm', 'API_BaoHiem_Detail');
 INSERT INTO dbo.SY_FrmLstTbl ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey], [CaptionCH])  
 VALUES (N'WA_BaoHiemFrm', N'EDIT', N'Bảo Hiểm', N'Insurance', N'HR_BaoHiemTbl', N'DocumentID', N'保险');
 
--- Detail Grid: Chi tiết đóng bảo hiểm
-DELETE FROM dbo.SY_FrmLstTbl WHERE FormID = 'API_BaoHiem_Detail';
 INSERT INTO dbo.SY_FrmLstTbl ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey], [CaptionCH])  
-VALUES (N'API_BaoHiem_Detail', N'EDIT', N'Chi tiết đóng bảo hiểm', N'Insurance Details', N'HR_BaoHiemChiTietTbl', N'UserAutoID', N'保险明细');
+VALUES (N'API_BaoHiem_Detail', N'EDIT', N'Bảo Hiểm Chi Tiết', N'Insurance Detail', N'HR_BaoHiemChiTietTbl', N'UserAutoID', N'保险明细');
 GO
 
 -- =========================================================================
@@ -72,7 +77,7 @@ GO
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
 ('WA_BaoHiemFrm', 'View', 'API_BaoHiem', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'''),
-('WA_BaoHiemFrm', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('WA_BaoHiemFrm', 'Save', 'WA_BaoHiemFrm_Save', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('WA_BaoHiemFrm', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
 
 -- Routing cho Detail Form (API_BaoHiem_Detail)
@@ -85,7 +90,8 @@ VALUES
 -- Routing cho Lookups và Calculations
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES 
-('WA_BaoHiemFrm_PersonID', 'View', 'API_BaoHiem_PersonLookup', '@BranchID=N''{BranchID}'', @LoaiBaoHiem=N''{LoaiBaoHiem}'', @Keyword=N''{Keyword}'''),
+('HR_BangThamSoTbl', 'View', 'API_HR_BangThamSo_Lookup', '@Keyword=N''{Keyword}'''),
+('WA_BaoHiemFrm_PersonID', 'View', 'WA_BaoHiem_PersonLookup', '@BranchID=N''{BranchID}'', @LoaiBaoHiem=N''{LoaiBaoHiem}'', @DocumentID=N''{DocumentID}'', @Keyword=N''{Keyword}'''),
 ('WA_BaoHiemFrm_Calculate', 'View', 'TinhBHStp', '@PeriodID=N''{PeriodID}'', @LoaiBaoHiem=N''{LoaiBaoHiem}'', @MucDong={MucDong}');
 GO
 
@@ -93,147 +99,225 @@ GO
 -- 5. CẤU HÌNH BỘ LỌC TOOLBAR (SY_FrmFltTbl)
 -- =========================================================================
 INSERT INTO dbo.SY_FrmFltTbl ([UserAutoID], [FormID], [KeyID], [ColumnID], [Caption], [ControlWidth], [Type], [Source], [ValueColumn], [DisplayColumn], [ColumnArr], [IsSetDefaultValue], [RememberLastValue], [isLockWhenEditData], [UseLikeOperator], [IsDisable], [IsReload], [IsPrimaryKeyCombine], [Operator])  
-VALUES (N'2606171113062582698736665', N'WA_BaoHiemFrm', N'0', N'BranchID', N'Chi nhánh', 200, 3, N'HR_GetBrachIDByUserStp N''{User}''', N'BranchID', N'BranchID', N'BranchID', 1, 0, 0, 0, 0, 0, 0, 4);
+VALUES (N'2606171113062582698736665_WA', N'WA_BaoHiemFrm', N'0', N'BranchID', N'Chi nhánh', 200, 3, N'HR_GetBrachIDByUserStp N''{User}''', N'BranchID', N'BranchID', N'BranchID', 1, 0, 0, 0, 0, 0, 0, 4);
 GO
 
 -- =========================================================================
--- 6. CẤU HÌNH LAYOUT TỪ ĐIỂN FIELD (SY_FrmCfg)
+-- 6. CẤU HÌNH TỪ ĐIỂN FIELD (TỪ HR_BaoHiemFrm CHUYỂN SANG WA_BaoHiemFrm)
 -- =========================================================================
--- Master Layout Configs
-INSERT INTO dbo.SY_FrmCfg ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID])  
-VALUES 
-(N'2605151335120250506765678', N'WA_BaoHiemFrm', N'DFP', N'', N'DocumentDate', N'', GETDATE(), N''),
-(N'2605151333483083261637386', N'WA_BaoHiemFrm', N'DMK', N'', N'{P}{YY}{MM}/{3}', N'', GETDATE(), N''),
-(N'2605151331213073242096744', N'WA_BaoHiemFrm', N'DPR', N'', N'BH', N'', GETDATE(), N''),
-(N'2605221051073133364212249', N'WA_BaoHiemFrm', N'LYT1', N'BranchID', N'2;8;1;1;;;;;;;;;;;;;;;;0;0', N'004', GETDATE(), N''),
-(N'2603121542586526686875168', N'WA_BaoHiemFrm', N'LYT1', N'DocumentDate', N'1;4;1;1;;;;;;;;;;;;;;;;0;0', N'002', GETDATE(), N''),
-(N'2603121542586366525246585', N'WA_BaoHiemFrm', N'LYT1', N'DocumentID', N'1;4;1;;;;;;;;;;;;;;;;;0;0', N'001', GETDATE(), N''),
-(N'2605151341536616824066742', N'WA_BaoHiemFrm', N'LYT1', N'LoaiBaoHiem', N'1;4;1;;1;;;;;;;;;;;;;;;0;0', N'007', GETDATE(), N''),
-(N'2603121542586686834862302', N'WA_BaoHiemFrm', N'LYT1', N'Notes', N'1;8;1;1;;;;;;;;;;;;;;;;0;0', N'003', GETDATE(), N''),
-(N'2605151340253573798143738', N'WA_BaoHiemFrm', N'LYT1', N'PeriodID', N'1;4;1;;1;;;;;;;;;;;;;;;0;0', N'006', GETDATE(), N''),
-(N'2605151620182032296531464', N'WA_BaoHiemFrm', N'LYT1', N'PeriodKeyID', N'2;4;1;1;;;;;;;;;;;;;;;;0;0', N'005', GETDATE(), N''),
-(N'2605210910464674816414727', N'WA_BaoHiemFrm', N'SPA2', N'', N'1', N'', GETDATE(), N''),
-(N'2605151615223383547169332', N'WA_BaoHiemFrm', N'T0', N'EX', N'(PeriodID + LoaiBaoHiem) as PeriodKeyID', N'', GETDATE(), N''),
-(N'2606171405325105364451601', N'WA_BaoHiemFrm', N'T0', N'FTR', N'(N''{BranchID}'' IS NULL OR N''{BranchID}'' = '''') OR BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(N''{BranchID}'', '',''))', N'', GETDATE(), N''),
-(N'2603121541474484793805443', N'WA_BaoHiemFrm', N'T0', N'PK', N'DocumentID', N'', GETDATE(), N''),
-(N'2603121541474794959849522', N'WA_BaoHiemFrm', N'T0', N'TN', N'HR_BaoHiemTbl', N'', GETDATE(), N'');
 
--- Detail Layout Configs (T1)
-INSERT INTO dbo.SY_FrmCfg ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID])  
-VALUES 
-(N'2603121553134214341049328', N'WA_BaoHiemFrm', N'T1', N'FKA1', N'PersonID', N'', GETDATE(), N''),
-(N'2605191014501321424390303', N'WA_BaoHiemFrm', N'T1', N'FKA2', N'PersonID', N'', GETDATE(), N''),
-(N'2603121553134354524588463', N'WA_BaoHiemFrm', N'T1', N'FKB1', N'PersonID', N'', GETDATE(), N''),
-(N'2605191014501421582715453', N'WA_BaoHiemFrm', N'T1', N'FKB2', N'PersonID', N'', GETDATE(), N''),
-(N'2603121541552763082783666', N'WA_BaoHiemFrm', N'T1', N'PK', N'UserAutoID', N'', GETDATE(), N''),
-(N'2605131542142592801449621', N'WA_BaoHiemFrm', N'T1', N'SE1', N'A.PersonName, A.PhongBan, A.TitleName, A.ChucDanhChuyenMon', N'', GETDATE(), N''),
-(N'2605191015073443567375608', N'WA_BaoHiemFrm', N'T1', N'SE2', N'B.ChucDanhChuyenMon', N'', GETDATE(), N''),
-(N'2603121541553083235686747', N'WA_BaoHiemFrm', N'T1', N'TN', N'HR_BaoHiemChiTietTbl', N'', GETDATE(), N''),
-(N'2603121553134524683929664', N'WA_BaoHiemFrm', N'T1', N'TN1', N'HR_PersonTbl', N'', GETDATE(), N''),
-(N'2605191013463333524497194', N'WA_BaoHiemFrm', N'T2', N'SE', N'HR_HopDongTbl.ChucDanhChuyenMon', N'', GETDATE(), N'');
+Insert into [SY_FrmGrdActTbl] ([UserAutoID], [FormID], [GridName], [ColumnID], [Action], [Source], [Para], [TargetValue], [TargetValue2], [TargetColumn], [TargetColumn2], [MsgID], [IsDisable], [ActType], [Oderby] )  
+Values( N'2606241746271341539736379_WA', N'WA_BaoHiemFrm', N'grdChitiet', N'MucDong', N'UpdateColumn', N'TinhBHStp ''{0}'',''{1}'',''{2}''', N'Master.PeriodID;Master.LoaiBaoHiem;MucDong', null, null, N';MucDongBHXHNLD;MucDongBHXHNSDLD;MucDongBHYTNLD;MucDongBHYTNSDLD;MucDongBHTNNLD;MucDongBHTNNSDLD', null, null,  0, N'ExecSQL', null ) 
+Go 
 
--- Detail Columns & Header Groups
-INSERT INTO dbo.SY_FrmCfg ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID])  
-VALUES 
-(N'2605131542473924125695167', N'WA_BaoHiemFrm', N'T1CS', N'12', N'PersonID;PersonName;ChucDanhChuyenMon;PhongBan;MucDong', N'', GETDATE(), N''),
-(N'2605131540321081333682254', N'WA_BaoHiemFrm', N'T1CS', N'41', N'BHXH', N'', GETDATE(), N''),
-(N'2605131540347958185451586', N'WA_BaoHiemFrm', N'T1CS', N'42', N'MucDongBHXHNLD;MucDongBHXHNSDLD', N'', GETDATE(), N''),
-(N'2605131540371962141228410', N'WA_BaoHiemFrm', N'T1CS', N'51', N'BHYT', N'', GETDATE(), N''),
-(N'2605131549531231442946667', N'WA_BaoHiemFrm', N'T1CS', N'52', N'MucDongBHYTNLD;MucDongBHYTNSDLD', N'', GETDATE(), N''),
-(N'2605131540395155283139277', N'WA_BaoHiemFrm', N'T1CS', N'61', N'BHTN', N'', GETDATE(), N''),
-(N'2605131549595765875999234', N'WA_BaoHiemFrm', N'T1CS', N'62', N'MucDongBHTNNLD;MucDongBHTNNSDLD', N'', GETDATE(), N'');
-GO
+Insert into [SY_FrmDrdwTbl] ([UserAutoID], [FormID], [GridName], [ColumnID], [ValueColumn], [DisplayColumn], [ColumnArr], [WidthArr], [Source], [LinkColumn], [DisableAddNew], [ParaArr], [ParaRequireArr], [Type], [KeepValue], [SummaryFieldArr], [IsMultiSelect], [IsNotInList], [IsDisable], [ColumnName_Filter], [ColumnValue_Filter], [OnlyValue_Filter], [ManualSQLSearch], [ManualSQLOrderBy], [DefaultValue], [IsReload], [EditableColumns], [Caption], [isLock], [isInvisible], [isWordWrap], [isMultiValue], [GroupCaption], [WordWrapArr], [GroupColumnArr], [DisplayMember2], [TreeViewColumn], [TreeViewColumnParent], [ReloadType], [EditType], [DefaultValueSQL], [TriggerOnOpenForm] )  
+Values( N'2606241634559109292897438_WA', N'WA_BaoHiemFrm', null, N'PeriodKeyID', N'KeyID', N'PeriodID;LoaiBaoHiem', N'PeriodID;LoaiBaoHiem', null, N'SELECT  
+    CONCAT(PeriodID, ''_'', LoaiBaoHiem) AS KeyID,
+    PeriodID,
+    LoaiBaoHiem
+FROM dbo.HR_BangThamSoTbl
+GROUP BY PeriodID, LoaiBaoHiem
+ORDER BY PeriodID, LoaiBaoHiem', N'PeriodID;LoaiBaoHiem',  1, null, null, N'Dropdown',  0, null,  0,  0,  0, null, null, null,  0, null, null,  0, null, null,  0,  0,  0,  0, null, null, null, null, null, null, null, null, null,  0 ) 
+Go 
+Insert into [SY_FrmDrdwTbl] ([UserAutoID], [FormID], [GridName], [ColumnID], [ValueColumn], [DisplayColumn], [ColumnArr], [WidthArr], [Source], [LinkColumn], [DisableAddNew], [ParaArr], [ParaRequireArr], [Type], [KeepValue], [SummaryFieldArr], [IsMultiSelect], [IsNotInList], [IsDisable], [ColumnName_Filter], [ColumnValue_Filter], [OnlyValue_Filter], [ManualSQLSearch], [ManualSQLOrderBy], [DefaultValue], [IsReload], [EditableColumns], [Caption], [isLock], [isInvisible], [isWordWrap], [isMultiValue], [GroupCaption], [WordWrapArr], [GroupColumnArr], [DisplayMember2], [TreeViewColumn], [TreeViewColumnParent], [ReloadType], [EditType], [DefaultValueSQL], [TriggerOnOpenForm] )  
+Values( N'2606241639262422663849609_WA', N'WA_BaoHiemFrm', null, N'BranchID', N'BranchID', N'BranchID', N'BranchID;BranchName', null, N'HR_GetBrachIDByUserStp N''{User}''', null,  1, null, null, null,  0, null,  0,  0,  0, null, null, null,  0, null, null,  0, null, null,  0,  0,  0,  0, null, null, null, null, null, null, null, null, null,  0 ) 
+Go 
+Insert into [SY_FrmDrdwTbl] ([UserAutoID], [FormID], [GridName], [ColumnID], [ValueColumn], [DisplayColumn], [ColumnArr], [WidthArr], [Source], [LinkColumn], [DisableAddNew], [ParaArr], [ParaRequireArr], [Type], [KeepValue], [SummaryFieldArr], [IsMultiSelect], [IsNotInList], [IsDisable], [ColumnName_Filter], [ColumnValue_Filter], [OnlyValue_Filter], [ManualSQLSearch], [ManualSQLOrderBy], [DefaultValue], [IsReload], [EditableColumns], [Caption], [isLock], [isInvisible], [isWordWrap], [isMultiValue], [GroupCaption], [WordWrapArr], [GroupColumnArr], [DisplayMember2], [TreeViewColumn], [TreeViewColumnParent], [ReloadType], [EditType], [DefaultValueSQL], [TriggerOnOpenForm] )  
+Values( N'2606241648007747933300103_WA', N'WA_BaoHiemFrm', N'grdChitiet', N'PersonID', N'PersonID', N'PersonID;PersonName', N'PersonID;PersonName;ChucDanhChuyenMon;BranchID;MucDong;PhongBan;CanhBao', null, N'WA_BaoHiem_PersonLookup ''{0}'',''{1}''', N'PersonID;ChucDanhChuyenMon;BranchID;MucDong;PhongBan',  0, N'Master.BranchID;Master.LoaiBaoHiem;Master.DocumentID', null, N'DropSelect',  0, null,  1,  1,  0, null, null, null,  0, null, null,  0, null, null,  0,  0,  0,  0, null, null, N'BranchID', null, null, null, null, null, null,  0 ) 
+Go 
 
--- =========================================================================
--- 7. CẤU HÌNH GRID ACTIONS (SY_FrmGrdActTbl) & GRID TIÊU ĐỀ NHÓM (SY_FrmCtrTbl)
--- =========================================================================
--- Grid Action khi MucDong thay đổi
-INSERT INTO dbo.SY_FrmGrdActTbl ([UserAutoID], [FormID], [GridName], [ColumnID], [Action], [Source], [Para], [TargetValue], [TargetValue2], [TargetColumn], [TargetColumn2], [MsgID], [IsDisable], [ActType], [Oderby] )  
-VALUES (N'2605151458489119305475685', N'WA_BaoHiemFrm', N'grdChitiet', N'MucDong', N'UpdateColumn', N'TinhBHStp ''{0}'', ''{1}'' , {2}', N'Master.PeriodID;Master.LoaiBaoHiem;MucDong', NULL, NULL, N'MucDongBHXHNLD;MucDongBHXHNSDLD;MucDongBHYTNLD;MucDongBHYTNSDLD;MucDongBHTNNLD;MucDongBHTNNSDLD', NULL, NULL, 0, N'ExecSQL', NULL);
+Insert into [SY_FrmExpTbl] ([UserAutoID], [FormID], [DataName], [Oderby], [ColumnID], [Expression], [RefColumn], [ParaArr], [IsDisable], [LevelLoop], [RoundType], [RoundPara], [ResetColumnArr] )  
+Values( N'2606241715068618776413095_WA', N'WA_BaoHiemFrm', N'Detail', 6, N'MucDong', N'TinhBHStp', N'', N'Master.PeriodID;Master.LoaiBaoHiem;MucDong',  0, null, null, null, null ) 
+Go 
 
--- Grid Group Headers
-INSERT INTO dbo.SY_FrmCtrTbl ([UserAutoID], [FormID], [ParentCtlName], [CtlName], [CaptionVN], [CaptionEN], [CtlTop], [CtlLeft], [CaptionWidth], [Width], [Height], [OrderBy], [IsDisable], [CaptionCH] )  
-VALUES 
-(N'WA_BaoHiemFrmG-grdChitiet;MucDongBHXHNLD', N'WA_BaoHiemFrm', N'grdChitiet;MucDongBHXHNLD', N'G', N'Người LD ', N'Employee share', 0, 0, 0, 0, 0, 5, 0, N''),
-(N'WA_BaoHiemFrmG-grdChitiet;MucDongBHXHNSDLD', N'WA_BaoHiemFrm', N'grdChitiet;MucDongBHXHNSDLD', N'G', N'Công Ty', N'Company share', 0, 0, 0, 0, 0, 5, 0, N''),
-(N'WA_BaoHiemFrmG-grdChitiet;MucDongBHYTNLD', N'WA_BaoHiemFrm', N'grdChitiet;MucDongBHYTNLD', N'G', N'Người LD ', N'Employee share', 0, 0, 0, 0, 0, 5, 0, N''),
-(N'WA_BaoHiemFrmG-grdChitiet;MucDongBHYTNSDLD', N'WA_BaoHiemFrm', N'grdChitiet;MucDongBHYTNSDLD', N'G', N'Công Ty', N'Company share', 0, 0, 0, 0, 0, 5, 0, N''),
-(N'WA_BaoHiemFrmG-grdChitiet;MucDongBHTNNLD', N'WA_BaoHiemFrm', N'grdChitiet;MucDongBHTNNLD', N'G', N'Người LD ', N'Employee share', 0, 0, 0, 0, 0, 5, 0, N''),
-(N'WA_BaoHiemFrmG-grdChitiet;MucDongBHTNNSDLD', N'WA_BaoHiemFrm', N'grdChitiet;MucDongBHTNNSDLD', N'G', N'Công Ty', N'Company share', 0, 0, 0, 0, 0, 5, 0, N'');
-GO
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241616590981147049447_WA', N'WA_BaoHiemFrm', N'LYT1', N'BranchID', N'2;4;1;;;;;;;;;;;;;;;;;0;0', N'006',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241616590510677756113_WA', N'WA_BaoHiemFrm', N'LYT1', N'DocumentDate', N'4;4;1;;;;;;;;;;;;;;;;;0;0', N'002',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241616590370513160726_WA', N'WA_BaoHiemFrm', N'LYT1', N'DocumentID', N'1;4;1;;;;;;;;;;;;;;;;;0;1', N'001',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241646232993185756161_WA', N'WA_BaoHiemFrm', N'LYT1', N'PeriodKeyID', N'2;4;1;1;;;;;;;;;;;;;;;;0;0', N'003',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241616590830987001225_WA', N'WA_BaoHiemFrm', N'LYT1', N'LoaiBaoHiem', N'1;4;1;;1;;;;;;;;;;;;;;;0;0', N'005',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241616591141301463109_WA', N'WA_BaoHiemFrm', N'LYT1', N'Notes', N'1;12;1;1;;;;;;;;;;;;;;;;0;0', N'007',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241616590670831194105_WA', N'WA_BaoHiemFrm', N'LYT1', N'PeriodID', N'1;4;1;1;1;;;;;;;;;;;;;;;0;0', N'004',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241616141181394710626_WA', N'WA_BaoHiemFrm', N'SPA2', N'', N'1', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241610317607746574180_WA', N'WA_BaoHiemFrm', N'T0', N'PK', N'DocumentID', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241755223433602640688_WA', N'WA_BaoHiemFrm', N'T0', N'SDD', N'1', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241610317747898326869_WA', N'WA_BaoHiemFrm', N'T0', N'TN', N'HR_BaoHiemTbl', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241641590981236124130_WA', N'WA_BaoHiemFrm', N'T0', N'TV', N'HR_BaoHiemView', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241610510760952061429_WA', N'WA_BaoHiemFrm', N'T1', N'FKA1', N'PersonID', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241610510951114079194_WA', N'WA_BaoHiemFrm', N'T1', N'FKB1', N'PersonID', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241610381401655485299_WA', N'WA_BaoHiemFrm', N'T1', N'PK', N'UserAutoID', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241611065575775403480_WA', N'WA_BaoHiemFrm', N'T1', N'SE1', N'A.PersonName, A.PhongBan, A.ChucDanhChuyenMon', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606251014311912052265172_WA', N'WA_BaoHiemFrm', N'T1', N'SUM', N'MucDong', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241610381651816896518_WA', N'WA_BaoHiemFrm', N'T1', N'TN', N'HR_BaoHiemChiTietTbl', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606241610511131277648119_WA', N'WA_BaoHiemFrm', N'T1', N'TN1', N'HR_PersonTbl', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606250849406937098331307_WA', N'WA_BaoHiemFrm', N'T1CS', N'12', N'PersonID;PersonName;ChucDanhChuyenMon;BranchID;PhongBan;MucDong;MucDongBHXHNLD;MucDongBHXHNSDLD;MucDongBHYTNLD;MucDongBHYTNSDLD;MucDongBHTNNLD;MucDongBHTNNSDLD;GhiChu', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606252013122482631377419_WA', N'WA_BaoHiemFrm', N'T1F1', N'C1', N'DocumentID;PersonID;MucDong;MucDongBHXHNLD;MucDongBHXHNSDLD;MucDongBHYTNLD;MucDongBHYTNSDLD;MucDongBHTNNLD;MucDongBHTNNSDLD;GhiChu;BranchID;IsNVMoi;PersonName;PhongBan;ChucDanhChuyenMon', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606252012290360578217230_WA', N'WA_BaoHiemFrm', N'T1F1', N'C2', N'IsNVMoi', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2607011004202202396331920_WA', N'WA_BaoHiemFrm', N'T1F1', N'CO', N'-65536', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2607011004344564782505337_WA', N'WA_BaoHiemFrm', N'T1F1', N'FB', N'1', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606252027204784984908582_WA', N'WA_BaoHiemFrm', N'T1F1', N'TA', N'1', N'',  '2026-07-01 10:05', N'' ) 
+Go 
+Insert into [SY_FrmCfg] ([UserAutoID], [FID], [KeyID], [SubID], [KeyValue], [SubValue], [VDate], [PFID] )  
+Values( N'2606252012550801035592506_WA', N'WA_BaoHiemFrm', N'T1F1', N'V1', N'1', N'',  '2026-07-01 10:05', N'' ) 
+Go 
 
--- =========================================================================
--- 8. CẤU HÌNH DROPDOWNS (SY_FrmDrdwTbl)
--- =========================================================================
--- 8.1. Dropdown chọn Nhân viên trong Grid chi tiết (PersonID)
-INSERT INTO dbo.SY_FrmDrdwTbl ([UserAutoID], [FormID], [GridName], [ColumnID], [ValueColumn], [DisplayColumn], [ColumnArr], [WidthArr], [Source], [LinkColumn], [DisableAddNew], [ParaArr], [ParaRequireArr], [Type], [KeepValue], [SummaryFieldArr], [IsMultiSelect], [IsNotInList], [IsDisable], [ColumnName_Filter], [ColumnValue_Filter], [OnlyValue_Filter], [ManualSQLSearch], [ManualSQLOrderBy], [DefaultValue], [IsReload], [EditableColumns], [Caption], [isLock], [isInvisible], [isWordWrap], [isMultiValue], [GroupCaption], [WordWrapArr], [GroupColumnArr], [DisplayMember2], [TreeViewColumn], [TreeViewColumnParent], [ReloadType], [EditType], [DefaultValueSQL], [TriggerOnOpenForm] )  
-VALUES (N'2603121547508699001442177', N'WA_BaoHiemFrm', N'grdChitiet', N'PersonID', N'PersonID', N'PersonID', N'STT;PersonID;PersonName;PhongBan;MucDong;CanhBao', NULL, 
-N'SELECT 
-    ROW_NUMBER() OVER (ORDER BY P.PersonID DESC) AS STT,
-    P.PersonID, 
-    P.PersonName, 
-    P.PhongBan, -- Đã sửa đổi thẳng về PhongBan để khớp khớp hiển thị
-    ISNULL(BH.MucDong, 0) AS MucDong, 
-    CASE 
-        WHEN BH.PersonID IS NOT NULL 
-        THEN N''!!! ĐÃ CÓ BH TẠI KỲ: '' + CAST(BH.PeriodID AS VARCHAR) + N'' (Chứng từ: '' + BH.DocumentID + '')''
-        ELSE '''' 
-    END AS CanhBao,
-    BH.DocumentID,
-    BH.PeriodID
-FROM HR_PersonTbl P
-LEFT JOIN (
-    SELECT 
-        CT.PersonID, 
-        SUM(CT.MucDong) AS MucDong, 
-        MAX(H.DocumentID) AS DocumentID, 
-        MAX(H.PeriodID) AS PeriodID
-    FROM HR_BaoHiemChiTietTbl CT
-    INNER JOIN HR_BaoHiemTbl H ON H.DocumentID = CT.DocumentID
-    GROUP BY CT.PersonID
-) BH ON P.PersonID = BH.PersonID
-WHERE P.BranchID = ''{0}''
-  AND (''{1}'' = '''' OR 1=1);', N'PersonID;PersonName;MucDong', 1, N'Master.BranchID;Master.LoaiBaoHiem', NULL, N'DropSelect', 0, NULL, 1, 1, 0, NULL, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0, 0, 0, 0, NULL, NULL, N'PhongBan', N'PersonName', NULL, NULL, 0, NULL, NULL, 0);
-
--- 8.2. Dropdown chọn Kỳ & Loại bảo hiểm (PeriodKeyID)
-INSERT INTO dbo.SY_FrmDrdwTbl ([UserAutoID], [FormID], [GridName], [ColumnID], [ValueColumn], [DisplayColumn], [ColumnArr], [WidthArr], [Source], [LinkColumn], [DisableAddNew], [ParaArr], [ParaRequireArr], [Type], [KeepValue], [SummaryFieldArr], [IsMultiSelect], [IsNotInList], [IsDisable], [ColumnName_Filter], [ColumnValue_Filter], [OnlyValue_Filter], [ManualSQLSearch], [ManualSQLOrderBy], [DefaultValue], [IsReload], [EditableColumns], [Caption], [isLock], [isInvisible], [isWordWrap], [isMultiValue], [GroupCaption], [WordWrapArr], [GroupColumnArr], [DisplayMember2], [TreeViewColumn], [TreeViewColumnParent], [ReloadType], [EditType], [DefaultValueSQL], [TriggerOnOpenForm] )  
-VALUES (N'2605151346256396592323415', N'WA_BaoHiemFrm', NULL, N'PeriodKeyID', N'PeriodKeyID', N'PeriodID;LoaiBaoHiem', N'PeriodID;LoaiBaoHiem', N'80;200', N'SELECT PeriodID, LoaiBaoHiem, (PeriodID + LoaiBaoHiem) AS PeriodKeyID FROM HR_BangThamSoTbl', N'PeriodID;LoaiBaoHiem', 1, NULL, NULL, NULL, 0, NULL, NULL, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0);
-
--- 8.3. Dropdown chọn Chi nhánh (BranchID)
-INSERT INTO dbo.SY_FrmDrdwTbl ([UserAutoID], [FormID], [GridName], [ColumnID], [ValueColumn], [DisplayColumn], [ColumnArr], [WidthArr], [Source], [LinkColumn], [DisableAddNew], [ParaArr], [ParaRequireArr], [Type], [KeepValue], [SummaryFieldArr], [IsMultiSelect], [IsNotInList], [IsDisable], [ColumnName_Filter], [ColumnValue_Filter], [OnlyValue_Filter], [ManualSQLSearch], [ManualSQLOrderBy], [DefaultValue], [IsReload], [EditableColumns], [Caption], [isLock], [isInvisible], [isWordWrap], [isMultiValue], [GroupCaption], [WordWrapArr], [GroupColumnArr], [DisplayMember2], [TreeViewColumn], [TreeViewColumnParent], [ReloadType], [EditType], [DefaultValueSQL], [TriggerOnOpenForm] )  
-VALUES (N'2605221051164454657930559', N'WA_BaoHiemFrm', NULL, N'BranchID', N'BranchID', N'BranchID', N'BranchID;BranchName', NULL, N'SELECT * FROM CF_BranchTbl', NULL, 1, NULL, NULL, N'Dropdown', 0, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, N'BranchName', NULL, NULL, NULL, NULL, NULL, 0);
-GO
-
--- =========================================================================
--- 9. ĐĂNG KÝ VÀ VIỆT HÓA TỪ ĐIỂN CỘT (SY_FmtFldTbl)
--- =========================================================================
-INSERT INTO dbo.SY_FmtFldTbl ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
-SELECT NULL, N'PeriodKeyID', NULL, N'Kỳ đóng bảo hiểm', N'Period Key', NULL WHERE NOT EXISTS (SELECT 1 FROM SY_FmtFldTbl WHERE FieldName = 'PeriodKeyID');
-INSERT INTO dbo.SY_FmtFldTbl ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
-SELECT NULL, N'MucDongBHXHNLD', NULL, N'BHXH Người lao động', N'SI Employee', NULL WHERE NOT EXISTS (SELECT 1 FROM SY_FmtFldTbl WHERE FieldName = 'MucDongBHXHNLD');
-INSERT INTO dbo.SY_FmtFldTbl ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
-SELECT NULL, N'MucDongBHXHNSDLD', NULL, N'BHXH Công ty đóng', N'SI Company', NULL WHERE NOT EXISTS (SELECT 1 FROM SY_FmtFldTbl WHERE FieldName = 'MucDongBHXHNSDLD');
-INSERT INTO dbo.SY_FmtFldTbl ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
-SELECT NULL, N'MucDongBHYTNLD', NULL, N'BHYT Người lao động', N'HI Employee', NULL WHERE NOT EXISTS (SELECT 1 FROM SY_FmtFldTbl WHERE FieldName = 'MucDongBHYTNLD');
-INSERT INTO dbo.SY_FmtFldTbl ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
-SELECT NULL, N'MucDongBHYTNSDLD', NULL, N'BHYT Công ty đóng', N'HI Company', NULL WHERE NOT EXISTS (SELECT 1 FROM SY_FmtFldTbl WHERE FieldName = 'MucDongBHYTNSDLD');
-INSERT INTO dbo.SY_FmtFldTbl ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
-SELECT NULL, N'MucDongBHTNNLD', NULL, N'BHTN Người lao động', N'UI Employee', NULL WHERE NOT EXISTS (SELECT 1 FROM SY_FmtFldTbl WHERE FieldName = 'MucDongBHTNNLD');
-INSERT INTO dbo.SY_FmtFldTbl ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
-SELECT NULL, N'MucDongBHTNNSDLD', NULL, N'BHTN Công ty đóng', N'UI Company', NULL WHERE NOT EXISTS (SELECT 1 FROM SY_FmtFldTbl WHERE FieldName = 'MucDongBHTNNSDLD');
-GO
+-- Export SY_FmtFldTbl , Rows = 22
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'UserAutoID' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'UserAutoID', null, N'UserAutoID', N'UserAutoID', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'UserCreate' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'UserCreate', null, N'Người tạo', N'Creator', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'UserUpdate' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'UserUpdate', null, N'Người sửa', N'Editor', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'DateCreate' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'DT', N'DateCreate', null, N'Ngày tạo', N'开始日期', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'DateUpdate' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'DT', N'DateUpdate', null, N'Ngày sửa', N'编辑日期', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'PeriodID' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'PeriodID', null, N'Kỳ', N'Kỳ', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'Notes' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'Notes', null, N'Ghi chú', N'型号', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'DocumentID' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'', N'DocumentID', null, N'Số chứng từ', N'Số chứng từ', N'' ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'DocumentDate' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'D', N'DocumentDate', null, N'Ngày', N'Ngày chứng từ', N'' ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'GhiChu' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'GhiChu', null, N'Ghi chú', N'GhiChu', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'LoaiBaoHiem' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'LoaiBaoHiem', null, N'Loại bảo hiểm', N'LoaiBaoHiem', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'PersonID' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'PersonID', null, N'Mã nhân viên', N'PersonID', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'BranchID' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'', N'BranchID', null, N'Chi nhánh', N'BranchID', N'' ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'MucDong' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'', N'MucDong', null, N'Mức đóng', N'Mức đóng', N'' ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'MucDongBHXHNLD' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'', N'MucDongBHXHNLD', null, N'MucDongBHXHNLD', N'MucDongBHXHNLD', N'' ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'MucDongBHXHNSDLD' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'MucDongBHXHNSDLD', null, N'BHXH Công ty đóng', N'SI Company', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'MucDongBHYTNLD' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'MucDongBHYTNLD', null, N'BHYT Người lao động', N'HI Employee', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'MucDongBHYTNSDLD' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'MucDongBHYTNSDLD', null, N'BHYT Công ty đóng', N'HI Company', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'MucDongBHTNNLD' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'MucDongBHTNNLD', null, N'BHTN Người lao động', N'UI Employee', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'MucDongBHTNNSDLD' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( null, N'MucDongBHTNNSDLD', null, N'BHTN Công ty đóng', N'UI Company', null ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'IsNVMoi' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'', N'IsNVMoi', null, N'NVMoiThamGiaBH', N'NVMoiThamGiaBH', N'' ) 
+Go 
+if not exists(select * from SY_FmtFldTbl where FieldName = N'LoaiHD' ) 
+Insert into [SY_FmtFldTbl] ([FormatID], [FieldName], [FormName], [CaptionVN], [CaptionEN], [AlignX] )  
+Values( N'', N'LoaiHD', null, N'Đội ngũ', N'LoaiHD', N'' ) 
+Go 
 
 -- =========================================================================
 -- 10. ĐỒNG BỘ TRƯỜNG TỪ TABLE VÀO SY_FormatFields
 -- =========================================================================
 EXEC dbo.API_DongBoTruongGiaoDien @FormName = 'WA_BaoHiemFrm', @ObjectName = 'HR_BaoHiemTbl';
-EXEC dbo.API_DongBoTruongGiaoDien @FormName = 'API_BaoHiem_Detail', @ObjectName = 'HR_BaoHiemChiTietTbl';
+EXEC dbo.API_DongBoTruongGiaoDien @FormName = 'API_BaoHiem_Detail', @ObjectName = 'HR_BaoHiemChiTietTbl'; 
 GO
 
 -- =========================================================================
--- 11. CẬP NHẬT THUỘC TÍNH FORM FIELDS (SY_FormatFields)
+-- 11. CẬP NHẬT THUỘC TÍNH FORM FIELDS (SY_FormatFields) DÀNH RIÊNG CHO WEB
 -- =========================================================================
 -- Master Form Fields (WA_BaoHiemFrm)
+-- Đảm bảo có trường PeriodKeyID (vì nó là cột ảo sinh ra từ API_BaoHiem, không có trong bảng vật lý)
+IF NOT EXISTS(SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoHiemFrm' AND FieldName = 'PeriodKeyID')
+BEGIN
+    INSERT INTO dbo.SY_FormatFields (FormName, FieldName, FormatID, FormPosition, ShowInAdd, ShowInEdit, IsRequired, DataSource, OrderNo, CaptionVN, CaptionEN)
+    VALUES ('WA_BaoHiemFrm', 'PeriodKeyID', 'sl', 'grid', 1, 1, 1, 'HR_BangThamSoTbl', 4, N'Mã số', 'ID');
+END
+
 UPDATE dbo.SY_FormatFields
 SET CaptionVN = CASE FieldName
         WHEN 'DocumentID' THEN N'Số chứng từ'
@@ -242,7 +326,7 @@ SET CaptionVN = CASE FieldName
         WHEN 'PeriodID' THEN N'Kỳ'
         WHEN 'LoaiBaoHiem' THEN N'Loại bảo hiểm'
         WHEN 'Notes' THEN N'Ghi chú'
-        WHEN 'PeriodKeyID' THEN N'Kỳ đóng bảo hiểm'
+        WHEN 'PeriodKeyID' THEN N'Mã số'
         ELSE FieldName
     END,
     FormatID = CASE 
@@ -254,13 +338,14 @@ SET CaptionVN = CASE FieldName
         WHEN FieldName IN ('DocumentID', 'DocumentDate', 'BranchID', 'PeriodKeyID', 'Notes') THEN 'grid'
         ELSE 'form'
     END,
-    ShowInAdd = CASE WHEN FieldName IN ('UserCreate', 'DateCreate', 'UserUpdate', 'DateUpdate', 'PeriodID', 'LoaiBaoHiem') THEN 0 ELSE 1 END,
-    ShowInEdit = CASE WHEN FieldName IN ('UserCreate', 'DateCreate', 'UserUpdate', 'DateUpdate', 'PeriodID', 'LoaiBaoHiem') THEN 0 ELSE 1 END,
-    IsReadOnlyEdit = CASE WHEN FieldName = 'DocumentID' THEN 1 ELSE 0 END,
+    ShowInAdd = CASE WHEN FieldName IN ('DocumentID', 'PeriodKeyID', 'PeriodID', 'DocumentDate', 'LoaiBaoHiem', 'BranchID', 'Notes') THEN 1 ELSE 0 END,
+    ShowInEdit = CASE WHEN FieldName IN ('DocumentID', 'PeriodKeyID', 'PeriodID', 'DocumentDate', 'LoaiBaoHiem', 'BranchID', 'Notes') THEN 1 ELSE 0 END,
+    IsReadOnlyAdd = CASE WHEN FieldName IN ('PeriodID', 'LoaiBaoHiem') THEN 1 ELSE 0 END,
+    IsReadOnlyEdit = CASE WHEN FieldName IN ('DocumentID', 'PeriodID', 'LoaiBaoHiem') THEN 1 ELSE 0 END,
     IsRequired = CASE WHEN FieldName IN ('DocumentID', 'DocumentDate', 'BranchID', 'PeriodKeyID') THEN 1 ELSE 0 END,
     DataSource = CASE 
         WHEN FieldName = 'BranchID' THEN 'CF_BranchListFrm'
-        WHEN FieldName = 'PeriodKeyID' THEN 'HR_BangThamSoTbl' -- link PeriodKeyID
+        WHEN FieldName = 'PeriodKeyID' THEN 'HR_BangThamSoTbl'
         ELSE NULL
     END,
     OrderNo = CASE FieldName
@@ -278,36 +363,44 @@ UPDATE dbo.SY_FormatFields
 SET CaptionVN = CASE FieldName
         WHEN 'PersonID' THEN N'Mã nhân viên'
         WHEN 'PersonName' THEN N'Họ tên'
+        WHEN 'ChucDanhChuyenMon' THEN N'Chức danh chuyên môn'
+        WHEN 'BranchID' THEN N'Chi nhánh'
         WHEN 'PhongBan' THEN N'Bộ phận'
-        WHEN 'TitleName' THEN N'Chức vụ'
-        WHEN 'ChucDanhChuyenMon' THEN N'Chuyên môn'
         WHEN 'MucDong' THEN N'Mức đóng'
-        WHEN 'MucDongBHXHNLD' THEN N'BHXH Người lao động'
+        WHEN 'MucDongBHXHNLD' THEN N'MucDongBHXHNLD'
         WHEN 'MucDongBHXHNSDLD' THEN N'BHXH Công ty đóng'
         WHEN 'MucDongBHYTNLD' THEN N'BHYT Người lao động'
         WHEN 'MucDongBHYTNSDLD' THEN N'BHYT Công ty đóng'
         WHEN 'MucDongBHTNNLD' THEN N'BHTN Người lao động'
         WHEN 'MucDongBHTNNSDLD' THEN N'BHTN Công ty đóng'
         WHEN 'GhiChu' THEN N'Ghi chú'
+        WHEN 'IsNVMoi' THEN N'NVMớiThamGiaBH'
         ELSE FieldName
+    END,
+    ShowInAdd = CASE 
+        WHEN FieldName IN ('PersonID', 'PersonName', 'ChucDanhChuyenMon', 'BranchID', 'PhongBan', 'MucDong', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD', 'GhiChu', 'IsNVMoi') THEN 1
+        ELSE 0
+    END,
+    ShowInEdit = CASE 
+        WHEN FieldName IN ('PersonID', 'PersonName', 'ChucDanhChuyenMon', 'BranchID', 'PhongBan', 'MucDong', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD', 'GhiChu', 'IsNVMoi') THEN 1
+        ELSE 0
     END,
     FormatID = CASE 
         WHEN FieldName IN ('MucDong', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD') THEN 'n'
         WHEN FieldName = 'PersonID' THEN 'sl'
+        WHEN FieldName = 'IsNVMoi' THEN 'cb'
         ELSE 't'
     END,
     FormPosition = 'grid',
-    ShowInAdd = 1,
-    ShowInEdit = 1,
-    IsReadOnlyEdit = CASE WHEN FieldName IN ('PersonName', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD') THEN 1 ELSE 0 END,
+    IsReadOnlyEdit = CASE WHEN FieldName IN ('PersonName', 'ChucDanhChuyenMon', 'BranchID', 'PhongBan', 'MucDongBHXHNLD', 'MucDongBHXHNSDLD', 'MucDongBHYTNLD', 'MucDongBHYTNSDLD', 'MucDongBHTNNLD', 'MucDongBHTNNSDLD') THEN 1 ELSE 0 END,
     IsRequired = CASE WHEN FieldName IN ('PersonID', 'MucDong') THEN 1 ELSE 0 END,
     DataSource = CASE WHEN FieldName = 'PersonID' THEN 'HR_PersonTbl' ELSE NULL END,
     OrderNo = CASE FieldName
         WHEN 'PersonID' THEN 1
         WHEN 'PersonName' THEN 2
-        WHEN 'PhongBan' THEN 3
-        WHEN 'TitleName' THEN 4
-        WHEN 'ChucDanhChuyenMon' THEN 5
+        WHEN 'ChucDanhChuyenMon' THEN 3
+        WHEN 'BranchID' THEN 4
+        WHEN 'PhongBan' THEN 5
         WHEN 'MucDong' THEN 6
         WHEN 'MucDongBHXHNLD' THEN 7
         WHEN 'MucDongBHXHNSDLD' THEN 8
@@ -316,10 +409,8 @@ SET CaptionVN = CASE FieldName
         WHEN 'MucDongBHTNNLD' THEN 11
         WHEN 'MucDongBHTNNSDLD' THEN 12
         WHEN 'GhiChu' THEN 13
+        WHEN 'IsNVMoi' THEN 14
         ELSE 99
     END
 WHERE FormName = 'API_BaoHiem_Detail';
-GO
-
-PRINT 'Successfully configured WA_BaoHiemFrm configuration metadata!';
 GO

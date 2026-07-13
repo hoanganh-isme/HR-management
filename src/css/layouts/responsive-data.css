@@ -1,0 +1,7 @@
+.responsive-data-cards { display: grid; gap: 10px; padding: 10px; }
+.responsive-data-card { padding: 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+.responsive-data-card__field { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.responsive-data-card__label { color: var(--color-text-secondary); font-size: 12px; }
+.responsive-data-card__value { color: var(--color-text); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
+@media (min-width: 768px) { .responsive-data-cards { display: none; } }
+

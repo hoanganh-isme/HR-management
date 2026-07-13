@@ -645,6 +645,23 @@ body.dark-theme .nav-item:hover span.icon {
   width: calc(25% - 8px) !important;
 }
 
+/* TABLET & SMALL DESKTOP (992px - 1399px) - Fallback to 3 columns if 4 columns are too squeezed */
+@media (max-width: 1399px) {
+  .df-col-3 {
+    width: calc(33.333% - 7px) !important;
+  }
+}
+
+/* TABLET PORTRAIT (769px - 991px) - Fallback to 2 columns */
+@media (max-width: 991px) {
+
+  .df-col-3,
+  .df-col-4 {
+    width: calc(50% - 5px) !important;
+  }
+}
+
+/* MOBILE (<= 768px) - 1 Column Full Width */
 @media (max-width: 768px) {
 
   /* Trên Mobile: 
@@ -657,10 +674,12 @@ body.dark-theme .nav-item:hover span.icon {
     width: 100% !important;
   }
 
-  .df-master-wrapper, .df-avatar-group-wrapper {
+  .df-master-wrapper,
+  .df-avatar-group-wrapper {
     flex-direction: column !important;
     align-items: center !important;
   }
+
   .df-master-wrapper .photo-box-wrapper {
     width: 100% !important;
   }
@@ -669,7 +688,79 @@ body.dark-theme .nav-item:hover span.icon {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* CUSTOM TABULATOR CHO KẾ TOÁN */
+.tabulator {
+  font-size: 12.5px !important;
+  /* Giảm cỡ chữ xuống mức tiêu chuẩn Excel */
+}
+
+.tabulator-row {
+  border-bottom: 1px solid #cbd5e1 !important;
+  margin-bottom: 0 !important;
+}
+
+.tabulator-row .tabulator-cell {
+  border-right: 1px solid #cbd5e1 !important;
+}
+
+.tabulator-row .tabulator-cell:last-child {
+  border-right: none !important;
+}
+
+.tabulator-row.tabulator-row-even {
+  background-color: #f8fafc !important;
+}
+
+.tabulator-row.tabulator-row-odd {
+  background-color: #ffffff !important;
+}
+
+.tabulator-row.tabulator-selectable:hover {
+  background-color: #e2e8f0 !important;
+}
+
+.tabulator-header {
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.tabulator-header .tabulator-col {
+  background-color: #f1f5f9 !important;
+  border-right: 1px solid #cbd5e1 !important;
+  font-weight: 600;
+}
+
+.tabulator-header .tabulator-col:last-child {
+  border-right: none !important;
+}
+
+.tabulator-header .tabulator-col .tabulator-col-content {
+  padding: 8px 10px !important;
+}
+
+/* ẨN TÍNH NĂNG LỌC CỘT MẶC ĐỊNH */
+.tabulator .tabulator-header .tabulator-header-filter {
+  display: none !important;
+}
+
+/* HIỆN LẠI KHI CÓ CLASS SHOW-FILTERS */
+.tabulator.show-filters .tabulator-header .tabulator-header-filter {
+    display: block !important;
+}
+
+/* Ẩn nút Sắp ca tự động cũ do SY_FrmCfg sinh ra ở thân form (vì đã chuyển lên header action bar) */
+button[onclick*="SapCaTuDong"] {
+    display: none !important;
+}
+
+/* Fix lỗi datepicker (Flatpickr) bị ẩn dưới Filter Overlay Panel */
+.flatpickr-calendar {
+    z-index: 9999999 !important;
 }

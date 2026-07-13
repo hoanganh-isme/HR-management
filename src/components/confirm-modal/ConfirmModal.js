@@ -90,6 +90,8 @@ var ConfirmModal = (function () {
   };
 })();
 
+window.ConfirmModal = ConfirmModal;
+
 // Xử lý nút Back của trình duyệt/điện thoại
 window.addEventListener('popstate', function (e) {
   var overlay = document.getElementById('confirm-modal-overlay');

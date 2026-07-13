@@ -5,7 +5,7 @@
 var Permission = (function () {
   function _get(module) {
     var legacyPerms = JSON.parse(localStorage.getItem('app_permissions') || '{}');
-    var newPerms = JSON.parse(localStorage.getItem('pmql_permissions') || '{}');
+    var newPerms = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('permissions', '{}') : localStorage.getItem('pmql_permissions')) || '{}');
     var perms = Object.keys(newPerms).length > 0 ? newPerms : legacyPerms;
     
     if (Object.keys(perms).length === 0) {

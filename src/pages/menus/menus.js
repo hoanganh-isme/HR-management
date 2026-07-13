@@ -15,7 +15,7 @@ var MenusPage = (function () {
       if (r && r.module) return r.module;
     }
     // Nếu không tìm thấy route tĩnh, thử lấy module từ permissions
-    var perms = JSON.parse(localStorage.getItem('pmql_permissions') || '{}');
+    var perms = JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('permissions', '{}') : localStorage.getItem('pmql_permissions')) || '{}');
     if (perms['menus'] || perms['quanlymenu']) return 'menus';
     return 'QuanTriHeThong';
   }
@@ -196,7 +196,7 @@ var MenusPage = (function () {
 
     var nestedEl = UINestedTabs.create(folderRecords, {
       vertical: true,
-      draggable: true, // Cho phép kéo thả bình thường vì cấu trúc giờ đã chuẩn cây 2 cấp
+      draggable: false, // Tắt kéo thả ở sidebar dọc để giao diện gọn gàng như bản cũ
       defaultParentId: defParentId,
       defaultChildId: defChildId,
       onTabChange: function (nodeId, childId) {
@@ -258,6 +258,9 @@ var MenusPage = (function () {
     var canDelete = Permission.canDelete(permKey);
     var canAdd = Permission.canAdd(permKey);
 
+    var pIsHidden = (rawParentItem.isDisable == 1 || rawParentItem.isDisable === '1' || rawParentItem.isDisable === true);
+    var pBadgeHTML = pIsHidden ? ' <span style="background:var(--color-danger,#f43f5e);color:#fff;font-size:9px;padding:2px 4px;border-radius:4px;vertical-align:middle;margin-left:4px;" title="Menu này đang bị ẩn khỏi thanh điều hướng">ĐÃ ẨN</span>' : '';
+
     var btnEditParentHTML = canEdit ? ('  ' + UIButton.createHTML({ icon: 'edit', type: 'tool', className: 'btn-edit-menu-inline', data: { id: rawParentItem.id }, style: 'padding:2px 5px;', tooltip: 'Sửa', iconStyle: 'font-size:13px;' })) : '';
     var btnDelParentHTML = canDelete ? ('  ' + UIButton.createHTML({ icon: 'delete', type: 'tool', className: 'btn-delete-menu-inline', data: { id: rawParentItem.id }, style: 'padding:2px 5px;color:var(--color-danger);', tooltip: 'Xóa', iconStyle: 'font-size:13px;' })) : '';
 
@@ -267,7 +270,7 @@ var MenusPage = (function () {
       + '<td class="editable-cell" data-field="id" data-val="' + rawParentItem.id + '" title="Nhấp đúp để sửa" style="padding:5px 4px;"><code style="background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:4px;font-size:11px;cursor:text;font-weight:700;">' + rawParentItem.id + '</code></td>'
       + '<td class="editable-cell" data-field="parent" data-val="' + (rawParentItem.parent || '') + '" title="Nhấp đúp để sửa" style="padding:5px 4px;"><code style="background:rgba(0,0,0,0.03);padding:1px 5px;border-radius:4px;font-size:11px;cursor:text;">' + (rawParentItem.parent || '') + '</code></td>'
       + '<td class="editable-cell" data-field="icon" data-val="' + (rawParentItem.icon || '') + '" title="Nhấp đúp để chọn Icon" style="cursor:text;text-align:center;padding:5px 2px;">' + UIIcon.renderHtml(rawParentItem.icon || 'horizontal_rule', 'font-size:15px;color:var(--color-primary);vertical-align:middle;user-select:none;-webkit-user-select:none;') + '</td>'
-      + '<td class="editable-cell" data-field="label" data-val="' + rawParentItem.label + '" title="Nhấp đúp để sửa" style="cursor:text;color:var(--color-primary);padding:5px 4px;"><b>' + rawParentItem.label + '</b></td>'
+      + '<td class="editable-cell" data-field="label" data-val="' + rawParentItem.label + '" title="Nhấp đúp để sửa" style="cursor:text;color:var(--color-primary);padding:5px 4px;"><b>' + rawParentItem.label + '</b>' + pBadgeHTML + '</td>'
       + '<td class="editable-cell" data-field="en" data-val="' + (rawParentItem.en || '') + '" title="Nhấp đúp để sửa tên EN" style="cursor:text;color:var(--color-text-secondary);padding:5px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (rawParentItem.en || '') + '</td>'
       + '<td class="editable-cell" data-field="subTitle" data-val="' + (rawParentItem.subTitle || '') + '" title="Nhấp đúp để sửa Phụ đề" style="cursor:text;color:var(--color-text-secondary);padding:5px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (rawParentItem.subTitle || '') + '</td>'
       + '<td class="editable-cell" data-field="formName" data-val="' + (rawParentItem.formName || '') + '" style="color:var(--color-text-secondary);cursor:text;padding:5px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Nhấp đúp để sửa">' + (rawParentItem.formName || '') + '</td>'
@@ -319,6 +322,9 @@ var MenusPage = (function () {
       });
     } else {
       var rows = children.map(function (c, i) {
+        var cIsHidden = (c.isDisable == 1 || c.isDisable === '1' || c.isDisable === true);
+        var cBadgeHTML = cIsHidden ? ' <span style="background:var(--color-danger,#f43f5e);color:#fff;font-size:9px;padding:2px 4px;border-radius:4px;vertical-align:middle;margin-left:4px;" title="Menu này đang bị ẩn khỏi thanh điều hướng">ĐÃ ẨN</span>' : '';
+
         var btnEditChildHTML = canEdit ? ('  ' + UIButton.createHTML({ icon: 'edit', type: 'tool', className: 'btn-edit-menu-inline', data: { id: c.id }, style: 'padding:2px 5px;', tooltip: 'Sửa', iconStyle: 'font-size:13px;' })) : '';
         var btnDelChildHTML = canDelete ? ('  ' + UIButton.createHTML({ icon: 'delete', type: 'tool', className: 'btn-delete-menu-inline', data: { id: c.id }, style: 'padding:2px 5px;color:var(--color-danger);', tooltip: 'Xóa', iconStyle: 'font-size:13px;' })) : '';
 
@@ -330,7 +336,7 @@ var MenusPage = (function () {
           + '<td class="editable-cell" data-field="id" data-val="' + c.id + '" title="Nhấp đúp để sửa" style="padding:5px 4px;"><code style="background:rgba(0,0,0,0.05);padding:1px 5px;border-radius:4px;font-size:11px;cursor:text;">' + c.id + '</code></td>'
           + '<td class="editable-cell" data-field="parent" data-val="' + (c.parent || '') + '" title="Nhấp đúp để sửa" style="padding:5px 4px;"><code style="background:rgba(0,0,0,0.03);padding:1px 5px;border-radius:4px;font-size:11px;cursor:text;">' + (c.parent || '') + '</code></td>'
           + '<td class="editable-cell" data-field="icon" data-val="' + (c.icon || '') + '" title="Nhấp đúp để chọn Icon" style="cursor:text;text-align:center;padding:5px 2px;">' + UIIcon.renderHtml(c.icon || 'horizontal_rule', 'font-size:15px;color:var(--color-primary);vertical-align:middle;user-select:none;-webkit-user-select:none;') + '</td>'
-          + '<td class="editable-cell" data-field="label" data-val="' + c.label + '" title="Nhấp đúp để sửa" style="cursor:text;padding:5px 4px;"><b>' + c.label + '</b></td>'
+          + '<td class="editable-cell" data-field="label" data-val="' + c.label + '" title="Nhấp đúp để sửa" style="cursor:text;padding:5px 4px;"><b>' + c.label + '</b>' + cBadgeHTML + '</td>'
           + '<td class="editable-cell" data-field="en" data-val="' + (c.labelEN || '') + '" title="Nhấp đúp để sửa tên EN" style="cursor:text;color:var(--color-text-secondary);padding:5px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (c.labelEN || '') + '</td>'
           + '<td class="editable-cell" data-field="subTitle" data-val="' + (c.subTitle || '') + '" title="Nhấp đúp để sửa Phụ đề" style="cursor:text;color:var(--color-text-secondary);padding:5px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (c.subTitle || '') + '</td>'
           + '<td class="editable-cell" data-field="formName" data-val="' + (c.formName || '') + '" style="color:var(--color-text-secondary);cursor:text;padding:5px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Nhấp đúp để sửa">' + (c.formName || '') + '</td>'
