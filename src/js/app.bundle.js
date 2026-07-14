@@ -17922,35 +17922,43 @@ window.DynamicFormEngine = (function () {
 
 
   function _openEditForm(row) {
+    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
+      
+      var hasId = row && row[MODULE_CONFIG.PrimaryKey];
+      var action = hasId ? 'edit' : 'add';
+      var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
+      
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + '&action=' + action;
+      return;
+    }
+
     if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
       _openModal(true, row, true);
       return;
     }
 
-    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
-      // Save row data to session storage for faster and accurate load
-      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
-      // Redirect to detail page
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]) + '&action=edit';
-    } else {
-      _openModal(true, row, false);
-    }
+    _openModal(true, row, false);
   }
 
   function _openViewForm(row) {
+    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
+      
+      var hasId = row && row[MODULE_CONFIG.PrimaryKey];
+      var action = hasId ? '' : '&action=add'; 
+      var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
+      
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + action;
+      return;
+    }
+
     if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
       _openModal(true, row, true);
       return;
     }
 
-    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
-      // Save row data to session storage for faster and accurate load
-      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
-      // Redirect to detail page without &action=edit to trigger View mode
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]);
-    } else {
-      _openModal(true, row, true); // true for forceDetail (view mode)
-    }
+    _openModal(true, row, true); // true for forceDetail (view mode)
   }
 
   function _openBulkEditForm() {

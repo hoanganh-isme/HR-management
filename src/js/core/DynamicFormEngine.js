@@ -2882,6 +2882,73 @@ window.DynamicFormEngine = (function () {
           .btn-scroll-wrapper::-webkit-scrollbar {
             display: none;
           }
+
+          /* --- MODERN HR UX STYLES --- */
+          /* Global Input styling */
+          .ui-input, select.ui-input, .dropdown-wrapper {
+            height: 40px !important;
+            border-radius: 8px !important;
+            border: 1px solid var(--color-border) !important;
+            transition: all 0.2s ease !important;
+            padding: 0 12px !important;
+          }
+          #toolbar-quick-search { padding-left: 36px !important; }
+          .ui-input:focus, select.ui-input:focus {
+            border-color: var(--color-primary) !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+          }
+          /* Card Groups styling (for full page detail and modals) */
+          .group-card, .group-card-other, .modal-content-area {
+            border: none !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+            background: var(--color-surface, #fff) !important;
+            padding: 20px !important;
+            margin-bottom: 16px !important;
+          }
+          .modal-content-area { padding: 0 !important; } /* Modals already have padding on children */
+          /* Grid Layout Improvements */
+          .group-card > div, .group-card-other > div, .dynamic-form-grid {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+            gap: 16px !important;
+          }
+          .form-group { width: 100% !important; margin-bottom: 0 !important; }
+          .form-group label {
+            font-weight: 500 !important;
+            color: var(--color-text-secondary) !important;
+            margin-bottom: 6px !important;
+            font-size: 13px !important;
+          }
+          /* Button styling */
+          .btn { border-radius: 8px !important; font-weight: 500 !important; height: 38px !important; padding: 0 16px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; white-space: nowrap !important; flex-shrink: 0 !important; }
+          
+          @media (min-width: 769px) {
+            .mobile-action-trigger { display: none !important; }
+          }
+          
+          /* --- MOBILE RESPONSIVE STYLES --- */
+          @media (max-width: 768px) {
+            .group-card > div, .group-card-other > div, .dynamic-form-grid {
+              grid-template-columns: 1fr !important;
+              gap: 12px !important;
+            }
+            .ui-input, select.ui-input, .dropdown-wrapper { height: 44px !important; /* Touch-friendly size */ }
+            .btn { height: 44px !important; }
+            /* Sticky footer for detail page and modals */
+            #dynamic-detail-container .page-title-actions, .modal-footer {
+              position: sticky !important;
+              bottom: 0 !important;
+              background: var(--color-surface, #fff) !important;
+              z-index: 100 !important;
+              padding: 12px 16px !important;
+              border-top: 1px solid var(--color-border) !important;
+              margin: 0 -16px -16px -16px !important;
+              box-shadow: 0 -4px 12px rgba(0,0,0,0.05) !important;
+              justify-content: flex-end !important;
+            }
+            .modal-footer { margin: 0 !important; }
+          }
           /* Badge Đã chọn */
           #selection-counter {
             margin-left: auto;
@@ -4030,35 +4097,43 @@ window.DynamicFormEngine = (function () {
       return _openViewForm(row);
     }
 
+    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
+      
+      var hasId = row && row[MODULE_CONFIG.PrimaryKey];
+      var action = hasId ? 'edit' : 'add';
+      var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
+      
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + '&action=' + action;
+      return;
+    }
+
     if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
       _openModal(true, row, true);
       return;
     }
 
-    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
-      // Save row data to session storage for faster and accurate load
-      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
-      // Redirect to detail page
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]) + '&action=edit';
-    } else {
-      _openModal(true, row, false);
-    }
+    _openModal(true, row, false);
   }
 
   function _openViewForm(row) {
+    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
+      
+      var hasId = row && row[MODULE_CONFIG.PrimaryKey];
+      var action = hasId ? '' : '&action=add'; 
+      var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
+      
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + action;
+      return;
+    }
+
     if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
       _openModal(true, row, true);
       return;
     }
 
-    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
-      // Save row data to session storage for faster and accurate load
-      sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
-      // Redirect to detail page without &action=edit to trigger View mode
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]);
-    } else {
-      _openModal(true, row, true); // true for forceDetail (view mode)
-    }
+    _openModal(true, row, true); // true for forceDetail (view mode)
   }
 
   function _openBulkEditForm() {

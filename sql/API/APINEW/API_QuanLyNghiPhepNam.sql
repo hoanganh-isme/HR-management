@@ -12,16 +12,15 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @NamFilter INT = TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(@Nam)), ''));
+    DECLARE @NamFilter INT = ISNULL(TRY_CONVERT(INT, NULLIF(LTRIM(RTRIM(@Nam)), '')), YEAR(GETDATE()));
 
     SELECT
-        N.UserAutoID,
-        N.PersonID,
+        P.PersonID
         P.PersonName,
         P.PhongBan,
         P.TitleName,
         P.BranchID,
-        N.Nam,
+        ISNULL(N.Nam, ISNULL(@NamFilter, YEAR(GETDATE()))) AS Nam,
         ISNULL(N.SoNgay, 0) AS SoNgay,
         ISNULL(N.PhepThamNien, 0) AS PhepThamNien,
         ISNULL(N.PhepTonNamTruoc, 0) AS PhepTonNamTruoc,
@@ -29,22 +28,20 @@ BEGIN
         ISNULL(N.SoNgayConLai, 0) AS SoNgayConLai,
         ISNULL(N.SoNgayPhepTet, 0) AS SoNgayPhepTet,
         ISNULL(N.SoNgayPhepOm, 0) AS SoNgayPhepOm,
-        N.GhiChu,
-        N.NgayCapNhat,
-        N.UserUpdate
-    FROM dbo.HR_PersonNghiPhepTbl N
-    LEFT JOIN dbo.HR_PersonTbl P ON P.PersonID = N.PersonID
+        N.GhiChu
+    FROM dbo.HR_PersonTbl P
+    LEFT JOIN dbo.HR_PersonNghiPhepTbl N ON P.PersonID = N.PersonID AND (@NamFilter IS NULL OR N.Nam = @NamFilter)
     WHERE (@BranchID = '' OR P.BranchID IN (
               SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')
           ))
       AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
-      AND (@NamFilter IS NULL OR N.Nam = @NamFilter)
+     -- AND ISNULL(P.PersonStatus, 1) = 1
       AND (
           @Keyword = ''
-          OR N.PersonID LIKE '%' + @Keyword + '%'
+          OR P.PersonID LIKE '%' + @Keyword + '%'
           OR P.PersonName LIKE N'%' + @Keyword + '%'
-          OR CONVERT(VARCHAR(10), N.Nam) LIKE '%' + @Keyword + '%'
+          OR CONVERT(VARCHAR(10), ISNULL(N.Nam, @NamFilter)) LIKE '%' + @Keyword + '%'
       )
-    ORDER BY N.Nam DESC, P.PhongBan, P.PersonName;
+    ORDER BY ISNULL(N.Nam, @NamFilter) DESC, P.PhongBan, P.PersonName;
 END
 GO
