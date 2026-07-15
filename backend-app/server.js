@@ -88,6 +88,7 @@ if (!SQL_API_BASE) {
 console.log(`[CONFIG] SQL_API_BASE: ${SQL_API_BASE}`);
 
 function extractUserName(req) {
+    if (req.hrmResolvedUserName) return req.hrmResolvedUserName;
     const authHeader = req.headers.authorization;
     if (authHeader) {
         try {
@@ -132,11 +133,28 @@ async function getUserBranchesFromDB(req, options = {}) {
         if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
         const resp = await axios.get(url, { headers, timeout: 5000 });
         const json = resp.data;
-        const rows = json.records || (Array.isArray(json) ? json : []);
-        const user = rows.find(r => {
+        let rows = json.records || (Array.isArray(json) ? json : []);
+        let user = rows.find(r => {
             const uname = r.UserName || r.username || r.USERNAME || '';
             return uname.toLowerCase() === userName.toLowerCase();
         }) || rows[0];
+
+        // Legacy SQL Gateway may apply a case-sensitive Keyword filter. Retry
+        // without that filter and resolve the account case-insensitively.
+        if (!user || String(user.UserName || user.username || user.USERNAME || '').toLowerCase() !== userName.toLowerCase()) {
+            const fallbackPayload = {
+                List: 'SY_User', Func: 'View', UserName: SQL_API_USER,
+                Keyword: '', Page: 1, Limit: 1000
+            };
+            const fallbackUrl = `${SQL_API_BASE}/api/API_Gateway_Router?q=${encodeURIComponent(JSON.stringify(fallbackPayload))}`;
+            const fallbackResp = await axios.get(fallbackUrl, { headers, timeout: 5000 });
+            const fallbackJson = fallbackResp.data;
+            rows = fallbackJson.records || (Array.isArray(fallbackJson) ? fallbackJson : []);
+            user = rows.find(r => {
+                const uname = r.UserName || r.username || r.USERNAME || '';
+                return uname.toLowerCase() === userName.toLowerCase();
+            });
+        }
 
         if (!user && options.failClosed) {
             throw new Error(`Không tìm thấy tài khoản '${userName}' trong SY_User.`);
@@ -144,6 +162,7 @@ async function getUserBranchesFromDB(req, options = {}) {
 
         let branches = null; // null = xem tất cả (admin)
         if (user) {
+            req.hrmResolvedUserName = user.UserName || user.username || user.USERNAME || userName;
             const rawBranch = user.BranchID || user.branchId || user.branchid || null;
             // Kiểm tra admin: sync với logic frontend _getUserBranches()
             // UserGroupID = 'admin' (case-insensitive) → xem tất cả
