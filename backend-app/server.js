@@ -208,11 +208,6 @@ async function getUserBranchesFromDB(req, options = {}) {
 async function getUserContractPermissionsFromDB(req) {
     const userName = extractUserName(req);
     const headers = req.headers.authorization ? { Authorization: req.headers.authorization } : {};
-    const response = await axios.post(`${SQL_API_BASE}/api/API_LayQuyenCuaToi`, {
-        Username: userName
-    }, { headers, timeout: 10000 });
-    const body = response.data || {};
-    const records = body.records || body.list || body.data || body.Records || body.List || (Array.isArray(body) ? body : []);
     const read = (source, names) => {
         for (const name of names) {
             if (source && source[name] !== undefined && source[name] !== null) return source[name];
@@ -220,17 +215,39 @@ async function getUserContractPermissionsFromDB(req) {
         return '';
     };
     const asFlag = (value) => value === true || value === 1 || ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
-    const permission = records.find((item) => {
-        const formName = String(read(item, ['FormName', 'formName', 'formname', 'FORMNAME', 'FormID', 'formId', 'List', 'list']) || '').trim().toLowerCase();
-        return formName === 'wa_hopdonglaodongfrm';
+    const formNameOf = (item) => String(read(item, ['FormName', 'formName', 'formname', 'FORMNAME', 'FormID', 'formId', 'List', 'list']) || '').trim().toLowerCase();
+    const variants = Array.from(new Set([
+        userName,
+        userName.charAt(0).toUpperCase() + userName.slice(1),
+        userName.toUpperCase()
+    ]));
+    let inspectedForms = [];
+
+    for (const candidate of variants) {
+        const response = await axios.post(`${SQL_API_BASE}/api/API_LayQuyenCuaToi`, {
+            Username: candidate
+        }, { headers, timeout: 10000 });
+        const body = response.data || {};
+        const records = body.records || body.list || body.data || body.Records || body.List || (Array.isArray(body) ? body : []);
+        inspectedForms = inspectedForms.concat(records.map(formNameOf).filter(Boolean));
+        const permission = records.find((item) => {
+            return formNameOf(item) === 'wa_hopdonglaodongfrm';
+        });
+        if (!permission) continue;
+        return {
+            CanView: asFlag(read(permission, ['CanView', 'canView', 'canview', 'CANVIEW'])),
+            CanAdd: asFlag(read(permission, ['CanAdd', 'canAdd', 'canadd', 'CANADD'])),
+            CanEdit: asFlag(read(permission, ['CanEdit', 'canEdit', 'canedit', 'CANEDIT'])),
+            CanDelete: asFlag(read(permission, ['CanDelete', 'canDelete', 'candelete', 'CANDELETE']))
+        };
+    }
+
+    console.warn('[PERMISSION] Contract form permission was not returned.', {
+        userName,
+        attemptedUserNames: variants,
+        returnedForms: Array.from(new Set(inspectedForms)).slice(0, 50)
     });
-    if (!permission) return null;
-    return {
-        CanView: asFlag(read(permission, ['CanView', 'canView', 'canview', 'CANVIEW'])),
-        CanAdd: asFlag(read(permission, ['CanAdd', 'canAdd', 'canadd', 'CANADD'])),
-        CanEdit: asFlag(read(permission, ['CanEdit', 'canEdit', 'canedit', 'CANEDIT'])),
-        CanDelete: asFlag(read(permission, ['CanDelete', 'canDelete', 'candelete', 'CANDELETE']))
-    };
+    return null;
 }
 
 let _setupCache = null;
