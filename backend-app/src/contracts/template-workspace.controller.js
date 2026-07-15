@@ -14,21 +14,18 @@ function traLoiLoi(response, error) {
   });
 }
 
-export function dangKyTemplateWorkspaceRoutes(app, { service, extractUserName, getUserBranchesFromDB, getUserContractPermissionsFromDB }) {
-  async function layNguoiDung(request) {
+export function dangKyTemplateWorkspaceRoutes(app, { service, extractUserName, validateAuthenticatedSession }) {
+  async function layNguoiDung(request, validateSession = true) {
     if (!request.headers.authorization) throw new HttpError(401, 'AUTH_REQUIRED', 'Yêu cầu đăng nhập để chỉnh sửa mẫu.');
     const userName = extractUserName(request);
     if (!userName || userName === 'system') throw new HttpError(401, 'AUTH_INVALID', 'Không xác định được người dùng hiện tại.');
-    const permission = await getUserContractPermissionsFromDB(request);
-    if (!permission || !Number(permission.CanView) || (!Number(permission.CanAdd) && !Number(permission.CanEdit))) {
-      throw new HttpError(403, 'CONTRACT_TEMPLATE_EDIT_FORBIDDEN', 'Bạn không có quyền chỉnh sửa mẫu hợp đồng.');
-    }
+    if (validateSession) await validateAuthenticatedSession(request);
     return { userName, authorization: request.headers.authorization };
   }
 
   app.post('/api/contract-template-workspaces', async (request, response) => {
     try {
-      const nguoiDung = await layNguoiDung(request);
+      const nguoiDung = await layNguoiDung(request, false);
       const workspace = await service.taoPhienChinhSuaMau(request.body.templateFile, nguoiDung.userName, nguoiDung.authorization);
       response.status(201).json({ success: true, workspace });
     } catch (error) { traLoiLoi(response, error); }

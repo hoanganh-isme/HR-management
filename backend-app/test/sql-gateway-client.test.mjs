@@ -147,3 +147,20 @@ test('Readiness probe treats Gateway session code as authentication required', a
     return true;
   });
 });
+
+test('Gateway business responses distinguish expired session from forbidden access', async (t) => {
+  for (const scenario of [
+    { body: { code: 2, msg: 'Phien lam viec da het han.' }, status: 401, code: 'SQL_GATEWAY_AUTH_FAILED' },
+    { body: { code: 3, msg: 'Khong co quyen xem.' }, status: 403, code: 'SQL_GATEWAY_FORBIDDEN' }
+  ]) {
+    const mock = await createMock((request, response) => sendJson(response, 200, scenario.body));
+    const gateway = client(mock.origin);
+    await assert.rejects(gateway.xem('ProtectedList'), (error) => {
+      assert.equal(error.status, scenario.status);
+      assert.equal(error.code, scenario.code);
+      return true;
+    });
+    gateway.close();
+    await mock.close();
+  }
+});

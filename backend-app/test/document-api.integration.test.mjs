@@ -29,8 +29,10 @@ async function waitFor(url, child) {
 test('Document API recovers from reset and maps persistent upstream errors', async (t) => {
   let mode = 'success';
   let gatewayAttempts = 0;
+  let permissionCalls = 0;
   const sql = http.createServer((request, response) => {
     if (request.url === '/api/API_LayQuyenCuaToi' && request.method === 'POST') {
+      permissionCalls += 1;
       request.resume();
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ records: mode === 'forbidden' ? [] : [{ FormName: 'WA_HopDongLaoDongFrm', CanView: 1, CanAdd: 1, CanEdit: 1 }] }));
@@ -39,6 +41,11 @@ test('Document API recovers from reset and maps persistent upstream errors', asy
     if (request.url.startsWith('/api/API_Gateway_Router')) {
       gatewayAttempts += 1;
       if (mode === 'reset-always' || (mode === 'reset-once' && gatewayAttempts === 1)) return request.socket.destroy();
+      if (mode === 'forbidden') {
+        response.writeHead(403, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ code: 3, msg: 'Khong co quyen.' }));
+        return;
+      }
       const records = mode === 'empty' ? [] : [{ FormName: 'WA_HopDongLaoDongFrm', TemplateFile: 'HopDong.docx', GhiChu: 'Hop dong lao dong' }];
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ code: 0, records }));
@@ -78,6 +85,11 @@ test('Document API recovers from reset and maps persistent upstream errors', asy
   assert.equal(response.status, 200, stderr);
   assert.equal((await response.json()).data.length, 1);
 
+  gatewayAttempts = 0;
+  response = await fetch(origin + '/api/contract-drafts', { headers: authHeaders });
+  assert.equal(response.status, 200, stderr);
+  assert.equal(gatewayAttempts, 1, 'Local draft routes must validate the token through SQL Gateway.');
+
   mode = 'reset-once';
   gatewayAttempts = 0;
   response = await fetch(origin + '/api/contract-templates', { headers: authHeaders });
@@ -94,6 +106,10 @@ test('Document API recovers from reset and maps persistent upstream errors', asy
   mode = 'forbidden';
   response = await fetch(origin + '/api/contract-templates', { headers: authHeaders });
   assert.equal(response.status, 403);
+  response = await fetch(origin + '/api/contract-drafts', {
+    headers: { Authorization: 'Bearer another-token', Username: 'tester' }
+  });
+  assert.equal(response.status, 403, 'A local route must not trust Username without Gateway validation.');
 
   mode = 'reset-always';
   gatewayAttempts = 0;
@@ -111,4 +127,5 @@ test('Document API recovers from reset and maps persistent upstream errors', asy
   response = await fetch(origin + '/ready');
   assert.equal(response.status, 200, stderr);
   assert.equal((await response.json()).status, 'ready');
+  assert.equal(permissionCalls, 0, 'Document API must not duplicate the frontend permission lookup.');
 });

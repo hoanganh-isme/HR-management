@@ -19,6 +19,23 @@ function actionResultFrom(response) {
   return recordsFrom(response)[0] || null;
 }
 
+function normalizeMessage(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function gatewayBusinessError(data, context) {
+  if (!data || data.code === undefined || Number(data.code) === 0) return null;
+  const message = normalizeMessage(data.msg || data.message);
+  const details = { causeCode: String(data.code), operation: context.operation, list: context.list };
+  if (Number(data.code) === 2 || /phien lam viec|dang nhap|xac thuc|auth|token|unauthorized/.test(message)) {
+    return new HttpError(401, 'SQL_GATEWAY_AUTH_FAILED', 'SQL API authentication is required.', details);
+  }
+  if (/khong co quyen|khong duoc phep|forbidden|permission|access denied/.test(message)) {
+    return new HttpError(403, 'SQL_GATEWAY_FORBIDDEN', 'SQL API denied access to this operation.', details);
+  }
+  return null;
+}
+
 export function classifyGatewayError(error) {
   const code = error && error.code ? String(error.code) : '';
   const status = error && error.response ? Number(error.response.status) : null;
@@ -96,6 +113,8 @@ export class SqlGatewayClient {
         headers: headersFor(authorization), timeout: options.timeoutMs || this.timeoutMs
       });
       if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
+      const businessError = gatewayBusinessError(response.data, { operation: func, list: listName });
+      if (businessError) throw businessError;
       return response.data;
     } catch (error) {
       throw this.toHttpError(error, { operation: func, list: listName, attemptCount: 1 }, false);
@@ -113,6 +132,8 @@ export class SqlGatewayClient {
     try {
       const response = await this.http.post(path, body, { headers: headersFor(authorization), timeout: options.timeoutMs || this.timeoutMs });
       if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
+      const businessError = gatewayBusinessError(response.data, { operation: 'POST', list: path });
+      if (businessError) throw businessError;
       return response.data;
     } catch (error) {
       throw this.toHttpError(error, { operation: 'POST', list: path, attemptCount: 1 }, false);
@@ -127,6 +148,8 @@ export class SqlGatewayClient {
       try {
         const response = await this.http.request({ method, url: path, data: body, headers: headersFor(authorization) });
         if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
+        const businessError = gatewayBusinessError(response.data, { operation, list });
+        if (businessError) throw businessError;
         return response.data;
       } catch (error) {
         lastError = error;
@@ -143,9 +166,15 @@ export class SqlGatewayClient {
   }
 
   toHttpError(error, context, readOperation) {
+    if (error instanceof HttpError) return error;
     const kind = classifyGatewayError(error);
-    const status = kind.category === 'authorization' ? kind.status : (readOperation && kind.retryable ? 503 : 502);
-    const code = kind.category === 'authorization' ? 'SQL_GATEWAY_AUTH_FAILED' : (readOperation && kind.retryable ? 'SQL_GATEWAY_UNAVAILABLE' : 'SQL_GATEWAY_ACTION_FAILED');
+    const authorizationError = kind.status === 401 || kind.status === 403;
+    const status = authorizationError ? kind.status : (readOperation && kind.retryable ? 503 : 502);
+    const code = kind.status === 401
+      ? 'SQL_GATEWAY_AUTH_FAILED'
+      : kind.status === 403
+        ? 'SQL_GATEWAY_FORBIDDEN'
+        : (readOperation && kind.retryable ? 'SQL_GATEWAY_UNAVAILABLE' : 'SQL_GATEWAY_ACTION_FAILED');
     const details = { causeCode: kind.code, operation: context.operation, list: context.list, requestId: context.requestId };
     if (!this.production) {
       details.upstreamOrigin = this.baseUrl;
@@ -159,12 +188,10 @@ export class SqlGatewayClient {
 
   async probe(authorization, options = {}) {
     const startedAt = Date.now();
-    const response = await this.xem('HR_HopDongAddfile', { Keyword: 'WA_HopDongLaoDongFrm', Limit: 1 }, authorization, options);
-    if (response && response.code !== undefined && Number(response.code) !== 0) {
-      throw new HttpError(401, 'SQL_GATEWAY_AUTH_FAILED', 'SQL API authentication is required.', {
-        causeCode: 'SQL_GATEWAY_AUTH_FAILED', operation: 'View', list: 'HR_HopDongAddfile'
-      });
-    }
+    const { userName, ...requestOptions } = options;
+    await this.xem('HR_HopDongAddfile', {
+      Keyword: 'WA_HopDongLaoDongFrm', Limit: 1, UserName: userName || this.defaultUser
+    }, authorization, requestOptions);
     return { ok: true, latencyMs: Date.now() - startedAt };
   }
 

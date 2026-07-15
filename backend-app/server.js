@@ -9,7 +9,6 @@ import Docxtemplater from 'docxtemplater';
 import crypto from 'crypto';
 import { documentConfig } from './src/config/document-config.js';
 import { SqlGatewayClient } from './src/gateway/sql-gateway-client.js';
-import { HttpError } from './src/shared/http-error.js';
 import { ContractDocumentRepository } from './src/contracts/contract-document.repository.js';
 import { ContractDraftRepository } from './src/contracts/contract-draft.repository.js';
 import { ContractDocumentService } from './src/contracts/contract-document.service.js';
@@ -108,6 +107,18 @@ function extractUserName(req) {
     return req.body?.UserName || req.query?.UserName || req.headers?.username || 'system';
 }
 
+const authenticatedSessionCache = new Map();
+const AUTHENTICATED_SESSION_TTL = 30 * 1000;
+
+async function validateAuthenticatedSession(req) {
+    const authorization = String(req.headers.authorization || '');
+    const userName = extractUserName(req);
+    const cacheKey = crypto.createHash('sha256').update(`${authorization}\0${userName}`).digest('hex');
+    if (Date.now() < (authenticatedSessionCache.get(cacheKey) || 0)) return;
+    await sqlGatewayClient.probe(authorization, { userName });
+    authenticatedSessionCache.set(cacheKey, Date.now() + AUTHENTICATED_SESSION_TTL);
+}
+
 // ── Branch cache: Map<UserName, { branches: string[]|null, expiry: number }> ─
 const _userBranchCache = new Map();
 const BRANCH_CACHE_TTL = 5 * 60 * 1000; // 5 phút
@@ -167,18 +178,6 @@ async function getUserBranchesFromDB(req, options = {}) {
         if (options.failClosed) throw err;
         return null; // Fail-open: nếu lỗi DB thì không chặn
     }
-}
-
-async function getUserContractPermissionsFromDB(req) {
-    const userName = extractUserName(req);
-    const body = await sqlGatewayClient.postEndpoint('/api/API_LayQuyenCuaToi', {
-        Username: userName
-    }, req.headers.authorization, { readOnly: true });
-    if (body && body.code !== undefined && Number(body.code) !== 0) {
-        throw new HttpError(401, 'SQL_GATEWAY_AUTH_FAILED', 'SQL API authentication is required.');
-    }
-    const records = body.records || body.data || (Array.isArray(body) ? body : []);
-    return records.find((permission) => String(permission.FormName || '').toLowerCase() === 'wa_hopdonglaodongfrm') || null;
 }
 
 let _setupCache = null;
@@ -760,8 +759,7 @@ const contractDocumentService = new ContractDocumentService({
 dangKyContractDocumentRoutes(app, {
     service: contractDocumentService,
     extractUserName,
-    getUserBranchesFromDB,
-    getUserContractPermissionsFromDB
+    validateAuthenticatedSession
 });
 
 const templateWorkspaceRepository = new TemplateWorkspaceRepository(documentConfig.templateWorkspacesDir);
@@ -773,8 +771,7 @@ const templateWorkspaceService = new TemplateWorkspaceService({
 dangKyTemplateWorkspaceRoutes(app, {
     service: templateWorkspaceService,
     extractUserName,
-    getUserBranchesFromDB,
-    getUserContractPermissionsFromDB
+    validateAuthenticatedSession
 });
 
 app.get('/health', (req, res) => {

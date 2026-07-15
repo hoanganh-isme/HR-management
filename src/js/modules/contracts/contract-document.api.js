@@ -38,6 +38,7 @@ window.ContractDocumentApi = (function () {
     var messages = {
       SQL_GATEWAY_UNAVAILABLE: 'Kh\u00f4ng k\u1ebft n\u1ed1i \u0111\u01b0\u1ee3c h\u1ec7 th\u1ed1ng d\u1eef li\u1ec7u. Vui l\u00f2ng th\u1eed l\u1ea1i.',
       SQL_GATEWAY_AUTH_FAILED: 'Phi\u00ean \u0111\u0103ng nh\u1eadp kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.',
+      SQL_GATEWAY_FORBIDDEN: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n th\u1ef1c hi\u1ec7n ch\u1ee9c n\u0103ng n\u00e0y.',
       AUTH_REQUIRED: 'Phi\u00ean \u0111\u0103ng nh\u1eadp kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.',
       AUTH_INVALID: 'Phi\u00ean \u0111\u0103ng nh\u1eadp kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.',
       CONTRACT_VIEW_FORBIDDEN: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem t\u00e0i li\u1ec7u h\u1ee3p \u0111\u1ed3ng.',
