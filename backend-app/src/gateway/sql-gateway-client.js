@@ -1,94 +1,178 @@
-/**
- * Trách nhiệm: gọi SQL API Gateway theo đúng contract List/Func/JsonData hiện tại.
- * Đầu vào: tên List, Func, payload nghiệp vụ và Authorization header.
- * Đầu ra: response đã chuẩn hóa hoặc lỗi Gateway có ngữ cảnh.
- * Nơi gọi: ContractDocumentRepository và các service backend.
- */
+import http from 'node:http';
+import https from 'node:https';
 import axios from 'axios';
 import { HttpError } from '../shared/http-error.js';
 
-function taoHeaders(authorization) {
-  return authorization ? { Authorization: authorization } : {};
+function headersFor(authorization, extra = {}) {
+  return authorization ? { ...extra, Authorization: authorization } : { ...extra };
 }
 
-function layDanhSachBanGhi(phanHoi) {
-  if (Array.isArray(phanHoi)) return phanHoi;
-  if (!phanHoi) return [];
-  if (Array.isArray(phanHoi.records)) return phanHoi.records;
-  if (Array.isArray(phanHoi.list)) return phanHoi.list;
-  if (Array.isArray(phanHoi.data)) return phanHoi.data;
-  return [];
+function recordsFrom(response) {
+  if (Array.isArray(response)) return response;
+  if (!response) return [];
+  return response.records || response.Records || response.list || response.List || response.data || [];
 }
 
-function layKetQuaThaoTac(phanHoi) {
-  if (!phanHoi) return null;
-  if (phanHoi.code !== undefined) return phanHoi;
-  const banGhiDau = layDanhSachBanGhi(phanHoi)[0];
-  return banGhiDau || null;
+function actionResultFrom(response) {
+  if (!response) return null;
+  if (response.code !== undefined) return response;
+  return recordsFrom(response)[0] || null;
 }
+
+export function classifyGatewayError(error) {
+  const code = error && error.code ? String(error.code) : '';
+  const status = error && error.response ? Number(error.response.status) : null;
+  if (['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNABORTED', 'EAI_AGAIN', 'ENOTFOUND', 'ERR_NETWORK'].includes(code)) {
+    return { retryable: true, category: 'network', code: code || 'SQL_GATEWAY_NETWORK_ERROR', status };
+  }
+  if ([502, 503, 504].includes(status)) {
+    return { retryable: true, category: 'upstream', code: 'SQL_GATEWAY_TEMPORARY_FAILURE', status };
+  }
+  if ([401, 403].includes(status)) {
+    return { retryable: false, category: 'authorization', code: 'SQL_GATEWAY_AUTH_FAILED', status };
+  }
+  return { retryable: false, category: 'unknown', code: code || 'SQL_GATEWAY_ERROR', status };
+}
+
+function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 export class SqlGatewayClient {
-  constructor({ baseUrl, defaultUser }) {
-    if (!baseUrl) throw new Error('SQL_API_BASE chưa được cấu hình.');
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
-    this.defaultUser = defaultUser || 'admin';
+  constructor(config) {
+    if (!config || !config.baseUrl) throw new Error('SQL_API_BASE is not configured.');
+    this.baseUrl = String(config.baseUrl).replace(/\/+$/, '');
+    this.defaultUser = config.defaultUser || 'admin';
+    this.timeoutMs = Number(config.timeoutMs ?? 30000);
+    this.retryCount = Number(config.retryCount ?? 2);
+    this.retryBaseDelayMs = Number(config.retryBaseDelayMs ?? 300);
+    this.maxGetUrlLength = Number(config.maxGetUrlLength ?? 7000);
+    this.production = Boolean(config.production);
+    this.logger = config.logger || console;
+    this.random = config.random || Math.random;
+    const keepAlive = config.keepAlive !== false;
+    this.httpAgent = new http.Agent({ keepAlive, maxSockets: 50, maxFreeSockets: 10 });
+    this.httpsAgent = new https.Agent({ keepAlive, maxSockets: 50, maxFreeSockets: 10 });
+    this.http = axios.create({
+      baseURL: this.baseUrl,
+      timeout: this.timeoutMs,
+      maxRedirects: 5,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      httpAgent: this.httpAgent,
+      httpsAgent: this.httpsAgent,
+      validateStatus: (status) => status >= 200 && status < 500
+    });
   }
 
-  async xem(listName, thamSo = {}, authorization) {
+  buildViewPayload(listName, params = {}) {
     const payload = {
       List: listName,
       Func: 'View',
-      UserName: thamSo.UserName || this.defaultUser,
-      Keyword: thamSo.Keyword || '',
-      Page: thamSo.Page || 1,
-      Limit: thamSo.Limit || 1000,
-      JsonData: JSON.stringify(thamSo.JsonData || thamSo)
+      UserName: params.UserName || this.defaultUser,
+      Keyword: params.Keyword || '',
+      Page: params.Page || 1,
+      Limit: params.Limit || 1000,
+      JsonData: JSON.stringify(params.JsonData || params)
     };
+    Object.keys(params).forEach((key) => { if (payload[key] === undefined) payload[key] = params[key]; });
+    return payload;
+  }
 
-    Object.keys(thamSo).forEach((tenTruong) => {
-      if (payload[tenTruong] === undefined) payload[tenTruong] = thamSo[tenTruong];
-    });
-
-    try {
-      const q = encodeURIComponent(JSON.stringify(payload));
-      const phanHoi = await axios.get(`${this.baseUrl}/api/API_Gateway_Router?q=${q}`, {
-        headers: taoHeaders(authorization),
-        timeout: 30000,
-        maxContentLength: Infinity
+  async xem(listName, params = {}, authorization, options = {}) {
+    const payload = this.buildViewPayload(listName, params);
+    const query = encodeURIComponent(JSON.stringify(payload));
+    const path = `/api/API_Gateway_Router?q=${query}`;
+    if ((this.baseUrl + path).length > this.maxGetUrlLength) {
+      throw new HttpError(400, 'SQL_GATEWAY_QUERY_TOO_LARGE', 'SQL Gateway View query exceeds the configured URL limit.', {
+        operation: 'View', list: listName
       });
-      return phanHoi.data;
+    }
+    return this.requestRead({ method: 'get', path, authorization, operation: 'View', list: listName, ...options });
+  }
+
+  async thaoTac(listName, func, data, userName, authorization, options = {}) {
+    const payload = { List: listName, Func: func, UserName: userName || this.defaultUser, JsonData: JSON.stringify(data || {}) };
+    try {
+      const response = await this.http.post('/api/API_Gateway_Router', payload, {
+        headers: headersFor(authorization), timeout: options.timeoutMs || this.timeoutMs
+      });
+      if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
+      return response.data;
     } catch (error) {
-      throw new HttpError(502, 'SQL_GATEWAY_VIEW_FAILED', `Không thể đọc ${listName} từ SQL Gateway.`, error.message);
+      throw this.toHttpError(error, { operation: func, list: listName, attemptCount: 1 }, false);
     }
   }
 
-  async thaoTac(listName, func, duLieu, userName, authorization) {
-    const payload = {
-      List: listName,
-      Func: func,
-      UserName: userName || this.defaultUser,
-      JsonData: JSON.stringify(duLieu || {})
-    };
+  async getEndpoint(path, authorization, options = {}) {
+    return this.requestRead({ method: 'get', path, authorization, operation: 'GET', list: path, ...options });
+  }
 
+  async postEndpoint(path, body, authorization, options = {}) {
+    if (options.readOnly) {
+      return this.requestRead({ method: 'post', path, body, authorization, operation: 'POST', list: path, ...options });
+    }
     try {
-      const phanHoi = await axios.post(`${this.baseUrl}/api/API_Gateway_Router`, payload, {
-        headers: taoHeaders(authorization),
-        timeout: 120000,
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity
-      });
-      return phanHoi.data;
+      const response = await this.http.post(path, body, { headers: headersFor(authorization), timeout: options.timeoutMs || this.timeoutMs });
+      if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
+      return response.data;
     } catch (error) {
-      throw new HttpError(502, 'SQL_GATEWAY_ACTION_FAILED', `Không thể thực hiện ${func} trên ${listName}.`, error.message);
+      throw this.toHttpError(error, { operation: 'POST', list: path, attemptCount: 1 }, false);
     }
   }
 
-  layDanhSachBanGhi(phanHoi) {
-    return layDanhSachBanGhi(phanHoi);
+  async requestRead({ method, path, body, authorization, operation, list, requestId, retryCount }) {
+    const retries = retryCount === undefined ? this.retryCount : retryCount;
+    const startedAt = Date.now();
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const response = await this.http.request({ method, url: path, data: body, headers: headersFor(authorization) });
+        if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        const kind = classifyGatewayError(error);
+        if (!kind.retryable || attempt >= retries) break;
+        const delayMs = this.retryBaseDelayMs * (2 ** attempt) + Math.floor(this.random() * this.retryBaseDelayMs);
+        this.logger.warn(`[SQL GATEWAY] ${operation} ${list} failed cause=${kind.code} attempt=${attempt + 1}/${retries + 1} retryInMs=${delayMs} requestId=${requestId || '-'}`);
+        await sleep(delayMs);
+      }
+    }
+    throw this.toHttpError(lastError, {
+      operation, list, requestId, attemptCount: retries + 1, durationMs: Date.now() - startedAt
+    }, true);
   }
 
-  layKetQuaThaoTac(phanHoi) {
-    return layKetQuaThaoTac(phanHoi);
+  toHttpError(error, context, readOperation) {
+    const kind = classifyGatewayError(error);
+    const status = kind.category === 'authorization' ? kind.status : (readOperation && kind.retryable ? 503 : 502);
+    const code = kind.category === 'authorization' ? 'SQL_GATEWAY_AUTH_FAILED' : (readOperation && kind.retryable ? 'SQL_GATEWAY_UNAVAILABLE' : 'SQL_GATEWAY_ACTION_FAILED');
+    const details = { causeCode: kind.code, operation: context.operation, list: context.list, requestId: context.requestId };
+    if (!this.production) {
+      details.upstreamOrigin = this.baseUrl;
+      details.attemptCount = context.attemptCount;
+      details.durationMs = context.durationMs;
+    }
+    return new HttpError(status, code, code === 'SQL_GATEWAY_UNAVAILABLE'
+      ? 'Cannot connect to SQL API. Please try again.'
+      : `SQL Gateway ${context.operation} failed.`, details);
   }
+
+  async probe(authorization, options = {}) {
+    const startedAt = Date.now();
+    const response = await this.xem('HR_HopDongAddfile', { Keyword: 'WA_HopDongLaoDongFrm', Limit: 1 }, authorization, options);
+    if (response && response.code !== undefined && Number(response.code) !== 0) {
+      throw new HttpError(401, 'SQL_GATEWAY_AUTH_FAILED', 'SQL API authentication is required.', {
+        causeCode: 'SQL_GATEWAY_AUTH_FAILED', operation: 'View', list: 'HR_HopDongAddfile'
+      });
+    }
+    return { ok: true, latencyMs: Date.now() - startedAt };
+  }
+
+  close() {
+    this.httpAgent.destroy();
+    this.httpsAgent.destroy();
+  }
+
+  layDanhSachBanGhi(response) { return recordsFrom(response); }
+  layKetQuaThaoTac(response) { return actionResultFrom(response); }
 }
-

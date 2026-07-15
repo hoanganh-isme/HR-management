@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch --env-file-if-exists=.env server.js",
-    "test": "node --test test/contract-document.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:unit": "node --test test/sql-gateway-client.test.mjs",
+    "test:integration": "node --test test/document-api.integration.test.mjs",
+    "smoke": "node scripts/smoke-document-api.mjs"
   },
   "devDependencies": {
     "@types/bun": "latest"

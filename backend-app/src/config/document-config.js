@@ -1,93 +1,113 @@
-/**
- * Trách nhiệm: tập trung toàn bộ cấu hình Document API, OnlyOffice và SQL Gateway.
- * Đầu vào: biến môi trường và env.js cũ của frontend.
- * Đầu ra: documentConfig đã chuẩn hóa.
- * Nơi gọi: backend-app/server.js và các service tài liệu.
- */
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
-const thuMucHienTai = path.dirname(fileURLToPath(import.meta.url));
-const thuMucBackend = path.resolve(thuMucHienTai, '..', '..');
-const thuMucGoc = path.resolve(thuMucBackend, '..');
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const backendDir = path.resolve(currentDir, '..', '..');
+const rootDir = path.resolve(backendDir, '..');
 
-// CẤU HÌNH PRODUCTION — KHÔNG XÓA
-const cauHinhProduction = Object.freeze({
-  documentPublicBaseUrl: 'http://103.232.122.205:8083',
-  documentInternalBaseUrl: 'http://103.232.122.205:8083',
-  onlyOfficePublicUrl: 'http://103.232.122.205:8000'
-});
-
-function docApiBoolean(giaTri, macDinh) {
-  if (giaTri === undefined || giaTri === null || giaTri === '') return macDinh;
-  return ['1', 'true', 'yes', 'on'].includes(String(giaTri).trim().toLowerCase());
+function readBoolean(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
-function boDauGachCheoCuoi(giaTri) {
-  return String(giaTri || '').trim().replace(/\/+$/, '');
+function readPositiveInteger(value, fallback, name) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${name} must be a non-negative integer.`);
+  return parsed;
 }
 
-function danhSachPhanCachDauPhay(giaTri) {
-  return String(giaTri || '').split(',').map(item => item.trim()).filter(Boolean);
+function readList(value) {
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-function docSqlApiTuEnvJs() {
-  const cacDuongDan = [
-    path.join(thuMucGoc, 'env.js'),
-    path.join(thuMucBackend, 'env.js'),
-    '/env.js',
-    '/app/env.js'
+export function normalizeHttpOrigin(value, name) {
+  const raw = String(value || '').trim();
+  if (!raw) throw new Error(`${name} is not configured.`);
+
+  let url;
+  try { url = new URL(raw); } catch (error) { throw new Error(`${name} is not a valid URL: ${raw}`); }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`${name} only supports HTTP or HTTPS.`);
+  }
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  if (/\/api(?:\/API_Gateway_Router)?$/i.test(url.pathname)) {
+    throw new Error(`${name} must be an origin without /api or /api/API_Gateway_Router.`);
+  }
+  return url.toString().replace(/\/+$/, '');
+}
+
+function readSqlApiFromLegacyEnv() {
+  const candidates = [path.join(rootDir, 'env.js'), path.join(backendDir, 'env.js'), '/env.js', '/app/env.js'];
+  const envPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!envPath) return '';
+  const content = fs.readFileSync(envPath, 'utf8');
+  const match = content.match(/API_BASE\s*:\s*['"`](.*?)['"`]/);
+  if (!match || !match[1]) return '';
+  console.warn(`[CONFIG] SQL_API_BASE is using the development-only env.js fallback: ${envPath}`);
+  return match[1].trim();
+}
+
+function optionalOrigin(value, name, fallback) {
+  return normalizeHttpOrigin(value || fallback, name);
+}
+
+export function loadDocumentConfig(env = process.env) {
+  const nodeEnv = String(env.NODE_ENV || 'development').toLowerCase();
+  const production = nodeEnv === 'production';
+  const port = readPositiveInteger(env.PORT, 8081, 'PORT');
+  const sqlApiRaw = env.SQL_API_BASE || (!production ? readSqlApiFromLegacyEnv() : '');
+  const sqlApiBase = normalizeHttpOrigin(sqlApiRaw, 'SQL_API_BASE');
+  const localPublicUrl = `http://127.0.0.1:${port}`;
+
+  const requiredProduction = [
+    'DOCUMENT_PUBLIC_BASE_URL', 'DOCUMENT_INTERNAL_BASE_URL', 'ONLYOFFICE_PUBLIC_URL',
+    'CORS_ALLOWED_ORIGINS', 'DRAFT_SIGNING_SECRET'
   ];
+  if (production) {
+    const missing = requiredProduction.filter((name) => !String(env[name] || '').trim());
+    if (readBoolean(env.ONLYOFFICE_JWT_ENABLED, false) && !String(env.ONLYOFFICE_JWT_SECRET || '').trim()) {
+      missing.push('ONLYOFFICE_JWT_SECRET');
+    }
+    if (missing.length) throw new Error(`Missing production configuration: ${missing.join(', ')}`);
+  }
 
-  const envJsPath = cacDuongDan.find((duongDan) => fs.existsSync(duongDan));
-  if (!envJsPath) return '';
+  const signingSecret = env.DRAFT_SIGNING_SECRET || env.ONLYOFFICE_JWT_SECRET || crypto.randomBytes(32).toString('hex');
+  if (!production && !env.DRAFT_SIGNING_SECRET && !env.ONLYOFFICE_JWT_SECRET) {
+    console.warn('[CONFIG] DRAFT_SIGNING_SECRET is not configured; edit tokens expire when the process restarts.');
+  }
 
-  const noiDung = fs.readFileSync(envJsPath, 'utf8');
-  const ketQua = noiDung.match(/API_BASE\s*:\s*['"`](.*?)['"`]/);
-  return ketQua && ketQua[1] ? ketQua[1].trim() : '';
+  const corsAllowedOrigins = readList(env.CORS_ALLOWED_ORIGINS || [
+    'http://127.0.0.1:5500', 'http://localhost:5500',
+    'http://127.0.0.1:4173', 'http://localhost:4173'
+  ].join(','));
+
+  return Object.freeze({
+    nodeEnv,
+    production,
+    port,
+    sqlApiBase,
+    sqlApiUser: env.SQL_API_USER || 'admin',
+    sqlApiTimeoutMs: readPositiveInteger(env.SQL_API_TIMEOUT_MS, 30000, 'SQL_API_TIMEOUT_MS'),
+    sqlApiRetryCount: readPositiveInteger(env.SQL_API_RETRY_COUNT, 2, 'SQL_API_RETRY_COUNT'),
+    sqlApiRetryBaseDelayMs: readPositiveInteger(env.SQL_API_RETRY_BASE_DELAY_MS, 300, 'SQL_API_RETRY_BASE_DELAY_MS'),
+    sqlApiKeepAlive: readBoolean(env.SQL_API_KEEP_ALIVE, true),
+    sqlGatewayMaxGetUrlLength: readPositiveInteger(env.SQL_GATEWAY_MAX_GET_URL_LENGTH, 7000, 'SQL_GATEWAY_MAX_GET_URL_LENGTH'),
+    documentPublicBaseUrl: optionalOrigin(env.DOCUMENT_PUBLIC_BASE_URL, 'DOCUMENT_PUBLIC_BASE_URL', localPublicUrl),
+    documentInternalBaseUrl: optionalOrigin(env.DOCUMENT_INTERNAL_BASE_URL, 'DOCUMENT_INTERNAL_BASE_URL', `http://host.docker.internal:${port}`),
+    onlyOfficePublicUrl: optionalOrigin(env.ONLYOFFICE_PUBLIC_URL, 'ONLYOFFICE_PUBLIC_URL', 'http://127.0.0.1:8000'),
+    onlyOfficeJwtEnabled: readBoolean(env.ONLYOFFICE_JWT_ENABLED, false),
+    onlyOfficeJwtSecret: env.ONLYOFFICE_JWT_SECRET || '',
+    useLegacyHrDocuments: readBoolean(env.USE_LEGACY_HR_DOCUMENTS, false),
+    corsAllowedOrigins,
+    signingSecret,
+    samplesDir: path.join(backendDir, 'samples'),
+    uploadsDir: path.join(backendDir, 'uploads'),
+    draftsDir: path.join(backendDir, 'storage', 'drafts'),
+    templateWorkspacesDir: path.join(backendDir, 'storage', 'template-workspaces')
+  });
 }
 
-const laProduction = String(process.env.NODE_ENV || 'development').toLowerCase() === 'production';
-const port = Number(process.env.PORT || 8081);
-const cauHinhMacDinh = laProduction
-  ? cauHinhProduction
-  : {
-      documentPublicBaseUrl: `http://127.0.0.1:${port}`,
-      documentInternalBaseUrl: `http://host.docker.internal:${port}`,
-      onlyOfficePublicUrl: 'http://127.0.0.1:8000'
-    };
-
-const khoaKyPhien = process.env.DRAFT_SIGNING_SECRET
-  || process.env.ONLYOFFICE_JWT_SECRET
-  || crypto.randomBytes(32).toString('hex');
-
-if (!process.env.DRAFT_SIGNING_SECRET && !process.env.ONLYOFFICE_JWT_SECRET) {
-  console.warn('[CONFIG] Chưa cấu hình DRAFT_SIGNING_SECRET; token phiên sửa chỉ có hiệu lực trong lần chạy hiện tại.');
-}
-
-export const documentConfig = Object.freeze({
-  nodeEnv: process.env.NODE_ENV || 'development',
-  port,
-  sqlApiBase: boDauGachCheoCuoi(process.env.SQL_API_BASE || docSqlApiTuEnvJs()),
-  sqlApiUser: process.env.SQL_API_USER || 'admin',
-  documentPublicBaseUrl: boDauGachCheoCuoi(process.env.DOCUMENT_PUBLIC_BASE_URL || cauHinhMacDinh.documentPublicBaseUrl),
-  documentInternalBaseUrl: boDauGachCheoCuoi(process.env.DOCUMENT_INTERNAL_BASE_URL || cauHinhMacDinh.documentInternalBaseUrl),
-  onlyOfficePublicUrl: boDauGachCheoCuoi(process.env.ONLYOFFICE_PUBLIC_URL || cauHinhMacDinh.onlyOfficePublicUrl),
-  onlyOfficeJwtEnabled: docApiBoolean(process.env.ONLYOFFICE_JWT_ENABLED, false),
-  onlyOfficeJwtSecret: process.env.ONLYOFFICE_JWT_SECRET || '',
-  useLegacyHrDocuments: docApiBoolean(process.env.USE_LEGACY_HR_DOCUMENTS, false),
-  corsAllowedOrigins: danhSachPhanCachDauPhay(process.env.CORS_ALLOWED_ORIGINS || [
-    'http://127.0.0.1:5500',
-    'http://localhost:5500',
-    'http://127.0.0.1:4173',
-    'http://localhost:4173'
-  ].join(',')),
-  signingSecret: khoaKyPhien,
-  samplesDir: path.join(thuMucBackend, 'samples'),
-  uploadsDir: path.join(thuMucBackend, 'uploads'),
-  draftsDir: path.join(thuMucBackend, 'storage', 'drafts'),
-  templateWorkspacesDir: path.join(thuMucBackend, 'storage', 'template-workspaces')
-});
-
+export const documentConfig = loadDocumentConfig();
