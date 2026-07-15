@@ -23,6 +23,92 @@ test('ModuleDefinition keeps form contract and adds mobile metadata', () => {
   assert.equal(result.FormFields[0].MobileOrder, 1);
 });
 
+test('HR module registry keeps all 13 module keys outside core/index.js', () => {
+  const files = [
+    'src/js/core/ModuleDefinition.js',
+    'src/js/modules/hr/definitions/access.js',
+    'src/js/modules/hr/definitions/employee.js',
+    'src/js/modules/hr/definitions/attendance.js',
+    'src/js/modules/hr/definitions/leave.js',
+    'src/js/modules/hr/definitions/payroll.js',
+    'src/js/modules/hr/definitions/contract.js',
+    'src/js/modules/hr/HRModuleRegistry.js'
+  ];
+  const window = {};
+  const context = vm.createContext({ window, console, Promise });
+  files.forEach((file) => vm.runInContext(
+    fs.readFileSync(path.join(root, file), 'utf8'),
+    context,
+    { filename: file }
+  ));
+  const keys = window.HRModuleRegistry.keys().sort();
+  assert.equal(keys.length, 13);
+  assert.equal(window.APP_MODULES.WA_PERSONFULLFRM.FormName, 'WA_PersonFullFrm');
+  assert.equal(window.APP_MODULES.WA_PAYROLLFRM.PrimaryKey, 'DocumentID');
+  assert.equal(window.APP_MODULES.WA_CALAMVIECFRM.PrimaryKey, 'SapCaID');
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'src/js/core/index.js'), 'utf8'), /APP_MODULES\[/);
+});
+
+test('Router resolves HR modules by FormKey and FormName', () => {
+  const window = { location: { hash: '#/dashboard' }, APP_MODULES: {} };
+  const context = vm.createContext({ window, console, Promise, setTimeout });
+  [
+    'src/js/core/ModuleDefinition.js',
+    'src/js/modules/hr/definitions/employee.js',
+    'src/js/modules/hr/HRModuleRegistry.js',
+    'src/js/core/router.js'
+  ].forEach((file) => vm.runInContext(
+    fs.readFileSync(path.join(root, file), 'utf8'),
+    context,
+    { filename: file }
+  ));
+
+  context.Router.addDynamicRoutes([
+    { URLPara: 'hr-person', FormKey: 'WA_PERSONFULLFRM', FormName: 'WA_PersonFullFrm', VN: 'Hồ sơ nhân viên' },
+    { URLPara: 'hr-candidate', FormName: 'WA_DanhSachUngVienFrm', VN: 'Danh sách ứng viên' }
+  ]);
+
+  const personRoute = context.Router.ROUTES.find((route) => route.path === '/hr-person');
+  const candidateRoute = context.Router.ROUTES.find((route) => route.path === '/hr-candidate');
+  assert.equal(personRoute.config.PrimaryKey, 'PersonID');
+  assert.equal(candidateRoute.config.PrimaryKey, 'CandidateID');
+  assert.equal(personRoute.pageFn, 'DynamicFormEngine');
+  assert.equal(candidateRoute.config.FormName, 'WA_DanhSachUngVienFrm');
+});
+
+test('HR action contracts remain callable after registry extraction', () => {
+  const files = [
+    'src/js/modules/hr/definitions/attendance.js',
+    'src/js/modules/hr/definitions/payroll.js',
+    'src/js/modules/hr/HRModuleRegistry.js'
+  ];
+  const window = {};
+  const context = vm.createContext({ window, console, Promise });
+  files.forEach((file) => vm.runInContext(
+    fs.readFileSync(path.join(root, file), 'utf8'),
+    context,
+    { filename: file }
+  ));
+  const shift = window.APP_MODULES.WA_CALAMVIECFRM;
+  const payroll = window.APP_MODULES.WA_BAOHIEMFRM;
+  assert.equal(typeof shift.customFooterButtons[0].onClick, 'function');
+  assert.equal(typeof payroll.DetailTabs[0].customButtons[0].onClick, 'function');
+  assert.equal(payroll.DetailTabs[0].filterField, 'DocumentID');
+});
+
+test('HR metadata adapter applies per-form, form dictionary, global dictionary, then fallback', () => {
+  const { window } = loadBrowserScript('src/js/modules/hr/HRMetadataAdapter.js');
+  const result = window.HRMetadataAdapter.resolve({
+    list: [{ FieldName: 'Name', CaptionVN: 'Riêng', FormatID: 't' }],
+    formDictionary: [{ FieldName: 'Name', CaptionVN: 'Từ form' }, { FieldName: 'Code', FormatID: 't' }],
+    globalDictionary: [{ FieldName: 'Code', FormatID: 'n' }, { FieldName: 'GlobalOnly', FormatID: 't' }]
+  }, 'WA_TestFrm', { FormFields: [{ name: 'FallbackOnly', label: 'Cục bộ' }] });
+  assert.deepEqual(Array.from(result.fields, (row) => row.FieldName || row.name), ['Name', 'Code', 'GlobalOnly', 'FallbackOnly']);
+  assert.equal(result.fields[0].CaptionVN, 'Riêng');
+  assert.equal(result.fields[1].FormatID, 't');
+  assert.equal(result.source, 'SY_FormatFields');
+});
+
 test('FormActionRegistry always returns a Promise', async () => {
   const { window } = loadBrowserScript('src/js/core/FormActionRegistry.js');
   window.FormActionRegistry.register('test-action', (ctx) => ({ id: ctx.id }));

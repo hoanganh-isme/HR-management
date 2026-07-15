@@ -1,34 +1,33 @@
-# HR `SY_FormatFields` contract — Phase A
+# Hợp đồng `SY_FormatFields` của HRM
 
-## Required resolver precedence
+## Thứ tự resolve bắt buộc
 
-For a `(FormName, FieldName)` pair, the web resolver must choose metadata in this order:
+Với cặp `(FormName, FieldName)`, frontend phải chọn theo thứ tự:
 
-1. Per-form override in `SY_FormatFields`.
-2. Form-specific dictionary in `SY_FmtFldTbl`.
-3. Global dictionary in `SY_FmtFldTbl`.
-4. Safe frontend fallback (log the missing/invalid field; never write to the database).
+1. Override riêng trong `SY_FormatFields`.
+2. Dictionary có `FormName` cụ thể trong `SY_FmtFldTbl`.
+3. Dictionary dùng chung trong `SY_FmtFldTbl` khi `FormName` rỗng/null.
+4. Fallback cục bộ an toàn, chỉ log cảnh báo và tuyệt đối không ghi ngược DB.
 
-`SY_FmtFldTbl` is a legacy/generic dictionary. It must not overwrite a row in `SY_FormatFields`. `FormatID` must be explicit metadata; SQL type inference is not an acceptable release registration strategy.
+`SY_FmtFldTbl` là dictionary legacy. Nó không được ghi đè row riêng của `SY_FormatFields`. `FormatID`, vị trí, thứ tự, filter, caption và cờ read-only phải lấy từ contract đã xác nhận, không suy đoán từ SQL type.
 
-## Evidence found in the repository
+## Bằng chứng schema/snapshot
 
-- `sql/API/API_DongBoTruongGiaoDien.sql` (and a duplicate definition in `sql/API/Combined_API.sql`) drops/recreates its procedure, removes fields no longer returned by the source object, infers `FormatID` from SQL types (`int`/`date`/`bit`), defaults `FormPosition='grid'`, and uses the database field name as a temporary caption. This is destructive and guess-based; it is **not** a safe default for production registration.
-- `sql/API/API_LuuTruongGiaoDien.sql` drops/recreates the procedure and updates/inserts `SY_FormatFields` from caller-supplied values. It is usable only behind an explicit, validated write contract.
-- `sql/API/API_LayCacTruongGiaoDien.sql` reads `SY_FormatFields` and joins `SY_FrmLstTbl`; it is the read path that should feed the resolver.
-- `sql/API/API_XoaTruongGiaoDien.sql` deletes selected `SY_FormatFields` rows. It must not be called implicitly by reconciliation.
-- `sql/Insert/Combined_Insert_Temp.sql` contains repeated blocks that delete rows from form config, `SY_FrmLstTbl`, `SY_FormatFields`, `WA_API`, and `WA_Menu` before inserting replacement metadata. It is a development/legacy bundle, not a release migration.
-- `sql/Update/Update_frmFormBuilder.sql` deletes empty-form placeholder fields and changes dictionary values; it needs an explicit scope and backup before reuse.
+- `SY_FormatFields` có 909 row tĩnh, khóa nghiệp vụ kiểm tra được `FormName+FieldName`, không có duplicate trong snapshot.
+- `SY_FmtFldTbl` có 2.648 row, chỉ có khóa identity `AutoID`; đây là dictionary fallback, không phải contract riêng form.
+- `API_LayCacTruongGiaoDien` trả `FormatID`, `FormPosition`, `OrderNo`, `DataSource`, `ValidateRule`, `DependsOn`, `VisibleRule`, `ShowInAdd`, `ShowInEdit`, `IsReadOnlyAdd`, `IsReadOnlyEdit`, `ShowInFilter` từ `SY_FormatFields`.
+- `API_DongBoTruongGiaoDien` trong schema có các tham số `@Overrides` và `@DeleteMissingFields`; logic cũ vẫn có nhánh xoá field không còn trong result và tự suy đoán `FormatID`. Không dùng procedure này làm bước cài mặc định.
+- `API_DangKyFormWeb` tồn tại trong snapshot, nhưng gọi đồng bộ field và có thể thay routing. Migration mới dùng `HRM_RegisterWebFormSafe`, không đổi signature procedure cũ.
 
-## Safe modes for future work
+## Thay đổi frontend
 
-- `ADD_ONLY`: insert only missing `(FormName, FieldName)` rows after duplicate checks; never delete or alter existing overrides.
-- `RECONCILE_REPORT`: produce additions, conflicts, stale rows, and invalid `FormatID` values without writing.
-- `EXPLICIT_UPDATE`: update an allow-listed key with a before/after audit record and rollback evidence.
+`src/js/modules/hr/HRMetadataAdapter.js` chỉ đọc response. Adapter nhận được cả response hiện tại (`list/records`) và response mở rộng (`specificFields`, `formDictionary`, `globalDictionary`), rồi hợp nhất theo thứ tự trên. Khi có conflict, field riêng đã chọn thắng; không có lệnh gọi API xoá/sửa metadata.
 
-`API_DongBoTruongGiaoDien` must not be used by default. If a compatibility wrapper is needed, introduce a new web-owned procedure (for example `HRM_RegisterWebFormSafe`) or an explicit mode parameter; preserve the old signature and add regression tests before changing callers.
+## Chế độ ghi SQL an toàn
 
-## Duplicate and validation gates
+- `ADD_ONLY`: chỉ thêm `(FormName, FieldName)` còn thiếu.
+- `RECONCILE_REPORT`: chỉ báo cáo thiếu, conflict, duplicate và orphan.
+- `EXPLICIT_UPDATE`: chỉ dùng cho allow-list đã review, có before/after và rollback.
 
-Before any write, query for duplicate `(FormName, FieldName)` rows, verify the target form exists in `SY_FrmLstTbl`, validate `FormatID` against an allow-list, and compare captions/layout flags with the per-form contract. A missing snapshot prevents these checks from being run in this Phase A.
+`sql/Deploy/HRM_Web_Install.sql` mặc định `@DryRun=1`, `@ApplyExplicitUpdates=0`. Migration không ghi `SY_FmtFldTbl`, không `DELETE` và không cập nhật field đang có giá trị khác. Conflict `FormatID` hoặc layout được giữ nguyên và xuất trong báo cáo.
 

@@ -1,50 +1,35 @@
-# HRM web SQL migration plan — Phase A gate
+# Kế hoạch migration SQL HRM
 
-## Decision
+## Trạng thái Pha B
 
-`sql/Deploy/HRM_Web_Install.sql` was **not created** and no SQL was executed. The required read-only inputs `scriptschema(1).sql` and `scriptdataa.sql` are absent, so object names, columns, keys, constraints, existing IDs, duplicate state, permissions, and `isDisable` values cannot be proven. Creating a release migration now would violate the requested safety gate.
+Hai snapshot đã được cung cấp và parse thành công:
 
-## Inventory summary
+- `scriptschema.sql`: UTF-16LE, 2.431.546 bytes; 200 bảng duy nhất, 195 procedure, 139 view, 59 function, 1 trigger.
+- `scriptdataa.sql`: UTF-16LE, 5.696.162 bytes; 7.232 dòng `INSERT` tĩnh, 58 `WA_Menu`, 290 `WA_API`, 909 `SY_FormatFields`, 2.648 `SY_FmtFldTbl`.
 
-| Area | Evidence |
-|---|---:|
-| Tracked SQL files | 182 |
-| API folder files | 105 |
-| Insert folder files | 55 |
-| Update folder files | 9 |
-| `Register_*.sql` | 27 |
-| Files named `SY_FormatFields` | 18 |
-| Files touching `WA_API` | 85 |
-| Files touching `WA_Menu` | 31 |
-| Files touching `SY_FrmLstTbl` | 67 |
-| Files touching `SY_FormatFields` | 75 |
-| Files touching `SY_FmtFldTbl` | 2 |
+Đã tạo `sql/Deploy/HRM_Web_Install.sql`. File chưa được chạy trên production hoặc bất kỳ DB thật nào. Mặc định file chạy `@DryRun=1` và `@ApplyExplicitUpdates=0`.
 
-## Files that cannot be copied into a release migration
+## Nguyên tắc cài đặt
 
-- `sql/Insert/Combined_Insert_Temp.sql`: broad per-form deletes and replacements across metadata tables.
-- `sql/API/Combined_API.sql`: concatenated legacy procedures including destructive delete paths.
-- `sql/API/API_DongBoTruongGiaoDien.sql`: deletes stale fields and guesses `FormatID`/layout.
-- `sql/API/API_XoaMenu.sql`, `API_XoaTruongGiaoDien.sql`, and the delete-first `Register_*` scripts: destructive operations that need an explicit operator action, not installation-time behaviour.
+- `SET XACT_ABORT ON`, transaction, preflight object/column checks và `TRY/CATCH` rollback.
+- `CREATE OR ALTER PROCEDURE` chỉ cho procedure web-owned mới `HRM_RegisterWebFormSafe`; không thay signature hay nội dung procedure legacy.
+- Upsert theo business key: `WA_Menu.MenuID`, `SY_FrmLstTbl.FormID`, `WA_API(list,func)`, `SY_FormatFields(FormName,FieldName)`.
+- Chỉ thêm row còn thiếu. Row hiện hữu khác giá trị được ghi `CONFLICT`, không tự ghi đè.
+- `WA_Menu.isDisable=1` được ghi `DISABLED_IN_DB`, không bật lại.
+- `SY_FmtFldTbl` chỉ đọc làm fallback; migration không ghi dictionary chung.
+- Không `DELETE`, `TRUNCATE`, `IDENTITY_INSERT`, seed user/password/quyền/chi nhánh/PII.
+- Báo cáo gồm cột insert/would-insert, update/would-update, skip, conflict, orphan và số row/field được bảo toàn; bảng chi tiết vẫn giữ `DUPLICATE_KEY` và `DISABLED_IN_DB`.
 
-The repository has no exact `API_DangKyFormWeb` symbol. Any compatibility work must therefore be designed against the supplied schema/data snapshot, not inferred from a similarly named script.
+## Phạm vi allow-list hiện tại
 
-## Release migration design (for Phase B only)
+Manifest tập trung vào hồ sơ nhân viên, hợp đồng, bảo hiểm, công đoàn, chấm công, ca làm việc, nghỉ phép, payroll và các danh mục đang bật trong snapshot. Các field `SY_FormatFields` được lấy nguyên giá trị đã parse cho các form HR được chọn; không tự đoán `FormatID`.
 
-The one-file migration will be written only after the snapshot is supplied and a dry-run report is reviewed. It will have:
+Các menu đang tắt như vị trí, tổ, công việc, bệnh viện, ngân hàng, quốc gia, tỉnh, dân tộc, học vấn, bằng cấp và nghề nghiệp chỉ xuất báo cáo `DISABLED_IN_DB`, không được cài/bật.
 
-1. `SET XACT_ABORT ON`, `SET NOCOUNT ON`, an explicit transaction, and preflight checks for required schemas/tables/columns/procedures.
-2. `@DryRun` (or equivalent preflight-only mode) that reports planned inserts/updates/conflicts without writes.
-3. `CREATE OR ALTER PROCEDURE` only for procedures owned by this web app; no replacement of shared legacy procedures.
-4. Business-key upserts: `WA_Menu.MenuID`, `SY_FrmLstTbl.FormID`, `WA_API(list,func)`, and `SY_FormatFields(FormName,FieldName)` after duplicate checks. Permission upserts use existing `UserGroupID+MenuID` identities; no user/password/PII/test permission seed.
-5. No broad `DELETE`, no `IDENTITY_INSERT` unless proven necessary, and a single allow-listed config override section.
-6. Pre/post counts, duplicate/orphan checks, audit summary, and a rollback/temporary-backup plan.
-7. Idempotency evidence from two consecutive dry-run/apply test cycles against a disposable test database.
+## Cách chạy trên DB test
 
-## Required inputs before implementation
-
-- Exact UTF-16LE `scriptdataa.sql` (or an equivalent sanitized test seed) and `scriptschema(1).sql`.
-- A snapshot report for metadata tables: row counts, primary/unique keys, duplicate candidates, and hashes of relevant rows.
-- Confirmation of web-owned stored procedures and the intended form/menu allow-list.
-- A disposable SQL Server test database for rollback and twice-run idempotency tests.
-
+1. Chạy nguyên file với `@DryRun=1`, lưu các bảng summary/detail được in ra.
+2. Kiểm tra mọi `CONFLICT`, `DUPLICATE_KEY`, orphan và object thiếu.
+3. Snapshot tạm các row sẽ thêm; chỉ sau khi review mới đặt `@DryRun=0`.
+4. Chạy lại file lần hai; lần hai phải không tạo duplicate và không giảm số row ngoài allow-list.
+5. Kiểm tra rollback bằng cách cố ý tạo conflict trên DB disposable; không chạy production.

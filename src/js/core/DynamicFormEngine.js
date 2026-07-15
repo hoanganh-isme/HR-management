@@ -665,6 +665,9 @@ window.DynamicFormEngine = (function () {
 
       // 2. Lưu Từ điển vào biến toàn cục
       var dataList = resConfig ? (resConfig.list || resConfig.records) : null;
+      if (window.HRMetadataAdapter && typeof window.HRMetadataAdapter.resolve === 'function') {
+        dataList = window.HRMetadataAdapter.resolve(resConfig, MODULE_CONFIG.FormName, MODULE_CONFIG).fields;
+      }
       if (resConfig && resConfig.code === 0 && dataList) {
 
         // --- NO-CODE MAGIC: Đọc cấu hình cấp Form từ Record đầu tiên ---

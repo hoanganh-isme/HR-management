@@ -1,28 +1,34 @@
-# HR frontend hard-code inventory — Phase A
+# Kiểm kê hard-code frontend HRM
 
-## Baseline
+## Kết quả tách registry
 
-`main` and `refactor/hr-cleanup` resolve to the same `src/js/core/index.js` architecture for this area. The file is 1,553 lines and declares 13 `window.APP_MODULES[...]` entries inline. `src/js/core/router.js` has 11 literal routes, then creates DB-driven DynamicFormEngine routes for menu metadata.
+Trước patch, `src/js/core/index.js` có khoảng 1.553 dòng và 13 phép gán `window.APP_MODULES[...]`. Hiện file chỉ giữ bootstrap/auth/router và gọi registry; không còn khai báo `APP_MODULES[...]`.
 
-The existing refactor utilities (`ModuleDefinition`, `FormActionRegistry`, `AppConfig`, `SafeFormula`, `ResponsiveDataRenderer`) are present, but the module registry itself has not yet been extracted from `core/index.js`. Phase B must not add more inline modules or restore the removed banquet configuration.
+Registry mới dùng global/IIFE tương thích bundle hiện tại:
 
-## Inline modules currently present
+- `src/js/modules/hr/HRModuleRegistry.js`
+- `src/js/modules/hr/definitions/access.js`
+- `src/js/modules/hr/definitions/employee.js`
+- `src/js/modules/hr/definitions/attendance.js`
+- `src/js/modules/hr/definitions/leave.js`
+- `src/js/modules/hr/definitions/payroll.js`
+- `src/js/modules/hr/definitions/contract.js`
 
-`WA_NguoiDungNhomFrm`, `WA_NguoiDungFrm`, `WA_TimeSheetDayFrm`, `WA_CaLamViecFrm`, `WA_QuanLyNghiPhepNamFrm`, `WA_KinhPhiCongDoanFrm`, `WA_PersonFullFrm`, `WA_DanhSachUngVienFrm`, `WA_LuongKhoanFrm`, `WA_BangPhuCapFrm`, `WA_BaoHiemFrm`, `WA_PayrollFrm`, and `WA_HopDongLaoDongFrm`.
+`ModuleDefinition.create` vẫn là nơi normalize capability/mobile metadata. `DynamicFormEngine`, API client, router, auth, permission và storage không bị viết lại.
 
-## Contract boundaries to preserve
+## 13 module được bảo toàn
 
-- `DynamicFormEngine`, `src/js/utils/apiClient.js`, router/auth/permission/storage, and the existing API response envelopes remain stable.
-- Field definitions, actions, lookups, status values, and mobile visibility should be supplied through `ModuleDefinition`/capabilities or server metadata, not another monolithic `index.js` block.
-- The resolver must apply the `SY_FormatFields` precedence documented in `hr-formatfields-contract.md`.
-- A missing/invalid metadata field falls back locally with a diagnostic; it does not call a destructive registration API.
+`WA_NguoiDungNhomFrm`, `WA_NguoiDungFrm`, `WA_TimeSheetDayFrm`, `WA_CaLamViecFrm`, `WA_QuanLyNghiPhepNamFrm`, `WA_KinhPhiCongDoanFrm`, `WA_PersonFullFrm`, `WA_DanhSachUngVienFrm`, `WA_LuongKhoanFrm`, `WA_BangPhuCapFrm`, `WA_BaoHiemFrm`, `WA_PayrollFrm`, `WA_HopDongLaoDongFrm`.
 
-## Candidate Phase B extraction
+Các key, `FormName`, `PrimaryKey`, action callback, detail tab và API payload được giữ nguyên. Registry gọi `ModuleDefinition.create` một lần khi bundle khởi tạo và vẫn cho router tra theo FormKey/FormName.
 
-1. Move the 13 definitions into small HR module definition files or a factory keyed by `FormName`.
-2. Keep only capability registration and compatibility wiring in `core/index.js`.
-3. Add a metadata adapter that normalizes `WA_Menu`, `SY_FrmLstTbl`, `WA_API`, and format rows without changing response contracts.
-4. Add a leave/attendance vertical slice first, with explicit actions and mobile metadata, before payroll/report expansion.
+## Hard-code còn lại cần xử lý sau
 
-No source edit is made by this Phase A inventory.
+- 11 route tĩnh trong router là route hệ thống; route form HR vẫn lấy từ `WA_Menu` và DynamicFormEngine.
+- Callback nghiệp vụ lớn của chấm công, bảo hiểm và hợp đồng hiện vẫn nằm trong definition tương ứng để tránh thay đổi lifecycle. Chỉ tách tiếp khi có capability chung rõ ràng.
+- `src/js/core/DynamicFormEngine.js` không bị format lại hoặc tách cơ học trong patch này.
+
+## Ràng buộc contract
+
+Không đổi tên API, FormName, FormKey, storage key, field name hoặc response envelope. Không sửa trực tiếp bundle; manifest hiện build 77 JS từ source. Module mới được thêm vào `scripts/frontend-bundle.manifest.json` trước `HRModuleRegistry` và `DynamicFormEngine`.
 

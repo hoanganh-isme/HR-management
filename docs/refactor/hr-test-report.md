@@ -1,30 +1,31 @@
-# HRM Phase A test and metadata report
+# Báo cáo kiểm thử HRM — Pha B
 
-Date: 2026-07-15  
+Ngày: 15-07-2026
 Branch: `refactor/hr-cleanup`
 
-## Read-only inputs
+## Kiểm tra nguồn dữ liệu
 
-- ERP archive inventory completed from `D:\chuyenfile\NhanSu2.zip`; no configuration/connection contents were read.
-- Required DB snapshots `scriptschema(1).sql` and `scriptdataa.sql`: **not present**. Therefore DB metadata counts, UTF-16LE decoding, 7,232 INSERT count, 14-table scope, procedure/view count, and row hashes are **not available**.
-- No production database connection or migration was attempted.
+- Hai file schema/data đều đọc được UTF-16LE; không in secret, password, user, PII hoặc nội dung cấu hình kết nối.
+- `scriptdataa.sql` có 7.232 dòng `INSERT` tĩnh trước 195 procedure; các dòng user/quyền/period được thống kê nhưng không đưa vào migration.
+- Duplicate kiểm tra trên snapshot: `WA_Menu.MenuID` 0; `WA_API(list,func)` 2; `SY_FormatFields(FormName,FieldName)` 0.
+- `WA_Menu`: 42 bật, 16 tắt. Các dòng tắt được phân loại `DISABLED_IN_DB`.
 
-## Repository metadata counts
+## Kiểm thử frontend
 
-These are file/reference counts, not database row counts: 182 SQL files; 105 API; 55 Insert; 9 Update; 27 `Register_*`; 18 `SY_FormatFields`-named inserts/config files. Reference files include 85 touching `WA_API`, 31 `WA_Menu`, 67 `SY_FrmLstTbl`, 75 `SY_FormatFields`, and 2 `SY_FmtFldTbl`.
+- `node --check` toàn bộ JavaScript trong `src`: PASS.
+- `node scripts/build-frontend-bundle.mjs --check`: PASS, manifest có 49 CSS và 77 JS.
+- `node --test tests/frontend-contracts.test.mjs`: 9/9 PASS, gồm registry 13 module, lookup router theo FormKey/FormName, action cũ và precedence metadata.
+- `git diff --check`: PASS.
+- Không còn phép gán `APP_MODULES[...]` trong `src/js/core/index.js`.
+- Static scan source/bundle: không có `eval` hoặc `new Function`; bundle không chứa secret/PII được kiểm tra.
+- Static scan runtime HR: không còn route/service QL Tiệc; các từ `restaurant` còn lại chỉ là icon lựa chọn trong màn quản trị menu.
 
-## Frontend checks
+## Kiểm thử SQL
 
-Run after documentation changes:
+- `sql/Deploy/HRM_Web_Install.sql` đã kiểm tra tĩnh: có `XACT_ABORT`, transaction, preflight, `@DryRun`, rollback, summary insert/update/skip/conflict/orphan/preserved và không có `DELETE/TRUNCATE/IDENTITY_INSERT` trên metadata.
+- Chưa có `sqlcmd`/SQL Server runtime trong workspace, nên chưa thể biên dịch hoặc chạy migration hai lần. Đây là bước bắt buộc tiếp theo trên DB disposable.
+- Không có thao tác DB production.
 
-- `node --check` over every `src/**/*.js` file.
-- `node scripts/build-frontend-bundle.mjs --check`.
-- `node --test tests/frontend-contracts.test.mjs`.
-- `git diff --check`.
+## Điều kiện hoàn tất còn lại
 
-These checks cover syntax, manifest/bundle integrity, and existing frontend contracts only. They do not replace SQL Server tests.
-
-## Exit criteria for Phase A
-
-Complete for source/ERP inventory; blocked for DB comparison and migration because the two required snapshots are missing. Phase B remains gated until the sanitized schema/test seed and a disposable SQL Server instance are supplied.
-
+Chạy migration trên DB test với `@DryRun=1`, review conflict/duplicate, sau đó chạy `@DryRun=0` hai lần và kiểm tra rollback. Chỉ khi hai vòng này đạt mới xem xét đưa file release vào quy trình triển khai.

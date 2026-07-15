@@ -15,7 +15,7 @@ var ComponentsDemoPage = (function () {
     if (!el || typeof UICard === 'undefined') return;
     el.appendChild(UICard.create({
       title: 'Hồ sơ nhân viên NV0001',
-      bodyContent: '<div class="p-3"><p><b>Nhân sự:</b> Nguyễn Minh Anh</p><p><b>Phòng ban:</b> Nhân sự</p><p><b>Ngày vào làm:</b> 04/03/2024</p><p><b>Trạng thái:</b> <span class="status-badge success">Đang làm việc</span></p></div>'
+      bodyContent: '<div class="p-3"><p><b>Nhân sự:</b> Nhân viên mẫu 01</p><p><b>Phòng ban:</b> Nhân sự</p><p><b>Ngày vào làm:</b> 04/03/2024</p><p><b>Trạng thái:</b> <span class="status-badge success">Đang làm việc</span></p></div>'
     }));
   }
 
@@ -34,9 +34,9 @@ var ComponentsDemoPage = (function () {
         { field: 'status', render: function (value) { return UIBadge.createHTML(value, 'success'); } }
       ],
       data: [
-        { stt: 1, code: 'NV0001', name: 'Nguyễn Minh Anh', department: 'Nhân sự', status: 'Đang làm việc' },
-        { stt: 2, code: 'NV0002', name: 'Trần Quốc Bảo', department: 'Kế toán', status: 'Đang làm việc' },
-        { stt: 3, code: 'NV0003', name: 'Lê Thu Hà', department: 'Kinh doanh', status: 'Thử việc' }
+        { stt: 1, code: 'NV0001', name: 'Nhân viên mẫu 01', department: 'Nhân sự', status: 'Đang làm việc' },
+        { stt: 2, code: 'NV0002', name: 'Nhân viên mẫu 02', department: 'Kế toán', status: 'Đang làm việc' },
+        { stt: 3, code: 'NV0003', name: 'Nhân viên mẫu 03', department: 'Kinh doanh', status: 'Thử việc' }
       ]
     }));
   }
