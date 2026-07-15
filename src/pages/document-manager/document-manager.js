@@ -20,6 +20,8 @@ var DocumentManagerPage = (function () {
   var _allDocuments = [];  // lưu tất cả data để filter
   var _currentBranchFilter = 'ALL';
   var _workspaceTab = 'saved';
+  var _healthCache = null;
+  var _healthCheckedAt = 0;
 
   // ── Helpers ───────────────────────────────────────────────────────────
   function _qs(sel) { return _container ? _container.querySelector(sel) : null; }
@@ -151,7 +153,34 @@ var DocumentManagerPage = (function () {
 
     _container.innerHTML = html;
     _bindWorkspaceTabs();
-    _loadWorkspaceTab();
+    _checkServiceHealth().then(_loadWorkspaceTab).catch(_renderServiceUnavailable);
+  }
+
+  function _checkServiceHealth(force) {
+    var now = Date.now();
+    if (!force && _healthCache && now - _healthCheckedAt < 15000) return Promise.resolve(_healthCache);
+    return ContractDocumentApi.health().then(function (result) {
+      _healthCache = result;
+      _healthCheckedAt = Date.now();
+      return result;
+    });
+  }
+
+  function _renderServiceUnavailable(error) {
+    var list = _qs('#docmgr-list');
+    if (!list) return;
+    list.innerHTML = '<div style="text-align:center;padding:2rem;color:#ef4444;">'
+      + '<strong>Document API ch\u01b0a ch\u1ea1y</strong>'
+      + '<p style="color:#64748b;font-size:12px;">Local: cd backend-app<br>npm install<br>npm run dev</p>'
+      + '<p style="color:#64748b;font-size:12px;">Health URL: ' + _escHtml(DOC_CONFIG.SERVICE_BASE + '/health') + '</p>'
+      + '<button type="button" id="docmgr-health-retry" class="btn btn-primary">Th\u1eed l\u1ea1i</button>'
+      + '<div style="margin-top:8px;font-size:11px;color:#94a3b8;">' + _escHtml(error && error.message ? error.message : '') + '</div>'
+      + '</div>';
+    var retry = list.querySelector('#docmgr-health-retry');
+    if (retry) retry.addEventListener('click', function () {
+      retry.disabled = true;
+      _checkServiceHealth(true).then(_loadWorkspaceTab).catch(_renderServiceUnavailable);
+    });
   }
 
 
