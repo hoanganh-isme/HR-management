@@ -37,7 +37,8 @@ function lamSachTenFile(tenFile) {
 }
 
 function coQuyenChiNhanh(branchId, userBranches) {
-  if (userBranches === null) return true;
+  // null/undefined means the authenticated Gateway is the source of scope.
+  if (userBranches == null) return true;
   const branchCanKiemTra = String(branchId || '').trim().toUpperCase();
   return branchCanKiemTra !== '' && userBranches.map((branch) => String(branch).toUpperCase()).includes(branchCanKiemTra);
 }

@@ -49,13 +49,14 @@ export function dangKyContractDocumentRoutes(app, { service, extractUserName, ge
     if (!request.headers.authorization) throw new HttpError(401, 'AUTH_REQUIRED', 'Yêu cầu đăng nhập để sử dụng chức năng hợp đồng.');
     const userName = extractUserName(request);
     if (!userName || userName === 'system') throw new HttpError(401, 'AUTH_INVALID', 'Không xác định được người dùng hiện tại.');
-    const userBranches = await getUserBranchesFromDB(request, { failClosed: true });
     const permission = await getUserContractPermissionsFromDB(request);
     if (!permission || !Number(permission.CanView)) throw new HttpError(403, 'CONTRACT_VIEW_FORBIDDEN', 'Bạn không có quyền xem chức năng hợp đồng.');
     if (canEdit && !Number(permission.CanAdd) && !Number(permission.CanEdit)) {
       throw new HttpError(403, 'CONTRACT_EDIT_FORBIDDEN', 'Bạn không có quyền tạo hoặc cập nhật tài liệu hợp đồng.');
     }
-    return { userName, userBranches, authorization: request.headers.authorization, permission };
+    // Branch scope is enforced by the authenticated SQL Gateway request. Do not
+    // make document routes depend on a SY_User View API that may not exist.
+    return { userName, userBranches: null, authorization: request.headers.authorization, permission };
   }
 
   app.post('/api/contract-drafts', async (request, response) => {

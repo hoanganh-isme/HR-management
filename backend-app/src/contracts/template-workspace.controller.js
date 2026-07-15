@@ -19,7 +19,6 @@ export function dangKyTemplateWorkspaceRoutes(app, { service, extractUserName, g
     if (!request.headers.authorization) throw new HttpError(401, 'AUTH_REQUIRED', 'Yêu cầu đăng nhập để chỉnh sửa mẫu.');
     const userName = extractUserName(request);
     if (!userName || userName === 'system') throw new HttpError(401, 'AUTH_INVALID', 'Không xác định được người dùng hiện tại.');
-    await getUserBranchesFromDB(request, { failClosed: true });
     const permission = await getUserContractPermissionsFromDB(request);
     if (!permission || !Number(permission.CanView) || (!Number(permission.CanAdd) && !Number(permission.CanEdit))) {
       throw new HttpError(403, 'CONTRACT_TEMPLATE_EDIT_FORBIDDEN', 'Bạn không có quyền chỉnh sửa mẫu hợp đồng.');
