@@ -133,6 +133,9 @@ async function getUserBranchesFromDB(req, options = {}) {
         if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
         const resp = await axios.get(url, { headers, timeout: 5000 });
         const json = resp.data;
+        if (json && json.code !== undefined && Number(json.code) !== 0) {
+            throw new Error(json.msg || `SQL Gateway không trả được thông tin user '${userName}'.`);
+        }
         let rows = json.records || (Array.isArray(json) ? json : []);
         let user = rows.find(r => {
             const uname = r.UserName || r.username || r.USERNAME || '';
@@ -140,20 +143,30 @@ async function getUserBranchesFromDB(req, options = {}) {
         }) || rows[0];
 
         // Legacy SQL Gateway may apply a case-sensitive Keyword filter. Retry
-        // without that filter and resolve the account case-insensitively.
+        // with bounded casing variants instead of loading the whole SY_User table.
         if (!user || String(user.UserName || user.username || user.USERNAME || '').toLowerCase() !== userName.toLowerCase()) {
-            const fallbackPayload = {
-                List: 'SY_User', Func: 'View', UserName: SQL_API_USER,
-                Keyword: '', Page: 1, Limit: 1000
-            };
-            const fallbackUrl = `${SQL_API_BASE}/api/API_Gateway_Router?q=${encodeURIComponent(JSON.stringify(fallbackPayload))}`;
-            const fallbackResp = await axios.get(fallbackUrl, { headers, timeout: 5000 });
-            const fallbackJson = fallbackResp.data;
-            rows = fallbackJson.records || (Array.isArray(fallbackJson) ? fallbackJson : []);
-            user = rows.find(r => {
-                const uname = r.UserName || r.username || r.USERNAME || '';
-                return uname.toLowerCase() === userName.toLowerCase();
-            });
+            const variants = Array.from(new Set([
+                userName,
+                userName.charAt(0).toUpperCase() + userName.slice(1),
+                userName.toUpperCase()
+            ]));
+            for (const variant of variants) {
+                if (variant === userName) continue;
+                const variantPayload = {
+                    List: 'SY_User', Func: 'View', UserName: SQL_API_USER,
+                    Keyword: variant, Page: 1, Limit: 1
+                };
+                const variantUrl = `${SQL_API_BASE}/api/API_Gateway_Router?q=${encodeURIComponent(JSON.stringify(variantPayload))}`;
+                const variantResp = await axios.get(variantUrl, { headers, timeout: 5000 });
+                const variantJson = variantResp.data;
+                if (variantJson && variantJson.code !== undefined && Number(variantJson.code) !== 0) continue;
+                const variantRows = variantJson.records || (Array.isArray(variantJson) ? variantJson : []);
+                user = variantRows.find(r => {
+                    const uname = r.UserName || r.username || r.USERNAME || '';
+                    return uname.toLowerCase() === userName.toLowerCase();
+                });
+                if (user) break;
+            }
         }
 
         if (!user && options.failClosed) {
