@@ -45,11 +45,12 @@ function jsonResponse(status, body) {
   };
 }
 
-function loadApi(config, fetchImpl, token) {
+function loadApi(config, fetchImpl, token, userName) {
   const context = vm.createContext({ console, Promise, fetch: fetchImpl, document: { cookie: '' } });
   context.window = context;
   context.API_CONFIG = { ENDPOINTS: { DOCUMENT_MANAGER: config } };
   context.ApiClient = { getCookie() { return token || ''; } };
+  context.AppContext = { getUserName() { return userName || ''; } };
   vm.runInContext(apiSource, context, { filename: 'contract-document.api.js' });
   return context.ContractDocumentApi;
 }
@@ -80,10 +81,11 @@ async function main() {
   let api = loadApi(baseConfig, (url, options) => {
     request = { url, options };
     return Promise.resolve(jsonResponse(200, { success: true, data: [] }));
-  }, 'secret-token');
+  }, 'secret-token', 'admin');
   await api.listSavedAttachments();
   assert.equal(request.url, 'http://127.0.0.1:8081/api/contract-attachments');
   assert.equal(request.options.headers.Authorization, 'Bearer secret-token');
+  assert.equal(request.options.headers.Username, 'admin');
 
   api = loadApi(baseConfig, () => Promise.reject(new Error('ECONNREFUSED')), 'secret-token');
   await assert.rejects(api.listSavedAttachments(), error => {

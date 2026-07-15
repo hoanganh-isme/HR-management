@@ -554,12 +554,40 @@ window.ContractDocumentApi = (function () {
     return match ? decodeURIComponent(match[1]) : '';
   }
 
+  function layUserName() {
+    if (window.AppContext && typeof AppContext.getUserName === 'function') {
+      var contextUserName = String(AppContext.getUserName() || '').trim();
+      if (contextUserName) return contextUserName;
+    }
+
+    var session = {};
+    try {
+      var raw = window.AppStorage
+        ? AppStorage.getStored('user', '{}')
+        : localStorage.getItem('hrm_user') || localStorage.getItem('pmql_user') || '{}';
+      session = JSON.parse(raw || '{}');
+    } catch (error) { session = {}; }
+
+    var candidates = [session, session.user, session.User, session.data, session.Data];
+    var records = session.records || session.Records;
+    if (Array.isArray(records)) candidates.push(records[0]);
+    for (var i = 0; i < candidates.length; i++) {
+      var user = candidates[i];
+      if (!user || typeof user !== 'object') continue;
+      var userName = user.UserName || user.Username || user.username || user.userName;
+      if (userName) return String(userName).trim();
+    }
+    return '';
+  }
+
   function goi(path, options) {
     options = options || {};
     var url = documentConfig.CONTRACT_API_BASE + path;
     var headers = Object.assign({}, options.headers || {}, { 'Content-Type': 'application/json' });
     var token = layToken();
     if (token) headers.Authorization = 'Bearer ' + token;
+    var userName = layUserName();
+    if (userName) headers.Username = userName;
 
     return fetch(url, {
       method: options.method || 'GET',
