@@ -32,7 +32,10 @@
       },
       attachments: {
         contract: {
-          sp: 'API_HopDongLaoDong_Attach', ownerField: 'MaHopDong', rowIdField: 'UserAutoID'
+          sp: 'API_HopDongLaoDong_Attach',
+          metadataApi: 'API_HopDongLaoDong_Attach_Metadata',
+          fileApi: 'API_HopDongLaoDong_Attach_File',
+          ownerField: 'MaHopDong', rowIdField: 'UserAutoID'
         }
       },
       UseSplitLayout: false,
@@ -75,7 +78,7 @@
         {
           code: 'attachments', label: 'Tai lieu dinh kem', type: 'attachments', api: 'API_HopDongLaoDong_Attach',
           filterField: 'MaHopDong', ownerField: 'MaHopDong', rowIdField: 'UserAutoID',
-          fields: ['FileName', 'FileType', 'STT', 'FileSize', 'Content'],
+          fields: ['FileName', 'FileType', 'STT', 'FileSize'],
           headers: { FileName: 'Ten tep', FileType: 'Loai tep', STT: 'So thu tu', FileSize: 'Kich thuoc' }
         }
       ]

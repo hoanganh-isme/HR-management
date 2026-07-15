@@ -127,6 +127,13 @@ window.API_CONFIG = {
                     ? origin + '/docserver/api/documents'
                     : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/documents';
             },
+            get CONTRACT_API_BASE() {
+                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
+                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
+                return useProxy
+                    ? origin + '/docserver/api'
+                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api';
+            },
             get ONLYOFFICE_API() {
                 var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
                 var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';

@@ -161,3 +161,16 @@ test('annual leave module uses the leave-row CRUD contract', () => {
   assert.notEqual(config.HideEditBtn, true);
   assert.notEqual(config.HideDeleteBtn, true);
 });
+
+test('contract attachment tab loads metadata first and content by UserAutoID', () => {
+  context.EmploymentContractActions = { selectAllowances() {} };
+  loadSource('src/js/modules/contracts/employment-contract.module.js');
+  const config = context.APP_MODULES.WA_HOPDONGLAODONGFRM;
+  const attachmentTab = config.DetailTabs.find((tab) => tab.code === 'attachments');
+
+  assert.equal(config.attachments.contract.sp, 'API_HopDongLaoDong_Attach');
+  assert.equal(config.attachments.contract.metadataApi, 'API_HopDongLaoDong_Attach_Metadata');
+  assert.equal(config.attachments.contract.fileApi, 'API_HopDongLaoDong_Attach_File');
+  assert.equal(attachmentTab.fields.includes('Content'), false);
+  assert.equal(attachmentTab.rowIdField, 'UserAutoID');
+});

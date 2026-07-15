@@ -19,6 +19,7 @@ var DocumentManagerPage = (function () {
   var _docEditor = null;   // DocsAPI instance
   var _allDocuments = [];  // lưu tất cả data để filter
   var _currentBranchFilter = 'ALL';
+  var _workspaceTab = 'saved';
 
   // ── Helpers ───────────────────────────────────────────────────────────
   function _qs(sel) { return _container ? _container.querySelector(sel) : null; }
@@ -61,6 +62,9 @@ var DocumentManagerPage = (function () {
         '.docmgr-sidebar{width:300px;flex-shrink:0;display:flex;flex-direction:column;background:var(--color-surface,rgba(15,23,42,.95));border-right:1px solid var(--color-border,rgba(255,255,255,.08));z-index:10;}',
         '.docmgr-sidebar-hd{padding:1.25rem 1rem;border-bottom:1px solid var(--color-border,rgba(255,255,255,.08));background:transparent;}',
         '.docmgr-brand{font-size:1.05rem;font-weight:700;background:linear-gradient(135deg,#a855f7,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:flex;align-items:center;justify-content:center;gap:.5rem;}',
+        '.docmgr-workspace-tabs{display:flex;gap:4px;margin-top:14px;overflow:auto;padding-bottom:2px;}',
+        '.docmgr-workspace-tab{border:0;background:transparent;color:var(--color-text-secondary,#94a3b8);padding:7px 8px;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-size:12px;}',
+        '.docmgr-workspace-tab.active{color:var(--color-primary,#4f46e5);border-bottom-color:var(--color-primary,#4f46e5);font-weight:600;}',
         '.docmgr-list{flex:1;overflow-y:auto;padding:.75rem;}',
         '.docmgr-list::-webkit-scrollbar{width:5px;}',
         '.docmgr-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:10px;}',
@@ -108,6 +112,11 @@ var DocumentManagerPage = (function () {
       '<span class="material-symbols-outlined">folder_open</span>',
       'Workspace Tài Liệu',
       '</div>',
+      '<div class="docmgr-workspace-tabs" id="docmgr-workspace-tabs">',
+      '<button type="button" class="docmgr-workspace-tab active" data-tab="saved">Hợp đồng đã lưu</button>',
+      '<button type="button" class="docmgr-workspace-tab" data-tab="drafts">Bản nháp</button>',
+      '<button type="button" class="docmgr-workspace-tab" data-tab="templates">Mẫu hợp đồng</button>',
+      '</div>',
       '<div class="custom-dropdown" id="docmgr-branch-filter-dropdown">',
       '<div class="custom-dropdown-btn" id="docmgr-branch-filter-btn">',
       '<span class="custom-dropdown-text">Tất cả chi nhánh</span>',
@@ -141,7 +150,51 @@ var DocumentManagerPage = (function () {
     ].join('');
 
     _container.innerHTML = html;
-    _loadDocuments();
+    _bindWorkspaceTabs();
+    _loadWorkspaceTab();
+  }
+
+
+  function _bindWorkspaceTabs() {
+    var tabs = _qs('#docmgr-workspace-tabs');
+    if (!tabs || tabs.dataset.bound) return;
+    tabs.dataset.bound = 'true';
+    tabs.addEventListener('click', function (event) {
+      var tab = event.target.closest('.docmgr-workspace-tab');
+      if (!tab) return;
+      _workspaceTab = tab.dataset.tab;
+      tabs.querySelectorAll('.docmgr-workspace-tab').forEach(function (item) { item.classList.toggle('active', item === tab); });
+      _currentFile = null;
+      _loadWorkspaceTab();
+    });
+  }
+
+  function _loadWorkspaceTab() {
+    var request;
+    if (_workspaceTab === 'drafts') request = ContractDocumentApi.listDrafts ? ContractDocumentApi.listDrafts() : Promise.resolve({ data: [] });
+    else if (_workspaceTab === 'templates') request = ContractDocumentApi.listTemplates();
+    else request = ContractDocumentApi.listSavedAttachments();
+
+    request.then(function (response) {
+      var records = response.data || [];
+      if (_workspaceTab === 'drafts') {
+        _allDocuments = records.map(function (draft) {
+          return { source: 'draft', draftId: draft.draftId, fileName: draft.fileName, maHopDong: draft.maHopDong, size: draft.fileSize, updatedAt: draft.updatedAt };
+        });
+      } else if (_workspaceTab === 'templates') {
+        _allDocuments = records.filter(function (template) { return template.available; }).map(function (template) {
+          return { source: 'template', fileName: template.templateFile, templateFile: template.templateFile, size: '', updatedAt: null, ghiChu: template.ghiChu };
+        });
+      } else {
+        _allDocuments = records.map(function (attachment) {
+          return { source: 'saved', userAutoID: attachment.UserAutoID, fileName: attachment.FileName, maHopDong: attachment.MaHopDong, size: attachment.FileSize, updatedAt: null, branch: '' };
+        });
+      }
+      _renderList();
+    }).catch(function (error) {
+      var list = _qs('#docmgr-list');
+      if (list) list.innerHTML = '<div style="text-align:center;padding:2rem;color:#ef4444;">' + _escHtml(error.message || 'Lỗi tải dữ liệu workspace.') + '</div>';
+    });
   }
 
 
@@ -244,7 +297,7 @@ var DocumentManagerPage = (function () {
 
     list.innerHTML = '';
     filtered.forEach(function (doc) {
-      var dateStr = new Date(doc.updatedAt).toLocaleDateString('vi-VN');
+      var dateStr = doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString('vi-VN') : 'DB';
       var div = document.createElement('div');
       
       // Xử lý hiển thị tên file (bỏ prefix branch)
@@ -257,6 +310,10 @@ var DocumentManagerPage = (function () {
       var badgeHtml = displayBranch ? '<span class="docmgr-branch-badge">' + (displayBranch === '_unassigned' ? '?' : (displayBranch === '_admin' ? 'SYS' : displayBranch)) + '</span>' : '';
 
       div.className = 'docmgr-item' + (_currentFile === doc.fileName ? ' active' : '');
+      var downloadUrl = doc.source === 'saved'
+        ? ContractDocumentApi.attachmentFileUrl(doc.userAutoID, true)
+        : (doc.source === 'legacy' ? DOC_CONFIG.UPLOADS_URL + encodeURIComponent(doc.fileName) : '#');
+      var canDelete = doc.source === 'draft' || doc.source === 'legacy';
       div.innerHTML =
         '<div class="docmgr-item-title" title="' + _escHtml(displayFileName) + '">' +
         badgeHtml +
@@ -267,23 +324,35 @@ var DocumentManagerPage = (function () {
         '<span>' + dateStr + '</span>' +
         '</div>' +
         '<div class="docmgr-item-actions">' +
-        '<a class="docmgr-download" href="' + DOC_CONFIG.UPLOADS_URL + encodeURIComponent(doc.fileName) + '" download="' + _escHtml(displayFileName) + '" title="Tải xuống" onclick="event.stopPropagation()">' +
+        (downloadUrl !== '#' ? '<a class="docmgr-download" href="' + downloadUrl + '" download="' + _escHtml(displayFileName) + '" title="Tải xuống" onclick="event.stopPropagation()">' +
         '<span class="material-symbols-outlined" style="font-size:16px;">download</span>' +
-        '</a>' +
-        '<button class="docmgr-del" title="Xóa tài liệu">' +
+        '</a>' : '') +
+        (canDelete ? '<button class="docmgr-del" title="Xóa tài liệu">' : '') +
+        (canDelete ?
         '<span class="material-symbols-outlined" style="font-size:16px;">delete</span>' +
-        '</button>' +
+        '</button>' : '') +
         '</div>';
 
-      div.addEventListener('click', function () { _openEditor(doc.fileName, doc); });
+      div.addEventListener('click', function () {
+        if (doc.source === 'draft') ContractDocumentActions.moBanNhap(doc).catch(function (error) { thongBaoWorkspace(error.message); });
+        else if (doc.source === 'saved') window.open(ContractDocumentApi.attachmentFileUrl(doc.userAutoID, false), '_blank', 'noopener');
+        else if (doc.source === 'template') ContractDocumentActions.moTrinhSuaMau(doc.templateFile).catch(function (error) { thongBaoWorkspace(error.message); });
+        else _openEditor(doc.fileName, doc);
+      });
       var delBtn = div.querySelector('.docmgr-del');
       if (delBtn) delBtn.addEventListener('click', function (e) {
         e.stopPropagation();
-        _deleteDocument(doc.fileName);
+        if (doc.source === 'draft') {
+          ContractDocumentApi.deleteDraft(doc.draftId).then(_loadWorkspaceTab).catch(function (error) { thongBaoWorkspace(error.message); });
+        } else _deleteDocument(doc.fileName);
       });
 
       list.appendChild(div);
     });
+  }
+
+  function thongBaoWorkspace(message) {
+    if (typeof Alert !== 'undefined') Alert.error('Workspace tài liệu', message || 'Không thể mở tài liệu.');
   }
   function _openEditor(fileName, documentRecord) {
     _currentFile = fileName;

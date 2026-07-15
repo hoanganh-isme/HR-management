@@ -7,16 +7,25 @@ import { fileURLToPath } from 'url';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import crypto from 'crypto';
+import { documentConfig } from './src/config/document-config.js';
+import { SqlGatewayClient } from './src/gateway/sql-gateway-client.js';
+import { ContractDocumentRepository } from './src/contracts/contract-document.repository.js';
+import { ContractDraftRepository } from './src/contracts/contract-draft.repository.js';
+import { ContractDocumentService } from './src/contracts/contract-document.service.js';
+import { dangKyContractDocumentRoutes } from './src/contracts/contract-document.controller.js';
+import { TemplateWorkspaceRepository } from './src/contracts/template-workspace.repository.js';
+import { TemplateWorkspaceService } from './src/contracts/template-workspace.service.js';
+import { dangKyTemplateWorkspaceRoutes } from './src/contracts/template-workspace.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 8081;
+const PORT = documentConfig.port;
 
 // Setup directories
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const SAMPLES_DIR = path.join(__dirname, 'samples');
+const UPLOADS_DIR = documentConfig.uploadsDir;
+const SAMPLES_DIR = documentConfig.samplesDir;
 
 [UPLOADS_DIR, SAMPLES_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -54,7 +63,7 @@ app.use('/samples', function (req, res, next) {
     next();
 }, express.static(SAMPLES_DIR));
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
@@ -64,38 +73,14 @@ app.use((err, req, res, next) => {
     next();
 });
 
-let SQL_API_BASE;
-const SQL_API_USER = 'admin';
+const SQL_API_BASE = documentConfig.sqlApiBase;
+const SQL_API_USER = documentConfig.sqlApiUser;
 
-// Load env.js config
-try {
-    const possiblePaths = [
-        path.join(__dirname, '../env.js'),
-        path.join(__dirname, 'env.js'),
-        '/env.js',
-        '/app/env.js'
-    ];
-    let envJsPath = null;
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
-            envJsPath = p;
-            break;
-        }
-    }
-    if (!envJsPath) {
-        throw new Error(`Không tìm thấy file env.js ở bất kỳ đường dẫn nào: ${possiblePaths.join(', ')}`);
-    }
-    const envContent = fs.readFileSync(envJsPath, 'utf8');
-    const matchBase = envContent.match(/API_BASE\s*:\s*['"`](.*?)['"`]/);
-    if (!matchBase || !matchBase[1]) {
-        throw new Error('Không tìm thấy API_BASE trong file env.js!');
-    }
-    SQL_API_BASE = matchBase[1].trim();
-    console.log(`[CONFIG] Đã tải SQL_API_BASE từ env.js (${envJsPath}): ${SQL_API_BASE}`);
-} catch (err) {
-    console.error('[CRITICAL] Không thể chạy server vì thiếu cấu hình env.js:', err.message);
+if (!SQL_API_BASE) {
+    console.error('[CRITICAL] Không thể chạy server vì thiếu SQL_API_BASE và không đọc được API_BASE từ env.js.');
     process.exit(1);
 }
+console.log(`[CONFIG] SQL_API_BASE: ${SQL_API_BASE}`);
 
 function extractUserName(req) {
     const authHeader = req.headers.authorization;
@@ -125,7 +110,7 @@ const BRANCH_CACHE_TTL = 5 * 60 * 1000; // 5 phút
  * - Trả về []    → user bị disable hoặc không tồn tại (chặn)
  * - Trả về ['CN001','CN002'] → chỉ được xem các branch này
  */
-async function getUserBranchesFromDB(req) {
+async function getUserBranchesFromDB(req, options = {}) {
     const userName = extractUserName(req);
     const now = Date.now();
     const cached = _userBranchCache.get(userName);
@@ -147,6 +132,10 @@ async function getUserBranchesFromDB(req) {
             const uname = r.UserName || r.username || r.USERNAME || '';
             return uname.toLowerCase() === userName.toLowerCase();
         }) || rows[0];
+
+        if (!user && options.failClosed) {
+            throw new Error(`Không tìm thấy tài khoản '${userName}' trong SY_User.`);
+        }
 
         let branches = null; // null = xem tất cả (admin)
         if (user) {
@@ -174,8 +163,20 @@ async function getUserBranchesFromDB(req) {
         return branches;
     } catch (err) {
         console.error('[BRANCH] Lỗi lấy branch từ SY_User:', err.message);
+        if (options.failClosed) throw err;
         return null; // Fail-open: nếu lỗi DB thì không chặn
     }
+}
+
+async function getUserContractPermissionsFromDB(req) {
+    const userName = extractUserName(req);
+    const headers = req.headers.authorization ? { Authorization: req.headers.authorization } : {};
+    const response = await axios.post(`${SQL_API_BASE}/api/API_LayQuyenCuaToi`, {
+        Username: userName
+    }, { headers, timeout: 10000 });
+    const body = response.data || {};
+    const records = body.records || body.data || (Array.isArray(body) ? body : []);
+    return records.find((permission) => String(permission.FormName || '').toLowerCase() === 'wa_hopdonglaodongfrm') || null;
 }
 
 let _setupCache = null;
@@ -546,35 +547,39 @@ app.post('/api/documents/generate', async (req, res) => {
         fs.writeFileSync(outputPath, buf);
         console.log(`[GENERATE] 📁 Lưu vào branch folder: ${targetBranch}/`);
 
-        // Ghi Log vào HR_Documents
-        try {
-            const fileHash = crypto.createHash('sha256').update(buf).digest('hex');
-            const refId = dataMap.MaHopDong || dataMap.maHopDong || customerId || '';
-            const userName = extractUserName(req);
-            const docData = {
-                RefID: refId,
-                DocType: templateType,
-                VersionNo: null,
-                FilePath: `${targetBranch}/${finalFileName}`,
-                BranchID: targetBranch,
-                FileHash: fileHash,
-                Status: 'ACTIVE',
-                GeneratedBy: userName
-            };
-            const payload = {
-                List: 'HR_Documents',
-                Func: 'Save',
-                UserName: userName,
-                JsonData: JSON.stringify(docData)
-            };
-            const headers = {};
-            if (req.headers && req.headers.authorization) {
-                headers['Authorization'] = req.headers.authorization;
+        // Luồng tương thích cũ; mặc định tắt vì HR_Documents chưa có dữ liệu nghiệp vụ.
+        if (documentConfig.useLegacyHrDocuments) {
+            try {
+                const fileHash = crypto.createHash('sha256').update(buf).digest('hex');
+                const refId = dataMap.MaHopDong || dataMap.maHopDong || customerId || '';
+                const userName = extractUserName(req);
+                const docData = {
+                    RefID: refId,
+                    DocType: templateType,
+                    VersionNo: null,
+                    FilePath: `${targetBranch}/${finalFileName}`,
+                    BranchID: targetBranch,
+                    FileHash: fileHash,
+                    Status: 'ACTIVE',
+                    GeneratedBy: userName
+                };
+                const payload = {
+                    List: 'HR_Documents',
+                    Func: 'Save',
+                    UserName: userName,
+                    JsonData: JSON.stringify(docData)
+                };
+                const headers = {};
+                if (req.headers && req.headers.authorization) headers.Authorization = req.headers.authorization;
+                const auditResponse = await axios.post(`${SQL_API_BASE}/api/API_Gateway_Router`, payload, { headers });
+                if (auditResponse.data && Number(auditResponse.data.code) !== 0) {
+                    throw new Error(auditResponse.data.msg || 'HR_Documents Save thất bại.');
+                }
+                console.log(`[AUDIT] ✅ Đã lưu vết Sổ lưu trữ cho file ${finalFileName}`);
+            } catch (err) {
+                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                throw new Error(`Không thể ghi HR_Documents: ${err.message}`);
             }
-            await axios.post(`${SQL_API_BASE}/api/API_Gateway_Router`, payload, { headers });
-            console.log(`[AUDIT] ✅ Đã lưu vết Sổ lưu trữ cho file ${finalFileName}`);
-        } catch (err) {
-            console.error(`[AUDIT] ❌ Lỗi ghi log:`, err.message);
         }
 
         console.log(`[GENERATE] ✅ Tạo thành công: ${finalFileName}`);
@@ -619,7 +624,7 @@ async function _handleDeleteDocument(req, res) {
 
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
-            try {
+            if (documentConfig.useLegacyHrDocuments) try {
                 let parsedRefID = 'UNKNOWN';
                 let parsedDocType = 'UNKNOWN';
                 const nameWithoutExt = fileNameOnly.replace(/\.[^/.]+$/, '');
@@ -650,6 +655,7 @@ async function _handleDeleteDocument(req, res) {
                 console.log(`[AUDIT] 🪦 Đã dán nhãn XÓA cho file ${rawFileName}`);
             } catch (err) {
                 console.error('[AUDIT] ❌ Lỗi cập nhật bia mộ:', err.message);
+                return res.status(500).json({ success: false, message: `Đã xóa file nhưng không cập nhật được HR_Documents: ${err.message}` });
             }
             res.json({ success: true, message: 'Xóa thành công!' });
         } else {
@@ -766,6 +772,49 @@ function findTemplatePath(baseDir, templateName) {
     return findRecursive(baseDir);
 }
 
+const sqlGatewayClient = new SqlGatewayClient({
+    baseUrl: documentConfig.sqlApiBase,
+    defaultUser: documentConfig.sqlApiUser
+});
+const contractDocumentRepository = new ContractDocumentRepository(sqlGatewayClient);
+const contractDraftRepository = new ContractDraftRepository(documentConfig.draftsDir);
+const contractDocumentService = new ContractDocumentService({
+    config: documentConfig,
+    contractRepository: contractDocumentRepository,
+    draftRepository: contractDraftRepository,
+    layThongTinSetup: fetchSetupInfo
+});
+
+dangKyContractDocumentRoutes(app, {
+    service: contractDocumentService,
+    extractUserName,
+    getUserBranchesFromDB,
+    getUserContractPermissionsFromDB
+});
+
+const templateWorkspaceRepository = new TemplateWorkspaceRepository(documentConfig.templateWorkspacesDir);
+const templateWorkspaceService = new TemplateWorkspaceService({
+    config: documentConfig,
+    contractRepository: contractDocumentRepository,
+    workspaceRepository: templateWorkspaceRepository
+});
+dangKyTemplateWorkspaceRoutes(app, {
+    service: templateWorkspaceService,
+    extractUserName,
+    getUserBranchesFromDB,
+    getUserContractPermissionsFromDB
+});
+
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'HR Document API',
+        sqlApiConfigured: Boolean(documentConfig.sqlApiBase),
+        onlyOfficePublicUrl: documentConfig.onlyOfficePublicUrl,
+        legacyHrDocumentsEnabled: documentConfig.useLegacyHrDocuments
+    });
+});
+
 app.get('/', (req, res) => {
     res.json({
         service: 'HR Document API',
@@ -774,7 +823,10 @@ app.get('/', (req, res) => {
             list: 'GET /api/documents',
             generate: 'POST /api/documents/generate',
             delete: 'DELETE /api/documents/:fileName',
-            callback: 'POST /api/documents/callback'
+            callback: 'POST /api/documents/callback',
+            createContractDraft: 'POST /api/contract-drafts',
+            finalizeContractDraft: 'POST /api/contract-drafts/:draftId/finalize',
+            contractAttachment: 'GET /api/contract-attachments/:userAutoID/file'
         }
     });
 });
@@ -787,5 +839,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`[📁] Uploads: ${UPLOADS_DIR}`);
     console.log(`[📁] Samples: ${SAMPLES_DIR}`);
     console.log(`[🔗] SQL API: ${SQL_API_BASE}`);
+    console.log(`[📝] Contract drafts: ${documentConfig.draftsDir}`);
+    console.log(`[📄] OnlyOffice: ${documentConfig.onlyOfficePublicUrl}`);
     console.log('=======================================================');
 });

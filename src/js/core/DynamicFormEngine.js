@@ -268,6 +268,8 @@ window.DynamicFormEngine = (function () {
   function _renderAttachmentsTab(tabDef, container, isEditable, row) {
     container.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải tệp đính kèm...</div>';
     var attachmentConfig = (MODULE_CONFIG.attachments && (MODULE_CONFIG.attachments[tabDef.code] || MODULE_CONFIG.attachments.default)) || {};
+    var metadataApi = tabDef.metadataApi || attachmentConfig.metadataApi || tabDef.api;
+    var fileApi = tabDef.fileApi || attachmentConfig.fileApi || '';
     var pkField = tabDef.ownerField || attachmentConfig.ownerField || MODULE_CONFIG.PrimaryKey || 'id';
     var pkVal = row[pkField] || '';
     var filterData = {};
@@ -313,8 +315,23 @@ window.DynamicFormEngine = (function () {
       }
     }
 
+    function _loadAttachmentContent(fileItem) {
+      var contentUrl = _getContentAsBlobUrl(fileItem);
+      if (contentUrl || !fileApi) return Promise.resolve(contentUrl);
+      var rowId = fileItem[tabDef.rowIdField || attachmentConfig.rowIdField || 'id'];
+      return GatewayClient.run({ sp: fileApi, func: 'View' }, { UserAutoID: rowId }, {
+        endpoint: MODULE_CONFIG.ApiSearch,
+        limit: 1
+      }).then(function (fileResponse) {
+        var fileRecords = fileResponse.list || fileResponse.records || [];
+        if (!fileRecords.length) return '';
+        Object.keys(fileRecords[0]).forEach(function (fieldName) { fileItem[fieldName] = fileRecords[0][fieldName]; });
+        return _getContentAsBlobUrl(fileItem);
+      });
+    }
+
     function _loadAttachments() {
-      GatewayClient.run({ sp: tabDef.api, func: 'View' }, filterData, {
+      GatewayClient.run({ sp: metadataApi, func: 'View' }, filterData, {
         endpoint: MODULE_CONFIG.ApiSearch,
         limit: 500
       }).then(function (res) {
@@ -383,7 +400,7 @@ window.DynamicFormEngine = (function () {
             var actions = document.createElement('div');
             actions.style.cssText = 'display: flex; gap: 4px;';
 
-            if (blobUrl) {
+            if (blobUrl || fileApi) {
               // Icon mắt (Xem trước/Preview) cho Ảnh hoặc PDF
               var ext = (fileItem.FileName || '').split('.').pop().toLowerCase();
               var isPdf = ext === 'pdf';
@@ -395,11 +412,11 @@ window.DynamicFormEngine = (function () {
                 btnPreview.title = 'Xem trực tiếp';
                 btnPreview.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>';
                 btnPreview.onclick = function () {
-                  if (isImage) {
-                    _showImageZoom(blobUrl);
-                  } else if (isPdf) {
-                    window.open(blobUrl, '_blank');
-                  }
+                  _loadAttachmentContent(fileItem).then(function (loadedUrl) {
+                    if (!loadedUrl) return;
+                    if (isImage) _showImageZoom(loadedUrl);
+                    else if (isPdf) window.open(loadedUrl, '_blank');
+                  });
                 };
                 actions.appendChild(btnPreview);
               }
@@ -411,12 +428,15 @@ window.DynamicFormEngine = (function () {
               btnDownload.title = 'Tải xuống';
               btnDownload.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">download</span>';
               btnDownload.onclick = function () {
-                var a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = fileItem.FileName || 'download';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                _loadAttachmentContent(fileItem).then(function (loadedUrl) {
+                  if (!loadedUrl) return;
+                  var a = document.createElement('a');
+                  a.href = loadedUrl;
+                  a.download = fileItem.FileName || 'download';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                });
               };
               actions.appendChild(btnDownload);
             }
@@ -558,7 +578,7 @@ window.DynamicFormEngine = (function () {
     }
 
     function _executeUpload(file, hexStr, base64Content, fileTypeNum) {
-      GatewayClient.run({ sp: tabDef.api, func: 'View' }, filterData, {
+      GatewayClient.run({ sp: metadataApi, func: 'View' }, filterData, {
         endpoint: MODULE_CONFIG.ApiSearch,
         limit: 500
       }).then(function (cntRes) {
@@ -594,6 +614,17 @@ window.DynamicFormEngine = (function () {
       });
     }
 
+    if (typeof EventBus !== 'undefined' && !container.dataset.contractAttachmentRefreshBound) {
+      var refreshAttachmentTab = function (eventData) {
+        if (!document.body.contains(container)) {
+          EventBus.off('contract:attachment-saved', refreshAttachmentTab);
+          return;
+        }
+        if (!eventData || String(eventData.maHopDong || '') === String(pkVal || '')) _loadAttachments();
+      };
+      EventBus.on('contract:attachment-saved', refreshAttachmentTab);
+      container.dataset.contractAttachmentRefreshBound = 'true';
+    }
     _loadAttachments();
   }
 
@@ -2922,11 +2953,11 @@ window.DynamicFormEngine = (function () {
           }
           /* Button styling */
           .btn { border-radius: 8px !important; font-weight: 500 !important; height: 38px !important; padding: 0 16px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; white-space: nowrap !important; flex-shrink: 0 !important; }
-          
+
           @media (min-width: 769px) {
             .mobile-action-trigger { display: none !important; }
           }
-          
+
           /* --- MOBILE RESPONSIVE STYLES --- */
           @media (max-width: 768px) {
             .group-card > div, .group-card-other > div, .dynamic-form-grid {

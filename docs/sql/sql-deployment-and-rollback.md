@@ -11,6 +11,11 @@ Core CRUD phải được cài đủ `API_TruyVanDong`, `API_LuuDong` và `API_X
 trước `API_LuuMenu`. `API_DangKyFormWeb` sẽ từ chối đăng ký nếu một operation
 tham chiếu tới SP chưa tồn tại.
 
+Đối với tài liệu hợp đồng, cài ba SP `API_HopDongLaoDong_Attach_Metadata`,
+`API_HopDongLaoDong_Attach_File`, `API_HopDongLaoDong_Attach_Save` trước khi
+chạy `sql/Modules/Contract/register_ContractDocumentStorage.sql`. Script này
+chưa được tự động chạy trên database thật.
+
 Ví dụ kiểm tra form phép năm:
 
 ```sql

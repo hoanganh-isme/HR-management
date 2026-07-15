@@ -543,455 +543,360 @@ var Permission = (function () {
   };
 })();
 
-/* --- js/utils/DocumentExportPlugin.js --- */
+/* --- js/modules/contracts/contract-document.api.js --- */
 /**
- * DocumentExportPlugin (HR-management Version)
- * ─────────────────────────────────────────────────────────────────────
- * Plugin cấu hình nút "Xuất tài liệu" cho các form quản lý nhân sự:
- *   WA_HopDongLaoDongFrm → Hợp đồng lao động & Thử việc (PK: MaHopDong)
+ * Trách nhiệm: gọi Contract Document API từ frontend.
+ * Đầu vào: mã hợp đồng, draftId và thao tác tài liệu.
+ * Đầu ra: JSON hoặc lỗi nghiệp vụ đã đọc.
+ * Nơi gọi: ContractDocumentActions và Workspace tài liệu.
  */
-var DocumentExportPlugin = (function () {
-  var DOC_API_BASE = window.API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER.BASE_API;
+window.ContractDocumentApi = (function () {
+  var documentConfig = window.API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
 
-  var FORM_CONFIG = {
-    'WA_HopDongLaoDongFrm': {
-      docType: 'HR_HopDongLaoDongReport',
-      label: 'Xuất Hợp Đồng',
-      icon: 'description',
-      altKeys: ['MaHopDong', 'maHopDong'],
-      sqlListName: 'WA_HopDongLaoDongFrm',
-      convertFields: []
+  function layToken() {
+    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') return ApiClient.getCookie('auth_token') || '';
+    var ketQua = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
+    return ketQua ? decodeURIComponent(ketQua[1]) : '';
+  }
+
+  function goi(path, options) {
+    options = options || {};
+    var headers = Object.assign({}, options.headers || {});
+    headers['Content-Type'] = 'application/json';
+    var token = layToken();
+    if (token) headers.Authorization = 'Bearer ' + token;
+
+    return fetch(documentConfig.CONTRACT_API_BASE + path, {
+      method: options.method || 'GET',
+      headers: headers,
+      credentials: 'include',
+      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (json) {
+        if (!response.ok || json.success === false) {
+          var error = new Error(json.message || 'Contract Document API trả về lỗi.');
+          error.status = response.status;
+          error.code = json.code;
+          throw error;
+        }
+        return json;
+      });
+    });
+  }
+
+  return {
+    listTemplates: function () { return goi('/contract-templates'); },
+    createDraft: function (payload) { return goi('/contract-drafts', { method: 'POST', body: payload }); },
+    listDrafts: function () { return goi('/contract-drafts'); },
+    editorConfig: function (draftId) { return goi('/contract-drafts/' + encodeURIComponent(draftId) + '/editor-config'); },
+    draftStatus: function (draftId) { return goi('/contract-drafts/' + encodeURIComponent(draftId) + '/status'); },
+    finalizeDraft: function (draftId) { return goi('/contract-drafts/' + encodeURIComponent(draftId) + '/finalize', { method: 'POST', body: {} }); },
+    deleteDraft: function (draftId) { return goi('/contract-drafts/' + encodeURIComponent(draftId), { method: 'DELETE' }); },
+    listSavedAttachments: function (maHopDong) {
+      var query = maHopDong ? '?maHopDong=' + encodeURIComponent(maHopDong) : '';
+      return goi('/contract-attachments' + query);
+    },
+    attachmentMetadata: function (userAutoID) { return goi('/contract-attachments/' + encodeURIComponent(userAutoID)); },
+    createTemplateWorkspace: function (templateFile) { return goi('/contract-template-workspaces', { method: 'POST', body: { templateFile: templateFile } }); },
+    templateEditorConfig: function (workspaceId) { return goi('/contract-template-workspaces/' + encodeURIComponent(workspaceId) + '/editor-config'); },
+    templateWorkspaceStatus: function (workspaceId) { return goi('/contract-template-workspaces/' + encodeURIComponent(workspaceId) + '/status'); },
+    templatePlaceholders: function (workspaceId) { return goi('/contract-template-workspaces/' + encodeURIComponent(workspaceId) + '/placeholders'); },
+    applyTemplateWorkspace: function (workspaceId) { return goi('/contract-template-workspaces/' + encodeURIComponent(workspaceId) + '/apply', { method: 'POST', body: {} }); },
+    deleteTemplateWorkspace: function (workspaceId) { return goi('/contract-template-workspaces/' + encodeURIComponent(workspaceId), { method: 'DELETE' }); },
+    attachmentFileUrl: function (userAutoID, download) {
+      return documentConfig.CONTRACT_API_BASE + '/contract-attachments/' + encodeURIComponent(userAutoID) + '/file' + (download ? '?download=1' : '');
     }
   };
+})();
 
-  function _getPrimaryKey(row, config) {
-    if (!row) return null;
-    for (var i = 0; i < config.altKeys.length; i++) {
-      var v = row[config.altKeys[i]];
-      if (v !== undefined && v !== null && v !== '') return String(v);
+/* --- js/modules/contracts/contract-document.actions.js --- */
+/**
+ * Trách nhiệm: điều phối giao diện chọn mẫu, OnlyOffice và finalize hợp đồng.
+ * Đầu vào: dòng hợp đồng từ form WA_HopDongLaoDongFrm.
+ * Đầu ra: draft được lưu chính thức hoặc thông báo lỗi để thử lại.
+ * Nơi gọi: DocumentExportPlugin và nút xuất hợp đồng.
+ */
+window.ContractDocumentActions = (function () {
+  var editorInstance = null;
+  var activeDraftId = null;
+  var activeEditorConfig = null;
+  var activeTemplateWorkspaceId = null;
+
+  function layMaHopDong(row) {
+    return row && (row.MaHopDong || row.maHopDong) ? String(row.MaHopDong || row.maHopDong) : '';
+  }
+
+  function thongBao(message, type) {
+    if (typeof Toast !== 'undefined') Toast.show({ message: message, type: type || 'info' });
+    else if (typeof Alert !== 'undefined') (type === 'error' ? Alert.error('Lỗi', message) : Alert.warning('Thông báo', message));
+  }
+
+  function dongEditor() {
+    if (editorInstance && typeof editorInstance.destroyEditor === 'function') {
+      try { editorInstance.destroyEditor(); } catch (error) { /* OnlyOffice đã tự đóng */ }
     }
-    return null;
+    editorInstance = null;
+    var overlay = document.getElementById('contract-document-editor-overlay');
+    if (overlay) overlay.remove();
+    activeDraftId = null;
+    activeTemplateWorkspaceId = null;
+    activeEditorConfig = null;
   }
 
-  function _showTemplateSelectModal(row, config, onConfirm) {
-    // Gọi API Gateway để lấy danh sách file mẫu cấu hình dưới CSDL
-    var endpoint = (window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER)
-      ? window.API_CONFIG.ENDPOINTS.ROUTER
-      : '/api/API_Gateway_Router';
-
-    // Tạo overlay nền mờ chờ tải dữ liệu (loading overlay)
-    var overlay = document.createElement('div');
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.backgroundColor = 'rgba(15, 23, 42, 0.45)';
-    overlay.style.backdropFilter = 'blur(4px)';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    overlay.style.zIndex = '999999';
-
-    var loadingText = document.createElement('div');
-    loadingText.style.color = '#ffffff';
-    loadingText.style.fontSize = '16px';
-    loadingText.style.fontWeight = '600';
-    loadingText.innerText = 'Đang tải danh sách mẫu...';
-    overlay.appendChild(loadingText);
-    document.body.appendChild(overlay);
-
-    GatewayClient.run({ sp: 'HR_HopDongAddfile', func: 'View' }, undefined, {
-      endpoint: endpoint,
-      keyword: config.sqlListName || 'WA_HopDongLaoDongFrm'
-    })
-      .then(function (res) {
-        // Gỡ loading text
-        overlay.removeChild(loadingText);
-
-        var records = [];
-        if (res && res.records) records = res.records;
-        else if (res && res.data) records = res.data;
-        else if (Array.isArray(res)) records = res;
-
-        var templates = [];
-        if (records.length > 0) {
-          templates = records.map(function (r) {
-            return {
-              id: r.TemplateFile || r.templateFile || r.templatefile,
-              name: r.GhiChu || r.ghiChu || r.ghichu || r.TemplateFile || r.templateFile || r.templatefile,
-              loaiHD: r.LoaiHD || r.loaiHD || r.loaihd
-            };
-          });
-        } else {
-          // Không có mẫu cấu hình dưới CSDL, hiển thị thông báo lỗi
-          var errBox = document.createElement('div');
-          errBox.style.backgroundColor = '#ffffff';
-          errBox.style.padding = '24px';
-          errBox.style.borderRadius = '12px';
-          errBox.style.textAlign = 'center';
-          errBox.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1)';
-          errBox.style.fontFamily = '"Inter", system-ui, -apple-system, sans-serif';
-          
-          var errMsg = document.createElement('p');
-          errMsg.innerText = 'Không tìm thấy mẫu hợp đồng nào được cấu hình trong CSDL (bảng HR_HopDongAddfile).';
-          errMsg.style.color = '#ef4444';
-          errMsg.style.fontSize = '14px';
-          errMsg.style.fontWeight = '500';
-          errMsg.style.margin = '0 0 16px 0';
-          errBox.appendChild(errMsg);
-          
-          var btnClose = document.createElement('button');
-          btnClose.innerText = 'Đóng';
-          btnClose.style.padding = '8px 18px';
-          btnClose.style.borderRadius = '8px';
-          btnClose.style.border = 'none';
-          btnClose.style.backgroundColor = '#64748b';
-          btnClose.style.color = '#ffffff';
-          btnClose.style.fontSize = '14px';
-          btnClose.style.fontWeight = '600';
-          btnClose.style.cursor = 'pointer';
-          btnClose.addEventListener('click', function () {
-            document.body.removeChild(overlay);
-          });
-          errBox.appendChild(btnClose);
-          overlay.appendChild(errBox);
-          return;
-        }
-
-        // --- XÂY DỰNG MODAL GIAO DIỆN CHỌN MẪU ---
-        var container = document.createElement('div');
-        container.style.backgroundColor = '#ffffff';
-        container.style.padding = '28px';
-        container.style.borderRadius = '12px';
-        container.style.width = '460px';
-        container.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)';
-        container.style.fontFamily = '"Inter", system-ui, -apple-system, sans-serif';
-
-        var title = document.createElement('h3');
-        title.innerText = 'Chọn mẫu in Hợp đồng';
-        title.style.margin = '0 0 8px 0';
-        title.style.fontSize = '18px';
-        title.style.fontWeight = '600';
-        title.style.color = '#0f172a';
-        container.appendChild(title);
-
-        var desc = document.createElement('p');
-        desc.innerText = 'Chọn một trong các mẫu hợp đồng dưới đây để xuất file:';
-        desc.style.margin = '0 0 20px 0';
-        desc.style.fontSize = '14px';
-        desc.style.color = '#64748b';
-        container.appendChild(desc);
-
-        var radioGroup = document.createElement('div');
-        radioGroup.style.display = 'flex';
-        radioGroup.style.flexDirection = 'column';
-        radioGroup.style.gap = '10px';
-        radioGroup.style.margin = '0 0 24px 0';
-
-        // Xác định mẫu được đề xuất dựa trên LoaiHD / LoaiHopDong từ dòng dữ liệu
-        var rowLoaiHD = (row.LoaiHD || row.LoaiHopDong || '').toString().toLowerCase();
-
-        var selectedId = templates[0].id;
-        var matched = null;
-
-        // Ưu tiên khớp chính xác theo LoaiHD/LoaiHopDong cấu hình CSDL
-        for (var i = 0; i < templates.length; i++) {
-          var tLoai = (templates[i].loaiHD || '').toLowerCase();
-          if (tLoai && (rowLoaiHD.includes(tLoai) || tLoai.includes(rowLoaiHD))) {
-            matched = templates[i];
-            break;
-          }
-        }
-
-        if (matched) {
-          selectedId = matched.id;
-        }
-
-        templates.forEach(function (tpl) {
-          var label = document.createElement('label');
-          label.style.display = 'flex';
-          label.style.alignItems = 'center';
-          label.style.gap = '12px';
-          label.style.cursor = 'pointer';
-          label.style.fontSize = '14px';
-          label.style.color = '#334155';
-          label.style.padding = '12px 14px';
-          label.style.borderRadius = '8px';
-          label.style.border = '1px solid #e2e8f0';
-          label.style.transition = 'all 0.15s ease';
-          
-          var radio = document.createElement('input');
-          radio.type = 'radio';
-          radio.name = 'tplSelect';
-          radio.value = tpl.id;
-          radio.style.cursor = 'pointer';
-          radio.style.margin = '0';
-          
-          var textSpan = document.createElement('span');
-          textSpan.innerText = tpl.name;
-          textSpan.style.fontWeight = '500';
-
-          if (tpl.id === selectedId) {
-            radio.checked = true;
-            label.style.borderColor = '#3b82f6';
-            label.style.backgroundColor = '#eff6ff';
-            textSpan.style.color = '#1d4ed8';
-            
-            var badge = document.createElement('span');
-            badge.innerText = 'Đề xuất';
-            badge.style.marginLeft = 'auto';
-            badge.style.fontSize = '11px';
-            badge.style.backgroundColor = '#dbeafe';
-            badge.style.color = '#1e40af';
-            badge.style.padding = '2px 8px';
-            badge.style.borderRadius = '9999px';
-            badge.style.fontWeight = '600';
-            
-            label.appendChild(radio);
-            label.appendChild(textSpan);
-            label.appendChild(badge);
-          } else {
-            label.appendChild(radio);
-            label.appendChild(textSpan);
-          }
-
-          radio.addEventListener('change', function () {
-            var labels = radioGroup.querySelectorAll('label');
-            labels.forEach(function (l) {
-              l.style.borderColor = '#e2e8f0';
-              l.style.backgroundColor = 'transparent';
-              var span = l.querySelector('span:not([style*="margin-left"])');
-              if (span) span.style.color = '#334155';
-              var bg = l.querySelector('span[style*="margin-left"]');
-              if (bg) l.removeChild(bg);
-            });
-
-            if (radio.checked) {
-              label.style.borderColor = '#3b82f6';
-              label.style.backgroundColor = '#eff6ff';
-              textSpan.style.color = '#1d4ed8';
-            }
-          });
-
-          radioGroup.appendChild(label);
-        });
-        container.appendChild(radioGroup);
-
-        var actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.justifyContent = 'flex-end';
-        actions.style.gap = '12px';
-
-        var btnCancel = document.createElement('button');
-        btnCancel.innerText = 'Hủy';
-        btnCancel.style.padding = '10px 18px';
-        btnCancel.style.borderRadius = '8px';
-        btnCancel.style.border = '1px solid #cbd5e1';
-        btnCancel.style.backgroundColor = '#ffffff';
-        btnCancel.style.cursor = 'pointer';
-        btnCancel.style.fontSize = '14px';
-        btnCancel.style.fontWeight = '600';
-        btnCancel.style.color = '#475569';
-        btnCancel.addEventListener('click', function () {
-          document.body.removeChild(overlay);
-        });
-
-        var btnConfirm = document.createElement('button');
-        btnConfirm.innerText = 'Xuất Hợp Đồng';
-        btnConfirm.style.padding = '10px 18px';
-        btnConfirm.style.borderRadius = '8px';
-        btnConfirm.style.border = 'none';
-        btnConfirm.style.backgroundColor = '#3b82f6';
-        btnConfirm.style.cursor = 'pointer';
-        btnConfirm.style.fontSize = '14px';
-        btnConfirm.style.fontWeight = '600';
-        btnConfirm.style.color = '#ffffff';
-        btnConfirm.addEventListener('click', function () {
-          var selectedRadio = radioGroup.querySelector('input[name="tplSelect"]:checked');
-          if (selectedRadio) {
-            onConfirm(selectedRadio.value);
-          }
-          document.body.removeChild(overlay);
-        });
-
-        actions.appendChild(btnCancel);
-        actions.appendChild(btnConfirm);
-        container.appendChild(actions);
-
-        overlay.appendChild(container);
-      })
-      .catch(function (err) {
-        console.error('[DocumentExportPlugin] Lỗi tải mẫu CSDL:', err);
-        overlay.removeChild(loadingText);
-        
-        // Hiện thông báo lỗi và tự động gỡ overlay
-        var errBox = document.createElement('div');
-        errBox.style.backgroundColor = '#ffffff';
-        errBox.style.padding = '24px';
-        errBox.style.borderRadius = '8px';
-        errBox.style.textAlign = 'center';
-        
-        var errMsg = document.createElement('p');
-        errMsg.innerText = 'Không thể kết nối đến máy chủ hoặc tải danh sách mẫu từ CSDL.';
-        errMsg.style.color = '#ef4444';
-        errMsg.style.margin = '0 0 16px 0';
-        errBox.appendChild(errMsg);
-        
-        var btnClose = document.createElement('button');
-        btnClose.innerText = 'Đóng';
-        btnClose.style.padding = '8px 16px';
-        btnClose.style.borderRadius = '6px';
-        btnClose.style.border = 'none';
-        btnClose.style.backgroundColor = '#6b7280';
-        btnClose.style.color = '#ffffff';
-        btnClose.style.cursor = 'pointer';
-        btnClose.addEventListener('click', function () {
-          document.body.removeChild(overlay);
-        });
-        errBox.appendChild(btnClose);
-        overlay.appendChild(errBox);
-      });
-  }
-
-  function _generateDocument(row, config) {
-    var docId = _getPrimaryKey(row, config);
-    if (!docId) {
-      if (typeof Alert !== 'undefined') {
-        Alert.error('Lỗi', 'Không tìm thấy mã chứng từ của dòng này. Kiểm tra lại cấu hình primaryKey.');
-      } else {
-        alert('Không tìm thấy ID của dòng này!');
+  function taiOnlyOfficeApi(documentServerUrl) {
+    return new Promise(function (resolve, reject) {
+      if (window.DocsAPI) { resolve(); return; }
+      var currentScript = document.getElementById('__contract_onlyoffice_api__');
+      if (currentScript) {
+        var attempts = 0;
+        var interval = setInterval(function () {
+          if (window.DocsAPI) { clearInterval(interval); resolve(); }
+          else if (++attempts > 60) { clearInterval(interval); reject(new Error('Không tải được OnlyOffice API.')); }
+        }, 250);
+        return;
       }
-      return;
-    }
+      var script = document.createElement('script');
+      script.id = '__contract_onlyoffice_api__';
+      script.src = String(documentServerUrl).replace(/\/+$/, '') + '/web-apps/apps/api/documents/api.js';
+      script.onload = function () { resolve(); };
+      script.onerror = function () { reject(new Error('Không thể kết nối OnlyOffice Document Server.')); };
+      document.head.appendChild(script);
+    });
+  }
 
-    // Đọc tên file mẫu từ dữ liệu dòng hoặc cấu hình
-    var actualDocType = config.docType;
-    if (row.TemplateFile && !config.ignoreTemplateFile) {
-      actualDocType = row.TemplateFile;
-    } else if (typeof config.getDocType === 'function') {
-      actualDocType = config.getDocType(row);
-    }
+  function taoKhungEditor(draft) {
+    var overlay = document.createElement('div');
+    overlay.id = 'contract-document-editor-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:#f8fafc;z-index:100000;display:flex;flex-direction:column;';
+    overlay.innerHTML = [
+      '<div style="height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#fff;border-bottom:1px solid #e2e8f0;gap:12px;">',
+      '<div style="min-width:0;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">',
+      '<span class="material-symbols-outlined" style="vertical-align:middle;color:#4f46e5;">description</span> ',
+      'Chỉnh sửa hợp đồng: <span id="contract-document-editor-title"></span></div>',
+      '<div style="display:flex;align-items:center;gap:8px;">',
+      '<button type="button" id="contract-document-preview" class="btn btn-outline-secondary"><span class="material-symbols-outlined">visibility</span> Xem bản nháp</button>',
+      '<button type="button" id="contract-document-finalize" class="btn btn-primary"><span class="material-symbols-outlined">save</span> Lưu hợp đồng</button>',
+      '<button type="button" id="contract-document-close" class="btn btn-icon" title="Đóng"><span class="material-symbols-outlined">close</span></button>',
+      '</div></div>',
+      '<div id="contract-document-editor-area" style="flex:1;min-height:0;"></div>'
+    ].join('');
+    document.body.appendChild(overlay);
+    document.getElementById('contract-document-editor-title').textContent = draft.fileName || draft.maHopDong;
+    return overlay;
+  }
 
-    var btn = document.getElementById('btn-export-doc-' + config.docType);
-    var originalHTML = btn ? btn.innerHTML : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;animation:spin 1s linear infinite;">autorenew</span><span class="d-none d-md-inline">Đang xuất...</span>';
+  function choPhepLuu() {
+    var button = document.getElementById('contract-document-finalize');
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<span class="material-symbols-outlined">sync</span> Đang đồng bộ...';
     }
+  }
 
-    if (!document.getElementById('__dep_spin__')) {
-      var ks = document.createElement('style');
-      ks.id = '__dep_spin__';
-      ks.textContent = '@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
-      document.head.appendChild(ks);
-    }
+  function doiCallbackCuoi(draftId, soLanThu) {
+    return ContractDocumentApi.draftStatus(draftId).then(function (response) {
+      if (response.draft && response.draft.finalCallbackCompleted) return response.draft;
+      if (soLanThu >= 15) throw new Error('OnlyOffice chưa hoàn tất callback cuối. Bản nháp vẫn được giữ lại.');
+      return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () { return doiCallbackCuoi(draftId, soLanThu + 1); });
+    });
+  }
 
-    var headers = { 'Content-Type': 'application/json' };
-    var token = '';
-    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') {
-      token = ApiClient.getCookie('auth_token');
-    } else {
-      var match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
-      if (match) token = decodeURIComponent(match[1]);
+  function finalizeDraft() {
+    if (!activeDraftId) return;
+    choPhepLuu();
+    if (editorInstance && typeof editorInstance.requestClose === 'function') {
+      try { editorInstance.requestClose(); } catch (error) { /* tiếp tục chờ callback */ }
     }
-    if (token) {
-      headers['Authorization'] = 'Bearer ' + token;
-    }
-
-    fetch(DOC_API_BASE + '/generate', {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({
-        templateType: actualDocType,
-        customerId: docId,
-        outputFileName: actualDocType + '_' + docId,
-        rowData: row,
-        sqlListName: config.sqlListName,
-        convertFields: config.convertFields || [],
-        // branchId từ localStorage (backend sẽ tự xác thực lại bằng SY_User)
-        branchId: (function() {
-          try { return (JSON.parse((window.APP_SETTINGS ? APP_SETTINGS.getStored('user', '{}') : localStorage.getItem('pmql_user')) || '{}')).BranchID || null; } catch(e) { return null; }
-        })()
+    doiCallbackCuoi(activeDraftId, 0)
+      .then(function () { return ContractDocumentApi.finalizeDraft(activeDraftId); })
+      .then(function (response) {
+        thongBao('Đã lưu hợp đồng vào tài liệu đính kèm. ID: ' + response.attachment.UserAutoID, 'success');
+        if (typeof EventBus !== 'undefined') EventBus.emit('contract:attachment-saved', { maHopDong: activeEditorConfig.draft.maHopDong });
+        dongEditor();
       })
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (json) {
-        if (json.success) {
-          if (typeof Toast !== 'undefined') {
-            Toast.show({ message: 'Đã tạo tài liệu: ' + json.fileName, type: 'success' });
-          }
-          sessionStorage.setItem('docmgr_open_file', json.fileName);
-          window.location.hash = '#/document-manager';
-        } else {
-          if (typeof Alert !== 'undefined') {
-            Alert.error('Lỗi xuất tài liệu', json.message || 'Không xác định');
-          }
-        }
-      })
-      .catch(function (err) {
-        if (typeof Alert !== 'undefined') {
-          Alert.error('Lỗi kết nối', 'Không thể kết nối tới Document Server.');
-        }
-        console.error('[DocumentExportPlugin]', err);
-      })
-      .finally(function () {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = originalHTML;
-        }
+      .catch(function (error) {
+        thongBao(error.message || 'Không thể lưu hợp đồng. Bản nháp vẫn được giữ lại.', 'error');
+        var button = document.getElementById('contract-document-finalize');
+        if (button) { button.disabled = false; button.innerHTML = '<span class="material-symbols-outlined">save</span> Lưu hợp đồng'; }
       });
   }
+
+  function moTrinhSuaHopDong(draft) {
+    activeDraftId = draft.draftId;
+    return ContractDocumentApi.editorConfig(activeDraftId).then(function (config) {
+      activeEditorConfig = config;
+      var overlay = taoKhungEditor(config.draft);
+      document.getElementById('contract-document-preview').addEventListener('click', function () {
+        window.open(config.previewUrl, '_blank', 'noopener');
+      });
+      document.getElementById('contract-document-finalize').addEventListener('click', finalizeDraft);
+      document.getElementById('contract-document-close').addEventListener('click', function () {
+        ContractDocumentApi.deleteDraft(activeDraftId).finally(dongEditor);
+      });
+      return taiOnlyOfficeApi(config.documentServerUrl).then(function () {
+        editorInstance = new DocsAPI.DocEditor('contract-document-editor-area', config.editorConfig);
+        return overlay;
+      });
+    });
+  }
+
+  function chonMau(row, templates) {
+    return new Promise(function (resolve, reject) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      var box = document.createElement('div');
+      box.style.cssText = 'width:min(520px,100%);background:#fff;border-radius:10px;padding:22px;box-shadow:0 16px 48px rgba(15,23,42,.2);';
+      box.innerHTML = '<h3 style="margin:0 0 6px;color:#1e293b;">Chọn mẫu hợp đồng</h3><p style="margin:0 0 16px;color:#64748b;font-size:13px;">Mẫu được đọc từ HR_HopDongAddfile.</p>';
+      var list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto;';
+      var firstRadio = null;
+      templates.filter(function (template) { return template.available; }).forEach(function (template, index) {
+        var label = document.createElement('label');
+        label.style.cssText = 'display:flex;gap:10px;align-items:flex-start;border:1px solid #e2e8f0;border-radius:8px;padding:11px;cursor:pointer;';
+        label.innerHTML = '<input type="radio" name="contract-template" value="' + String(template.templateFile).replace(/"/g, '&quot;') + '"><span><strong>' + (template.ghiChu || template.templateFile) + '</strong><br><small style="color:#64748b;">' + template.templateFile + '</small></span>';
+        list.appendChild(label);
+        if (index === 0) { firstRadio = label.querySelector('input'); firstRadio.checked = true; }
+      });
+      box.appendChild(list);
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:18px;';
+      actions.innerHTML = '<button type="button" class="btn btn-outline-secondary" data-cancel>Hủy</button><button type="button" class="btn btn-primary" data-confirm>Tiếp tục</button>';
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      actions.querySelector('[data-cancel]').onclick = function () { overlay.remove(); reject(new Error('CANCELLED')); };
+      actions.querySelector('[data-confirm]').onclick = function () {
+        var selected = box.querySelector('input[name="contract-template"]:checked');
+        if (!selected) { thongBao('Chưa có mẫu hợp đồng khả dụng.', 'error'); return; }
+        overlay.remove();
+        resolve(selected.value);
+      };
+      if (!firstRadio) thongBao('Không có file mẫu khả dụng trên máy chủ.', 'error');
+    });
+  }
+
+  function xuatHopDong(row) {
+    var maHopDong = layMaHopDong(row);
+    if (!maHopDong) { thongBao('Không tìm thấy mã hợp đồng.', 'error'); return Promise.reject(new Error('MISSING_CONTRACT_ID')); }
+    return ContractDocumentApi.listTemplates()
+      .then(function (response) { return chonMau(row, response.data || []); })
+      .then(function (templateFile) {
+        thongBao('Đang tạo bản nháp hợp đồng...', 'info');
+        return ContractDocumentApi.createDraft({ maHopDong: maHopDong, templateFile: templateFile });
+      })
+      .then(function (response) { return moTrinhSuaHopDong(response.draft); })
+      .catch(function (error) {
+        if (error && error.message !== 'CANCELLED') thongBao(error.message || 'Không thể tạo bản nháp hợp đồng.', 'error');
+        throw error;
+      });
+  }
+
+  function doiCallbackMau(workspaceId, soLanThu) {
+    return ContractDocumentApi.templateWorkspaceStatus(workspaceId).then(function (response) {
+      if (response.workspace && response.workspace.finalCallbackCompleted) return response.workspace;
+      if (soLanThu >= 15) throw new Error('OnlyOffice chưa hoàn tất callback cuối của mẫu. Workspace vẫn được giữ lại.');
+      return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () { return doiCallbackMau(workspaceId, soLanThu + 1); });
+    });
+  }
+
+  function apDungMauHopDong() {
+    var button = document.getElementById('contract-document-finalize');
+    if (button) { button.disabled = true; button.innerHTML = '<span class="material-symbols-outlined">sync</span> Đang kiểm tra...'; }
+    if (editorInstance && typeof editorInstance.requestClose === 'function') {
+      try { editorInstance.requestClose(); } catch (error) { /* tiếp tục chờ callback */ }
+    }
+    doiCallbackMau(activeTemplateWorkspaceId, 0)
+      .then(function () { return ContractDocumentApi.templatePlaceholders(activeTemplateWorkspaceId); })
+      .then(function (response) {
+        var placeholders = response.data || [];
+        var dongY = window.confirm('Mẫu có ' + placeholders.length + ' placeholder. Áp dụng mẫu mới và tạo backup mẫu cũ?');
+        if (!dongY) throw new Error('CANCELLED');
+        return ContractDocumentApi.applyTemplateWorkspace(activeTemplateWorkspaceId);
+      })
+      .then(function (response) {
+        thongBao('Đã áp dụng mẫu. Backup: ' + response.result.backupFile, 'success');
+        if (typeof EventBus !== 'undefined') EventBus.emit('contract:template-applied', response.result);
+        dongEditor();
+      })
+      .catch(function (error) {
+        if (error.message !== 'CANCELLED') thongBao(error.message || 'Không thể áp dụng mẫu hợp đồng.', 'error');
+        if (button) { button.disabled = false; button.innerHTML = '<span class="material-symbols-outlined">published_with_changes</span> Áp dụng mẫu'; }
+      });
+  }
+
+  function moTrinhSuaMau(templateFile) {
+    thongBao('Đang tạo workspace chỉnh sửa mẫu...', 'info');
+    return ContractDocumentApi.createTemplateWorkspace(templateFile)
+      .then(function (response) {
+        activeTemplateWorkspaceId = response.workspace.workspaceId;
+        return ContractDocumentApi.templateEditorConfig(activeTemplateWorkspaceId);
+      })
+      .then(function (config) {
+        activeEditorConfig = config;
+        var overlay = taoKhungEditor({ fileName: config.workspace.templateFile });
+        document.getElementById('contract-document-editor-title').textContent = 'Mẫu: ' + config.workspace.templateFile;
+        var saveButton = document.getElementById('contract-document-finalize');
+        saveButton.innerHTML = '<span class="material-symbols-outlined">published_with_changes</span> Áp dụng mẫu';
+        saveButton.addEventListener('click', apDungMauHopDong);
+        document.getElementById('contract-document-preview').addEventListener('click', function () { window.open(config.previewUrl, '_blank', 'noopener'); });
+        document.getElementById('contract-document-close').addEventListener('click', function () {
+          ContractDocumentApi.deleteTemplateWorkspace(activeTemplateWorkspaceId).finally(dongEditor);
+        });
+        return taiOnlyOfficeApi(config.documentServerUrl).then(function () {
+          editorInstance = new DocsAPI.DocEditor('contract-document-editor-area', config.editorConfig);
+          return overlay;
+        });
+      });
+  }
+
+  return { xuatHopDong: xuatHopDong, moBanNhap: moTrinhSuaHopDong, moTrinhSuaHopDong: moTrinhSuaHopDong, moTrinhSuaMau: moTrinhSuaMau, dongEditor: dongEditor };
+})();
+
+/* --- js/utils/DocumentExportPlugin.js --- */
+/**
+ * Trách nhiệm: đăng ký nút xuất hợp đồng trên form hợp đồng lao động.
+ * Đầu vào: formName và dòng được chọn.
+ * Đầu ra: gọi ContractDocumentActions để tạo draft và mở trình sửa.
+ * Nơi gọi: FormActionRegistry/DynamicFormEngine.
+ */
+var DocumentExportPlugin = (function () {
+  var FORM_CONFIG = {
+    WA_HopDongLaoDongFrm: {
+      label: 'Xuất hợp đồng',
+      icon: 'description'
+    }
+  };
 
   function getExtraButtons(formName, getSelectedRows) {
     var config = FORM_CONFIG[formName];
     if (!config) return [];
 
-    var buttons = [{
-      id: 'btn-export-doc-' + config.docType,
+    return [{
+      id: 'btn-export-contract-document',
       text: config.label,
       icon: config.icon,
       type: 'tool',
       onClick: function () {
         var selectedRows = getSelectedRows();
         if (!selectedRows || selectedRows.length !== 1) {
-          if (typeof Alert !== 'undefined') {
-            Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng duy nhất để xuất tài liệu.');
-          } else {
-            alert('Vui lòng chọn 1 dòng để xuất tài liệu!');
-          }
+          if (typeof Alert !== 'undefined') Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn đúng một hợp đồng để xuất.');
           return;
         }
-
-        var row = selectedRows[0];
-        _showTemplateSelectModal(row, config, function (selectedTemplate) {
-          var customConfig = Object.assign({}, config, {
-            docType: selectedTemplate,
-            ignoreTemplateFile: true
-          });
-          _generateDocument(row, customConfig);
+        ContractDocumentActions.xuatHopDong(selectedRows[0]).catch(function (error) {
+          if (error && error.message !== 'CANCELLED') console.error('[DocumentExportPlugin]', error);
         });
       }
-    }];
-
-    // Thêm nút xem kho lưu trữ hợp đồng
-    buttons.push({
-      id: 'btn-view-docmgr',
-      text: 'Quản lý Hợp Đồng',
+    }, {
+      id: 'btn-view-contract-workspace',
+      text: 'Tài liệu hợp đồng',
       icon: 'folder_open',
       type: 'tool',
-      onClick: function () {
-        window.location.hash = '#/document-manager';
-      }
-    });
-
-    return buttons;
+      onClick: function () { window.location.hash = '#/document-manager'; }
+    }];
   }
 
-  // Đăng ký Plugin vào hệ thống
   window.FormActionPlugins = window.FormActionPlugins || [];
   window.FormActionPlugins.push({ getExtraButtons: getExtraButtons });
-
   return { getExtraButtons: getExtraButtons };
 })();
 
@@ -14201,6 +14106,8 @@ window.DynamicFormEngine = (function () {
   function _renderAttachmentsTab(tabDef, container, isEditable, row) {
     container.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải tệp đính kèm...</div>';
     var attachmentConfig = (MODULE_CONFIG.attachments && (MODULE_CONFIG.attachments[tabDef.code] || MODULE_CONFIG.attachments.default)) || {};
+    var metadataApi = tabDef.metadataApi || attachmentConfig.metadataApi || tabDef.api;
+    var fileApi = tabDef.fileApi || attachmentConfig.fileApi || '';
     var pkField = tabDef.ownerField || attachmentConfig.ownerField || MODULE_CONFIG.PrimaryKey || 'id';
     var pkVal = row[pkField] || '';
     var filterData = {};
@@ -14246,8 +14153,23 @@ window.DynamicFormEngine = (function () {
       }
     }
 
+    function _loadAttachmentContent(fileItem) {
+      var contentUrl = _getContentAsBlobUrl(fileItem);
+      if (contentUrl || !fileApi) return Promise.resolve(contentUrl);
+      var rowId = fileItem[tabDef.rowIdField || attachmentConfig.rowIdField || 'id'];
+      return GatewayClient.run({ sp: fileApi, func: 'View' }, { UserAutoID: rowId }, {
+        endpoint: MODULE_CONFIG.ApiSearch,
+        limit: 1
+      }).then(function (fileResponse) {
+        var fileRecords = fileResponse.list || fileResponse.records || [];
+        if (!fileRecords.length) return '';
+        Object.keys(fileRecords[0]).forEach(function (fieldName) { fileItem[fieldName] = fileRecords[0][fieldName]; });
+        return _getContentAsBlobUrl(fileItem);
+      });
+    }
+
     function _loadAttachments() {
-      GatewayClient.run({ sp: tabDef.api, func: 'View' }, filterData, {
+      GatewayClient.run({ sp: metadataApi, func: 'View' }, filterData, {
         endpoint: MODULE_CONFIG.ApiSearch,
         limit: 500
       }).then(function (res) {
@@ -14316,7 +14238,7 @@ window.DynamicFormEngine = (function () {
             var actions = document.createElement('div');
             actions.style.cssText = 'display: flex; gap: 4px;';
 
-            if (blobUrl) {
+            if (blobUrl || fileApi) {
               // Icon mắt (Xem trước/Preview) cho Ảnh hoặc PDF
               var ext = (fileItem.FileName || '').split('.').pop().toLowerCase();
               var isPdf = ext === 'pdf';
@@ -14328,11 +14250,11 @@ window.DynamicFormEngine = (function () {
                 btnPreview.title = 'Xem trực tiếp';
                 btnPreview.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>';
                 btnPreview.onclick = function () {
-                  if (isImage) {
-                    _showImageZoom(blobUrl);
-                  } else if (isPdf) {
-                    window.open(blobUrl, '_blank');
-                  }
+                  _loadAttachmentContent(fileItem).then(function (loadedUrl) {
+                    if (!loadedUrl) return;
+                    if (isImage) _showImageZoom(loadedUrl);
+                    else if (isPdf) window.open(loadedUrl, '_blank');
+                  });
                 };
                 actions.appendChild(btnPreview);
               }
@@ -14344,12 +14266,15 @@ window.DynamicFormEngine = (function () {
               btnDownload.title = 'Tải xuống';
               btnDownload.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">download</span>';
               btnDownload.onclick = function () {
-                var a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = fileItem.FileName || 'download';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                _loadAttachmentContent(fileItem).then(function (loadedUrl) {
+                  if (!loadedUrl) return;
+                  var a = document.createElement('a');
+                  a.href = loadedUrl;
+                  a.download = fileItem.FileName || 'download';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                });
               };
               actions.appendChild(btnDownload);
             }
@@ -14491,7 +14416,7 @@ window.DynamicFormEngine = (function () {
     }
 
     function _executeUpload(file, hexStr, base64Content, fileTypeNum) {
-      GatewayClient.run({ sp: tabDef.api, func: 'View' }, filterData, {
+      GatewayClient.run({ sp: metadataApi, func: 'View' }, filterData, {
         endpoint: MODULE_CONFIG.ApiSearch,
         limit: 500
       }).then(function (cntRes) {
@@ -14527,6 +14452,17 @@ window.DynamicFormEngine = (function () {
       });
     }
 
+    if (typeof EventBus !== 'undefined' && !container.dataset.contractAttachmentRefreshBound) {
+      var refreshAttachmentTab = function (eventData) {
+        if (!document.body.contains(container)) {
+          EventBus.off('contract:attachment-saved', refreshAttachmentTab);
+          return;
+        }
+        if (!eventData || String(eventData.maHopDong || '') === String(pkVal || '')) _loadAttachments();
+      };
+      EventBus.on('contract:attachment-saved', refreshAttachmentTab);
+      container.dataset.contractAttachmentRefreshBound = 'true';
+    }
     _loadAttachments();
   }
 
@@ -14684,7 +14620,7 @@ window.DynamicFormEngine = (function () {
 
     // 1. Lấy Từ điển UI từ Database trước (Cơ chế Caching siêu tốc)
     var configEndpoint = MODULE_CONFIG.ApiDictionary;
-    var cacheKey = 'FormConfigCache_' + MODULE_CONFIG.FormName;
+    var cacheKey = 'FormConfigCache_' + MODULE_CONFIG.FormName + '_v' + (MODULE_CONFIG.SchemaVersion || 1);
     var cachedData = null;
 
     // RAM Cache cho giao diện
@@ -14720,6 +14656,26 @@ window.DynamicFormEngine = (function () {
           Object.keys(_rowMap).forEach(function (src) {
             if (firstRow[src]) MODULE_CONFIG[_rowMap[src]] = firstRow[src];
           });
+
+          // WA_API is the source of truth for form capabilities. Explicit module
+          // flags may hide more actions, but they cannot enable a missing route.
+          if (firstRow.canAdd !== undefined || firstRow.CanAdd !== undefined) {
+            MODULE_CONFIG.CanAddOperation = _bool(firstRow.canAdd, firstRow.CanAdd);
+            if (!MODULE_CONFIG.CanAddOperation) MODULE_CONFIG.HideAddBtn = true;
+          }
+          if (firstRow.canEdit !== undefined || firstRow.CanEdit !== undefined) {
+            MODULE_CONFIG.CanEditOperation = _bool(firstRow.canEdit, firstRow.CanEdit);
+            if (!MODULE_CONFIG.CanEditOperation) MODULE_CONFIG.HideEditBtn = true;
+          }
+          if (firstRow.canDelete !== undefined || firstRow.CanDelete !== undefined) {
+            MODULE_CONFIG.CanDeleteOperation = _bool(firstRow.canDelete, firstRow.CanDelete);
+            if (!MODULE_CONFIG.CanDeleteOperation) MODULE_CONFIG.HideDeleteBtn = true;
+          }
+
+          // A copied or stale detail URL must not bypass the operation contract.
+          if (MODULE_CONFIG.IsDetailForceEdit && MODULE_CONFIG.CanEditOperation === false) {
+            MODULE_CONFIG.IsDetailForceEdit = false;
+          }
 
           // Sinh nhãn mặc định — caller có thể override từ config
           _setDefaults(MODULE_CONFIG, {
@@ -14826,6 +14782,8 @@ window.DynamicFormEngine = (function () {
           if (Object.keys(overrides).length > 0) {
             if (overrides.isReadOnlyEdit !== undefined) isReadOnlyEditVal = overrides.isReadOnlyEdit;
             if (overrides.isReadOnlyAdd !== undefined) isReadOnlyAddVal = overrides.isReadOnlyAdd;
+            if (overrides.showInAdd !== undefined) item.showInAdd = overrides.showInAdd;
+            if (overrides.showInEdit !== undefined) item.showInEdit = overrides.showInEdit;
             if (overrides.required !== undefined) item.required = overrides.required;
             if (overrides.IsRequired !== undefined) item.IsRequired = overrides.IsRequired;
             if (overrides.hiddenColumns !== undefined) hiddenColsVal = overrides.hiddenColumns;
@@ -14845,6 +14803,8 @@ window.DynamicFormEngine = (function () {
             if (ff) {
               if (ff.isReadOnlyEdit !== undefined) isReadOnlyEditVal = ff.isReadOnlyEdit;
               if (ff.isReadOnlyAdd !== undefined) isReadOnlyAddVal = ff.isReadOnlyAdd;
+              if (ff.showInAdd !== undefined) item.showInAdd = ff.showInAdd;
+              if (ff.showInEdit !== undefined) item.showInEdit = ff.showInEdit;
               if (ff.required !== undefined) item.required = ff.required;
               if (ff.IsRequired !== undefined) item.IsRequired = ff.IsRequired;
               if (ff.hiddenColumns !== undefined) hiddenColsVal = ff.hiddenColumns;
@@ -14897,13 +14857,13 @@ window.DynamicFormEngine = (function () {
                 name: cf.name,
                 label: cf.label || '',
                 required: cf.required || false,
-                showInAdd: true,
-                showInEdit: true,
+                showInAdd: cf.showInAdd !== false,
+                showInEdit: cf.showInEdit !== false,
                 showInFilter: false,
                 isReadOnlyEdit: cf.isReadOnlyEdit || false,
                 isReadOnlyAdd: cf.isReadOnlyAdd || false,
                 position: cf.position || 'grid',
-                orderNo: 999, // Xếp cuối theo mặc định
+                orderNo: cf.orderNo || 999, // Xếp cuối theo mặc định
                 renderRule: (cf.renderRule || '').toLowerCase().trim(),
                 dataSource: cf.dataSource || '',
                 dataSourceMethod: String(cf.dataSourceMethod || 'POST').toUpperCase(),
@@ -15597,9 +15557,14 @@ window.DynamicFormEngine = (function () {
         var formNameLower = (MODULE_CONFIG.FormName || '').toLowerCase();
         var isReport = formNameLower.endsWith('report');
         var isFrm = formNameLower.endsWith('frm') || formNameLower.startsWith('frm');
+        var hasWritableAddFields = globalFormSchema.some(function (field) {
+          var isVisible = String(field.showInAdd) === '1' || field.showInAdd === true;
+          return isVisible && !field.isReadOnlyAdd;
+        });
+        var canOpenAddForm = hasWritableAddFields || MODULE_CONFIG.AllowAddWithoutWritableFields === true;
 
         var toolbar = UIActionToolbar.create({
-          onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
+          onAdd: (isFrm && !MODULE_CONFIG.HideAddBtn && canOpenAddForm) ? (_hasPermission('ADD') ? _openAddForm : 'DISABLED') : false,
           onView: (isFrm && !MODULE_CONFIG.HideViewBtn) ? function () {
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Vui lòng chọn dữ liệu cần xem');
             if (selectedRows.length > 1) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Chỉ có thể xem chi tiết từng dòng một.');
@@ -15945,6 +15910,10 @@ window.DynamicFormEngine = (function () {
 
       if (!MODULE_CONFIG.NoAutoLoad) {
         if (MODULE_CONFIG.IsDetailAdd) {
+          if (MODULE_CONFIG.CanAddOperation === false) {
+            $container.innerHTML = '<div class="alert alert-warning m-4">Form này không được đăng ký thao tác Thêm mới.</div>';
+            return;
+          }
           _openModal(false, null);
         } else if (MODULE_CONFIG.action === 'detail' || MODULE_CONFIG.Action === 'detail') {
           _openModal(true, MODULE_CONFIG.DetailRowData, true);
@@ -16781,6 +16750,73 @@ window.DynamicFormEngine = (function () {
           }
           .btn-scroll-wrapper::-webkit-scrollbar {
             display: none;
+          }
+
+          /* --- MODERN HR UX STYLES --- */
+          /* Global Input styling */
+          .ui-input, select.ui-input, .dropdown-wrapper {
+            height: 40px !important;
+            border-radius: 8px !important;
+            border: 1px solid var(--color-border) !important;
+            transition: all 0.2s ease !important;
+            padding: 0 12px !important;
+          }
+          #toolbar-quick-search { padding-left: 36px !important; }
+          .ui-input:focus, select.ui-input:focus {
+            border-color: var(--color-primary) !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+          }
+          /* Card Groups styling (for full page detail and modals) */
+          .group-card, .group-card-other, .modal-content-area {
+            border: none !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+            background: var(--color-surface, #fff) !important;
+            padding: 20px !important;
+            margin-bottom: 16px !important;
+          }
+          .modal-content-area { padding: 0 !important; } /* Modals already have padding on children */
+          /* Grid Layout Improvements */
+          .group-card > div, .group-card-other > div, .dynamic-form-grid {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+            gap: 16px !important;
+          }
+          .form-group { width: 100% !important; margin-bottom: 0 !important; }
+          .form-group label {
+            font-weight: 500 !important;
+            color: var(--color-text-secondary) !important;
+            margin-bottom: 6px !important;
+            font-size: 13px !important;
+          }
+          /* Button styling */
+          .btn { border-radius: 8px !important; font-weight: 500 !important; height: 38px !important; padding: 0 16px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; white-space: nowrap !important; flex-shrink: 0 !important; }
+
+          @media (min-width: 769px) {
+            .mobile-action-trigger { display: none !important; }
+          }
+
+          /* --- MOBILE RESPONSIVE STYLES --- */
+          @media (max-width: 768px) {
+            .group-card > div, .group-card-other > div, .dynamic-form-grid {
+              grid-template-columns: 1fr !important;
+              gap: 12px !important;
+            }
+            .ui-input, select.ui-input, .dropdown-wrapper { height: 44px !important; /* Touch-friendly size */ }
+            .btn { height: 44px !important; }
+            /* Sticky footer for detail page and modals */
+            #dynamic-detail-container .page-title-actions, .modal-footer {
+              position: sticky !important;
+              bottom: 0 !important;
+              background: var(--color-surface, #fff) !important;
+              z-index: 100 !important;
+              padding: 12px 16px !important;
+              border-top: 1px solid var(--color-border) !important;
+              margin: 0 -16px -16px -16px !important;
+              box-shadow: 0 -4px 12px rgba(0,0,0,0.05) !important;
+              justify-content: flex-end !important;
+            }
+            .modal-footer { margin: 0 !important; }
           }
           /* Badge Đã chọn */
           #selection-counter {
@@ -17902,6 +17938,10 @@ window.DynamicFormEngine = (function () {
   }
 
   function _openAddForm() {
+    if (MODULE_CONFIG.CanAddOperation === false) {
+      return Alert.warning(MODULE_CONFIG.AlertTitleWarning, 'Form này không được đăng ký thao tác Thêm mới.');
+    }
+
     // Neu co WizardSteps -> dung Wizard multi-step, nguoc lai dung detail full page
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
@@ -17922,6 +17962,10 @@ window.DynamicFormEngine = (function () {
 
 
   function _openEditForm(row) {
+    if (MODULE_CONFIG.CanEditOperation === false) {
+      return _openViewForm(row);
+    }
+
     if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
       
@@ -18879,7 +18923,7 @@ window.DynamicFormEngine = (function () {
                   // Duyệt qua các cột trả về từ API
                   keys.forEach(function (keyName, index) {
                     // Tìm xem trong Form hiện tại có Input nào tên trùng với tên Cột không (case-insensitive)
-                    var form = hiddenInput.closest('.ui-modal') || hiddenInput.closest('body');
+                    var form = body;
                     if (form) {
                       var targetInput = form.querySelector('[name="' + keyName + '" i]');
                       if (targetInput && targetInput !== hiddenInput) {
@@ -19817,7 +19861,7 @@ window.DynamicFormEngine = (function () {
       });
     }
 
-    if (isViewMode) {
+    if (isViewMode && MODULE_CONFIG.CanEditOperation !== false) {
       var btnSwitchEdit = document.createElement('button');
       btnSwitchEdit.className = 'btn btn-primary';
       btnSwitchEdit.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px; margin-right: 4px; vertical-align: middle;">edit</span> Sửa';
@@ -19889,7 +19933,7 @@ window.DynamicFormEngine = (function () {
         }
       };
       btnSave.onclick = function () { _saveData(isEdit, row, dummyModal, body, btnSave); };
-      if (isViewMode) {
+      if (isViewMode && btnSwitchEdit) {
         btnSwitchEdit.onclick = function () { _openModal(true, row, false); };
       }
     } else {
@@ -19910,7 +19954,7 @@ window.DynamicFormEngine = (function () {
       btnSave.onclick = function () {
         _saveData(isEdit, row, modal, body, btnSave);
       };
-      if (isViewMode) {
+      if (isViewMode && btnSwitchEdit) {
         btnSwitchEdit.onclick = function () { modal.closeNow(); _openModal(true, row, false); };
       }
     }
@@ -21195,35 +21239,42 @@ window.SystemSettingsService = (function () {
     id: 'WA_QuanLyNghiPhepNamFrm',
     base: 'dynamic-crud',
     config: {
-    FormName: 'WA_QuanLyNghiPhepNamFrm',
-    PrimaryKey: 'PersonID',
-    ModalWidth: '960px',
-    hideDetailTabsInEditMode: true,
-    UseSplitLayout: true,
-    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem chi tiết',
-    DetailTabs: [
-      {
-        label: 'Chi tiết phép năm',
-        api: 'API_QuanLyNghiPhepNam_ChiTiet',
-        filterField: 'PersonID',
-        fields: [
-          'Nam', 'SoNgay', 'GhiChu', 'PhepThamNien', 'SoNgayDaSuDung',
-          'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat'
-        ],
-        headers: {
-          Nam: 'Năm',
-          SoNgay: 'Số ngày',
-          GhiChu: 'Ghi chú',
-          PhepThamNien: 'Phép thâm niên',
-          SoNgayDaSuDung: 'Số ngày đã sử dụng',
-          SoNgayConLai: 'Số ngày còn lại',
-          PhepTonNamTruoc: 'Phép tồn năm trước',
-          SoNgayPhepTet: 'Số ngày phép tết',
-          SoNgayPhepOm: 'Số ngày phép ốm',
-          NgayCapNhat: 'Ngày cập nhật'
-        }
-      }
-    ]
+      FormName: 'WA_QuanLyNghiPhepNamFrm',
+      PrimaryKey: 'UserAutoID',
+      SchemaVersion: 2,
+      FormTitle: 'Quản lý nghỉ phép năm',
+      TitleAdd: 'Thêm khai báo phép năm',
+      TitleEdit: 'Cập nhật khai báo phép năm',
+      ModalWidth: '960px',
+      HideAddNewInDropdowns: true,
+      HideBranchStep: true,
+      fieldOverrides: {
+        PersonID: {
+          label: 'Mã nhân viên', required: true, showInAdd: true, showInEdit: true,
+          isReadOnlyAdd: false, isReadOnlyEdit: true, renderRule: 'sl',
+          dataSource: 'WA_PersonFullFrm|4', valueField: 'PersonID', labelField: 'PersonID',
+          allowCustomValue: false, position: 'grid|3'
+        },
+        PersonName: { label: 'Họ tên', showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, isReadOnly: true, disabled: true, renderRule: 'text', position: 'grid|3' },
+        PhongBan: { label: 'Bộ phận', showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, isReadOnly: true, disabled: true, renderRule: 'text', position: 'grid|3' },
+        TitleName: { label: 'Chức vụ', showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, isReadOnly: true, disabled: true, renderRule: 'text', position: 'grid|3' }
+      },
+      FormFields: [
+        { name: 'PersonID', label: 'Mã nhân viên', required: true, showInAdd: true, showInEdit: true, isReadOnlyAdd: false, isReadOnlyEdit: true, renderRule: 'sl', dataSource: 'WA_PersonFullFrm|4', valueField: 'PersonID', labelField: 'PersonID', allowCustomValue: false, position: 'grid|3', orderNo: 1 },
+        { name: 'PersonName', label: 'Họ tên', showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, isReadOnly: true, disabled: true, renderRule: 'text', position: 'grid|3', orderNo: 2 },
+        { name: 'PhongBan', label: 'Bộ phận', showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, isReadOnly: true, disabled: true, renderRule: 'text', position: 'grid|3', orderNo: 3 },
+        { name: 'TitleName', label: 'Chức vụ', showInAdd: true, showInEdit: true, isReadOnlyAdd: true, isReadOnlyEdit: true, isReadOnly: true, disabled: true, renderRule: 'text', position: 'grid|3', orderNo: 4 },
+        { name: 'BranchID', label: 'Chi nhánh', showInGrid: true, showInAdd: false, showInEdit: false, orderNo: 4.5 },
+        { name: 'Nam', position: 'grid|3', orderNo: 5, showInGrid: false },
+        { name: 'SoNgay', position: 'grid|3', orderNo: 6, showInGrid: false },
+        { name: 'PhepThamNien', position: 'grid|3', orderNo: 7, showInGrid: false },
+        { name: 'PhepTonNamTruoc', position: 'grid|3', orderNo: 8, showInGrid: false },
+        { name: 'SoNgayDaSuDung', position: 'grid|3', orderNo: 9, showInGrid: false },
+        { name: 'SoNgayConLai', position: 'grid|3', orderNo: 10, showInGrid: false },
+        { name: 'SoNgayPhepTet', position: 'grid|3', orderNo: 11, showInGrid: false },
+        { name: 'SoNgayPhepOm', position: 'grid|3', orderNo: 12, showInGrid: false },
+        { name: 'GhiChu', position: 'grid|6', orderNo: 13, showInGrid: false }
+      ]
     }
   }));
 })();
@@ -21263,7 +21314,10 @@ window.SystemSettingsService = (function () {
       },
       attachments: {
         contract: {
-          sp: 'API_HopDongLaoDong_Attach', ownerField: 'MaHopDong', rowIdField: 'UserAutoID'
+          sp: 'API_HopDongLaoDong_Attach',
+          metadataApi: 'API_HopDongLaoDong_Attach_Metadata',
+          fileApi: 'API_HopDongLaoDong_Attach_File',
+          ownerField: 'MaHopDong', rowIdField: 'UserAutoID'
         }
       },
       UseSplitLayout: false,
@@ -21306,7 +21360,7 @@ window.SystemSettingsService = (function () {
         {
           code: 'attachments', label: 'Tai lieu dinh kem', type: 'attachments', api: 'API_HopDongLaoDong_Attach',
           filterField: 'MaHopDong', ownerField: 'MaHopDong', rowIdField: 'UserAutoID',
-          fields: ['FileName', 'FileType', 'STT', 'FileSize', 'Content'],
+          fields: ['FileName', 'FileType', 'STT', 'FileSize'],
           headers: { FileName: 'Ten tep', FileType: 'Loai tep', STT: 'So thu tu', FileSize: 'Kich thuoc' }
         }
       ]
@@ -21896,7 +21950,17 @@ var Router = (function () {
     { path: '/components-demo', template: 'src/pages/components-demo/components-demo.html', script: 'src/pages/components-demo/components-demo.js', perm: 'uidemo', title: 'Bản test Component', pageFn: 'ComponentsDemoPage' },
     { path: '/appearance', template: 'src/pages/appearance/appearance.html', script: 'src/pages/appearance/appearance.js', perm: '', title: 'Cấu hình Giao diện', pageFn: 'AppearancePage' },
     { path: '/document-manager', template: 'src/pages/document-manager/document-manager.html', script: 'src/pages/document-manager/document-manager.js', perm: '', title: 'Workspace Tài Liệu', pageFn: 'DocumentManagerPage', hideHeader: true },
-    { path: '/menus', template: 'src/pages/menus/menus.html', script: 'src/pages/menus/menus.js?v=2', perm: '', title: '', pageFn: 'MenusPage' },
+    { path: '/categories', template: 'src/pages/categories/categories.html', script: 'src/pages/categories/categories.js', perm: '', title: '', pageFn: 'CategoriesPage' },
+    { path: '/inventory', template: 'src/pages/inventory/inventory.html', script: 'src/pages/inventory/inventory.js', perm: '', title: 'Kho & Định lượng', pageFn: 'InventoryPage' },
+    { path: '/cash-flow', template: 'src/pages/cash-flow/cash-flow.html', script: 'src/pages/cash-flow/cash-flow.js', perm: '', title: 'Kế toán & Quỹ tiền mặt', pageFn: 'CashFlowPage' },
+    { path: '/calendar', template: 'src/pages/calendar/calendar.html', script: 'src/pages/calendar/calendar.js', perm: '', title: '', pageFn: 'CalendarPage' },
+    { path: '/menus', template: 'src/pages/menus/menus.html', script: 'src/pages/menus/menus.js', perm: '', title: '', pageFn: 'MenusPage' },
+    { path: '/promotions', template: 'src/pages/promotions/promotions.html', script: 'src/pages/promotions/promotions.js', perm: '', title: '', pageFn: 'PromotionsPage' },
+    { path: '/report-revenue', template: 'src/pages/report-revenue/report-revenue.html', script: 'src/pages/report-revenue/report-revenue.js', perm: '', title: '', pageFn: 'ReportRevenuePage' },
+    { path: '/report-cost', template: 'src/pages/report-cost/report-cost.html', script: 'src/pages/report-cost/report-cost.js', perm: '', title: '', pageFn: 'ReportCostPage' },
+    { path: '/report-other', template: 'src/pages/report-other/report-other.html', script: 'src/pages/report-other/report-other.js', perm: '', title: '', pageFn: 'ReportOtherPage' },
+    { path: '/survey', template: 'src/pages/survey/survey.html', script: 'src/pages/survey/survey.js', perm: '', title: '', pageFn: 'SurveyPage' },
+    { path: '/hall-status', template: 'src/pages/hall-status/hall-status.html', script: 'src/pages/hall-status/hall-status.js', perm: '', title: '', pageFn: 'HallStatusPage' },
     { path: '/settings', template: 'src/pages/settings/settings.html', script: 'src/pages/settings/settings.js', perm: '', title: '', pageFn: 'SettingsPage' },
     { path: '/permissions', template: 'src/pages/permissions/permissions.html', script: 'src/pages/permissions/permissions.js', perm: '', title: '', pageFn: 'PermissionsPage' },
     { path: '/detail', template: 'src/pages/detail/detail.html', script: 'src/pages/detail/detail.js', perm: '', title: 'Chi tiết', pageFn: 'DetailPage', hideHeader: true }
@@ -22000,7 +22064,7 @@ var Router = (function () {
   var _currentRoute = null;
   var _loadedScripts = {};
   var _templateCache = {};
-  var _appVersion = '2.15'; // Bump để làm mới cache html/script động
+  var _appVersion = '2.14'; // Bump để làm mới cache html/script động
   var _navId = 0; // Token chặn race-condition
 
   // ── Template cache (dùng chung cho cả Router lẫn Page modules) ─────────

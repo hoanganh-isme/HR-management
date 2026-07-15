@@ -24,6 +24,9 @@ sql/API/APINEW/API_CaLamViec_Detail.sql
 sql/API/APINEW/API_HopDongLaoDong.sql
 sql/API/APINEW/API_HopDongLaoDong_ChiTiet.sql
 sql/API/APINEW/API_HopDongLaoDong_Attach.sql
+sql/API/APINEW/API_HopDongLaoDong_Attach_Metadata.sql
+sql/API/APINEW/API_HopDongLaoDong_Attach_File.sql
+sql/API/APINEW/API_HopDongLaoDong_Attach_Save.sql
 sql/API/APINEW/API_HoSoNhanVien.sql
 sql/API/APINEW/API_QuanLyNghiPhepNam.sql
 sql/API/APINEW/API_QuanLyNghiPhepNam_ChiTiet.sql
@@ -37,6 +40,7 @@ sql/Modules/Insurance/register_Insurance.sql
 sql/Modules/Payroll/register_Payroll.sql
 sql/Modules/Shift/register_Shift.sql
 sql/Modules/Contract/register_Contract.sql
+sql/Modules/Contract/register_ContractDocumentStorage.sql
 sql/Modules/Employee/register_Employee.sql
 sql/Modules/Leave/register_Leave.sql
 sql/Modules/ReferenceData/register_ReferenceData.sql
