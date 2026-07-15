@@ -580,6 +580,19 @@ window.ContractDocumentApi = (function () {
     return '';
   }
 
+  function thongBaoTheoMa(code, fallback) {
+    var messages = {
+      SQL_GATEWAY_UNAVAILABLE: 'Kh\u00f4ng k\u1ebft n\u1ed1i \u0111\u01b0\u1ee3c h\u1ec7 th\u1ed1ng d\u1eef li\u1ec7u. Vui l\u00f2ng th\u1eed l\u1ea1i.',
+      SQL_GATEWAY_AUTH_FAILED: 'Phi\u00ean \u0111\u0103ng nh\u1eadp kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.',
+      AUTH_REQUIRED: 'Phi\u00ean \u0111\u0103ng nh\u1eadp kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.',
+      AUTH_INVALID: 'Phi\u00ean \u0111\u0103ng nh\u1eadp kh\u00f4ng h\u1ee3p l\u1ec7. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.',
+      CONTRACT_VIEW_FORBIDDEN: 'B\u1ea1n kh\u00f4ng c\u00f3 quy\u1ec1n xem t\u00e0i li\u1ec7u h\u1ee3p \u0111\u1ed3ng.',
+      TEMPLATE_NOT_REGISTERED: 'M\u1eabu h\u1ee3p \u0111\u1ed3ng ch\u01b0a \u0111\u01b0\u1ee3c \u0111\u0103ng k\u00fd.',
+      DOCUMENT_API_UNREACHABLE: 'Document API ch\u01b0a ch\u1ea1y.'
+    };
+    return messages[code] || fallback;
+  }
+
   function goi(path, options) {
     options = options || {};
     var url = documentConfig.CONTRACT_API_BASE + path;
@@ -613,10 +626,19 @@ window.ContractDocumentApi = (function () {
       }
       return response.json().then(function (json) {
         if (!response.ok || json.success === false) {
-          var error = new Error(json.message || 'Contract Document API tr\u1ea3 v\u1ec1 l\u1ed7i.');
+          var error = new Error(thongBaoTheoMa(json.code, json.message || 'Contract Document API tr\u1ea3 v\u1ec1 l\u1ed7i.'));
           error.status = response.status;
           error.code = json.code;
+          error.details = json.details;
           error.url = url;
+          if (typeof console !== 'undefined' && window.location && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
+            console.warn('[CONTRACT DOCUMENT API]', {
+              status: error.status,
+              code: error.code,
+              causeCode: error.details && error.details.causeCode,
+              requestId: error.details && error.details.requestId
+            });
+          }
           throw error;
         }
         return json;
@@ -14480,13 +14502,13 @@ window.DynamicFormEngine = (function () {
         var nextSTT = currentItems.length + 1;
 
         var attachmentData = {
-            IsEdit: 0,
-            FileName: file.name,
-            FileType: fileTypeNum,
-            STT: nextSTT,
-            FileSize: file.size,
-            Base64Content: base64Content,
-            Content: hexStr
+          IsEdit: 0,
+          FileName: file.name,
+          FileType: fileTypeNum,
+          STT: nextSTT,
+          FileSize: file.size,
+          Base64Content: base64Content,
+          Content: hexStr
         };
         attachmentData[pkField] = pkVal;
 
@@ -18024,11 +18046,11 @@ window.DynamicFormEngine = (function () {
 
     if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
-      
+
       var hasId = row && row[MODULE_CONFIG.PrimaryKey];
       var action = hasId ? 'edit' : 'add';
       var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
-      
+
       window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + '&action=' + action;
       return;
     }
@@ -18044,11 +18066,11 @@ window.DynamicFormEngine = (function () {
   function _openViewForm(row) {
     if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
-      
+
       var hasId = row && row[MODULE_CONFIG.PrimaryKey];
-      var action = hasId ? '' : '&action=add'; 
+      var action = hasId ? '' : '&action=add';
       var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
-      
+
       window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + action;
       return;
     }
@@ -20275,13 +20297,13 @@ window.DynamicFormEngine = (function () {
         var attachApi = attachmentConfig.sp;
 
         var avatarData = {
-            IsEdit: 0,
-            FileName: window._pendingWizardAvatar.file.name,
-            FileType: 1, // 1 = Avatar
-            STT: 2,
-            FileSize: window._pendingWizardAvatar.file.size,
-            Base64Content: window._pendingWizardAvatar.base64Content,
-            Content: window._pendingWizardAvatar.hexStr
+          IsEdit: 0,
+          FileName: window._pendingWizardAvatar.file.name,
+          FileType: 1, // 1 = Avatar
+          STT: 2,
+          FileSize: window._pendingWizardAvatar.file.size,
+          Base64Content: window._pendingWizardAvatar.base64Content,
+          Content: window._pendingWizardAvatar.hexStr
         };
         avatarData[attachmentOwnerField] = masterKeyVal;
 
@@ -20473,13 +20495,13 @@ window.DynamicFormEngine = (function () {
             var attachApi = attachmentConfig.sp;
 
             var avatarData = {
-                IsEdit: 0,
-                FileName: window._pendingAvatar.file.name,
-                FileType: 1, // 1 = Avatar
-                STT: 2,
-                FileSize: window._pendingAvatar.file.size,
-                Base64Content: window._pendingAvatar.base64Content,
-                Content: window._pendingAvatar.hexStr
+              IsEdit: 0,
+              FileName: window._pendingAvatar.file.name,
+              FileType: 1, // 1 = Avatar
+              STT: 2,
+              FileSize: window._pendingAvatar.file.size,
+              Base64Content: window._pendingAvatar.base64Content,
+              Content: window._pendingAvatar.hexStr
             };
             avatarData[attachmentOwnerField] = ownerId;
 
@@ -21379,7 +21401,7 @@ window.SystemSettingsService = (function () {
       UseSplitLayout: false,
       ModalWidth: '1020px',
       FilterKeywordLabel: 'Tim nhanh',
-      SearchPlaceholder: 'Nhap ma hop dong hoac ten nhan vien...',
+      SearchPlaceholder: 'Tìm nhanh...',
       AllowDblClickToView: true,
       HideDetailTabsInModal: false,
       HideBulkAddBtn: true,
