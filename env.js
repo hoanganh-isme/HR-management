@@ -46,6 +46,35 @@ const ENV_VARS = {
     }
 };
 
+function isLocalDevelopmentHost() {
+    if (typeof window === 'undefined' || !window.location) return false;
+    var hostname = String(window.location.hostname || '').toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+function localDocumentApiOrigin() {
+    var runtime = typeof window !== 'undefined' && window.RUNTIME_CONFIG ? window.RUNTIME_CONFIG : {};
+    return String(runtime.documentApiBaseUrl || 'http://127.0.0.1:8081').replace(/\/+$/, '');
+}
+
+function documentProxyEnabled() {
+    var runtime = typeof window !== 'undefined' && window.RUNTIME_CONFIG ? window.RUNTIME_CONFIG : {};
+    if (typeof runtime.useDocumentProxy === 'boolean') return runtime.useDocumentProxy;
+    if (runtime.documentApiBaseUrl) return false;
+    return !isLocalDevelopmentHost();
+}
+
+function documentServiceBase() {
+    if (documentProxyEnabled()) return window.location.origin + '/docserver';
+    return localDocumentApiOrigin();
+}
+
+function onlyOfficeBase() {
+    var runtime = typeof window !== 'undefined' && window.RUNTIME_CONFIG ? window.RUNTIME_CONFIG : {};
+    if (runtime.onlyOfficeBaseUrl) return String(runtime.onlyOfficeBaseUrl).replace(/\/+$/, '');
+    return isLocalDevelopmentHost() ? 'http://127.0.0.1:8000' : window.location.origin + '/onlyoffice';
+}
+
 // 2. Cấu hình API chi tiết
 // Shared application settings. Keep product identity and storage keys in one
 // place so old base-code names do not leak across the HR app.
@@ -120,48 +149,13 @@ window.API_CONFIG = {
 
         DOCUMENT_MANAGER: {
             NODE_IP: ENV_VARS.BACKEND_HOST,
-            get BASE_API() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/api/documents'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/documents';
-            },
-            get CONTRACT_API_BASE() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/api'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api';
-            },
-            get ONLYOFFICE_API() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/onlyoffice/web-apps/apps/api/documents/api.js'
-                    : 'http://' + ENV_VARS.ONLYOFFICE_HOST + '/web-apps/apps/api/documents/api.js';
-            },
-            get UPLOADS_URL() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/uploads/'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/uploads/';
-            },
-            get SAMPLES_URL() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/samples/'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/samples/';
-            },
-            get UPLOAD_LOGO_API() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/api/upload-logo'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/upload-logo';
-            }
+            get BASE_API() { return documentServiceBase() + '/api/documents'; },
+            get CONTRACT_API_BASE() { return documentServiceBase() + '/api'; },
+            get ONLYOFFICE_API() { return onlyOfficeBase() + '/web-apps/apps/api/documents/api.js'; },
+            get UPLOADS_URL() { return documentServiceBase() + '/uploads/'; },
+            get SAMPLES_URL() { return documentServiceBase() + '/samples/'; },
+            get UPLOAD_LOGO_API() { return documentServiceBase() + '/api/upload-logo'; },
+            get SERVICE_BASE() { return documentServiceBase(); }
         },
 
         PERMISSIONS: {
