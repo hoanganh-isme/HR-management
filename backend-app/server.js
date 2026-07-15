@@ -212,8 +212,25 @@ async function getUserContractPermissionsFromDB(req) {
         Username: userName
     }, { headers, timeout: 10000 });
     const body = response.data || {};
-    const records = body.records || body.data || (Array.isArray(body) ? body : []);
-    return records.find((permission) => String(permission.FormName || '').toLowerCase() === 'wa_hopdonglaodongfrm') || null;
+    const records = body.records || body.list || body.data || body.Records || body.List || (Array.isArray(body) ? body : []);
+    const read = (source, names) => {
+        for (const name of names) {
+            if (source && source[name] !== undefined && source[name] !== null) return source[name];
+        }
+        return '';
+    };
+    const asFlag = (value) => value === true || value === 1 || ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+    const permission = records.find((item) => {
+        const formName = String(read(item, ['FormName', 'formName', 'formname', 'FORMNAME', 'FormID', 'formId', 'List', 'list']) || '').trim().toLowerCase();
+        return formName === 'wa_hopdonglaodongfrm';
+    });
+    if (!permission) return null;
+    return {
+        CanView: asFlag(read(permission, ['CanView', 'canView', 'canview', 'CANVIEW'])),
+        CanAdd: asFlag(read(permission, ['CanAdd', 'canAdd', 'canadd', 'CANADD'])),
+        CanEdit: asFlag(read(permission, ['CanEdit', 'canEdit', 'canedit', 'CANEDIT'])),
+        CanDelete: asFlag(read(permission, ['CanDelete', 'canDelete', 'candelete', 'CANDELETE']))
+    };
 }
 
 let _setupCache = null;
