@@ -44,6 +44,13 @@ function traLoiLoi(response, error) {
   });
 }
 
+function chuyenThongBaoLoiMau(error) {
+  if (error && error.code === 'SQL_GATEWAY_UNAVAILABLE') {
+    error.message = 'Khong the ket noi he thong du lieu de tai mau hop dong.';
+  }
+  return error;
+}
+
 export function dangKyContractDocumentRoutes(app, { service, extractUserName, getUserBranchesFromDB, getUserContractPermissionsFromDB }) {
   async function layNguoiDung(request, canEdit) {
     if (!request.headers.authorization) throw new HttpError(401, 'AUTH_REQUIRED', 'Yêu cầu đăng nhập để sử dụng chức năng hợp đồng.');
@@ -78,7 +85,7 @@ export function dangKyContractDocumentRoutes(app, { service, extractUserName, ge
     try {
       const nguoiDung = await layNguoiDung(request, false);
       response.json({ success: true, data: await service.layDanhSachMauHopDong(nguoiDung.authorization) });
-    } catch (error) { traLoiLoi(response, error); }
+    } catch (error) { traLoiLoi(response, chuyenThongBaoLoiMau(error)); }
   });
 
   app.get('/api/contract-drafts/:draftId/status', async (request, response) => {

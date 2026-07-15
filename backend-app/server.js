@@ -9,6 +9,7 @@ import Docxtemplater from 'docxtemplater';
 import crypto from 'crypto';
 import { documentConfig } from './src/config/document-config.js';
 import { SqlGatewayClient } from './src/gateway/sql-gateway-client.js';
+import { HttpError } from './src/shared/http-error.js';
 import { ContractDocumentRepository } from './src/contracts/contract-document.repository.js';
 import { ContractDraftRepository } from './src/contracts/contract-draft.repository.js';
 import { ContractDocumentService } from './src/contracts/contract-document.service.js';
@@ -50,22 +51,25 @@ try {
 }
 
 const allowedOrigins = new Set(documentConfig.corsAllowedOrigins);
-
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || allowedOrigins.has(origin)) {
-            callback(null, true);
-            return;
-        }
-        callback(new Error(`CORS origin is not allowed: ${origin}`));
+        callback(null, !origin || allowedOrigins.has(origin));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Username']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Username'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 }));
+app.use('/uploads', function (req, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', '*');
+    next();
+}, express.static(UPLOADS_DIR));
 
-app.use('/uploads', express.static(UPLOADS_DIR));
-app.use('/samples', express.static(SAMPLES_DIR));
+app.use('/samples', function (req, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', '*');
+    next();
+}, express.static(SAMPLES_DIR));
 
 app.use(express.json({ limit: '15mb' }));
 
@@ -81,14 +85,12 @@ const SQL_API_BASE = documentConfig.sqlApiBase;
 const SQL_API_USER = documentConfig.sqlApiUser;
 
 if (!SQL_API_BASE) {
-    console.error('[CRITICAL] Copy backend-app/.env.example to backend-app/.env and configure SQL_API_BASE.');
     console.error('[CRITICAL] Không thể chạy server vì thiếu SQL_API_BASE và không đọc được API_BASE từ env.js.');
     process.exit(1);
 }
 console.log(`[CONFIG] SQL_API_BASE: ${SQL_API_BASE}`);
 
 function extractUserName(req) {
-    if (req.hrmResolvedUserName) return req.hrmResolvedUserName;
     const authHeader = req.headers.authorization;
     if (authHeader) {
         try {
@@ -123,51 +125,14 @@ async function getUserBranchesFromDB(req, options = {}) {
     if (cached && now < cached.expiry) return cached.branches;
 
     try {
-        const payload = {
-            List: 'SY_User', Func: 'View', UserName: SQL_API_USER,
-            Keyword: userName, Page: 1, Limit: 1
-        };
-        const qs = encodeURIComponent(JSON.stringify(payload));
-        const url = `${SQL_API_BASE}/api/API_Gateway_Router?q=${qs}`;
-        const headers = {};
-        if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
-        const resp = await axios.get(url, { headers, timeout: 5000 });
-        const json = resp.data;
-        if (json && json.code !== undefined && Number(json.code) !== 0) {
-            throw new Error(json.msg || `SQL Gateway không trả được thông tin user '${userName}'.`);
-        }
-        let rows = json.records || (Array.isArray(json) ? json : []);
-        let user = rows.find(r => {
+        const json = await sqlGatewayClient.xem('SY_User', {
+            UserName: SQL_API_USER, Keyword: userName, Page: 1, Limit: 1
+        }, req.headers.authorization);
+        const rows = json.records || (Array.isArray(json) ? json : []);
+        const user = rows.find(r => {
             const uname = r.UserName || r.username || r.USERNAME || '';
             return uname.toLowerCase() === userName.toLowerCase();
         }) || rows[0];
-
-        // Legacy SQL Gateway may apply a case-sensitive Keyword filter. Retry
-        // with bounded casing variants instead of loading the whole SY_User table.
-        if (!user || String(user.UserName || user.username || user.USERNAME || '').toLowerCase() !== userName.toLowerCase()) {
-            const variants = Array.from(new Set([
-                userName,
-                userName.charAt(0).toUpperCase() + userName.slice(1),
-                userName.toUpperCase()
-            ]));
-            for (const variant of variants) {
-                if (variant === userName) continue;
-                const variantPayload = {
-                    List: 'SY_User', Func: 'View', UserName: SQL_API_USER,
-                    Keyword: variant, Page: 1, Limit: 1
-                };
-                const variantUrl = `${SQL_API_BASE}/api/API_Gateway_Router?q=${encodeURIComponent(JSON.stringify(variantPayload))}`;
-                const variantResp = await axios.get(variantUrl, { headers, timeout: 5000 });
-                const variantJson = variantResp.data;
-                if (variantJson && variantJson.code !== undefined && Number(variantJson.code) !== 0) continue;
-                const variantRows = variantJson.records || (Array.isArray(variantJson) ? variantJson : []);
-                user = variantRows.find(r => {
-                    const uname = r.UserName || r.username || r.USERNAME || '';
-                    return uname.toLowerCase() === userName.toLowerCase();
-                });
-                if (user) break;
-            }
-        }
 
         if (!user && options.failClosed) {
             throw new Error(`Không tìm thấy tài khoản '${userName}' trong SY_User.`);
@@ -175,7 +140,6 @@ async function getUserBranchesFromDB(req, options = {}) {
 
         let branches = null; // null = xem tất cả (admin)
         if (user) {
-            req.hrmResolvedUserName = user.UserName || user.username || user.USERNAME || userName;
             const rawBranch = user.BranchID || user.branchId || user.branchid || null;
             // Kiểm tra admin: sync với logic frontend _getUserBranches()
             // UserGroupID = 'admin' (case-insensitive) → xem tất cả
@@ -207,74 +171,25 @@ async function getUserBranchesFromDB(req, options = {}) {
 
 async function getUserContractPermissionsFromDB(req) {
     const userName = extractUserName(req);
-    const headers = req.headers.authorization ? { Authorization: req.headers.authorization } : {};
-    const read = (source, names) => {
-        for (const name of names) {
-            if (source && source[name] !== undefined && source[name] !== null) return source[name];
-        }
-        return '';
-    };
-    const asFlag = (value) => value === true || value === 1 || ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
-    const formNameOf = (item) => String(read(item, ['FormName', 'formName', 'formname', 'FORMNAME', 'FormID', 'formId', 'List', 'list']) || '').trim().toLowerCase();
-    const variants = Array.from(new Set([
-        userName,
-        userName.charAt(0).toUpperCase() + userName.slice(1),
-        userName.toUpperCase()
-    ]));
-    let inspectedForms = [];
-
-    for (const candidate of variants) {
-        const response = await axios.post(`${SQL_API_BASE}/api/API_LayQuyenCuaToi`, {
-            Username: candidate
-        }, { headers, timeout: 10000 });
-        const body = response.data || {};
-        const records = body.records || body.list || body.data || body.Records || body.List || (Array.isArray(body) ? body : []);
-        inspectedForms = inspectedForms.concat(records.map(formNameOf).filter(Boolean));
-        const permission = records.find((item) => {
-            return formNameOf(item) === 'wa_hopdonglaodongfrm';
-        });
-        if (!permission) continue;
-        return {
-            CanView: asFlag(read(permission, ['CanView', 'canView', 'canview', 'CANVIEW'])),
-            CanAdd: asFlag(read(permission, ['CanAdd', 'canAdd', 'canadd', 'CANADD'])),
-            CanEdit: asFlag(read(permission, ['CanEdit', 'canEdit', 'canedit', 'CANEDIT'])),
-            CanDelete: asFlag(read(permission, ['CanDelete', 'canDelete', 'candelete', 'CANDELETE']))
-        };
+    const body = await sqlGatewayClient.postEndpoint('/api/API_LayQuyenCuaToi', {
+        Username: userName
+    }, req.headers.authorization, { readOnly: true });
+    if (body && body.code !== undefined && Number(body.code) !== 0) {
+        throw new HttpError(401, 'SQL_GATEWAY_AUTH_FAILED', 'SQL API authentication is required.');
     }
-
-    console.warn('[PERMISSION] Contract form permission was not returned.', {
-        userName,
-        attemptedUserNames: variants,
-        returnedForms: Array.from(new Set(inspectedForms)).slice(0, 50)
-    });
-    return null;
+    const records = body.records || body.data || (Array.isArray(body) ? body : []);
+    return records.find((permission) => String(permission.FormName || '').toLowerCase() === 'wa_hopdonglaodongfrm') || null;
 }
 
 let _setupCache = null;
 let _setupCacheTime = 0;
 const SETUP_CACHE_TTL = 5 * 60 * 1000;
 
-async function axiosGetWithRetry(url, config = {}, retries = 3, delay = 1000) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await axios.get(url, config);
-        } catch (err) {
-            if (i === retries - 1) throw err;
-            console.warn(`[HTTP RETRY] Lần thử ${i + 1} thất bại cho ${url}: ${err.message}. Thử lại sau ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-}
-
 async function fetchSetupInfo(authToken) {
     const now = Date.now();
     if (_setupCache && (now - _setupCacheTime) < SETUP_CACHE_TTL) return _setupCache;
     try {
-        const url = `${SQL_API_BASE}/api/API_LayGiaTriSetup`;
-        const headers = {};
-        if (authToken) headers['Authorization'] = authToken;
-        const resp = await axiosGetWithRetry(url, { headers, timeout: 8000 }, 3, 1000);
-        const json = resp.data;
+        const json = await sqlGatewayClient.getEndpoint('/api/API_LayGiaTriSetup', authToken);
         const rows = json.records || (Array.isArray(json) ? json : []);
         const setup = {};
         rows.forEach(r => {
@@ -293,18 +208,11 @@ async function fetchSetupInfo(authToken) {
 }
 
 async function fetchFromSQLAPI(listName, keyword, authToken) {
-    const payload = {
-        List: listName, Func: 'View', UserName: SQL_API_USER,
-        Keyword: keyword || '', Page: 1, Limit: 1
-    };
-    const qs = encodeURIComponent(JSON.stringify(payload));
-    const url = `${SQL_API_BASE}/api/API_Gateway_Router?q=${qs}`;
     console.log(`[SQL API] Gọi: ${listName} | Keyword: ${keyword}`);
-    const headers = {};
-    if (authToken) headers['Authorization'] = authToken;
     try {
-        const resp = await axiosGetWithRetry(url, { headers, timeout: 10000 }, 3, 1000);
-        const json = resp.data;
+        const json = await sqlGatewayClient.xem(listName, {
+            UserName: SQL_API_USER, Keyword: keyword || '', Page: 1, Limit: 1
+        }, authToken);
         if (json && json.records && json.records.length > 0) return json.records[0];
         if (json && json.code === 0) return json;
     } catch (err) {
@@ -410,13 +318,12 @@ app.get('/api/documents/fields/:listName', async (req, res) => {
 
         let formFields = [];
         try {
-            const fieldsUrl = `${SQL_API_BASE}/api/API_DanhSachTruongGiaoDien`;
             const payload = { FormName: sqlListName, Username: 'admin', Limit: 1000 };
-            const headers = {};
-            if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
-            const fieldsResp = await axios.post(fieldsUrl, payload, { headers, timeout: 5000 });
-            if (fieldsResp.data && fieldsResp.data.records) {
-                formFields = fieldsResp.data.records.map(r => r.FieldName || r.fieldName || r.fieldname).filter(Boolean);
+            const fieldsData = await sqlGatewayClient.postEndpoint(
+                '/api/API_DanhSachTruongGiaoDien', payload, req.headers.authorization, { readOnly: true }
+            );
+            if (fieldsData && fieldsData.records) {
+                formFields = fieldsData.records.map(r => r.FieldName || r.fieldName || r.fieldname).filter(Boolean);
             }
         } catch (fieldsErr) {
             console.warn(`[FIELDS] Lỗi lấy trường từ API_DanhSachTruongGiaoDien cho '${sqlListName}':`, fieldsErr.message);
@@ -597,7 +504,7 @@ app.post('/api/documents/generate', async (req, res) => {
         // ── Xác định branch folder để lưu file ─────────────────────────────
         const userBranches = await getUserBranchesFromDB(req);
         const rowBranch = dataMap.BranchID || dataMap.branchId || dataMap.MaChiNhanh || null;
-        
+
         let targetBranch;
         if (userBranches === null) {
             // Admin (BranchID=null): Luôn lưu là file Hệ thống (_admin). 
@@ -634,17 +541,11 @@ app.post('/api/documents/generate', async (req, res) => {
                     Status: 'ACTIVE',
                     GeneratedBy: userName
                 };
-                const payload = {
-                    List: 'HR_Documents',
-                    Func: 'Save',
-                    UserName: userName,
-                    JsonData: JSON.stringify(docData)
-                };
-                const headers = {};
-                if (req.headers && req.headers.authorization) headers.Authorization = req.headers.authorization;
-                const auditResponse = await axios.post(`${SQL_API_BASE}/api/API_Gateway_Router`, payload, { headers });
-                if (auditResponse.data && Number(auditResponse.data.code) !== 0) {
-                    throw new Error(auditResponse.data.msg || 'HR_Documents Save thất bại.');
+                const auditResponse = await sqlGatewayClient.thaoTac(
+                    'HR_Documents', 'Save', docData, userName, req.headers.authorization
+                );
+                if (auditResponse && Number(auditResponse.code) !== 0) {
+                    throw new Error(auditResponse.msg || 'HR_Documents Save thất bại.');
                 }
                 console.log(`[AUDIT] ✅ Đã lưu vết Sổ lưu trữ cho file ${finalFileName}`);
             } catch (err) {
@@ -708,11 +609,7 @@ async function _handleDeleteDocument(req, res) {
                     }
                 }
                 const userName = extractUserName(req);
-                const payload = {
-                    List: 'HR_Documents',
-                    Func: 'Edit',
-                    UserName: userName,
-                    JsonData: JSON.stringify({
+                await sqlGatewayClient.thaoTac('HR_Documents', 'Edit', {
                         FilePath: rawFileName,
                         BranchID: fileBranch,
                         RefID: parsedRefID,
@@ -720,9 +617,7 @@ async function _handleDeleteDocument(req, res) {
                         Status: 'DELETED',
                         DeletedBy: userName,
                         DeletedAt: new Date().toISOString()
-                    })
-                };
-                await axios.post(`${SQL_API_BASE}/api/API_Gateway_Router`, payload);
+                }, userName, req.headers.authorization);
                 console.log(`[AUDIT] 🪦 Đã dán nhãn XÓA cho file ${rawFileName}`);
             } catch (err) {
                 console.error('[AUDIT] ❌ Lỗi cập nhật bia mộ:', err.message);
@@ -845,7 +740,13 @@ function findTemplatePath(baseDir, templateName) {
 
 const sqlGatewayClient = new SqlGatewayClient({
     baseUrl: documentConfig.sqlApiBase,
-    defaultUser: documentConfig.sqlApiUser
+    defaultUser: documentConfig.sqlApiUser,
+    timeoutMs: documentConfig.sqlApiTimeoutMs,
+    retryCount: documentConfig.sqlApiRetryCount,
+    retryBaseDelayMs: documentConfig.sqlApiRetryBaseDelayMs,
+    keepAlive: documentConfig.sqlApiKeepAlive,
+    maxGetUrlLength: documentConfig.sqlGatewayMaxGetUrlLength,
+    production: documentConfig.production
 });
 const contractDocumentRepository = new ContractDocumentRepository(sqlGatewayClient);
 const contractDraftRepository = new ContractDraftRepository(documentConfig.draftsDir);
@@ -880,10 +781,38 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         service: 'HR Document API',
-        sqlApiConfigured: Boolean(documentConfig.sqlApiBase),
-        onlyOfficePublicUrl: documentConfig.onlyOfficePublicUrl,
-        legacyHrDocumentsEnabled: documentConfig.useLegacyHrDocuments
+        version: '1.0.0',
+        uptimeSeconds: Math.floor(process.uptime())
     });
+});
+
+function checkDirectory(directory, mode) {
+    try {
+        fs.accessSync(directory, mode);
+        return { ok: true };
+    } catch (error) {
+        return { ok: false, code: error.code || 'FILE_SYSTEM_ERROR', message: error.message };
+    }
+}
+
+app.get('/ready', async (req, res) => {
+    const checks = {
+        sqlGateway: null,
+        draftStorage: checkDirectory(documentConfig.draftsDir, fs.constants.R_OK | fs.constants.W_OK),
+        samples: checkDirectory(documentConfig.samplesDir, fs.constants.R_OK)
+    };
+    try {
+        checks.sqlGateway = await sqlGatewayClient.probe(req.headers.authorization, { retryCount: 0 });
+    } catch (error) {
+        checks.sqlGateway = {
+            ok: false,
+            code: error.details?.causeCode || error.code || 'SQL_GATEWAY_UNAVAILABLE',
+            message: error.status === 401 || error.status === 403 ? 'SQL API authentication is required.' : 'SQL API is unavailable.',
+            authRequired: error.status === 401 || error.status === 403
+        };
+    }
+    const ready = Object.values(checks).every((check) => check && check.ok);
+    res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not-ready', checks });
 });
 
 app.get('/', (req, res) => {
@@ -902,12 +831,13 @@ app.get('/', (req, res) => {
     });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[CONFIG] Document API public URL: ${documentConfig.documentPublicBaseUrl}`);
-    console.log(`[CONFIG] Document API internal URL: ${documentConfig.documentInternalBaseUrl}`);
-    console.log(`[CONFIG] OnlyOffice URL: ${documentConfig.onlyOfficePublicUrl}`);
-    console.log(`[CONFIG] SQL API URL: ${SQL_API_BASE}`);
-    console.log(`[CONFIG] Health URL: ${documentConfig.documentPublicBaseUrl}/health`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[CONFIG] NODE_ENV: ${documentConfig.nodeEnv}`);
+    console.log(`[CONFIG] SQL_API_BASE: ${documentConfig.sqlApiBase}`);
+    console.log(`[CONFIG] DOCUMENT_PUBLIC_BASE_URL: ${documentConfig.documentPublicBaseUrl}`);
+    console.log(`[CONFIG] DOCUMENT_INTERNAL_BASE_URL: ${documentConfig.documentInternalBaseUrl}`);
+    console.log(`[CONFIG] ONLYOFFICE_PUBLIC_URL: ${documentConfig.onlyOfficePublicUrl}`);
+    console.log(`[CONFIG] CORS_ALLOWED_ORIGINS: ${documentConfig.corsAllowedOrigins.join(',')}`);
     console.log('=======================================================');
     console.log('       ✨ BACKEND SERVER - HR DOCUMENT MANAGEMENT     ');
     console.log('=======================================================');
@@ -919,3 +849,18 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`[📄] OnlyOffice: ${documentConfig.onlyOfficePublicUrl}`);
     console.log('=======================================================');
 });
+
+let shuttingDown = false;
+function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[SHUTDOWN] ${signal} received.`);
+    server.close(() => {
+        sqlGatewayClient.close();
+        process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10000).unref();
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
