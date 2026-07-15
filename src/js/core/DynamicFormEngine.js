@@ -586,13 +586,13 @@ window.DynamicFormEngine = (function () {
         var nextSTT = currentItems.length + 1;
 
         var attachmentData = {
-            IsEdit: 0,
-            FileName: file.name,
-            FileType: fileTypeNum,
-            STT: nextSTT,
-            FileSize: file.size,
-            Base64Content: base64Content,
-            Content: hexStr
+          IsEdit: 0,
+          FileName: file.name,
+          FileType: fileTypeNum,
+          STT: nextSTT,
+          FileSize: file.size,
+          Base64Content: base64Content,
+          Content: hexStr
         };
         attachmentData[pkField] = pkVal;
 
@@ -4130,11 +4130,11 @@ window.DynamicFormEngine = (function () {
 
     if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
-      
+
       var hasId = row && row[MODULE_CONFIG.PrimaryKey];
       var action = hasId ? 'edit' : 'add';
       var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
-      
+
       window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + '&action=' + action;
       return;
     }
@@ -4150,11 +4150,11 @@ window.DynamicFormEngine = (function () {
   function _openViewForm(row) {
     if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row || {}));
-      
+
       var hasId = row && row[MODULE_CONFIG.PrimaryKey];
-      var action = hasId ? '' : '&action=add'; 
+      var action = hasId ? '' : '&action=add';
       var idParam = hasId ? ('&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey])) : '';
-      
+
       window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + idParam + action;
       return;
     }
@@ -6260,7 +6260,18 @@ window.DynamicFormEngine = (function () {
             return;
           }
         }
-        formInputData[el.name] = el.value.trim();
+        if (el.readOnly || el.disabled) {
+          return;
+        }
+        var rawVal = el.value.trim();
+        if (typeof rawVal === 'string' && rawVal.match(/^\d{2}[\/\-]\d{2}[\/\-]\d{4}/)) {
+          var parts = rawVal.substring(0, 10).replace(/-/g, '/').split('/');
+          var newDateStr = parts[2] + '-' + parts[1] + '-' + parts[0];
+          if (rawVal.length > 10) newDateStr += ' ' + rawVal.substring(10).trim();
+          formInputData[el.name] = newDateStr.trim();
+        } else {
+          formInputData[el.name] = rawVal;
+        }
       }
     });
 
@@ -6381,13 +6392,13 @@ window.DynamicFormEngine = (function () {
         var attachApi = attachmentConfig.sp;
 
         var avatarData = {
-            IsEdit: 0,
-            FileName: window._pendingWizardAvatar.file.name,
-            FileType: 1, // 1 = Avatar
-            STT: 2,
-            FileSize: window._pendingWizardAvatar.file.size,
-            Base64Content: window._pendingWizardAvatar.base64Content,
-            Content: window._pendingWizardAvatar.hexStr
+          IsEdit: 0,
+          FileName: window._pendingWizardAvatar.file.name,
+          FileType: 1, // 1 = Avatar
+          STT: 2,
+          FileSize: window._pendingWizardAvatar.file.size,
+          Base64Content: window._pendingWizardAvatar.base64Content,
+          Content: window._pendingWizardAvatar.hexStr
         };
         avatarData[attachmentOwnerField] = masterKeyVal;
 
@@ -6579,13 +6590,13 @@ window.DynamicFormEngine = (function () {
             var attachApi = attachmentConfig.sp;
 
             var avatarData = {
-                IsEdit: 0,
-                FileName: window._pendingAvatar.file.name,
-                FileType: 1, // 1 = Avatar
-                STT: 2,
-                FileSize: window._pendingAvatar.file.size,
-                Base64Content: window._pendingAvatar.base64Content,
-                Content: window._pendingAvatar.hexStr
+              IsEdit: 0,
+              FileName: window._pendingAvatar.file.name,
+              FileType: 1, // 1 = Avatar
+              STT: 2,
+              FileSize: window._pendingAvatar.file.size,
+              Base64Content: window._pendingAvatar.base64Content,
+              Content: window._pendingAvatar.hexStr
             };
             avatarData[attachmentOwnerField] = ownerId;
 

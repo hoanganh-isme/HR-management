@@ -1,0 +1,9 @@
+{
+  "liveServer.settings.ignoreFiles": [
+    "**/backend-app/storage/**",
+    "**/backend-app/storage/**/*",
+    "**/backend-app/samples/backups/**",
+    "**/backend-app/node_modules/**",
+    "**/*.log"
+  ]
+}

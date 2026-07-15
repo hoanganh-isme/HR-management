@@ -108,17 +108,28 @@ export class SqlGatewayClient {
 
   async thaoTac(listName, func, data, userName, authorization, options = {}) {
     const payload = { List: listName, Func: func, UserName: userName || this.defaultUser, JsonData: JSON.stringify(data || {}) };
-    try {
-      const response = await this.http.post('/api/API_Gateway_Router', payload, {
-        headers: headersFor(authorization), timeout: options.timeoutMs || this.timeoutMs
-      });
-      if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
-      const businessError = gatewayBusinessError(response.data, { operation: func, list: listName });
-      if (businessError) throw businessError;
-      return response.data;
-    } catch (error) {
-      throw this.toHttpError(error, { operation: func, list: listName, attemptCount: 1 }, false);
+    const retries = options.retryOnNetwork ? Math.max(0, Number(options.retryCount ?? 1)) : 0;
+    const startedAt = Date.now();
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const response = await this.http.post('/api/API_Gateway_Router', payload, {
+          headers: headersFor(authorization), timeout: options.timeoutMs || this.timeoutMs
+        });
+        if (response.status >= 400) throw Object.assign(new Error(`SQL Gateway returned HTTP ${response.status}.`), { response });
+        const businessError = gatewayBusinessError(response.data, { operation: func, list: listName });
+        if (businessError) throw businessError;
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        const kind = classifyGatewayError(error);
+        if (!options.retryOnNetwork || !kind.retryable || attempt >= retries) break;
+        const delayMs = this.retryBaseDelayMs * (2 ** attempt);
+        this.logger.warn(`[SQL GATEWAY] ${func} ${listName} failed cause=${kind.code} attempt=${attempt + 1}/${retries + 1} retryInMs=${delayMs}`);
+        await sleep(delayMs);
+      }
     }
+    throw this.toHttpError(lastError, { operation: func, list: listName, attemptCount: retries + 1, durationMs: Date.now() - startedAt }, false);
   }
 
   async getEndpoint(path, authorization, options = {}) {

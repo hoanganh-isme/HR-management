@@ -96,18 +96,13 @@
   <script src="./env.js?v=5"></script>
 
   <!-- 2. App Bundle (mockData + utils + services + plugins + components) -->
-  <script src="./src/js/app.bundle.js?v=12"></script>
+  <script src="./src/js/app.bundle.js?v=14"></script>
 
-  <!-- Nạp bản source mới cho form động và phép năm sau bundle cũ. -->
-  <script src="./src/js/core/DynamicFormEngine.js?v=11"></script>
-  <script src="./src/js/modules/leave/annual-leave.module.js?v=10"></script>
+  <!-- Các module chưa nằm trong bundle. -->
+  <script src="./src/js/modules/leave/leave-actions.js?v=3"></script>
+  <script src="./src/js/modules/leave/leave-request.module.js?v=7"></script>
 
-  <!-- 3. Core System -->
-  <script src="./src/js/core/WizardForm.js?v=1"></script>
-  <script src="./src/js/core/router.js?v=58"></script>
-  <script src="./src/js/core/index.js?v=27"></script>
-
-  <!-- 4. Tắt splash → hiện app -->
+  <!-- 3. Tắt splash → hiện app -->
   <script>
     (function () {
       var splash = document.getElementById('app-splash');

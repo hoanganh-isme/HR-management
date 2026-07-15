@@ -97,45 +97,6 @@ var MenusPage = (function () {
     $container.querySelector('#btn-close-modal').addEventListener('click', _closeModal);
     $container.querySelector('#btn-cancel-modal').addEventListener('click', _closeModal);
     $container.querySelector('#btn-save-menu').addEventListener('click', _saveMenu);
-    $container.querySelector('#menu-form-mode').addEventListener('change', _updateFormModeUI);
-    $container.querySelector('#menu-data-access').addEventListener('change', _updateOperationProfileUI);
-
-  }
-
-  function _updateFormModeUI() {
-    var mode = $container.querySelector('#menu-form-mode').value;
-    var contract = $container.querySelector('#menu-form-contract');
-    var procedureContract = $container.querySelector('#menu-procedure-contract');
-    var tableContract = $container.querySelector('#menu-table-contract');
-    var formName = $container.querySelector('#menu-formname');
-    var requiredMark = $container.querySelector('#menu-formname-required');
-
-    contract.style.display = (mode === 'table' || mode === 'procedure') ? 'block' : 'none';
-    procedureContract.style.display = mode === 'procedure' ? 'block' : 'none';
-    tableContract.style.display = (mode === 'table' || mode === 'procedure') ? '' : 'none';
-    formName.disabled = mode === 'none';
-    requiredMark.style.display = mode === 'none' ? 'none' : 'inline';
-
-    if (mode === 'none') formName.value = '';
-    if (mode === 'table') $container.querySelector('#menu-view-procedure').value = 'API_TruyVanDong';
-    _updateOperationProfileUI();
-  }
-
-  function _updateOperationProfileUI() {
-    var details = $container.querySelector('#menu-form-contract details');
-    if (details && _operationProfile() === 'CUSTOM') details.open = true;
-  }
-
-  function _parseJsonInput(selector, fallbackValue, fieldLabel) {
-    var value = $container.querySelector(selector).value.trim();
-    if (!value) return fallbackValue;
-
-    try {
-      JSON.parse(value);
-      return value;
-    } catch (error) {
-      throw new Error(fieldLabel + ' không phải JSON hợp lệ');
-    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -922,13 +883,7 @@ var MenusPage = (function () {
       });
     }
 
-    $container.querySelector('#menu-table-name').value = '';
-    $container.querySelector('#menu-primary-key').value = '';
-    $container.querySelector('#menu-view-procedure').value = '';
-    $container.querySelector('#menu-view-parameters').value = '';
-    $container.querySelector('#menu-data-access').value = 'CRUD';
-    $container.querySelector('#menu-field-overrides').value = '[]';
-    $container.querySelector('#menu-operations').value = '';
+
 
     if (isEdit && menu) {
       title.textContent = 'Sửa Menu: ' + menu.label;
@@ -945,7 +900,7 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = menu.icon || '';
       $container.querySelector('#menu-icon-preview').textContent = menu.icon || 'label';
       $container.querySelector('#menu-is-disable').checked = (menu.isDisable == 1 || menu.isDisable === '1' || menu.isDisable === true);
-      $container.querySelector('#menu-form-mode').value = menu.formName ? 'existing' : 'none';
+      $container.querySelector('#menu-is-disable').checked = (menu.isDisable == 1 || menu.isDisable === '1' || menu.isDisable === true);
     } else {
       title.textContent = 'Thêm mới Menu';
       isEditInp.value = '0';
@@ -961,10 +916,7 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = '';
       $container.querySelector('#menu-icon-preview').textContent = 'label';
       $container.querySelector('#menu-is-disable').checked = false;
-      $container.querySelector('#menu-form-mode').value = menu && menu.parent ? 'table' : 'none';
     }
-
-    _updateFormModeUI();
 
     modal.style.display = 'flex';
     setTimeout(function () { $container.querySelector('#menu-id').focus(); }, 100);
@@ -990,47 +942,13 @@ var MenusPage = (function () {
     var isDisable = $container.querySelector('#menu-is-disable').checked ? 1 : 0;
     var isEdit = $container.querySelector('#menu-is-edit').value === '1';
     var oldId = $container.querySelector('#menu-old-id').value;
-    var formMode = $container.querySelector('#menu-form-mode').value;
-    var registerForm = formMode === 'table' || formMode === 'procedure';
-    var tableName = $container.querySelector('#menu-table-name').value.trim();
-    var primaryKey = $container.querySelector('#menu-primary-key').value.trim();
-    var viewProcedure = $container.querySelector('#menu-view-procedure').value.trim();
-    var viewParameters = $container.querySelector('#menu-view-parameters').value.trim();
-    var operationProfile = _operationProfile();
-    var profileConfig = OPERATION_PROFILES[operationProfile];
-
     if (!id || !label) {
       Alert.error('Thiếu thông tin', 'Vui lòng nhập Menu ID và Tên Menu (VN)');
       return;
     }
 
-    if (formMode !== 'none' && !formName) {
+    if (!formName) {
       Alert.error('Thiếu thông tin', 'Vui lòng nhập Tên Form hệ thống');
-      return;
-    }
-
-    if (registerForm && (!tableName || !primaryKey)) {
-      Alert.error('Thiếu cấu hình form', 'Vui lòng nhập Bảng dữ liệu và Khóa chính');
-      return;
-    }
-
-    if (formMode === 'procedure' && !viewProcedure) {
-      Alert.error('Thiếu cấu hình form', 'Vui lòng nhập Stored procedure View');
-      return;
-    }
-
-    var overrides;
-    var operations;
-    try {
-      overrides = _parseJsonInput('#menu-field-overrides', '[]', 'Field overrides');
-      operations = _parseJsonInput('#menu-operations', null, 'Operations');
-    } catch (error) {
-      Alert.error('JSON không hợp lệ', error.message);
-      return;
-    }
-
-    if (registerForm && profileConfig.requireOperations && operations === null) {
-      Alert.error('Thiếu thao tác nghiệp vụ', 'Vui lòng khai báo ít nhất một thao tác trong Operations JSON');
       return;
     }
 
@@ -1048,19 +966,19 @@ var MenusPage = (function () {
       Icon: icon,
       IsDisable: isDisable,
       IsEdit: isEdit ? 1 : 0,
-      RegisterForm: registerForm ? 1 : 0,
-      RequireAvailableForm: formMode === 'existing' ? 1 : 0,
-      TableName: registerForm ? tableName : null,
-      PrimaryKey: registerForm ? primaryKey : null,
-      FormType: 'EDIT',
-      OperationProfile: registerForm ? operationProfile : null,
-      ViewProcedure: formMode === 'table' ? 'API_TruyVanDong' : (viewProcedure || null),
-      ViewParameters: viewParameters || null,
-      Overrides: overrides,
-      Operations: operations,
-      ReplaceOperations: registerForm ? 1 : 0,
-      IncludeSaveOperation: profileConfig.includeSave,
-      IncludeDeleteOperation: profileConfig.includeDelete
+      RegisterForm: 0,
+      RequireAvailableForm: 0,
+      TableName: null,
+      PrimaryKey: null,
+      FormType: null,
+      OperationProfile: null,
+      ViewProcedure: null,
+      ViewParameters: null,
+      Overrides: null,
+      Operations: null,
+      ReplaceOperations: 0,
+      IncludeSaveOperation: 0,
+      IncludeDeleteOperation: 0
     };
 
     var btn = $container.querySelector('#btn-save-menu');

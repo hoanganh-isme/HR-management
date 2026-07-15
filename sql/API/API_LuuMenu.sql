@@ -81,7 +81,7 @@ BEGIN
                 SET @MenuID = RIGHT(@MenuID, LEN(@MenuID) - LEN(@OldParentID));
         END
 
-        IF @ParentID <> '' AND @MenuID NOT LIKE @ParentID + '%'
+        IF @ParentID <> '' AND (@MenuID NOT LIKE @ParentID + '%' OR @MenuID = @ParentID)
             SET @MenuID = @ParentID + @MenuID;
 
         IF @FormName <> '' AND @URLPara = ''

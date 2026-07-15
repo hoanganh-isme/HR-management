@@ -3,9 +3,30 @@ window.ContractDocumentApi = (function () {
   var documentConfig = window.API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
 
   function layToken() {
-    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') return ApiClient.getCookie('auth_token') || '';
+    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') {
+      var cookieToken = ApiClient.getCookie('auth_token') || '';
+      if (cookieToken) return cookieToken;
+    }
     var match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : '';
+    if (match) return decodeURIComponent(match[1]);
+
+    // Một số phiên đăng nhập cũ chỉ lưu access_token trong hồ sơ local.
+    try {
+      var raw = window.AppStorage
+        ? AppStorage.getStored('user', '{}')
+        : localStorage.getItem('hrm_user') || localStorage.getItem('pmql_user') || '{}';
+      var session = JSON.parse(raw || '{}');
+      var candidates = [session, session.user, session.User, session.data, session.Data];
+      var records = session.records || session.Records;
+      if (Array.isArray(records)) candidates.push(records[0]);
+      for (var i = 0; i < candidates.length; i++) {
+        var user = candidates[i];
+        if (!user || typeof user !== 'object') continue;
+        var token = user.access_token || user.accessToken || user.AccessToken || user.token || user.Token;
+        if (token) return String(token);
+      }
+    } catch (error) { /* phiên lưu cũ không hợp lệ, để API trả lỗi xác thực */ }
+    return '';
   }
 
   function layUserName() {

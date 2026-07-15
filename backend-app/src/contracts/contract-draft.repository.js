@@ -15,7 +15,18 @@ const DINH_DANG_ID = /^[0-9a-f-]{36}$/i;
 export class ContractDraftRepository {
   constructor(draftsDir) {
     this.draftsDir = path.resolve(draftsDir);
+    this.writeLocks = new Map();
     fs.mkdirSync(this.draftsDir, { recursive: true });
+  }
+
+  async withWriteLock(draftId, operation) {
+    const previous = this.writeLocks.get(draftId) || Promise.resolve();
+    const current = previous.catch(() => {}).then(operation);
+    this.writeLocks.set(draftId, current);
+    try { return await current; }
+    finally {
+      if (this.writeLocks.get(draftId) === current) this.writeLocks.delete(draftId);
+    }
   }
 
   layDuongDanBanNhap(draftId) {
@@ -76,16 +87,24 @@ export class ContractDraftRepository {
   }
 
   async luuThayDoiBanNhap(draftId, noiDungFile, thayDoiMetadata) {
-    const banNhap = await this.layBanNhap(draftId);
-    const fileMoi = `${banNhap.duongDan.file}.new`;
-    await fsp.writeFile(fileMoi, noiDungFile);
-    await fsp.rename(fileMoi, banNhap.duongDan.file);
-    return this.capNhatMetadata(draftId, thayDoiMetadata);
+    return this.withWriteLock(draftId, async () => {
+      const banNhap = await this.layBanNhap(draftId);
+      const fileMoi = `${banNhap.duongDan.file}.${process.pid}.${crypto.randomUUID()}.new`;
+      await fsp.writeFile(fileMoi, noiDungFile, { flag: 'wx' });
+      try { await fsp.rename(fileMoi, banNhap.duongDan.file); }
+      finally { await fsp.rm(fileMoi, { force: true }).catch(() => {}); }
+      return this.capNhatMetadataUnlocked(banNhap, thayDoiMetadata);
+    });
   }
 
   async capNhatMetadata(draftId, thayDoi) {
-    const banNhap = await this.layBanNhap(draftId);
+    return this.withWriteLock(draftId, async () => this.capNhatMetadataUnlocked(await this.layBanNhap(draftId), thayDoi));
+  }
+
+  async capNhatMetadataUnlocked(banNhap, thayDoi) {
     const metadataMoi = Object.assign({}, banNhap.metadata, thayDoi, { updatedAt: new Date().toISOString() });
+    if (banNhap.metadata.finalCallbackCompleted === true) metadataMoi.finalCallbackCompleted = true;
+    if (banNhap.metadata.forceSaveCompleted === true) metadataMoi.forceSaveCompleted = true;
     await this.ghiMetadata(banNhap.duongDan.metadata, metadataMoi);
     return metadataMoi;
   }
@@ -113,9 +132,10 @@ export class ContractDraftRepository {
   }
 
   async ghiMetadata(duongDanMetadata, metadata) {
-    const fileMoi = `${duongDanMetadata}.new`;
-    await fsp.writeFile(fileMoi, JSON.stringify(metadata, null, 2), 'utf8');
-    await fsp.rename(fileMoi, duongDanMetadata);
+    const fileMoi = `${duongDanMetadata}.${process.pid}.${crypto.randomUUID()}.new`;
+    await fsp.writeFile(fileMoi, JSON.stringify(metadata, null, 2), { encoding: 'utf8', flag: 'wx' });
+    try { await fsp.rename(fileMoi, duongDanMetadata); }
+    finally { await fsp.rm(fileMoi, { force: true }).catch(() => {}); }
   }
 }
 

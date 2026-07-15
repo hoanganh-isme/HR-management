@@ -549,9 +549,30 @@ window.ContractDocumentApi = (function () {
   var documentConfig = window.API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
 
   function layToken() {
-    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') return ApiClient.getCookie('auth_token') || '';
+    if (typeof ApiClient !== 'undefined' && typeof ApiClient.getCookie === 'function') {
+      var cookieToken = ApiClient.getCookie('auth_token') || '';
+      if (cookieToken) return cookieToken;
+    }
     var match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : '';
+    if (match) return decodeURIComponent(match[1]);
+
+    // Một số phiên đăng nhập cũ chỉ lưu access_token trong hồ sơ local.
+    try {
+      var raw = window.AppStorage
+        ? AppStorage.getStored('user', '{}')
+        : localStorage.getItem('hrm_user') || localStorage.getItem('pmql_user') || '{}';
+      var session = JSON.parse(raw || '{}');
+      var candidates = [session, session.user, session.User, session.data, session.Data];
+      var records = session.records || session.Records;
+      if (Array.isArray(records)) candidates.push(records[0]);
+      for (var i = 0; i < candidates.length; i++) {
+        var user = candidates[i];
+        if (!user || typeof user !== 'object') continue;
+        var token = user.access_token || user.accessToken || user.AccessToken || user.token || user.Token;
+        if (token) return String(token);
+      }
+    } catch (error) { /* phiên lưu cũ không hợp lệ, để API trả lỗi xác thực */ }
+    return '';
   }
 
   function layUserName() {
@@ -774,18 +795,20 @@ window.ContractDocumentActions = (function () {
 
   function doiCallbackCuoi(draftId, soLanThu) {
     return ContractDocumentApi.draftStatus(draftId).then(function (response) {
-      if (response.draft && response.draft.finalCallbackCompleted) return response.draft;
+      if (response.draft && (response.draft.finalCallbackCompleted || response.draft.forceSaveCompleted)) return response.draft;
+      if (response.draft && response.draft.lastCallbackError) throw new Error(response.draft.lastCallbackError);
       if (soLanThu >= 15) throw new Error('OnlyOffice chưa hoàn tất callback cuối. Bản nháp vẫn được giữ lại.');
-      return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () { return doiCallbackCuoi(draftId, soLanThu + 1); });
+      return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(function () { return doiCallbackCuoi(draftId, soLanThu + 1); });
     });
   }
 
   function finalizeDraft() {
     if (!activeDraftId) return;
     choPhepLuu();
-    if (editorInstance && typeof editorInstance.requestClose === 'function') {
-      try { editorInstance.requestClose(); } catch (error) { /* tiếp tục chờ callback */ }
+    if (editorInstance && typeof editorInstance.forceSave === 'function') {
+      try { editorInstance.forceSave(); } catch (error) { /* callback van co the ve tu autosave */ }
     }
+    // Khong requestClose: OnlyOffice se canh bao va co the huy thay doi chua callback.
     doiCallbackCuoi(activeDraftId, 0)
       .then(function () { return ContractDocumentApi.finalizeDraft(activeDraftId); })
       .then(function (response) {
@@ -801,6 +824,7 @@ window.ContractDocumentActions = (function () {
   }
 
   function moTrinhSuaHopDong(draft) {
+    dongEditor();
     activeDraftId = draft.draftId;
     return ContractDocumentApi.editorConfig(activeDraftId).then(function (config) {
       activeEditorConfig = config;
@@ -810,7 +834,8 @@ window.ContractDocumentActions = (function () {
       });
       document.getElementById('contract-document-finalize').addEventListener('click', finalizeDraft);
       document.getElementById('contract-document-close').addEventListener('click', function () {
-        ContractDocumentApi.deleteDraft(activeDraftId).finally(dongEditor);
+        // Đóng editor không xóa bản nháp; người dùng có thể mở lại từ Workspace.
+        dongEditor();
       });
       return taiOnlyOfficeApi(config.documentServerUrl).then(function () {
         editorInstance = new DocsAPI.DocEditor('contract-document-editor-area', config.editorConfig);
@@ -863,7 +888,13 @@ window.ContractDocumentActions = (function () {
         thongBao('Đang tạo bản nháp hợp đồng...', 'info');
         return ContractDocumentApi.createDraft({ maHopDong: maHopDong, templateFile: templateFile });
       })
-      .then(function (response) { return moTrinhSuaHopDong(response.draft); })
+      .then(function (response) {
+        var draftId = response.draft && response.draft.draftId;
+        if (!draftId) throw new Error('Không nhận được mã bản nháp từ máy chủ.');
+        thongBao('Đã tạo bản nháp. Đang mở Workspace...', 'success');
+        window.location.hash = '#/document-manager?tab=drafts&draftId=' + encodeURIComponent(draftId);
+        return response;
+      })
       .catch(function (error) {
         if (error && error.message !== 'CANCELLED') thongBao(error.message || 'Không thể tạo bản nháp hợp đồng.', 'error');
         throw error;
@@ -872,18 +903,20 @@ window.ContractDocumentActions = (function () {
 
   function doiCallbackMau(workspaceId, soLanThu) {
     return ContractDocumentApi.templateWorkspaceStatus(workspaceId).then(function (response) {
-      if (response.workspace && response.workspace.finalCallbackCompleted) return response.workspace;
+      if (response.workspace && (response.workspace.finalCallbackCompleted || response.workspace.forceSaveCompleted)) return response.workspace;
+      if (response.workspace && response.workspace.lastCallbackError) throw new Error(response.workspace.lastCallbackError);
       if (soLanThu >= 15) throw new Error('OnlyOffice chưa hoàn tất callback cuối của mẫu. Workspace vẫn được giữ lại.');
-      return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () { return doiCallbackMau(workspaceId, soLanThu + 1); });
+      return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(function () { return doiCallbackMau(workspaceId, soLanThu + 1); });
     });
   }
 
   function apDungMauHopDong() {
     var button = document.getElementById('contract-document-finalize');
     if (button) { button.disabled = true; button.innerHTML = '<span class="material-symbols-outlined">sync</span> Đang kiểm tra...'; }
-    if (editorInstance && typeof editorInstance.requestClose === 'function') {
-      try { editorInstance.requestClose(); } catch (error) { /* tiếp tục chờ callback */ }
+    if (editorInstance && typeof editorInstance.forceSave === 'function') {
+      try { editorInstance.forceSave(); } catch (error) { /* callback van co the ve tu autosave */ }
     }
+    // Khong requestClose: OnlyOffice se canh bao va co the huy thay doi chua callback.
     doiCallbackMau(activeTemplateWorkspaceId, 0)
       .then(function () { return ContractDocumentApi.templatePlaceholders(activeTemplateWorkspaceId); })
       .then(function (response) {
@@ -904,6 +937,7 @@ window.ContractDocumentActions = (function () {
   }
 
   function moTrinhSuaMau(templateFile) {
+    dongEditor();
     thongBao('Đang tạo workspace chỉnh sửa mẫu...', 'info');
     return ContractDocumentApi.createTemplateWorkspace(templateFile)
       .then(function (response) {
@@ -970,7 +1004,7 @@ var DocumentExportPlugin = (function () {
       text: 'Tài liệu hợp đồng',
       icon: 'folder_open',
       type: 'tool',
-      onClick: function () { window.location.hash = '#/document-manager'; }
+       onClick: function () { window.location.hash = '#/document-manager?tab=saved'; }
     }];
   }
 
@@ -20177,7 +20211,18 @@ window.DynamicFormEngine = (function () {
             return;
           }
         }
-        formInputData[el.name] = el.value.trim();
+        if (el.readOnly || el.disabled) {
+          return;
+        }
+        var rawVal = el.value.trim();
+        if (typeof rawVal === 'string' && rawVal.match(/^\d{2}[\/\-]\d{2}[\/\-]\d{4}/)) {
+          var parts = rawVal.substring(0, 10).replace(/-/g, '/').split('/');
+          var newDateStr = parts[2] + '-' + parts[1] + '-' + parts[0];
+          if (rawVal.length > 10) newDateStr += ' ' + rawVal.substring(10).trim();
+          formInputData[el.name] = newDateStr.trim();
+        } else {
+          formInputData[el.name] = rawVal;
+        }
       }
     });
 
@@ -22130,9 +22175,11 @@ var Router = (function () {
     });
 
     if (needsReload) {
-      if (!_currentRoute || _currentRoute.path !== currentHash) {
+      var pendingPath = _pendingRouteKey ? _pendingRouteKey.split('?')[0] : null;
+      if ((!_currentRoute || _currentRoute.path !== currentHash) && pendingPath !== currentHash && !_routeReloadTimer) {
         // Delay slightly to allow Navbar to finish rendering before we trigger routing
-        setTimeout(function () {
+        _routeReloadTimer = setTimeout(function () {
+          _routeReloadTimer = null;
           _handleRoute();
         }, 50);
       }
@@ -22145,6 +22192,9 @@ var Router = (function () {
   var _templateCache = {};
   var _appVersion = '2.14'; // Bump để làm mới cache html/script động
   var _navId = 0; // Token chặn race-condition
+  var _pendingRouteKey = null;
+  var _currentRouteKey = null;
+  var _routeReloadTimer = null;
 
   // ── Template cache (dùng chung cho cả Router lẫn Page modules) ─────────
   function fetchTemplate(url) {
@@ -22255,13 +22305,25 @@ var Router = (function () {
 
   // ── Main Route Handler ─────────────────────────────────────────────────
   function _handleRoute() {
+    var rawHash = window.location.hash.replace('#', '') || '/dashboard';
+    if (_pendingRouteKey === rawHash || _currentRouteKey === rawHash) return;
+
+    _pendingRouteKey = rawHash;
     _navId++;
     var currentNav = _navId;
-
-    var rawHash = window.location.hash.replace('#', '') || '/dashboard';
     var hashParts = rawHash.split('?');
     var pathOnly = hashParts[0];
     var route = _findRoute(pathOnly);
+
+    function completeRoute() {
+      if (currentNav !== _navId) return;
+      _pendingRouteKey = null;
+      _currentRouteKey = rawHash;
+    }
+
+    function releaseRoute() {
+      if (currentNav === _navId) _pendingRouteKey = null;
+    }
 
     // Kéo quyền động nếu máy khác vừa cập nhật (Đảm bảo Realtime)
     _syncPermissionsIfNeeded().then(function () {
@@ -22281,6 +22343,7 @@ var Router = (function () {
         if ($pageTitle) $pageTitle.innerText = '404 — Không tìm thấy';
         document.title = '404 | Quản lý Nhân sự';
         _render404($content, rawHash);
+        completeRoute();
         return;
       }
 
@@ -22289,6 +22352,7 @@ var Router = (function () {
       if (targetPerm && !Permission.canView(targetPerm)) {
         if ($pageTitle) $pageTitle.innerText = 'Từ chối truy cập';
         _renderAccessDenied($content);
+        completeRoute();
         return;
       }
 
@@ -22340,9 +22404,11 @@ var Router = (function () {
             }
             _fadeIn($content);
             _currentRoute = route;
+            completeRoute();
           })
           .catch(function (err) {
             if (err.message === 'ABORTED') return; // Bỏ qua nếu là thao tác hủy do click liên tục
+            releaseRoute();
             console.error('[Router]', err);
             _renderError($content, 'Lỗi tải module: ' + err.message);
             _fadeIn($content);
@@ -22362,9 +22428,11 @@ var Router = (function () {
             $content.innerHTML = html;
             _fadeIn($content);
             _currentRoute = route;
+            completeRoute();
           })
           .catch(function (err) {
             if (err.message === 'ABORTED') return;
+            releaseRoute();
             console.error('[Router]', err);
             _renderError($content, 'Lỗi tải template: ' + err.message);
             _fadeIn($content);
@@ -22374,6 +22442,11 @@ var Router = (function () {
 
       // ── Trường hợp 3: Trang chưa code ──
       _renderPlaceholder($content, route.title);
+      _currentRoute = route;
+      completeRoute();
+    }).catch(function (error) {
+      releaseRoute();
+      console.error('[Router] Lỗi đồng bộ quyền trước khi chuyển trang:', error);
     }); // End of _syncPermissionsIfNeeded
   }
 

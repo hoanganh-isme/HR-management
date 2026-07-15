@@ -15,7 +15,18 @@ const DINH_DANG_WORKSPACE_ID = /^[0-9a-f-]{36}$/i;
 export class TemplateWorkspaceRepository {
   constructor(workspacesDir) {
     this.workspacesDir = path.resolve(workspacesDir);
+    this.writeLocks = new Map();
     fs.mkdirSync(this.workspacesDir, { recursive: true });
+  }
+
+  async withWriteLock(workspaceId, operation) {
+    const previous = this.writeLocks.get(workspaceId) || Promise.resolve();
+    const current = previous.catch(() => {}).then(operation);
+    this.writeLocks.set(workspaceId, current);
+    try { return await current; }
+    finally {
+      if (this.writeLocks.get(workspaceId) === current) this.writeLocks.delete(workspaceId);
+    }
   }
 
   layDuongDan(workspaceId) {
@@ -60,11 +71,24 @@ export class TemplateWorkspaceRepository {
   }
 
   async luuThayDoi(workspaceId, noiDungFile, thayDoiMetadata) {
-    const workspace = await this.layWorkspace(workspaceId);
-    const fileMoi = `${workspace.duongDan.file}.new`;
-    await fsp.writeFile(fileMoi, noiDungFile);
-    await fsp.rename(fileMoi, workspace.duongDan.file);
-    const metadataMoi = Object.assign({}, workspace.metadata, thayDoiMetadata, { updatedAt: new Date().toISOString() });
+    return this.withWriteLock(workspaceId, async () => {
+      const workspace = await this.layWorkspace(workspaceId);
+      const fileMoi = `${workspace.duongDan.file}.${process.pid}.${crypto.randomUUID()}.new`;
+      await fsp.writeFile(fileMoi, noiDungFile, { flag: 'wx' });
+      try { await fsp.rename(fileMoi, workspace.duongDan.file); }
+      finally { await fsp.rm(fileMoi, { force: true }).catch(() => {}); }
+      return this.capNhatMetadataUnlocked(workspace, thayDoiMetadata);
+    });
+  }
+
+  async capNhatMetadata(workspaceId, thayDoi) {
+    return this.withWriteLock(workspaceId, async () => this.capNhatMetadataUnlocked(await this.layWorkspace(workspaceId), thayDoi));
+  }
+
+  async capNhatMetadataUnlocked(workspace, thayDoi) {
+    const metadataMoi = Object.assign({}, workspace.metadata, thayDoi, { updatedAt: new Date().toISOString() });
+    if (workspace.metadata.finalCallbackCompleted === true) metadataMoi.finalCallbackCompleted = true;
+    if (workspace.metadata.forceSaveCompleted === true) metadataMoi.forceSaveCompleted = true;
     await this.ghiMetadata(workspace.duongDan.metadata, metadataMoi);
     return metadataMoi;
   }
@@ -75,9 +99,10 @@ export class TemplateWorkspaceRepository {
   }
 
   async ghiMetadata(duongDanMetadata, metadata) {
-    const fileMoi = `${duongDanMetadata}.new`;
-    await fsp.writeFile(fileMoi, JSON.stringify(metadata, null, 2), 'utf8');
-    await fsp.rename(fileMoi, duongDanMetadata);
+    const fileMoi = `${duongDanMetadata}.${process.pid}.${crypto.randomUUID()}.new`;
+    await fsp.writeFile(fileMoi, JSON.stringify(metadata, null, 2), { encoding: 'utf8', flag: 'wx' });
+    try { await fsp.rename(fileMoi, duongDanMetadata); }
+    finally { await fsp.rm(fileMoi, { force: true }).catch(() => {}); }
   }
 }
 

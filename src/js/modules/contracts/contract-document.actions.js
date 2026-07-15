@@ -83,18 +83,20 @@ window.ContractDocumentActions = (function () {
 
   function doiCallbackCuoi(draftId, soLanThu) {
     return ContractDocumentApi.draftStatus(draftId).then(function (response) {
-      if (response.draft && response.draft.finalCallbackCompleted) return response.draft;
+      if (response.draft && (response.draft.finalCallbackCompleted || response.draft.forceSaveCompleted)) return response.draft;
+      if (response.draft && response.draft.lastCallbackError) throw new Error(response.draft.lastCallbackError);
       if (soLanThu >= 15) throw new Error('OnlyOffice chưa hoàn tất callback cuối. Bản nháp vẫn được giữ lại.');
-      return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () { return doiCallbackCuoi(draftId, soLanThu + 1); });
+      return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(function () { return doiCallbackCuoi(draftId, soLanThu + 1); });
     });
   }
 
   function finalizeDraft() {
     if (!activeDraftId) return;
     choPhepLuu();
-    if (editorInstance && typeof editorInstance.requestClose === 'function') {
-      try { editorInstance.requestClose(); } catch (error) { /* tiếp tục chờ callback */ }
+    if (editorInstance && typeof editorInstance.forceSave === 'function') {
+      try { editorInstance.forceSave(); } catch (error) { /* callback van co the ve tu autosave */ }
     }
+    // Khong requestClose: OnlyOffice se canh bao va co the huy thay doi chua callback.
     doiCallbackCuoi(activeDraftId, 0)
       .then(function () { return ContractDocumentApi.finalizeDraft(activeDraftId); })
       .then(function (response) {
@@ -110,6 +112,7 @@ window.ContractDocumentActions = (function () {
   }
 
   function moTrinhSuaHopDong(draft) {
+    dongEditor();
     activeDraftId = draft.draftId;
     return ContractDocumentApi.editorConfig(activeDraftId).then(function (config) {
       activeEditorConfig = config;
@@ -119,7 +122,8 @@ window.ContractDocumentActions = (function () {
       });
       document.getElementById('contract-document-finalize').addEventListener('click', finalizeDraft);
       document.getElementById('contract-document-close').addEventListener('click', function () {
-        ContractDocumentApi.deleteDraft(activeDraftId).finally(dongEditor);
+        // Đóng editor không xóa bản nháp; người dùng có thể mở lại từ Workspace.
+        dongEditor();
       });
       return taiOnlyOfficeApi(config.documentServerUrl).then(function () {
         editorInstance = new DocsAPI.DocEditor('contract-document-editor-area', config.editorConfig);
@@ -172,7 +176,13 @@ window.ContractDocumentActions = (function () {
         thongBao('Đang tạo bản nháp hợp đồng...', 'info');
         return ContractDocumentApi.createDraft({ maHopDong: maHopDong, templateFile: templateFile });
       })
-      .then(function (response) { return moTrinhSuaHopDong(response.draft); })
+      .then(function (response) {
+        var draftId = response.draft && response.draft.draftId;
+        if (!draftId) throw new Error('Không nhận được mã bản nháp từ máy chủ.');
+        thongBao('Đã tạo bản nháp. Đang mở Workspace...', 'success');
+        window.location.hash = '#/document-manager?tab=drafts&draftId=' + encodeURIComponent(draftId);
+        return response;
+      })
       .catch(function (error) {
         if (error && error.message !== 'CANCELLED') thongBao(error.message || 'Không thể tạo bản nháp hợp đồng.', 'error');
         throw error;
@@ -181,18 +191,20 @@ window.ContractDocumentActions = (function () {
 
   function doiCallbackMau(workspaceId, soLanThu) {
     return ContractDocumentApi.templateWorkspaceStatus(workspaceId).then(function (response) {
-      if (response.workspace && response.workspace.finalCallbackCompleted) return response.workspace;
+      if (response.workspace && (response.workspace.finalCallbackCompleted || response.workspace.forceSaveCompleted)) return response.workspace;
+      if (response.workspace && response.workspace.lastCallbackError) throw new Error(response.workspace.lastCallbackError);
       if (soLanThu >= 15) throw new Error('OnlyOffice chưa hoàn tất callback cuối của mẫu. Workspace vẫn được giữ lại.');
-      return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () { return doiCallbackMau(workspaceId, soLanThu + 1); });
+      return new Promise(function (resolve) { setTimeout(resolve, 1000); }).then(function () { return doiCallbackMau(workspaceId, soLanThu + 1); });
     });
   }
 
   function apDungMauHopDong() {
     var button = document.getElementById('contract-document-finalize');
     if (button) { button.disabled = true; button.innerHTML = '<span class="material-symbols-outlined">sync</span> Đang kiểm tra...'; }
-    if (editorInstance && typeof editorInstance.requestClose === 'function') {
-      try { editorInstance.requestClose(); } catch (error) { /* tiếp tục chờ callback */ }
+    if (editorInstance && typeof editorInstance.forceSave === 'function') {
+      try { editorInstance.forceSave(); } catch (error) { /* callback van co the ve tu autosave */ }
     }
+    // Khong requestClose: OnlyOffice se canh bao va co the huy thay doi chua callback.
     doiCallbackMau(activeTemplateWorkspaceId, 0)
       .then(function () { return ContractDocumentApi.templatePlaceholders(activeTemplateWorkspaceId); })
       .then(function (response) {
@@ -213,6 +225,7 @@ window.ContractDocumentActions = (function () {
   }
 
   function moTrinhSuaMau(templateFile) {
+    dongEditor();
     thongBao('Đang tạo workspace chỉnh sửa mẫu...', 'info');
     return ContractDocumentApi.createTemplateWorkspace(templateFile)
       .then(function (response) {

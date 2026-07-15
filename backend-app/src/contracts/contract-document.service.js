@@ -36,6 +36,10 @@ function lamSachTenFile(tenFile) {
     .replace(/\s+/g, '_');
 }
 
+function signingKeyId(secret) {
+  return crypto.createHash('sha256').update(String(secret || '')).digest('hex').slice(0, 16);
+}
+
 function coQuyenChiNhanh(branchId, userBranches) {
   // null/undefined means the authenticated Gateway is the source of scope.
   if (userBranches == null) return true;
@@ -96,8 +100,23 @@ export class ContractDocumentService {
   }
 
   async layCauHinhTrinhSua(draftId, userName) {
-    const banNhap = await this.draftRepository.layBanNhap(draftId);
+    let banNhap = await this.draftRepository.layBanNhap(draftId);
     this.kiemTraChuSoHuuBanNhap(banNhap.metadata, userName);
+
+    const currentSigningKeyId = signingKeyId(this.config.signingSecret);
+    if (banNhap.metadata.signingKeyId !== currentSigningKeyId) {
+      const editSessionId = crypto.randomUUID();
+      const metadata = await this.draftRepository.capNhatMetadata(draftId, {
+        editSessionId,
+        documentKey: crypto.createHash('sha256').update(`contract:${draftId}:${currentSigningKeyId}`).digest('hex').slice(0, 40),
+        signingKeyId: currentSigningKeyId,
+        finalCallbackCompleted: false,
+        forceSaveCompleted: false,
+        lastOnlyOfficeStatus: null,
+        lastCallbackError: null
+      });
+      banNhap = Object.assign({}, banNhap, { metadata });
+    }
 
     const token = kyTokenPhienChinhSua({
       draftId,
@@ -213,13 +232,31 @@ export class ContractDocumentService {
     const hopDong = await this.contractRepository.layHopDongMoiNhat(banNhap.metadata.maHopDong, authorization);
     this.kiemTraQuyenHopDong(hopDong, userBranches);
 
-    if (!banNhap.metadata.finalCallbackCompleted) {
+    if (!banNhap.metadata.finalCallbackCompleted && !banNhap.metadata.forceSaveCompleted) {
       throw new HttpError(409, 'DRAFT_NOT_SYNCED', 'Bản nháp chưa nhận callback cuối từ OnlyOffice; file được giữ lại.');
     }
 
     if (banNhap.metadata.finalized && banNhap.metadata.attachmentUserAutoID) {
       await this.draftRepository.huyBanNhapHopDong(draftId);
       return { UserAutoID: banNhap.metadata.attachmentUserAutoID, retried: true };
+    }
+
+    const attachmentUserAutoID = banNhap.metadata.attachmentUserAutoID;
+    if (attachmentUserAutoID) {
+      try {
+        const attachmentDaLuu = await this.contractRepository.layMetadataFileHopDong(attachmentUserAutoID, authorization);
+        if (attachmentDaLuu && String(attachmentDaLuu.MaHopDong || '').toLowerCase() === String(banNhap.metadata.maHopDong || '').toLowerCase()) {
+          await this.draftRepository.capNhatMetadata(draftId, {
+            finalized: true,
+            finalizedAt: new Date().toISOString(),
+            attachmentUserAutoID
+          });
+          await this.draftRepository.huyBanNhapHopDong(draftId);
+          return { UserAutoID: attachmentUserAutoID, retried: true };
+        }
+      } catch (error) {
+        if (!(error instanceof HttpError) || error.code !== 'ATTACHMENT_NOT_FOUND') throw error;
+      }
     }
 
     const thongTinFile = {
@@ -232,7 +269,22 @@ export class ContractDocumentService {
       Content: `0x${banNhap.buffer.toString('hex')}`,
       Base64Content: banNhap.buffer.toString('base64')
     };
-    const ketQua = await this.contractRepository.luuHopDongVaoCSDL(thongTinFile, userName, authorization);
+    let ketQua;
+    try {
+      ketQua = await this.contractRepository.luuHopDongVaoCSDL(thongTinFile, userName, authorization);
+    } catch (error) {
+      if (attachmentUserAutoID && (error.code === 'ATTACHMENT_SAVE_FAILED' || error.code === 'ATTACHMENT_ID_MISSING')) {
+        try {
+          const attachmentDaLuu = await this.contractRepository.layMetadataFileHopDong(attachmentUserAutoID, authorization);
+          if (attachmentDaLuu && String(attachmentDaLuu.MaHopDong || '').toLowerCase() === String(banNhap.metadata.maHopDong || '').toLowerCase()) {
+            ketQua = { UserAutoID: attachmentUserAutoID };
+          }
+        } catch (recoveryError) {
+          if (!(recoveryError instanceof HttpError) || recoveryError.code !== 'ATTACHMENT_NOT_FOUND') throw error;
+        }
+      }
+      if (!ketQua) throw error;
+    }
 
     await this.draftRepository.capNhatMetadata(draftId, {
       finalized: true,

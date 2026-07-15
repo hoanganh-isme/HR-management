@@ -20,6 +20,8 @@ var DocumentManagerPage = (function () {
   var _allDocuments = [];  // lưu tất cả data để filter
   var _currentBranchFilter = 'ALL';
   var _workspaceTab = 'saved';
+  var _workspaceTargetDraftId = null;
+  var _workspaceTargetOpened = false;
   var _healthCache = null;
   var _healthCheckedAt = 0;
 
@@ -74,6 +76,8 @@ var DocumentManagerPage = (function () {
         '.docmgr-item:hover{background:var(--color-surface-elevated, #f8fafc);border-color:var(--color-border-strong, #cbd5e1);transform:translateX(3px);}',
         '.docmgr-item.active{background:var(--color-primary-light, rgba(79,70,229,.1));border-color:var(--color-primary, #4f46e5);}',
         '.docmgr-item.active::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--color-primary,#4f46e5);border-radius:4px 0 0 4px;}',
+        '.docmgr-item[aria-busy="true"]{opacity:.65;pointer-events:none;}',
+        '.docmgr-item[aria-busy="true"] .docmgr-item-title::after{content:"Đang mở...";margin-left:auto;color:var(--color-primary,#4f46e5);font-size:11px;white-space:nowrap;}',
         '.docmgr-item-title{font-weight:500;font-size:.9rem;display:flex;align-items:flex-start;gap:.4rem;color:var(--color-text,#e2e8f0);margin-bottom:.35rem;line-height:1.4;}',
         '.docmgr-item-meta{font-size:.75rem;color:var(--color-text-secondary,#94a3b8);display:flex;justify-content:space-between;margin-bottom:.3rem;}',
         '.docmgr-item-actions{display:flex;gap:.35rem;opacity:0;transition:opacity .18s ease;}',
@@ -115,9 +119,9 @@ var DocumentManagerPage = (function () {
       'Workspace Tài Liệu',
       '</div>',
       '<div class="docmgr-workspace-tabs" id="docmgr-workspace-tabs">',
-      '<button type="button" class="docmgr-workspace-tab active" data-tab="saved">Hợp đồng đã lưu</button>',
-      '<button type="button" class="docmgr-workspace-tab" data-tab="drafts">Bản nháp</button>',
-      '<button type="button" class="docmgr-workspace-tab" data-tab="templates">Mẫu hợp đồng</button>',
+      '<button type="button" class="docmgr-workspace-tab' + (_workspaceTab === 'saved' ? ' active' : '') + '" data-tab="saved">Hợp đồng đã lưu</button>',
+      '<button type="button" class="docmgr-workspace-tab' + (_workspaceTab === 'drafts' ? ' active' : '') + '" data-tab="drafts">Bản nháp</button>',
+      '<button type="button" class="docmgr-workspace-tab' + (_workspaceTab === 'templates' ? ' active' : '') + '" data-tab="templates">Mẫu hợp đồng</button>',
       '</div>',
       '<div class="custom-dropdown" id="docmgr-branch-filter-dropdown">',
       '<div class="custom-dropdown-btn" id="docmgr-branch-filter-btn">',
@@ -192,10 +196,26 @@ var DocumentManagerPage = (function () {
       var tab = event.target.closest('.docmgr-workspace-tab');
       if (!tab) return;
       _workspaceTab = tab.dataset.tab;
+      _workspaceTargetDraftId = null;
+      _workspaceTargetOpened = false;
       tabs.querySelectorAll('.docmgr-workspace-tab').forEach(function (item) { item.classList.toggle('active', item === tab); });
       _currentFile = null;
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + '#/document-manager?tab=' + encodeURIComponent(_workspaceTab));
+      }
       _loadWorkspaceTab();
     });
+  }
+
+  function _readWorkspaceRouteState() {
+    var rawHash = String(window.location.hash || '');
+    var queryIndex = rawHash.indexOf('?');
+    if (queryIndex === -1) return;
+    var params = new URLSearchParams(rawHash.slice(queryIndex + 1));
+    var requestedTab = params.get('tab');
+    if (requestedTab === 'saved' || requestedTab === 'drafts' || requestedTab === 'templates') _workspaceTab = requestedTab;
+    _workspaceTargetDraftId = params.get('draftId') || null;
+    _workspaceTargetOpened = false;
   }
 
   function _loadWorkspaceTab() {
@@ -220,6 +240,19 @@ var DocumentManagerPage = (function () {
         });
       }
       _renderList();
+      if (_workspaceTab === 'drafts' && _workspaceTargetDraftId && !_workspaceTargetOpened) {
+        var targetDraft = _allDocuments.find(function (draft) { return draft.draftId === _workspaceTargetDraftId; });
+        if (targetDraft) {
+          _workspaceTargetOpened = true;
+          _workspaceTargetDraftId = null;
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search + '#/document-manager?tab=drafts');
+          }
+          ContractDocumentActions.moBanNhap(targetDraft).catch(function (error) {
+            thongBaoWorkspace(error.message);
+          });
+        }
+      }
     }).catch(function (error) {
       var list = _qs('#docmgr-list');
       if (list) list.innerHTML = '<div style="text-align:center;padding:2rem;color:#ef4444;">' + _escHtml(error.message || 'Lỗi tải dữ liệu workspace.') + '</div>';
@@ -363,10 +396,25 @@ var DocumentManagerPage = (function () {
         '</div>';
 
       div.addEventListener('click', function () {
-        if (doc.source === 'draft') ContractDocumentActions.moBanNhap(doc).catch(function (error) { thongBaoWorkspace(error.message); });
-        else if (doc.source === 'saved') window.open(ContractDocumentApi.attachmentFileUrl(doc.userAutoID, false), '_blank', 'noopener');
-        else if (doc.source === 'template') ContractDocumentActions.moTrinhSuaMau(doc.templateFile).catch(function (error) { thongBaoWorkspace(error.message); });
-        else _openEditor(doc.fileName, doc);
+        if (div.dataset.opening === 'true') return;
+        div.dataset.opening = 'true';
+        div.setAttribute('aria-busy', 'true');
+        var opening;
+        if (doc.source === 'draft') opening = ContractDocumentActions.moBanNhap(doc);
+        else if (doc.source === 'saved') {
+          window.open(ContractDocumentApi.attachmentFileUrl(doc.userAutoID, false), '_blank', 'noopener');
+          opening = Promise.resolve();
+        } else if (doc.source === 'template') opening = ContractDocumentActions.moTrinhSuaMau(doc.templateFile);
+        else {
+          _openEditor(doc.fileName, doc);
+          opening = Promise.resolve();
+        }
+        Promise.resolve(opening).catch(function (error) {
+          thongBaoWorkspace(error.message);
+        }).finally(function () {
+          div.dataset.opening = 'false';
+          div.removeAttribute('aria-busy');
+        });
       });
       var delBtn = div.querySelector('.docmgr-del');
       if (delBtn) delBtn.addEventListener('click', function (e) {
@@ -760,6 +808,7 @@ var DocumentManagerPage = (function () {
     _container = container;
     _currentFile = null;
     _docEditor = null;
+    _readWorkspaceRouteState();
 
     Router.fetchTemplate('src/pages/document-manager/document-manager.html')
       .then(function (html) {

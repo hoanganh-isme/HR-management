@@ -72,7 +72,7 @@ function documentServiceBase() {
 function onlyOfficeBase() {
     var runtime = typeof window !== 'undefined' && window.RUNTIME_CONFIG ? window.RUNTIME_CONFIG : {};
     if (runtime.onlyOfficeBaseUrl) return String(runtime.onlyOfficeBaseUrl).replace(/\/+$/, '');
-    return isLocalDevelopmentHost() ? 'http://127.0.0.1:8000' : window.location.origin + '/onlyoffice';
+    return isLocalDevelopmentHost() ? 'http://127.0.0.1' : window.location.origin + '/onlyoffice';
 }
 
 // 2. Cấu hình API chi tiết

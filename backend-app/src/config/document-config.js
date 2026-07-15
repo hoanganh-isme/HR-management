@@ -54,6 +54,26 @@ function optionalOrigin(value, name, fallback) {
   return normalizeHttpOrigin(value || fallback, name);
 }
 
+function loadDevelopmentSigningSecret() {
+  const secretPath = path.join(backendDir, 'storage', '.draft-signing-secret');
+  try {
+    const current = fs.readFileSync(secretPath, 'utf8').trim();
+    if (current) return current;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+
+  const generated = crypto.randomBytes(48).toString('hex');
+  fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+  try {
+    fs.writeFileSync(secretPath, `${generated}\n`, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    return generated;
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    return fs.readFileSync(secretPath, 'utf8').trim() || generated;
+  }
+}
+
 export function loadDocumentConfig(env = process.env) {
   const nodeEnv = String(env.NODE_ENV || 'development').toLowerCase();
   const production = nodeEnv === 'production';
@@ -74,9 +94,9 @@ export function loadDocumentConfig(env = process.env) {
     if (missing.length) throw new Error(`Missing production configuration: ${missing.join(', ')}`);
   }
 
-  const signingSecret = env.DRAFT_SIGNING_SECRET || env.ONLYOFFICE_JWT_SECRET || crypto.randomBytes(32).toString('hex');
+  const signingSecret = env.DRAFT_SIGNING_SECRET || env.ONLYOFFICE_JWT_SECRET || loadDevelopmentSigningSecret();
   if (!production && !env.DRAFT_SIGNING_SECRET && !env.ONLYOFFICE_JWT_SECRET) {
-    console.warn('[CONFIG] DRAFT_SIGNING_SECRET is not configured; edit tokens expire when the process restarts.');
+    console.warn('[CONFIG] DRAFT_SIGNING_SECRET is not configured; using the persistent local signing secret.');
   }
 
   const corsAllowedOrigins = readList(env.CORS_ALLOWED_ORIGINS || [
@@ -97,7 +117,7 @@ export function loadDocumentConfig(env = process.env) {
     sqlGatewayMaxGetUrlLength: readPositiveInteger(env.SQL_GATEWAY_MAX_GET_URL_LENGTH, 7000, 'SQL_GATEWAY_MAX_GET_URL_LENGTH'),
     documentPublicBaseUrl: optionalOrigin(env.DOCUMENT_PUBLIC_BASE_URL, 'DOCUMENT_PUBLIC_BASE_URL', localPublicUrl),
     documentInternalBaseUrl: optionalOrigin(env.DOCUMENT_INTERNAL_BASE_URL, 'DOCUMENT_INTERNAL_BASE_URL', `http://host.docker.internal:${port}`),
-    onlyOfficePublicUrl: optionalOrigin(env.ONLYOFFICE_PUBLIC_URL, 'ONLYOFFICE_PUBLIC_URL', 'http://127.0.0.1:8000'),
+    onlyOfficePublicUrl: optionalOrigin(env.ONLYOFFICE_PUBLIC_URL, 'ONLYOFFICE_PUBLIC_URL', 'http://127.0.0.1'),
     onlyOfficeJwtEnabled: readBoolean(env.ONLYOFFICE_JWT_ENABLED, false),
     onlyOfficeJwtSecret: env.ONLYOFFICE_JWT_SECRET || '',
     useLegacyHrDocuments: readBoolean(env.USE_LEGACY_HR_DOCUMENTS, false),

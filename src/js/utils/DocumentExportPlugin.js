@@ -36,7 +36,7 @@ var DocumentExportPlugin = (function () {
       text: 'Tài liệu hợp đồng',
       icon: 'folder_open',
       type: 'tool',
-      onClick: function () { window.location.hash = '#/document-manager'; }
+       onClick: function () { window.location.hash = '#/document-manager?tab=saved'; }
     }];
   }
 

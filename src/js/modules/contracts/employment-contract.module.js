@@ -41,7 +41,7 @@
       UseSplitLayout: false,
       ModalWidth: '1020px',
       FilterKeywordLabel: 'Tim nhanh',
-      SearchPlaceholder: 'Nhap ma hop dong hoac ten nhan vien...',
+      SearchPlaceholder: 'Tìm nhanh...',
       AllowDblClickToView: true,
       HideDetailTabsInModal: false,
       HideBulkAddBtn: true,

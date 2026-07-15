@@ -59,7 +59,7 @@ async function main() {
   let config = loadEnv('http://127.0.0.1:5500');
   assert.equal(config.CONTRACT_API_BASE, 'http://127.0.0.1:8081/api');
   assert.equal(config.SERVICE_BASE + '/health', 'http://127.0.0.1:8081/health');
-  assert.equal(config.ONLYOFFICE_API, 'http://127.0.0.1:8000/web-apps/apps/api/documents/api.js');
+  assert.equal(config.ONLYOFFICE_API, 'http://127.0.0.1/web-apps/apps/api/documents/api.js');
 
   config = loadEnv('http://localhost:5500');
   assert.equal(config.CONTRACT_API_BASE, 'http://127.0.0.1:8081/api');
@@ -112,7 +112,7 @@ async function main() {
   await assert.rejects(api.listSavedAttachments(), error => {
     assert.equal(error.code, 'AUTH_REQUIRED');
     assert.equal(error.status, 403);
-    assert.equal(error.message, 'Login required');
+    assert.equal(error.message, 'Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
     return true;
   });
 

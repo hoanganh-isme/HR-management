@@ -114,9 +114,11 @@ var Router = (function () {
     });
 
     if (needsReload) {
-      if (!_currentRoute || _currentRoute.path !== currentHash) {
+      var pendingPath = _pendingRouteKey ? _pendingRouteKey.split('?')[0] : null;
+      if ((!_currentRoute || _currentRoute.path !== currentHash) && pendingPath !== currentHash && !_routeReloadTimer) {
         // Delay slightly to allow Navbar to finish rendering before we trigger routing
-        setTimeout(function () {
+        _routeReloadTimer = setTimeout(function () {
+          _routeReloadTimer = null;
           _handleRoute();
         }, 50);
       }
@@ -129,6 +131,9 @@ var Router = (function () {
   var _templateCache = {};
   var _appVersion = '2.14'; // Bump để làm mới cache html/script động
   var _navId = 0; // Token chặn race-condition
+  var _pendingRouteKey = null;
+  var _currentRouteKey = null;
+  var _routeReloadTimer = null;
 
   // ── Template cache (dùng chung cho cả Router lẫn Page modules) ─────────
   function fetchTemplate(url) {
@@ -239,13 +244,25 @@ var Router = (function () {
 
   // ── Main Route Handler ─────────────────────────────────────────────────
   function _handleRoute() {
+    var rawHash = window.location.hash.replace('#', '') || '/dashboard';
+    if (_pendingRouteKey === rawHash || _currentRouteKey === rawHash) return;
+
+    _pendingRouteKey = rawHash;
     _navId++;
     var currentNav = _navId;
-
-    var rawHash = window.location.hash.replace('#', '') || '/dashboard';
     var hashParts = rawHash.split('?');
     var pathOnly = hashParts[0];
     var route = _findRoute(pathOnly);
+
+    function completeRoute() {
+      if (currentNav !== _navId) return;
+      _pendingRouteKey = null;
+      _currentRouteKey = rawHash;
+    }
+
+    function releaseRoute() {
+      if (currentNav === _navId) _pendingRouteKey = null;
+    }
 
     // Kéo quyền động nếu máy khác vừa cập nhật (Đảm bảo Realtime)
     _syncPermissionsIfNeeded().then(function () {
@@ -265,6 +282,7 @@ var Router = (function () {
         if ($pageTitle) $pageTitle.innerText = '404 — Không tìm thấy';
         document.title = '404 | Quản lý Nhân sự';
         _render404($content, rawHash);
+        completeRoute();
         return;
       }
 
@@ -273,6 +291,7 @@ var Router = (function () {
       if (targetPerm && !Permission.canView(targetPerm)) {
         if ($pageTitle) $pageTitle.innerText = 'Từ chối truy cập';
         _renderAccessDenied($content);
+        completeRoute();
         return;
       }
 
@@ -324,9 +343,11 @@ var Router = (function () {
             }
             _fadeIn($content);
             _currentRoute = route;
+            completeRoute();
           })
           .catch(function (err) {
             if (err.message === 'ABORTED') return; // Bỏ qua nếu là thao tác hủy do click liên tục
+            releaseRoute();
             console.error('[Router]', err);
             _renderError($content, 'Lỗi tải module: ' + err.message);
             _fadeIn($content);
@@ -346,9 +367,11 @@ var Router = (function () {
             $content.innerHTML = html;
             _fadeIn($content);
             _currentRoute = route;
+            completeRoute();
           })
           .catch(function (err) {
             if (err.message === 'ABORTED') return;
+            releaseRoute();
             console.error('[Router]', err);
             _renderError($content, 'Lỗi tải template: ' + err.message);
             _fadeIn($content);
@@ -358,6 +381,11 @@ var Router = (function () {
 
       // ── Trường hợp 3: Trang chưa code ──
       _renderPlaceholder($content, route.title);
+      _currentRoute = route;
+      completeRoute();
+    }).catch(function (error) {
+      releaseRoute();
+      console.error('[Router] Lỗi đồng bộ quyền trước khi chuyển trang:', error);
     }); // End of _syncPermissionsIfNeeded
   }
 

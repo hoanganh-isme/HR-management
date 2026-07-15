@@ -13,6 +13,10 @@ import { HttpError } from '../shared/http-error.js';
 import { kiemTraBienTrongMau as docBienTrongMau } from './docx-template.service.js';
 import { kyJwtOnlyOffice, kyTokenPhienChinhSua, xacMinhTokenPhienChinhSua } from './edit-session-token.js';
 
+function signingKeyId(secret) {
+  return crypto.createHash('sha256').update(String(secret || '')).digest('hex').slice(0, 16);
+}
+
 export class TemplateWorkspaceService {
   constructor({ config, contractRepository, workspaceRepository }) {
     this.config = config;
@@ -34,8 +38,21 @@ export class TemplateWorkspaceService {
   }
 
   async layCauHinhTrinhSua(workspaceId, userName) {
-    const workspace = await this.workspaceRepository.layWorkspace(workspaceId);
+    let workspace = await this.workspaceRepository.layWorkspace(workspaceId);
     this.kiemTraChuSoHuu(workspace.metadata, userName);
+    const currentSigningKeyId = signingKeyId(this.config.signingSecret);
+    if (workspace.metadata.signingKeyId !== currentSigningKeyId) {
+      const editSessionId = crypto.randomUUID();
+      const metadata = await this.workspaceRepository.capNhatMetadata(workspaceId, {
+        editSessionId,
+        documentKey: crypto.createHash('sha256').update(`template:${workspaceId}:${currentSigningKeyId}`).digest('hex').slice(0, 40),
+        signingKeyId: currentSigningKeyId,
+        finalCallbackCompleted: false,
+        forceSaveCompleted: false,
+        lastOnlyOfficeStatus: null
+      });
+      workspace = Object.assign({}, workspace, { metadata });
+    }
     const token = kyTokenPhienChinhSua({
       workspaceId,
       editSessionId: workspace.metadata.editSessionId,
@@ -77,7 +94,13 @@ export class TemplateWorkspaceService {
     const workspace = await this.workspaceRepository.layWorkspace(workspaceId);
     if (workspace.metadata.editSessionId !== phien.editSessionId) throw new HttpError(409, 'TEMPLATE_EDIT_SESSION_CHANGED', 'Phiên chỉnh sửa mẫu đã thay đổi.');
     const status = Number(callbackBody.status);
-    if (status === 3 || status === 7) return { error: 1 };
+    if (status === 3 || status === 7) {
+      await this.workspaceRepository.capNhatMetadata(workspaceId, {
+        lastOnlyOfficeStatus: status,
+        lastCallbackError: callbackBody.error || 'OnlyOffice báo lỗi lưu mẫu.'
+      });
+      return { error: 1 };
+    }
     if (status !== 2 && status !== 6) return { error: 0 };
     if (!callbackBody.url) throw new HttpError(400, 'TEMPLATE_CALLBACK_URL_MISSING', 'OnlyOffice không trả URL mẫu đã sửa.');
     const phanHoi = await axios.get(callbackBody.url, { responseType: 'arraybuffer', timeout: 120000, maxContentLength: Infinity });
@@ -101,7 +124,7 @@ export class TemplateWorkspaceService {
   async apDungMauHopDong(workspaceId, userName) {
     const workspace = await this.workspaceRepository.layNoiDungWorkspace(workspaceId);
     this.kiemTraChuSoHuu(workspace.metadata, userName);
-    if (!workspace.metadata.finalCallbackCompleted) throw new HttpError(409, 'TEMPLATE_NOT_SYNCED', 'Mẫu chưa nhận callback cuối từ OnlyOffice.');
+    if (!workspace.metadata.finalCallbackCompleted && !workspace.metadata.forceSaveCompleted) throw new HttpError(409, 'TEMPLATE_NOT_SYNCED', 'Mẫu chưa nhận callback cuối từ OnlyOffice.');
     const placeholders = docBienTrongMau(workspace.duongDan.file);
     if (!placeholders.length) throw new HttpError(409, 'TEMPLATE_PLACEHOLDERS_MISSING', 'Mẫu không còn placeholder nào; chưa thể áp dụng.');
 
@@ -111,9 +134,13 @@ export class TemplateWorkspaceService {
     const nhanThoiGian = new Date().toISOString().replace(/[:.]/g, '-');
     const duongDanBackup = path.join(thuMucBackup, `${workspace.metadata.templateFile}.${nhanThoiGian}.bak.docx`);
     await fsp.copyFile(duongDanActive, duongDanBackup);
-    const fileMoi = `${duongDanActive}.${workspaceId}.new`;
-    await fsp.writeFile(fileMoi, workspace.buffer);
-    await fsp.rename(fileMoi, duongDanActive);
+    const fileMoi = `${duongDanActive}.${workspaceId}.${crypto.randomUUID()}.new`;
+    try {
+      await fsp.writeFile(fileMoi, workspace.buffer, { flag: 'wx' });
+      await fsp.rename(fileMoi, duongDanActive);
+    } finally {
+      await fsp.rm(fileMoi, { force: true }).catch(() => {});
+    }
     await this.workspaceRepository.huyWorkspace(workspaceId);
     return { templateFile: workspace.metadata.templateFile, backupFile: path.basename(duongDanBackup), placeholders };
   }
@@ -143,6 +170,7 @@ export class TemplateWorkspaceService {
       createdAt: metadata.createdAt,
       updatedAt: metadata.updatedAt,
       finalCallbackCompleted: Boolean(metadata.finalCallbackCompleted),
+      forceSaveCompleted: Boolean(metadata.forceSaveCompleted),
       lastOnlyOfficeStatus: metadata.lastOnlyOfficeStatus || null
     };
   }
