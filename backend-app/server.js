@@ -49,19 +49,23 @@ try {
     console.warn('[MIGRATE] ⚠️ Lỗi migrate file cũ:', migrateErr.message);
 }
 
-app.use(cors({ origin: '*' }));
+const allowedOrigins = new Set(documentConfig.corsAllowedOrigins);
 
-app.use('/uploads', function (req, res, next) {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', '*');
-    next();
-}, express.static(UPLOADS_DIR));
+app.use(cors({
+    origin(origin, callback) {
+        if (!origin || allowedOrigins.has(origin)) {
+            callback(null, true);
+            return;
+        }
+        callback(new Error(`CORS origin is not allowed: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Username']
+}));
 
-app.use('/samples', function (req, res, next) {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', '*');
-    next();
-}, express.static(SAMPLES_DIR));
+app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/samples', express.static(SAMPLES_DIR));
 
 app.use(express.json({ limit: '15mb' }));
 
@@ -77,6 +81,7 @@ const SQL_API_BASE = documentConfig.sqlApiBase;
 const SQL_API_USER = documentConfig.sqlApiUser;
 
 if (!SQL_API_BASE) {
+    console.error('[CRITICAL] Copy backend-app/.env.example to backend-app/.env and configure SQL_API_BASE.');
     console.error('[CRITICAL] Không thể chạy server vì thiếu SQL_API_BASE và không đọc được API_BASE từ env.js.');
     process.exit(1);
 }
@@ -832,6 +837,11 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[CONFIG] Document API public URL: ${documentConfig.documentPublicBaseUrl}`);
+    console.log(`[CONFIG] Document API internal URL: ${documentConfig.documentInternalBaseUrl}`);
+    console.log(`[CONFIG] OnlyOffice URL: ${documentConfig.onlyOfficePublicUrl}`);
+    console.log(`[CONFIG] SQL API URL: ${SQL_API_BASE}`);
+    console.log(`[CONFIG] Health URL: ${documentConfig.documentPublicBaseUrl}/health`);
     console.log('=======================================================');
     console.log('       ✨ BACKEND SERVER - HR DOCUMENT MANAGEMENT     ');
     console.log('=======================================================');

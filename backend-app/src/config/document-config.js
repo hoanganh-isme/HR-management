@@ -29,6 +29,10 @@ function boDauGachCheoCuoi(giaTri) {
   return String(giaTri || '').trim().replace(/\/+$/, '');
 }
 
+function danhSachPhanCachDauPhay(giaTri) {
+  return String(giaTri || '').split(',').map(item => item.trim()).filter(Boolean);
+}
+
 function docSqlApiTuEnvJs() {
   const cacDuongDan = [
     path.join(thuMucGoc, 'env.js'),
@@ -50,9 +54,9 @@ const port = Number(process.env.PORT || 8081);
 const cauHinhMacDinh = laProduction
   ? cauHinhProduction
   : {
-      documentPublicBaseUrl: `http://localhost:${port}`,
+      documentPublicBaseUrl: `http://127.0.0.1:${port}`,
       documentInternalBaseUrl: `http://host.docker.internal:${port}`,
-      onlyOfficePublicUrl: 'http://localhost:8000'
+      onlyOfficePublicUrl: 'http://127.0.0.1:8000'
     };
 
 const khoaKyPhien = process.env.DRAFT_SIGNING_SECRET
@@ -74,6 +78,12 @@ export const documentConfig = Object.freeze({
   onlyOfficeJwtEnabled: docApiBoolean(process.env.ONLYOFFICE_JWT_ENABLED, false),
   onlyOfficeJwtSecret: process.env.ONLYOFFICE_JWT_SECRET || '',
   useLegacyHrDocuments: docApiBoolean(process.env.USE_LEGACY_HR_DOCUMENTS, false),
+  corsAllowedOrigins: danhSachPhanCachDauPhay(process.env.CORS_ALLOWED_ORIGINS || [
+    'http://127.0.0.1:5500',
+    'http://localhost:5500',
+    'http://127.0.0.1:4173',
+    'http://localhost:4173'
+  ].join(',')),
   signingSecret: khoaKyPhien,
   samplesDir: path.join(thuMucBackend, 'samples'),
   uploadsDir: path.join(thuMucBackend, 'uploads'),
