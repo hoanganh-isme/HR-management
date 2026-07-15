@@ -55,12 +55,12 @@ var FormBuilderPlugin = (function () {
     body.innerHTML = `
       <div class="form-group mb-3">
         <label class="form-label fw-bold">Tên Form (FormName):</label>
-        <input type="text" id="syncFormName" class="ui-input" placeholder="Ví dụ: frmCustomer">
+        <input type="text" id="syncFormName" class="ui-input" placeholder="Ví dụ: WA_PersonFullFrm">
         <small class="text-muted d-block mt-1">Form giao diện mà bạn muốn đồng bộ cấu hình.</small>
       </div>
       <div class="form-group mb-3">
         <label class="form-label fw-bold">Tên Bảng/View trong DB (ObjectName):</label>
-        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: v_DanhSachKhachHang">
+        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: HR_PersonTbl">
         <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
       </div>
     `;
@@ -114,7 +114,7 @@ var FormBuilderPlugin = (function () {
     var targetFormInput = UIInput.createText({
       label: 'Nhập Tên Form cần thiết kế layout (*)',
       required: true,
-      placeholder: 'Ví dụ: frmCustomer'
+      placeholder: 'Ví dụ: WA_PersonFullFrm'
     });
     body.appendChild(targetFormInput);
 

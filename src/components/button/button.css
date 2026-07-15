@@ -91,7 +91,7 @@
   border-radius: 6px;
 }
 /* Wrapper ngoài giữ shadow (shadow bị clip nếu đặt trực tiếp vào overflow:auto) */
-#customers-btn-container .button-bar,
+#records-btn-container .button-bar,
 .toolbar-host .button-bar {
   box-shadow: none;
 }

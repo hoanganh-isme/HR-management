@@ -1,129 +1,65 @@
 /* --- mockData.js --- */
 /**
- * Mock Data
- * Dữ liệu mẫu dùng chung cho toàn bộ hệ thống trong lúc chờ tích hợp API thật
+ * Small, non-production fixtures used only by the component gallery.
+ * Runtime HR pages always load records through ApiClient/metadata.
  */
 var MockData = {
-  // Dữ liệu Nhóm Quyền & Người dùng 
   groups: [
     { id: 'G01', name: 'Admin', icon: 'shield_person', selected: true },
-    { id: 'G02', name: 'Quản lý', icon: 'manage_accounts', selected: false },
-    { id: 'G03', name: 'Nhân viên lễ tân', icon: 'support_agent', selected: false },
-    { id: 'G04', name: 'Kế toán', icon: 'account_balance', selected: false },
-    { id: 'G05', name: 'Bếp trưởng', icon: 'restaurant_menu', selected: false }
+    { id: 'G02', name: 'Quản lý nhân sự', icon: 'manage_accounts', selected: false },
+    { id: 'G03', name: 'Quản lý', icon: 'supervisor_account', selected: false },
+    { id: 'G04', name: 'Kế toán', icon: 'account_balance', selected: false }
   ],
-  groupDataSimple: [
-    ['G01', 'Admin'],
-    ['G02', 'Quản lý'],
-    ['G03', 'Nhân viên lễ tân'],
-    ['G04', 'Kế toán'],
-    ['G05', 'Bếp trưởng']
-  ],
+  groupDataSimple: [['G01', 'Admin'], ['G02', 'Quản lý nhân sự'], ['G03', 'Quản lý'], ['G04', 'Kế toán']],
   usersData: [
-    { id: 'NV0000', name: 'Trương Nguyễn Administrator', username: 'admin', group: 'Admin', disabled: false },
-    { id: 'NV0001', name: 'Trương Du Kỳ', username: 'duky123', group: 'Quản lý', disabled: false },
-    { id: 'NV0002', name: 'Triệu Quách Minh', username: 'minh.trieu', group: 'Nhân viên lễ tân', disabled: true },
-    { id: 'NV0003', name: 'Châu Chỉ Nhược', username: 'nhuoc.cc', group: 'Kế toán', disabled: false }
+    { id: 'NV0000', name: 'Quản trị hệ thống', username: 'admin', group: 'Admin', disabled: false },
+    { id: 'NV0001', name: 'Nguyễn Minh Anh', username: 'minh.anh', group: 'Quản lý nhân sự', disabled: false },
+    { id: 'NV0002', name: 'Trần Quốc Bảo', username: 'quoc.bao', group: 'Kế toán', disabled: false }
   ],
-
-  // Dữ liệu Phân quyền
   permissionModules: [
-    'Hệ thống (Tài khoản & Phân quyền)',
-    'Danh mục Hàng hóa',
-    'Danh mục Khách hàng',
-    'Phiếu Khách Tham Quan',
-    'Biên nhận Cọc chỗ',
-    'Hợp đồng Tiệc',
-    'Thông tin Bổ sung Tiệc',
-    'Quyết toán Tiệc',
-    'Báo cáo Doanh thu',
-    'Báo cáo Kho'
+    'Hệ thống & phân quyền', 'Hồ sơ nhân viên', 'Tuyển dụng', 'Hợp đồng lao động',
+    'Chấm công & ca làm', 'Nghỉ phép', 'Payroll & phụ cấp', 'Bảo hiểm', 'Báo cáo HR'
   ],
-
-  // Dữ liệu Demo (Hàng hóa, Nhân sự)
   demoEmployees: [
-    ['NV0000', 'Administrator', '0909123456'],
-    ['NV0001', 'Trương Du Kỳ', '123456789'],
-    ['NV0002', 'Triệu Minh', '23654789']
+    ['NV0001', 'Nguyễn Minh Anh', '0909000001'],
+    ['NV0002', 'Trần Quốc Bảo', '0909000002'],
+    ['NV0003', 'Lê Thu Hà', '0909000003']
   ],
   demoItems: [
-    ['CO-FAN-CAM-1-300', 'Coca++Fanta-Cam-chai-300', 'K24', 24, 150, 0, '3,600'],
-    ['PE-7UP-ZZZ-1-285', 'Pepsi++7up-chai-285', 'K24', 24, '1,000', 5, '24,005'],
-    ['SG-BIA-EXP-1-355', 'Sài gòn++Export-chai-355', 'K20', 20, '2,935', 10, '58,710'],
-    ['SG-BIA-LAG-1-450', 'Sài gòn++Lager beer-chai', 'K20', 20, 300, 0, '6,000'],
-    ['A4', 'Giấy A4', 'KG', 1, '', '', ''],
-    ['A55', 'Giấy A55', 'KG', 1, '', '', '']
+    ['PB01', 'Phòng Nhân sự', 'Trụ sở chính', 'Đang hoạt động'],
+    ['PB02', 'Phòng Kế toán', 'Trụ sở chính', 'Đang hoạt động'],
+    ['PB03', 'Phòng Kinh doanh', 'Chi nhánh A', 'Đang hoạt động']
   ],
-
-  // Dữ liệu Demo Báo cáo Doanh thu (12 tháng)
   demoRevenue: [
-    { month: 'Tháng 1', revenue: 125000000, count: 5 },
-    { month: 'Tháng 2', revenue: 85000000, count: 3 },
-    { month: 'Tháng 3', revenue: 210000000, count: 8 },
-    { month: 'Tháng 4', revenue: 150000000, count: 6 },
-    { month: 'Tháng 5', revenue: 320000000, count: 12 },
-    { month: 'Tháng 6', revenue: 280000000, count: 10 },
-    { month: 'Tháng 7', revenue: 190000000, count: 7 },
-    { month: 'Tháng 8', revenue: 160000000, count: 5 },
-    { month: 'Tháng 9', revenue: 410000000, count: 15 },
-    { month: 'Tháng 10', revenue: 550000000, count: 20 },
-    { month: 'Tháng 11', revenue: 620000000, count: 22 },
-    { month: 'Tháng 12', revenue: 750000000, count: 28 }
+    { month: 'Tháng 1', revenue: 125000000, count: 42 },
+    { month: 'Tháng 2', revenue: 135000000, count: 45 },
+    { month: 'Tháng 3', revenue: 142000000, count: 47 },
+    { month: 'Tháng 4', revenue: 151000000, count: 49 },
+    { month: 'Tháng 5', revenue: 158000000, count: 50 },
+    { month: 'Tháng 6', revenue: 165000000, count: 52 }
   ],
-
-  // Dữ liệu Demo Chi phí
   demoCost: [
-    { id: 'HD001', customer: 'Nguyễn Văn A', date: '25/11/2026', foodCost: 50000000, serviceCost: 10000000, staffCost: 5000000, totalCost: 65000000 },
-    { id: 'HD002', customer: 'Trần Thị B', date: '28/11/2026', foodCost: 30000000, serviceCost: 5000000, staffCost: 3000000, totalCost: 38000000 },
-    { id: 'HD003', customer: 'Lê C', date: '02/12/2026', foodCost: 80000000, serviceCost: 15000000, staffCost: 8000000, totalCost: 103000000 }
+    { id: 'PL-001', employee: 'Nguyễn Minh Anh', period: '06/2026', baseSalary: 18000000, allowance: 2000000, total: 20000000 },
+    { id: 'PL-002', employee: 'Trần Quốc Bảo', period: '06/2026', baseSalary: 15000000, allowance: 1500000, total: 16500000 },
+    { id: 'PL-003', employee: 'Lê Thu Hà', period: '06/2026', baseSalary: 13000000, allowance: 1000000, total: 14000000 }
   ],
-
-  // Dữ liệu Demo Khảo sát - Yếu tố đặt tiệc
   demoSurveyFactors: [
-    { label: 'Không gian sảnh', value: 35 },
-    { label: 'Môi trường tốt', value: 25 },
-    { label: 'Giá cả hợp lý', value: 20 },
-    { label: 'Khuyến mãi tốt', value: 15 },
-    { label: 'Phục vụ', value: 5 }
+    { label: 'Đúng giờ', value: 42 }, { label: 'Chất lượng tuyển dụng', value: 28 },
+    { label: 'Đào tạo', value: 18 }, { label: 'Khác', value: 12 }
   ],
-
-  // Dữ liệu Demo Khảo sát - Kênh thông tin
   demoSurveyChannels: [
-    { label: 'Facebook', value: 45 },
-    { label: 'Người quen giới thiệu', value: 30 },
-    { label: 'Tiktok', value: 15 },
-    { label: 'Website', value: 10 }
+    { label: 'Cổng tuyển dụng', value: 45 }, { label: 'Giới thiệu nội bộ', value: 30 },
+    { label: 'Mạng xã hội', value: 15 }, { label: 'Khác', value: 10 }
   ],
-
-  // Dữ liệu Demo Khách Hàng (Hồ sơ)
-  khachHang: [
-    { id: 1, MaKH: 'KH2026-001', TenKhach: 'Nguyễn Văn A - Lê Thị B', DienThoai: '0909123456', Email: 'a.b@gmail.com', DiaChi: 'Quận 1, TP.HCM', SoLanThamQuan: 2, SoHopDong: 1 },
-    { id: 2, MaKH: 'KH2026-002', TenKhach: 'Trần Hữu C - Đinh Bích D', DienThoai: '0988765432', Email: 'c.d@gmail.com', DiaChi: 'Quận 3, TP.HCM', SoLanThamQuan: 1, SoHopDong: 1 },
-    { id: 3, MaKH: 'KH2026-003', TenKhach: 'Hoàng Hữu E - Ngô F', DienThoai: '0912345678', Email: 'e.f@gmail.com', DiaChi: 'Quận 7, TP.HCM', SoLanThamQuan: 3, SoHopDong: 2 },
-    { id: 4, MaKH: 'KH2026-004', TenKhach: 'Lý Mạc Sầu', DienThoai: '0944555666', Email: 'sau.lm@gmail.com', DiaChi: 'Bình Thạnh, TP.HCM', SoLanThamQuan: 1, SoHopDong: 1 },
-    { id: 5, MaKH: 'KH2026-005', TenKhach: 'Lệnh Hồ Xung - Nhậm Doanh Doanh', DienThoai: '0933444555', Email: 'xung.doanh@gmail.com', DiaChi: 'Tân Bình, TP.HCM', SoLanThamQuan: 4, SoHopDong: 1 }
+  shifts: [
+    { id: 'CA-SANG', name: 'Ca sáng', start: '08:00', end: '12:00' },
+    { id: 'CA-CHIEU', name: 'Ca chiều', start: '13:00', end: '17:00' }
   ],
-
-  // Dữ liệu Demo Sảnh Tiệc
-  sanhTiec: [
-    { id: 'S01', name: 'Diamond Hall', status: 'TRONG', capacity: 60 },
-    { id: 'S02', name: 'Ruby Hall', status: 'DA_COC', capacity: 40, customer: 'Trần Hữu C', session: 'Trưa' },
-    { id: 'S03', name: 'Sapphire Hall', status: 'DA_KY', capacity: 50, customer: 'Hoàng Hữu E', session: 'Tối' },
-    { id: 'S04', name: 'Emerald Hall', status: 'TRONG', capacity: 35 },
-    { id: 'S05', name: 'Gold Hall', status: 'BAO_TRI', capacity: 45 },
-    { id: 'S06', name: 'Silver Hall', status: 'DA_KY', capacity: 30, customer: 'Lý Mạc Sầu', session: 'Trưa' }
-  ],
-
-  // Dữ liệu Demo Nhân sự phục vụ
-  nhanVienPhucVu: [
-    { id: 1, MaNV: 'PV001', HoTen: 'Nguyễn Văn Tèo', GioiTinh: 'Nam', DienThoai: '0901234567', LoaiHopDong: 'Thời vụ', MucLuong: 200000, DanhGia: '8.5' },
-    { id: 2, MaNV: 'PV002', HoTen: 'Trần Thị Nở', GioiTinh: 'Nữ', DienThoai: '0912345678', LoaiHopDong: 'Bán thời gian', MucLuong: 4000000, DanhGia: '9.0' },
-    { id: 3, MaNV: 'PV003', HoTen: 'Lê Chí Phèo', GioiTinh: 'Nam', DienThoai: '0923456789', LoaiHopDong: 'Fulltime', MucLuong: 6000000, DanhGia: '7.5' },
-    { id: 4, MaNV: 'PV004', HoTen: 'Thị Kính', GioiTinh: 'Nữ', DienThoai: '0988888888', LoaiHopDong: 'Thời vụ', MucLuong: 250000, DanhGia: '9.5' },
-    { id: 5, MaNV: 'PV005', HoTen: 'Lý Thông', GioiTinh: 'Nam', DienThoai: '0977665544', LoaiHopDong: 'Fulltime', MucLuong: 6500000, DanhGia: '6.0' }
+  leaveRequests: [
+    { id: 'P-001', employee: 'Nguyễn Minh Anh', type: 'Phép năm', days: 1, status: 'Đã duyệt' },
+    { id: 'P-002', employee: 'Lê Thu Hà', type: 'Nghỉ ốm', days: 2, status: 'Chờ duyệt' }
   ]
 };
-
 
 /* --- apiClient.js --- */
 /**
@@ -235,6 +171,22 @@ const ApiClient = (function () {
         }
     }
 
+    /**
+     * Normalize the response envelopes used by existing HR endpoints without
+     * changing the wire contract. Consumers can safely handle records/list/data
+     * and still inspect the original payload when they need status metadata.
+     */
+    function normalizeResponse(payload) {
+        if (Array.isArray(payload)) return { records: payload, raw: payload };
+        if (!payload || typeof payload !== 'object') return { records: [], raw: payload };
+        var records = payload.records || payload.list || payload.data || payload.Records || payload.List || payload.Data;
+        return { records: Array.isArray(records) ? records : [], raw: payload };
+    }
+
+    function requestRecords(endpoint, options) {
+        return request(endpoint, options).then(normalizeResponse);
+    }
+
     return {
         /**
          * G\u1eedi request GET
@@ -272,6 +224,9 @@ const ApiClient = (function () {
             return request(endpoint, { ...options, method: 'DELETE' });
         },
 
+        normalizeResponse: normalizeResponse,
+        requestRecords: requestRecords,
+
         // Expose cookie helpers to be used globally (e.g., in login and logout)
         setCookie: setCookie,
         getCookie: getCookie,
@@ -281,7 +236,6 @@ const ApiClient = (function () {
 
 // Xuất ra để có thể dùng toàn cục trong file JS khác
 window.ApiClient = ApiClient;
-
 
 /* --- permission.js --- */
 /**
@@ -293,11 +247,11 @@ var Permission = (function () {
     var legacyPerms = JSON.parse(localStorage.getItem('app_permissions') || '{}');
     var newPerms = JSON.parse(localStorage.getItem('pmql_permissions') || '{}');
     var perms = Object.keys(newPerms).length > 0 ? newPerms : legacyPerms;
-    
+
     if (Object.keys(perms).length === 0) {
       return { xem: true, them: true, sua: true, xoa: true };
     }
-    
+
     var p = perms[module];
     if (!p) {
       var target = (module || '').toLowerCase();
@@ -309,7 +263,7 @@ var Permission = (function () {
       }
     }
     p = p || {};
-    
+
     return {
         xem: p.CanView == 1 || p.CanView === '1' || p.CanView === true || p.CanView === 'true' || p.xem == 1 || p.xem === '1' || p.xem === true || p.xem === 'true',
         them: p.CanAdd == 1 || p.CanAdd === '1' || p.CanAdd === true || p.CanAdd === 'true' || p.them == 1 || p.them === '1' || p.them === true || p.them === 'true',
@@ -325,7 +279,6 @@ var Permission = (function () {
     canDelete: function (module) { return _get(module).xoa; }
   };
 })();
-
 
 /* --- DocumentExportPlugin.js --- */
 /**
@@ -439,7 +392,7 @@ var DocumentExportPlugin = (function () {
           errBox.style.textAlign = 'center';
           errBox.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.1)';
           errBox.style.fontFamily = '"Inter", system-ui, -apple-system, sans-serif';
-          
+
           var errMsg = document.createElement('p');
           errMsg.innerText = 'Không tìm thấy mẫu hợp đồng nào được cấu hình trong CSDL (bảng HR_HopDongAddfile).';
           errMsg.style.color = '#ef4444';
@@ -447,7 +400,7 @@ var DocumentExportPlugin = (function () {
           errMsg.style.fontWeight = '500';
           errMsg.style.margin = '0 0 16px 0';
           errBox.appendChild(errMsg);
-          
+
           var btnClose = document.createElement('button');
           btnClose.innerText = 'Đóng';
           btnClose.style.padding = '8px 18px';
@@ -527,14 +480,14 @@ var DocumentExportPlugin = (function () {
           label.style.borderRadius = '8px';
           label.style.border = '1px solid #e2e8f0';
           label.style.transition = 'all 0.15s ease';
-          
+
           var radio = document.createElement('input');
           radio.type = 'radio';
           radio.name = 'tplSelect';
           radio.value = tpl.id;
           radio.style.cursor = 'pointer';
           radio.style.margin = '0';
-          
+
           var textSpan = document.createElement('span');
           textSpan.innerText = tpl.name;
           textSpan.style.fontWeight = '500';
@@ -544,7 +497,7 @@ var DocumentExportPlugin = (function () {
             label.style.borderColor = '#3b82f6';
             label.style.backgroundColor = '#eff6ff';
             textSpan.style.color = '#1d4ed8';
-            
+
             var badge = document.createElement('span');
             badge.innerText = 'Đề xuất';
             badge.style.marginLeft = 'auto';
@@ -554,7 +507,7 @@ var DocumentExportPlugin = (function () {
             badge.style.padding = '2px 8px';
             badge.style.borderRadius = '9999px';
             badge.style.fontWeight = '600';
-            
+
             label.appendChild(radio);
             label.appendChild(textSpan);
             label.appendChild(badge);
@@ -631,20 +584,20 @@ var DocumentExportPlugin = (function () {
       .catch(function (err) {
         console.error('[DocumentExportPlugin] Lỗi tải mẫu CSDL:', err);
         overlay.removeChild(loadingText);
-        
+
         // Hiện thông báo lỗi và tự động gỡ overlay
         var errBox = document.createElement('div');
         errBox.style.backgroundColor = '#ffffff';
         errBox.style.padding = '24px';
         errBox.style.borderRadius = '8px';
         errBox.style.textAlign = 'center';
-        
+
         var errMsg = document.createElement('p');
         errMsg.innerText = 'Không thể kết nối đến máy chủ hoặc tải danh sách mẫu từ CSDL.';
         errMsg.style.color = '#ef4444';
         errMsg.style.margin = '0 0 16px 0';
         errBox.appendChild(errMsg);
-        
+
         var btnClose = document.createElement('button');
         btnClose.innerText = 'Đóng';
         btnClose.style.padding = '8px 16px';
@@ -711,6 +664,9 @@ var DocumentExportPlugin = (function () {
       headers: headers,
       body: JSON.stringify({
         templateType: actualDocType,
+        // documentId is the internal HR-neutral name. Keep customerId as a
+        // compatibility alias because the document API still accepts it.
+        documentId: docId,
         customerId: docId,
         outputFileName: actualDocType + '_' + docId,
         rowData: row,
@@ -802,7 +758,6 @@ var DocumentExportPlugin = (function () {
   return { getExtraButtons: getExtraButtons };
 })();
 
-
 /* --- FormBuilderPlugin.js --- */
 /**
  * FormBuilderPlugin
@@ -861,12 +816,12 @@ var FormBuilderPlugin = (function () {
     body.innerHTML = `
       <div class="form-group mb-3">
         <label class="form-label fw-bold">Tên Form (FormName):</label>
-        <input type="text" id="syncFormName" class="ui-input" placeholder="Ví dụ: frmCustomer">
+        <input type="text" id="syncFormName" class="ui-input" placeholder="Ví dụ: WA_PersonFullFrm">
         <small class="text-muted d-block mt-1">Form giao diện mà bạn muốn đồng bộ cấu hình.</small>
       </div>
       <div class="form-group mb-3">
         <label class="form-label fw-bold">Tên Bảng/View trong DB (ObjectName):</label>
-        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: v_DanhSachKhachHang">
+        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: HR_PersonTbl">
         <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
       </div>
     `;
@@ -920,7 +875,7 @@ var FormBuilderPlugin = (function () {
     var targetFormInput = UIInput.createText({
       label: 'Nhập Tên Form cần thiết kế layout (*)',
       required: true,
-      placeholder: 'Ví dụ: frmCustomer'
+      placeholder: 'Ví dụ: WA_PersonFullFrm'
     });
     body.appendChild(targetFormInput);
 
@@ -1047,11 +1002,11 @@ var FormBuilderPlugin = (function () {
 
           card.innerHTML = `
              <div style="font-weight:600; font-size:14px; color:var(--color-primary); pointer-events:none; display:flex; align-items:center; gap:6px;">
-               <span class="material-symbols-outlined" style="font-size:18px; color:#888;">drag_indicator</span> 
+               <span class="material-symbols-outlined" style="font-size:18px; color:#888;">drag_indicator</span>
                <span class="text-truncate">${captionStr}</span>
                <small style="color:#aaa; font-weight:400;">(${fieldNameStr})</small>
              </div>
-             
+
              <div style="display:flex; gap:10px; font-size:11px; color:#555; margin-top:2px;">
                 <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="checkbox" class="chk-add" ${showAdd ? 'checked' : ''}> Hiện khi Thêm</label>
                 <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="checkbox" class="chk-edit" ${showEdit ? 'checked' : ''}> Hiện khi Sửa</label>
@@ -1244,161 +1199,6 @@ var FormBuilderPlugin = (function () {
 
 })();
 
-
-/* --- WorkflowTransferPlugin.js --- */
-/**
- * WorkflowTransferPlugin
- * ─────────────────────────────────────────────────────────────────────
- * Plugin dùng để chuyển dữ liệu từ các màn hình này sang màn hình khác.
- * Ví dụ: Khách tham quan -> Biên nhận cọc (Auto-fill)
- */
-var WorkflowTransferPlugin = (function () {
-
-    function _autoClickAdd() {
-        setTimeout(function () {
-            var btnAdd = document.querySelector('button[title*="Thêm bản ghi mới"], button[title="Thêm"], .btn-primary:not(.btn-tool)');
-            if (btnAdd) btnAdd.click();
-        }, 800);
-    }
-
-    // --- CẤU HÌNH CÁC NÚT TRANSFER ---
-    var FORM_CONFIG = {
-        'frmKhachThamQuan': {
-            id: 'btn-transfer-booking',
-            text: 'Tạo Cọc',
-            icon: 'monetization_on',
-            targetHash: '#/booking',
-            storageKey: 'transfer_VisitorToBooking',
-            getTransferData: function (row) {
-                var data = Object.assign({}, row);
-                delete data.Id; delete data.AutoID; delete data.Sohopdong;
-                return data;
-            }
-        },
-        'frmHopDong': {
-            id: 'btn-transfer-checkout',
-            text: 'Quyết Toán',
-            icon: 'receipt_long',
-            targetHash: '#/checkout',
-            storageKey: 'transfer_ContractToCheckout',
-            getTransferData: function (row) {
-                var data = Object.assign({}, row);
-                delete data.Id; delete data.AutoID;
-                return data;
-            }
-        }
-    };
-
-    function getExtraButtons(formName, getSelectedRows) {
-        var config = FORM_CONFIG[formName];
-        if (!config) return [];
-
-        return [{
-            id: config.id,
-            text: config.text,
-            icon: config.icon,
-            type: 'tool',
-            onClick: function () {
-                var selectedRows = getSelectedRows();
-                if (!selectedRows || selectedRows.length !== 1) {
-                    if (window.Alert) Alert.warning('Chưa chọn dữ liệu', 'Vui lòng chọn 1 dòng duy nhất để ' + config.text + '.');
-                    else alert('Vui lòng chọn 1 dòng!');
-                    return;
-                }
-
-                var transferData = config.getTransferData(selectedRows[0]);
-                sessionStorage.setItem(config.storageKey, JSON.stringify(transferData));
-                window.location.hash = config.targetHash;
-                _autoClickAdd();
-            }
-        }];
-    }
-
-    // --- XỬ LÝ AUTO-FILL KHI MỞ FORM THÊM MỚI ---
-    var _observer = null;
-
-    function _handleAutoFill() {
-        var modalContent = document.querySelector('.modal-content');
-        if (!modalContent) return;
-        var modalTitle = modalContent.querySelector('.modal-title');
-        if (!modalTitle || modalTitle.innerText.indexOf('Thêm') === -1) return;
-
-        var dataV2B = sessionStorage.getItem('transfer_VisitorToBooking');
-        if (dataV2B) {
-            _fillData(JSON.parse(dataV2B), 'Khách Tham Quan');
-            sessionStorage.removeItem('transfer_VisitorToBooking');
-            return;
-        }
-
-        var dataC2C = sessionStorage.getItem('transfer_ContractToCheckout');
-        if (dataC2C) {
-            _fillData(JSON.parse(dataC2C), 'Hợp Đồng Tiệc');
-            sessionStorage.removeItem('transfer_ContractToCheckout');
-            return;
-        }
-    }
-
-    function _fillData(data, sourceName) {
-        setTimeout(function () {
-            var modalContent = document.querySelector('.modal-content');
-            if (!modalContent) return;
-            var filled = false;
-
-            var tryFill = function (selectors, value) {
-                if (!value) return;
-                var els = modalContent.querySelectorAll(selectors);
-                if (els.length > 0) {
-                    els.forEach(function (el) {
-                        el.value = value;
-                        el.style.backgroundColor = '#f0fdf4';
-                        el.style.borderColor = '#10b981';
-                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                    });
-                    filled = true;
-                }
-            };
-
-            // Duyệt qua mapping động từ JSON data (keys chính là tên trường của form đích)
-            Object.keys(data).forEach(function (fieldName) {
-                var value = data[fieldName];
-                if (!value) return; // Bỏ qua nếu không có giá trị
-
-                // Tự động tạo selector thông minh bao phủ input, select, textarea
-                var selector = 'input[name="' + fieldName + '"], ' +
-                    'select[name="' + fieldName + '"], ' +
-                    'textarea[name="' + fieldName + '"]';
-
-                tryFill(selector, value);
-            });
-
-            if (filled && window.Toast) {
-                Toast.success('Đã tự động điền thông tin từ ' + sourceName + '!');
-            }
-        }, 300);
-    }
-
-    function init() {
-        if (_observer) _observer.disconnect();
-
-        // Chỉ observe để auto-fill (chờ modal xuất hiện)
-        _observer = new MutationObserver(function () {
-            _handleAutoFill();
-        });
-
-        _observer.observe(document.body, { childList: true, subtree: true });
-    }
-
-    // Đăng ký Plugin vào hệ thống
-    window.FormActionPlugins = window.FormActionPlugins || [];
-    window.FormActionPlugins.push({ getExtraButtons: getExtraButtons });
-
-    // Tự khởi động MutationObserver khi load (giống DocumentExportPlugin)
-    init();
-
-    return { getExtraButtons: getExtraButtons };
-})();
-
-
 /* --- EventBus.js --- */
 /**
  * Global Event Bus - Lõi Pub/Sub để các component giao tiếp với nhau
@@ -1435,7 +1235,6 @@ var EventBus = (function() {
     }
   };
 })();
-
 
 /* --- KeyboardManager.js --- */
 /**
@@ -1493,7 +1292,6 @@ var KeyboardManager = (function () {
   return { init: init };
 })();
 
-
 /* --- FormatUtils.js --- */
 /**
  * Format Utility
@@ -1535,7 +1333,6 @@ var FormatUtils = (function () {
     date: date
   };
 })();
-
 
 /* --- UITooltip.js --- */
 /**
@@ -1619,7 +1416,6 @@ var UITooltip = (function () {
   return { show: show, hide: hide };
 })();
 
-
 /* --- PrintUtils.js --- */
 /**
  * Print Utility
@@ -1640,7 +1436,7 @@ var PrintUtils = (function () {
     }
 
     win.document.write('<html><head><title>' + (title || 'In tài liệu') + '</title>');
-    
+
     // Nạp toàn bộ style hiện tại vào bản in
     var styles = document.querySelectorAll('link[rel="stylesheet"], style');
     styles.forEach(function(s) {
@@ -1666,615 +1462,224 @@ var PrintUtils = (function () {
   };
 })();
 
-
-/* --- CalendarService.js --- */
-/**
- * Lớp Dịch vụ Quản lý Dữ liệu Lịch (Calendar Service)
- * Đảm nhiệm việc fetch dữ liệu API, quản lý In-memory Cache, và format dữ liệu
- */
-var CalendarService = (function () {
-  var _calendarCache = {};
-  var _isFetching = false;
-
-  // Lắng nghe sự kiện toàn cục để tự động quét dọn Cache
-  if (typeof EventBus !== 'undefined') {
-    EventBus.on('BANQUET_MUTATED', function () {
-      console.debug('[CalendarService] BANQUET_MUTATED — quét sạch cache lịch.');
-      invalidateCache();
-    });
-  }
-
-  var _legendCache = null;
-
-  function getLegend() {
-    return new Promise(function(resolve, reject) {
-      if (_legendCache) {
-        return resolve(_legendCache);
-      }
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CALENDAR || !API_CONFIG.ENDPOINTS.CALENDAR.LEGEND) {
-        return reject('Missing API_CONFIG.ENDPOINTS.CALENDAR.LEGEND');
-      }
-      ApiClient.get(API_CONFIG.ENDPOINTS.CALENDAR.LEGEND)
-        .then(function(res) {
-          var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
-          _legendCache = records;
-          resolve(records);
-        })
-        .catch(function(err) {
-          console.warn('[CalendarService] Lỗi lấy Legend', err);
-          resolve([]); // Trả về mảng rỗng nếu API lỗi để không bị crash FE
-        });
-    });
-  }
-
-  function invalidateCache() {
-    console.debug('[CalendarService] invalidateCache — đã xóa cache lịch.');
-    _calendarCache = {};
-  }
-
-  // Chuyển logic format từ page vào service luôn để tái sử dụng
-  function formatData(data) {
-    var eventsData = {};
-    data.forEach(function (row) {
-      var ngay = row.NgayToChuc || row.ngayToChuc || row.Ngaytochuc || row.ngaytochuc;
-      if (!ngay) return;
-      var d = new Date(ngay);
-      var day = d.getDate();
-
-      if (!eventsData[day]) eventsData[day] = [];
-
-      var loaiPhieu = row.LoaiPhieu !== undefined ? row.LoaiPhieu : row.loaiPhieu;
-      var laSanhChinh = row.LaSanhChinh !== undefined ? row.LaSanhChinh : row.laSanhChinh;
-      if (laSanhChinh === 0) return; // Bỏ qua sảnh phụ
-
-      var tenSanh = row.TenSanh || row.tenSanh || '';
-      var soBan = row.SoBan || row.soBan || 0;
-
-      // LoaiPhieu = 1 -> Xanh (Mới cọc), 2 -> Đỏ (Đã HĐ)
-      var type = loaiPhieu === 1 ? 'success' : 'danger';
-
-      var label = tenSanh + ' (' + soBan + ')';
-
-      eventsData[day].push({
-        type: type,
-        label: label,
-        rawData: row
-      });
-    });
-    return eventsData;
-  }
-
-  var _pendingResolvers = [];
-
-  function fetchEvents(year, month, forceRefresh) {
-    forceRefresh = forceRefresh || false;
-    var cacheKey = year + '-' + (month + 1).toString().padStart(2, '0');
-
-    return new Promise(function (resolve, reject) {
-      if (!forceRefresh && _calendarCache[cacheKey]) {
-        console.debug('[CalendarService] Cache hit:', cacheKey);
-        return resolve(_calendarCache[cacheKey]);
-      }
-
-      // Nếu đang fetch cùng tháng đó rồi, xếp vào queue chờ
-      if (_isFetching) {
-        _pendingResolvers.push({ resolve: resolve, reject: reject, cacheKey: cacheKey });
-        return;
-      }
-
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CALENDAR || !API_CONFIG.ENDPOINTS.CALENDAR.LIST) {
-        console.warn('Chưa cấu hình API_CONFIG.ENDPOINTS.CALENDAR.LIST.');
-        return reject('Missing API_CONFIG');
-      }
-
-      console.debug('[CalendarService] Fetching:', cacheKey);
-      _isFetching = true;
-
-      var payloadString = encodeURIComponent(JSON.stringify({ Thang: month + 1, Nam: year }));
-      var endpoint = API_CONFIG.ENDPOINTS.CALENDAR.LIST + '?q=' + payloadString;
-
-      ApiClient.get(endpoint)
-        .then(function (res) {
-          var data = res.records || res.data || res || [];
-          var eventsData = formatData(data);
-          _calendarCache[cacheKey] = eventsData;
-          resolve(eventsData);
-          // Flush pending resolvers
-          _pendingResolvers.forEach(function(p) {
-            var cached = _calendarCache[p.cacheKey];
-            if (cached) p.resolve(cached); else p.reject('No data');
-          });
-          _pendingResolvers = [];
-        })
-        .catch(function (err) {
-          console.error('[CalendarService] Lỗi khi tải lịch:', err);
-          reject(err);
-          _pendingResolvers.forEach(function(p) { p.reject(err); });
-          _pendingResolvers = [];
-        })
-        .finally(function () {
-          _isFetching = false;
-        });
-    });
-  }
-
-  /**
-   * Lưu lịch tiệc (đặt cọc lịch)
-   * @param {Object} payload
-   * @returns {Promise}
-   */
-  function save(payload) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CALENDAR || !API_CONFIG.ENDPOINTS.CALENDAR.SAVE) {
-        return reject('Chưa cấu hình API CALENDAR.SAVE');
-      }
-      ApiClient.post(API_CONFIG.ENDPOINTS.CALENDAR.SAVE, payload)
-        .then(resolve)
-        .catch(function (err) {
-          console.error('[CalendarService] Lỗi save:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lấy tóm tắt lịch theo năm: tháng nào có sự kiện
-   * @param {number} year
-   * @returns {Promise<Object>} { 0: count, 1: count, ... } (0-indexed month)
-   */
-  var _yearlySummaryCache = {};
-  function getYearlySummary(year) {
-    if (_yearlySummaryCache[year]) return Promise.resolve(_yearlySummaryCache[year]);
-    if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CALENDAR || !API_CONFIG.ENDPOINTS.CALENDAR.LIST) {
-      return Promise.resolve({});
-    }
-    var endpoint = API_CONFIG.ENDPOINTS.CALENDAR.LIST + '?q=' + encodeURIComponent(JSON.stringify({ Nam: year }));
-    return ApiClient.get(endpoint)
-      .then(function (res) {
-        var data = res.records || res.data || res || [];
-        var summary = {};
-        data.forEach(function (row) {
-          var ngay = row.NgayToChuc || row.ngayToChuc || row.Ngaytochuc || row.ngaytochuc;
-          if (!ngay) return;
-          var m = new Date(ngay).getMonth(); // 0-indexed
-          summary[m] = (summary[m] || 0) + 1;
-        });
-        _yearlySummaryCache[year] = summary;
-        return summary;
-      })
-      .catch(function () { return {}; });
-  }
-
-  return {
-    fetchEvents: fetchEvents,
-    getLegend: getLegend,
-    invalidateCache: invalidateCache,
-    getYearlySummary: getYearlySummary,
-    save: save
-  };
-})();
-
-
 /* --- SystemDataService.js --- */
-/**
- * Lớp Dịch vụ lấy dữ liệu Danh mục dùng chung (Sảnh, Ca Tiệc...)
- * Đảm nhiệm việc fetch dữ liệu API, quản lý In-memory Cache để tái sử dụng
- */
-var SystemDataService = (function() {
-  var _hallsCache = null;
-  var _shiftsCache = null;
-  var _isFetchingHalls = false;
-  var _isFetchingShifts = false;
+/** Shared HR system-data repository (shifts, setup values and menu version). */
+var SystemDataService = (function () {
+  var shiftsCache = null;
+  var shiftsRequest = null;
 
-  function getHalls(forceRefresh) {
-    forceRefresh = forceRefresh || false;
-    return new Promise(function(resolve, reject) {
-      if (!forceRefresh && _hallsCache) {
-        return resolve(_hallsCache);
-      }
-      if (_isFetchingHalls) return;
-
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.HALLS) {
-        return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.HALLS');
-      }
-
-      _isFetchingHalls = true;
-      ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.HALLS)
-        .then(function(res) {
-          var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
-          _hallsCache = records;
-          resolve(records);
-        })
-        .catch(reject)
-        .finally(function() {
-          _isFetchingHalls = false;
-        });
-    });
+  function records(response) {
+    if (typeof ApiClient !== 'undefined' && ApiClient.normalizeResponse) {
+      return ApiClient.normalizeResponse(response).records;
+    }
+    return response && response.records ? response.records : (Array.isArray(response) ? response : []);
   }
 
   function getShifts(forceRefresh) {
-    forceRefresh = forceRefresh || false;
-    return new Promise(function(resolve, reject) {
-      if (!forceRefresh && _shiftsCache) {
-        return resolve(_shiftsCache);
-      }
-      if (_isFetchingShifts) return;
-
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS) {
-        return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS');
-      }
-
-      _isFetchingShifts = true;
-      ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS)
-        .then(function(res) {
-          var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
-          _shiftsCache = records;
-          resolve(records);
-        })
-        .catch(reject)
-        .finally(function() {
-          _isFetchingShifts = false;
-        });
-    });
-  }
-
-  function getBanquetTypes(forceRefresh) {
-    forceRefresh = forceRefresh || false;
-    return new Promise(function(resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES) {
-        return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES');
-      }
-
-      ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.BANQUET_TYPES)
-        .then(function(res) {
-          var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
-          resolve(records);
-        })
-        .catch(reject);
-    });
+    if (!forceRefresh && shiftsCache) return Promise.resolve(shiftsCache);
+    if (shiftsRequest) return shiftsRequest;
+    if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS) {
+      return Promise.reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS');
+    }
+    shiftsRequest = ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SHIFTS)
+      .then(function (response) {
+        shiftsCache = records(response);
+        return shiftsCache;
+      })
+      .finally(function () { shiftsRequest = null; });
+    return shiftsRequest;
   }
 
   function getSetupValue(codeId) {
-    return new Promise(function(resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE) {
-        return reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE');
-      }
-      ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE)
-        .then(function(res) {
-          var records = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
-          // Tìm đúng CodeID được yêu cầu
-          var found = records.find(function(r) { return r.CodeID === codeId; });
-          resolve(found ? found.CodeValue : null);
-        })
-        .catch(reject);
+    if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE) {
+      return Promise.reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE');
+    }
+    return ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE).then(function (response) {
+      var found = records(response).find(function (row) { return row.CodeID === codeId; });
+      return found ? found.CodeValue : null;
     });
   }
 
-  /**
-   * Lấy version đồng bộ menu từ SY_Setup (key: menu_sync_ver)
-   * Dùng cho Navbar để detect cache cũ trên các máy khác
-   */
-  function getMenuSyncVersion() {
-    return getSetupValue('menu_sync_ver');
-  }
+  function getMenuSyncVersion() { return getSetupValue('menu_sync_ver'); }
 
   function invalidateCache() {
-    _hallsCache = null;
-    _shiftsCache = null;
+    shiftsCache = null;
+    shiftsRequest = null;
   }
 
   return {
-    getHalls: getHalls,
     getShifts: getShifts,
-    getBanquetTypes: getBanquetTypes,
     getSetupValue: getSetupValue,
     getMenuSyncVersion: getMenuSyncVersion,
     invalidateCache: invalidateCache
   };
 })();
 
-
-/* --- BookingService.js --- */
+/* --- MenusService.js --- */
 /**
- * BookingService
- * Quản lý toàn bộ API call liên quan đến Biên nhận Cọc chỗ (Booking).
+ * MenusService
+ * Quản lý toàn bộ API call liên quan đến Quản lý Menu Hệ thống.
  */
-var BookingService = (function () {
+var MenusService = (function () {
+
+  function _ep(key) {
+    return (window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.MENUS)
+      ? window.API_CONFIG.ENDPOINTS.MENUS[key]
+      : null;
+  }
+
+  function _currentGroupId() {
+    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+  }
 
   /**
-   * Lấy danh sách biên nhận cọc
-   * @param {Object} filterParams - { Keyword, TuNgay, DenNgay }
+   * Lấy toàn bộ danh sách menu
    * @returns {Promise<Array>}
    */
-  function getList(filterParams) {
+  function getAll() {
     return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.BOOKING || !API_CONFIG.ENDPOINTS.BOOKING.LIST) {
-        console.warn('[BookingService] Thiếu cấu hình API BOOKING.LIST');
-        return resolve([]);
-      }
-      var payloadString = encodeURIComponent(JSON.stringify(filterParams || {}));
-      var endpoint = API_CONFIG.ENDPOINTS.BOOKING.LIST + '?q=' + payloadString;
-
-      ApiClient.get(endpoint)
+      var endpoint = _ep('GET_ALL');
+      ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId() })
         .then(function (res) {
-          var data = [];
-          if (res && res.records)      data = res.records;
-          else if (res && res.data)    data = res.data;
-          else if (Array.isArray(res)) data = res;
-          resolve(data);
+          if (res && res.code === 0) {
+            resolve(res.records || []);
+          } else {
+            console.warn('[MenusService] getAll — code != 0:', res && res.msg);
+            resolve([]);
+          }
         })
         .catch(function (err) {
-          console.error('[BookingService] Lỗi getList:', err);
+          console.error('[MenusService] Lỗi getAll:', err);
           reject(err);
         });
     });
   }
 
   /**
-   * Hủy phiếu cọc
-   * @param {Object} payload - { DocumentID, Lydohuy }
-   * @returns {Promise}
-   */
-  function cancel(payload) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.BOOKING || !API_CONFIG.ENDPOINTS.BOOKING.CANCEL) {
-        return reject('Chưa cấu hình API BOOKING.CANCEL');
-      }
-      ApiClient.post(API_CONFIG.ENDPOINTS.BOOKING.CANCEL, payload)
-        .then(resolve)
-        .catch(function (err) {
-          console.error('[BookingService] Lỗi cancel:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Tìm kiếm khách hàng theo từ khóa
-   * @param {string} keyword
-   * @returns {Promise<Array>}
-   */
-  function searchCustomer(keyword, sortCol, sortDir, page, limit) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CUSTOMER || !API_CONFIG.ENDPOINTS.CUSTOMER.SEARCH) {
-        return resolve({ list: [], total: 0 });
-      }
-      var payloadObj = { Keyword: keyword || '' };
-      var payload = JSON.stringify(payloadObj);
-      
-      var queryParams = [
-        'q=' + encodeURIComponent(payload),
-        'limit=' + (limit || 20),
-        'page=' + (page || 1)
-      ];
-
-      if (sortCol) {
-        var sortValue = sortCol + (sortDir && sortDir.toUpperCase() === 'DESC' ? ' desc' : '');
-        queryParams.push('sort=' + encodeURIComponent(sortValue));
-      } else {
-        queryParams.push('sort=DateCreate desc'); // Mặc định sắp xếp theo ngày tạo
-      }
-
-      var url = API_CONFIG.ENDPOINTS.CUSTOMER.SEARCH + '?' + queryParams.join('&');
-
-      ApiClient.get(url)
-        .then(function (res) {
-          var list = (res && res.records) ? res.records : (Array.isArray(res) ? res : []);
-          var total = res ? (res._recordtotal || res.total || list.length) : 0;
-          resolve({ list: list, total: total });
-        })
-        .catch(function (err) {
-          console.error('[BookingService] Lỗi searchCustomer:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lưu biên nhận cọc (thêm mới hoặc cập nhật)
+   * Lưu menu (thêm mới hoặc cập nhật)
    * @param {Object} payload
    * @returns {Promise}
    */
   function save(payload) {
     return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.BOOKING || !API_CONFIG.ENDPOINTS.BOOKING.SAVE) {
-        return reject('Thiếu cấu hình API BOOKING.SAVE');
-      }
-      ApiClient.post(API_CONFIG.ENDPOINTS.BOOKING.SAVE, payload)
+      var endpoint = _ep('SAVE');
+      ApiClient.post(endpoint, payload)
         .then(resolve)
         .catch(function (err) {
-          console.error('[BookingService] Lỗi save:', err);
+          console.error('[MenusService] Lỗi save:', err);
           reject(err);
         });
     });
   }
 
   /**
-   * Xóa biên nhận cọc qua Gateway (Batch)
-   * @param {Object} payload - { DocumentIDs: 'ID1,ID2' }
+   * Xóa menu
+   * @param {string} menuId
    * @returns {Promise}
    */
-  function remove(payload) {
+  function deleteMenu(menuId) {
     return new Promise(function (resolve, reject) {
-      var endpoint = (typeof API_CONFIG !== 'undefined' && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER)
-        ? API_CONFIG.ENDPOINTS.ROUTER
-        : '/api/API_Gateway_Router';
-
-      var routerPayload = {
-        List: 'frmBiennhancoccho',
-        Func: 'Delete',
-        JsonData: JSON.stringify(payload) // Truyền { DocumentIDs: 'ID1,ID2' }
-      };
-
-      ApiClient.post(endpoint, routerPayload)
+      var endpoint = _ep('DELETE');
+      ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId(), MenuID: menuId })
         .then(resolve)
         .catch(function (err) {
-          console.error('[BookingService] Lỗi remove:', err);
+          console.error('[MenusService] Lỗi deleteMenu:', err);
+          reject(err);
+        });
+    });
+  }
+
+  /**
+   * Cập nhật thứ tự hiển thị các menu
+   * @param {Object} params - { type, orderedIds, parentId }
+   * @returns {Promise}
+   */
+  function updateOrder(params) {
+    return new Promise(function (resolve, reject) {
+      var endpoint = _ep('UPDATE_ORDER');
+      ApiClient.post(endpoint, {
+        NhomNguoiDangThaoTac: _currentGroupId(),
+        Type: params.type,
+        OrderedIDs: params.orderedIds.join(','),
+        ParentID: params.parentId
+      })
+        .then(resolve)
+        .catch(function (err) {
+          console.error('[MenusService] Lỗi updateOrder:', err);
           reject(err);
         });
     });
   }
 
   return {
-    getList: getList,
-    cancel: cancel,
-    remove: remove,
-    searchCustomer: searchCustomer,
-    save: save
+    getAll: getAll,
+    save: save,
+    deleteMenu: deleteMenu,
+    updateOrder: updateOrder,
+    currentGroupId: _currentGroupId
   };
 })();
 
-
-/* --- VisitorService.js --- */
-/**
- * VisitorService
- * Quản lý toàn bộ API call liên quan đến Khách Tham Quan.
- */
-var VisitorService = (function () {
-
-  /**
-   * Lấy danh sách khách tham quan
-   * @param {Object} filterParams - { Keyword, TuNgay, DenNgay, ... }
-   * @returns {Promise<Array>}
-   */
-  function getList(filterParams) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.VISITOR || !API_CONFIG.ENDPOINTS.VISITOR.LIST) {
-        console.warn('[VisitorService] Thiếu cấu hình API VISITOR.LIST — trả về mảng rỗng');
-        return resolve([]);
-      }
-
-      var payloadString = encodeURIComponent(JSON.stringify(filterParams || {}));
-      var endpoint = API_CONFIG.ENDPOINTS.VISITOR.LIST + '?q=' + payloadString;
-
-      ApiClient.get(endpoint)
-        .then(function (res) {
-          var data = [];
-          if (res && res.records)      data = res.records;
-          else if (res && res.data)    data = res.data;
-          else if (Array.isArray(res)) data = res;
-          resolve(data);
-        })
-        .catch(function (err) {
-          console.error('[VisitorService] Lỗi getList:', err);
-          reject(err);
-        });
-    });
-  }
-
-  return {
-    getList: getList
-  };
-})();
-
-
-/* --- CheckoutService.js --- */
-/**
- * CheckoutService
- * Quản lý toàn bộ API call liên quan đến Quyết Toán Tiệc.
- * Join: tbmk_Phieuthu ← tbmk_Hopdong ← dmkhachhang
- */
-var CheckoutService = (function () {
-
-  /**
-   * Lấy danh sách phiếu quyết toán (API_DanhSachQuyetToan)
-   * @param {Object} params - { Keyword, DocumentID, Sohopdong }
-   * @returns {Promise<Array>}
-   */
-  function getList(params) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CHECKOUT) {
-        return reject('Missing API_CONFIG.ENDPOINTS.CHECKOUT');
-      }
-      var endpoint = API_CONFIG.ENDPOINTS.CHECKOUT.LIST;
-      var payloadString = encodeURIComponent(JSON.stringify(params || {}));
-
-      ApiClient.get(endpoint + '?q=' + payloadString)
-        .then(function (res) {
-          var data = [];
-          if (res && res.records)       data = res.records;
-          else if (res && res.data)     data = res.data;
-          else if (Array.isArray(res))  data = res;
-          resolve(data);
-        })
-        .catch(function (err) {
-          console.error('[CheckoutService] Lỗi getList:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Tìm kiếm hợp đồng chưa quyết toán (API_DanhSachHopDong)
-   * Lọc TrangThai = 'Đã Ký' để chỉ trả về HĐ chưa quyết toán
-   * @param {string} keyword
-   * @returns {Promise<Array>}
-   */
-  function searchContracts(keyword) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CHECKOUT) {
-        return reject('Missing API_CONFIG.ENDPOINTS.CHECKOUT');
-      }
-      var endpoint = API_CONFIG.ENDPOINTS.CHECKOUT.CONTRACT_LIST;
-      var payload = { Keyword: keyword || '' };
-      var payloadString = encodeURIComponent(JSON.stringify(payload));
-
-      ApiClient.get(endpoint + '?q=' + payloadString)
-        .then(function (res) {
-          var data = [];
-          if (res && res.records)       data = res.records;
-          else if (res && res.data)     data = res.data;
-          else if (Array.isArray(res))  data = res;
-          // Chỉ lấy hợp đồng chưa quyết toán (IsKetthuc = 0 / TrangThai = 'Đã Ký')
-          var filtered = data.filter(function (item) {
-            return item.TrangThai !== 'Đã Quyết Toán' && item.TrangThai !== 'Đã Hủy';
+/* --- PeriodManager.js --- */
+// Quản lý Kỳ kế toán (Period Manager) - Tích hợp Real DB (SY_Period)
+(function() {
+  window.PeriodManager = {
+    _cache: {},
+    init: function() {
+      var _this = this;
+      if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER) {
+        ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
+          List: 'SY_Period',
+          Func: 'View'
+        }).then(function(res) {
+          var records = res.records || (Array.isArray(res) ? res : []);
+          records.forEach(function(r) {
+            var m = parseInt(r.PeriodNo);
+            var y = parseInt(r.YearID);
+            var isLocked = (r.isLock === true || r.isLock === 1 || r.isLock === '1' || r.isLock === 'True');
+            if (m && y) _this._cache[m + '/' + y] = isLocked;
           });
-          resolve(filtered);
-        })
-        .catch(function (err) {
-          console.error('[CheckoutService] Lỗi searchContracts:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lưu phiếu quyết toán (API_LuuQuyenToan)
-   * @param {Object} payload - { DocumentID?, DocumentDate, Sohopdong, Nguoinop,
-   *                             Tongtiencoc, TongtienHoaDon, Thanhtoan,
-   *                             Conlai, IsKetthuc, Ghichu }
-   * @returns {Promise<Object>} - Record vừa lưu
-   */
-  function save(payload) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.CHECKOUT) {
-        return reject('Missing API_CONFIG.ENDPOINTS.CHECKOUT');
+        }).catch(function(e) { console.error('Lỗi tải SY_Period:', e); });
       }
-      var endpoint = API_CONFIG.ENDPOINTS.CHECKOUT.SAVE;
+    },
+    getLockedPeriods: function() {
+      return this._cache;
+    },
+    setLockedPeriod: function(month, year, isLocked) {
+      var m = parseInt(month);
+      var y = parseInt(year);
+      this._cache[m + '/' + y] = isLocked;
 
-      ApiClient.post(endpoint, payload)
-        .then(function (res) {
-          var record = null;
-          if (res && res.records && res.records.length > 0)  record = res.records[0];
-          else if (res && res.data && res.data.length > 0)   record = res.data[0];
-          else if (Array.isArray(res) && res.length > 0)     record = res[0];
-          else record = res;
-          resolve(record);
-        })
-        .catch(function (err) {
-          console.error('[CheckoutService] Lỗi save:', err);
-          reject(err);
-        });
-    });
-  }
-
-  return {
-    getList:         getList,
-    searchContracts: searchContracts,
-    save:            save
+      if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS.ROUTER) {
+        var periodId = String(y) + (m < 10 ? '0' + m : m); // YYYYMM format, vd: 201801
+        ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
+          List: 'SY_Period',
+          Func: 'Edit', // hoặc Update tùy cấu hình router DB
+          Data: {
+            PeriodID: periodId,
+            isLock: isLocked ? 1 : 0
+          }
+        }).catch(function(e) { console.error('Lỗi update Khóa Kỳ:', e); });
+      }
+    },
+    isDateLocked: function(dateString) {
+      if (!dateString) return false;
+      var dateObj = new Date(dateString);
+      if (isNaN(dateObj.getTime())) {
+        var parts = dateString.split('/');
+        if (parts.length === 3) dateObj = new Date(parts[2], parts[1]-1, parts[0]);
+      }
+      if (isNaN(dateObj.getTime())) return false;
+      var month = dateObj.getMonth() + 1;
+      var year = dateObj.getFullYear();
+      return this._cache[month + '/' + year] === true;
+    }
   };
-})();
 
+  // Khởi động load data từ API ngay khi script được nạp
+  window.PeriodManager.init();
+})();
 
 /* --- PermissionsService.js --- */
 /**
@@ -2405,242 +1810,6 @@ var PermissionsService = (function () {
   };
 })();
 
-
-/* --- MenusService.js --- */
-/**
- * MenusService
- * Quản lý toàn bộ API call liên quan đến Quản lý Menu Hệ thống.
- */
-var MenusService = (function () {
-
-  function _ep(key) {
-    return (window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.MENUS)
-      ? window.API_CONFIG.ENDPOINTS.MENUS[key]
-      : null;
-  }
-
-  function _currentGroupId() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
-  }
-
-  /**
-   * Lấy toàn bộ danh sách menu
-   * @returns {Promise<Array>}
-   */
-  function getAll() {
-    return new Promise(function (resolve, reject) {
-      var endpoint = _ep('GET_ALL');
-      ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId() })
-        .then(function (res) {
-          if (res && res.code === 0) {
-            resolve(res.records || []);
-          } else {
-            console.warn('[MenusService] getAll — code != 0:', res && res.msg);
-            resolve([]);
-          }
-        })
-        .catch(function (err) {
-          console.error('[MenusService] Lỗi getAll:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Lưu menu (thêm mới hoặc cập nhật)
-   * @param {Object} payload
-   * @returns {Promise}
-   */
-  function save(payload) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = _ep('SAVE');
-      ApiClient.post(endpoint, payload)
-        .then(resolve)
-        .catch(function (err) {
-          console.error('[MenusService] Lỗi save:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Xóa menu
-   * @param {string} menuId
-   * @returns {Promise}
-   */
-  function deleteMenu(menuId) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = _ep('DELETE');
-      ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId(), MenuID: menuId })
-        .then(resolve)
-        .catch(function (err) {
-          console.error('[MenusService] Lỗi deleteMenu:', err);
-          reject(err);
-        });
-    });
-  }
-
-  /**
-   * Cập nhật thứ tự hiển thị các menu
-   * @param {Object} params - { type, orderedIds, parentId }
-   * @returns {Promise}
-   */
-  function updateOrder(params) {
-    return new Promise(function (resolve, reject) {
-      var endpoint = _ep('UPDATE_ORDER');
-      ApiClient.post(endpoint, {
-        NhomNguoiDangThaoTac: _currentGroupId(),
-        Type: params.type,
-        OrderedIDs: params.orderedIds.join(','),
-        ParentID: params.parentId
-      })
-        .then(resolve)
-        .catch(function (err) {
-          console.error('[MenusService] Lỗi updateOrder:', err);
-          reject(err);
-        });
-    });
-  }
-
-  return {
-    getAll: getAll,
-    save: save,
-    deleteMenu: deleteMenu,
-    updateOrder: updateOrder,
-    currentGroupId: _currentGroupId
-  };
-})();
-
-
-/* --- ReportService.js --- */
-/**
- * Dịch vụ Báo cáo (ReportService)
- */
-var ReportService = (function () {
-
-  function getRevenue(fromDate, toDate) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.REPORTS || !API_CONFIG.ENDPOINTS.REPORTS.REVENUE) {
-        return reject('Missing API_CONFIG.ENDPOINTS.REPORTS.REVENUE');
-      }
-      
-      var payload = {};
-      if (fromDate) payload.TuNgay = fromDate;
-      if (toDate) payload.DenNgay = toDate;
-      
-      var endpoint = API_CONFIG.ENDPOINTS.REPORTS.REVENUE + '?q=' + encodeURIComponent(JSON.stringify(payload));
-
-      ApiClient.get(endpoint)
-        .then(function (res) {
-          var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
-          resolve(data);
-        })
-        .catch(function (err) {
-          console.error('[ReportService] Lỗi tải báo cáo doanh thu:', err);
-          reject(err);
-        });
-    });
-  }
-
-  function getCost(fromDate, toDate) {
-    return new Promise(function (resolve, reject) {
-      if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.REPORTS || !API_CONFIG.ENDPOINTS.REPORTS.COST) {
-        return reject('Missing API_CONFIG.ENDPOINTS.REPORTS.COST');
-      }
-      
-      var payload = {};
-      if (fromDate) payload.TuNgay = fromDate;
-      if (toDate) payload.DenNgay = toDate;
-      
-      var endpoint = API_CONFIG.ENDPOINTS.REPORTS.COST + '?q=' + encodeURIComponent(JSON.stringify(payload));
-
-      ApiClient.get(endpoint)
-        .then(function (res) {
-          var data = [];
-          if (res && res.records) data = res.records;
-          else if (res && res.data) data = res.data;
-          else if (Array.isArray(res)) data = res;
-          resolve(data);
-        })
-        .catch(function (err) {
-          console.error('[ReportService] Lỗi tải báo cáo chi phí:', err);
-          reject(err);
-        });
-    });
-  }
-
-  return {
-    getRevenue: getRevenue,
-    getCost: getCost
-  };
-})();
-
-
-/* --- PeriodManager.js --- */
-// Quản lý Kỳ kế toán (Period Manager) - Tích hợp Real DB (SY_Period)
-(function() {
-  window.PeriodManager = {
-    _cache: {},
-    init: function() {
-      var _this = this;
-      if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.ROUTER) {
-        ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
-          List: 'SY_Period',
-          Func: 'View'
-        }).then(function(res) {
-          var records = res.records || (Array.isArray(res) ? res : []);
-          records.forEach(function(r) {
-            var m = parseInt(r.PeriodNo);
-            var y = parseInt(r.YearID);
-            var isLocked = (r.isLock === true || r.isLock === 1 || r.isLock === '1' || r.isLock === 'True');
-            if (m && y) _this._cache[m + '/' + y] = isLocked;
-          });
-        }).catch(function(e) { console.error('Lỗi tải SY_Period:', e); });
-      }
-    },
-    getLockedPeriods: function() {
-      return this._cache;
-    },
-    setLockedPeriod: function(month, year, isLocked) {
-      var m = parseInt(month);
-      var y = parseInt(year);
-      this._cache[m + '/' + y] = isLocked;
-
-      if (typeof ApiClient !== 'undefined' && window.API_CONFIG && window.API_CONFIG.ENDPOINTS.ROUTER) {
-        var periodId = String(y) + (m < 10 ? '0' + m : m); // YYYYMM format, vd: 201801
-        ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, {
-          List: 'SY_Period',
-          Func: 'Edit', // hoặc Update tùy cấu hình router DB
-          Data: {
-            PeriodID: periodId,
-            isLock: isLocked ? 1 : 0
-          }
-        }).catch(function(e) { console.error('Lỗi update Khóa Kỳ:', e); });
-      }
-    },
-    isDateLocked: function(dateString) {
-      if (!dateString) return false;
-      var dateObj = new Date(dateString);
-      if (isNaN(dateObj.getTime())) {
-        var parts = dateString.split('/');
-        if (parts.length === 3) dateObj = new Date(parts[2], parts[1]-1, parts[0]);
-      }
-      if (isNaN(dateObj.getTime())) return false;
-      var month = dateObj.getMonth() + 1;
-      var year = dateObj.getFullYear();
-      return this._cache[month + '/' + year] === true;
-    }
-  };
-
-  // Khởi động load data từ API ngay khi script được nạp
-  window.PeriodManager.init();
-})();
-
-
 /* --- CompareBadge.js --- */
 /**
  * CompareBadge Component
@@ -2748,7 +1917,6 @@ var CompareBadge = (function () {
     update: update
   };
 })();
-
 
 /* --- MetricCard.js --- */
 /**
@@ -2901,7 +2069,6 @@ var MetricCard = (function () {
     mount: mount
   };
 })();
-
 
 /* --- SparklineChart.js --- */
 /**
@@ -3107,7 +2274,6 @@ var SparklineChart = (function () {
   };
 })();
 
-
 /* --- KVTable.js --- */
 /**
  * KVTable Component (Key-Value Table)
@@ -3238,135 +2404,6 @@ var KVTable = (function () {
     setRows: setRows
   };
 })();
-
-
-/* --- HallGauge.js --- */
-/**
- * HallGauge Component
- * ─────────────────────────────────────────────
- * Hiển thị tình trạng sảnh/phòng với progress bar + số liệu
- * Dùng cho: Dashboard "Hoạt động trong ngày", trang Hall Status
- *
- * Usage:
- *   var el = HallGauge.create({
- *     total: 5,
- *     done: 2,
- *     ongoing: 3,
- *     label: 'sảnh hoạt động',
- *     doneLabel: 'Đã phục vụ xong',    // optional
- *     ongoingLabel: 'Đang phục vụ',    // optional
- *     color: '#4F46E5'                  // optional
- *   });
- *
- *   // Cập nhật không re-render
- *   HallGauge.update(el, { done: 3, ongoing: 2 });
- */
-var HallGauge = (function () {
-
-  /**
-   * Tính phần trăm và đảm bảo [0, 100]
-   */
-  function _pct(part, total) {
-    if (!total || total <= 0) return 0;
-    return Math.min(100, Math.round((part / total) * 100));
-  }
-
-  /**
-   * Tạo HallGauge element
-   * @param {Object} opts
-   * @param {number} opts.total
-   * @param {number} opts.done
-   * @param {number} opts.ongoing
-   * @param {string} [opts.label='sảnh hoạt động']
-   * @param {string} [opts.doneLabel='Đã phục vụ xong']
-   * @param {string} [opts.ongoingLabel='Đang phục vụ']
-   * @param {string} [opts.color] - CSS color, default = --color-primary
-   * @returns {HTMLElement}
-   */
-  function create(opts) {
-    opts = opts || {};
-    var total   = opts.total   || 0;
-    var done    = opts.done    || 0;
-    var ongoing = opts.ongoing || 0;
-    var label       = opts.label       || 'đang hoạt động';
-    var doneLabel    = opts.doneLabel    || 'Đã phục vụ xong';
-    var ongoingLabel = opts.ongoingLabel || 'Đang phục vụ';
-    var color = opts.color || 'var(--color-primary)';
-
-    var activePct = _pct(ongoing, total);
-
-    var wrap = document.createElement('div');
-    wrap.className = 'hall-gauge';
-
-    wrap.innerHTML =
-      '<div class="hall-gauge__title">' +
-        '<span class="material-symbols-outlined hall-gauge__icon">location_city</span>' +
-        (opts.titleText || 'Sảnh tiệc hôm nay') +
-      '</div>' +
-      '<div class="hall-gauge__count">' +
-        '<span class="hall-gauge__count-num" data-hg-total>' + total + '</span>' +
-        '<span class="hall-gauge__count-label">' + label + '</span>' +
-      '</div>' +
-      '<div class="hall-gauge__bar-row">' +
-        '<div class="hall-gauge__bar">' +
-          '<div class="hall-gauge__fill" data-hg-fill' +
-            ' style="width:0%; background:' + color + '"></div>' +
-        '</div>' +
-        '<span class="hall-gauge__pct" data-hg-pct style="color:' + color + '">0%</span>' +
-      '</div>' +
-      '<div class="hall-gauge__sub">' +
-        '<span>' + doneLabel + ': <strong data-hg-done>' + done + '</strong></span>' +
-        '<span>' + ongoingLabel + ': <strong data-hg-ongoing>' + ongoing + '</strong></span>' +
-      '</div>';
-
-    // Animate fill sau 1 frame để CSS transition hoạt động
-    setTimeout(function () {
-      var fill = wrap.querySelector('[data-hg-fill]');
-      var pctEl = wrap.querySelector('[data-hg-pct]');
-      if (fill) fill.style.width = activePct + '%';
-      if (pctEl) pctEl.textContent = activePct + '%';
-    }, 80);
-
-    return wrap;
-  }
-
-  /**
-   * Cập nhật HallGauge không re-render
-   * @param {HTMLElement} el - element tạo bởi create()
-   * @param {Object} patch - { total, done, ongoing }
-   */
-  function update(el, patch) {
-    if (!el || !patch) return;
-
-    var total   = parseInt(el.querySelector('[data-hg-total]').textContent)   || 0;
-    var done    = parseInt(el.querySelector('[data-hg-done]').textContent)    || 0;
-    var ongoing = parseInt(el.querySelector('[data-hg-ongoing]').textContent) || 0;
-
-    if (patch.total   !== undefined) total   = patch.total;
-    if (patch.done    !== undefined) done    = patch.done;
-    if (patch.ongoing !== undefined) ongoing = patch.ongoing;
-
-    var activePct = _pct(ongoing, total);
-
-    var totalEl   = el.querySelector('[data-hg-total]');
-    var doneEl    = el.querySelector('[data-hg-done]');
-    var ongoingEl = el.querySelector('[data-hg-ongoing]');
-    var fillEl    = el.querySelector('[data-hg-fill]');
-    var pctEl     = el.querySelector('[data-hg-pct]');
-
-    if (totalEl)   totalEl.textContent   = total;
-    if (doneEl)    doneEl.textContent    = done;
-    if (ongoingEl) ongoingEl.textContent = ongoing;
-    if (fillEl)    fillEl.style.width    = activePct + '%';
-    if (pctEl)     pctEl.textContent     = activePct + '%';
-  }
-
-  return {
-    create: create,
-    update: update
-  };
-})();
-
 
 /* --- SectionPanel.js --- */
 /**
@@ -3558,7 +2595,6 @@ var SectionPanel = (function () {
     setTrailing: setTrailing
   };
 })();
-
 
 /* --- ReportFilterDialog.js --- */
 /**
@@ -4074,7 +3110,6 @@ var ReportFilterDialog = (function () {
   };
 })();
 
-
 /* --- UIUtils.js --- */
 /**
  * Shared UI Utilities for Components
@@ -4226,7 +3261,7 @@ UIControls.utils = (function () {
 
   /**
    * Hiển thị modal chọn nhiều dòng cho grid
-   * @param {Object} options 
+   * @param {Object} options
    * - title: Tiêu đề modal
    * - dataList: Mảng dữ liệu
    * - headers: Mảng tiêu đề cột ['Mã', 'Tên', ...]
@@ -4473,8 +3508,6 @@ UIControls.utils = (function () {
     }
   };
 })();
-
-
 
 /* --- Navbar.js --- */
 /**
@@ -5209,7 +4242,6 @@ var Navbar = (function () {
   };
 })();
 
-
 /* --- Checkbox.js --- */
 /**
  * Custom Checkbox Component
@@ -5240,7 +4272,6 @@ UIControls.createCheckbox = function(options) {
   return wrapper;
 };
 
-
 /* --- Radio.js --- */
 /**
  * Custom Radio Component
@@ -5254,7 +4285,7 @@ UIControls.createRadio = function(options) {
   var input = document.createElement('input');
   input.type = 'radio';
   input.className = 'modern-radio';
-  
+
   if (options.name) input.name = options.name;
   if (options.value) input.value = options.value;
   if (options.checked) input.checked = true;
@@ -5279,9 +4310,9 @@ UIControls.createRadio = function(options) {
 UIControls.createRadioGroup = function(options) {
   var group = document.createElement('div');
   group.className = 'modern-radio-group';
-  
+
   var name = options.name || 'radio-group-' + Math.random().toString(36).substr(2, 9);
-  
+
   options.items.forEach(function(item) {
     var radio = UIControls.createRadio({
       name: name,
@@ -5292,10 +4323,9 @@ UIControls.createRadioGroup = function(options) {
     });
     group.appendChild(radio);
   });
-  
+
   return group;
 };
-
 
 /* --- DataComboBox.js --- */
 /**
@@ -5375,7 +4405,7 @@ UIControls.createDataComboBox = function (options) {
   btnAddNew.type = 'button';
   btnAddNew.className = 'dd-footer-add-btn';
   btnAddNew.innerHTML = '<span class="material-symbols-outlined">add</span> Thêm mới';
-  
+
   // Mặc định là ẩn, chỉ hiện khi có yêu cầu từ options
   btnAddNew.style.display = options.showAddNew ? 'flex' : 'none';
 
@@ -5391,7 +4421,7 @@ UIControls.createDataComboBox = function (options) {
   // Pagination Elements
   var currentPage = 1;
   var currentQuery = '';
-  
+
   var paginationWrapper = document.createElement('div');
   paginationWrapper.className = 'dd-pagination';
   paginationWrapper.style.display = 'none';
@@ -5564,9 +4594,9 @@ UIControls.createDataComboBox = function (options) {
     }
     dropdown.classList.add('active');
     attachScrollListeners();
-    setTimeout(function () { 
+    setTimeout(function () {
       if (document.activeElement !== input) {
-        searchInput.focus(); 
+        searchInput.focus();
       }
     }, 50);
   }
@@ -5631,7 +4661,7 @@ UIControls.createDataComboBox = function (options) {
     if (!options.hideDropdownOnInput && !dropdown.classList.contains('active')) {
       showDropdown();
     }
-    // Ghi chú: Đã bỏ logic filter và onSearch ở đây theo yêu cầu của user. 
+    // Ghi chú: Đã bỏ logic filter và onSearch ở đây theo yêu cầu của user.
     // Chỉ ô tìm kiếm bên trong dropdown (searchInput) mới thực hiện filter.
   });
 
@@ -5687,7 +4717,6 @@ UIControls.createDataComboBox = function (options) {
   return container;
 };
 
-
 /* --- GridDropdown.js --- */
 /**
  * Grid Dropdown Component
@@ -5740,14 +4769,14 @@ UIControls.createGridDropdown = function(options) {
     }
     dropdown.classList.add('active');
   }
-  
+
   function hideDropdown() {
     dropdown.classList.remove('active');
     if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
   }
 
   input.addEventListener('focus', showDropdown);
-  
+
   input.addEventListener('input', function(e) {
     var val = e.target.value.toLowerCase();
     dropdown.classList.add('active');
@@ -5771,7 +4800,6 @@ UIControls.createGridDropdown = function(options) {
   wrapper.appendChild(input);
   return wrapper;
 };
-
 
 /* --- LoadingSpinner.js --- */
 /**
@@ -5819,7 +4847,6 @@ var LoadingSpinner = (function () {
     hide: hide
   };
 })();
-
 
 /* --- Alert.js --- */
 /**
@@ -5908,7 +4935,6 @@ var Alert = (function () {
     info: function(title, message, duration) { show('info', title, message, duration); }
   };
 })();
-
 
 /* --- ConfirmModal.js --- */
 /**
@@ -6013,14 +5039,13 @@ window.addEventListener('popstate', function (e) {
   }
 });
 
-
 /* --- Modal.js --- */
 /**
  * Generic Modal Builder
  * Mở các Pop-up Window Nhập liệu / Báo cáo không cần code cứng HTML
  */
 var UIModal = (function () {
-  
+
   /**
    * Mở một form Modal bất kỳ
    * @param {Object} config - { id, title, width, content (Node/String), footer (Node), onClose }
@@ -6113,8 +5138,6 @@ window.addEventListener('popstate', function (e) {
     });
   }
 });
-
-
 
 /* --- Pagination.js --- */
 /**
@@ -6253,7 +5276,6 @@ var Pagination = (function () {
     create: create
   };
 })();
-
 
 /* --- FilterComponent.js --- */
 /**
@@ -6453,7 +5475,7 @@ var FilterComponent = (function () {
           inp.style.borderRadius = '6px';
           inp.style.outline = 'none';
           inp.style.transition = 'border-color 0.2s, box-shadow 0.2s';
-          
+
           // Hiệu ứng focus
           inp.addEventListener('focus', function() {
               this.style.borderColor = 'var(--color-primary, #3b82f6)';
@@ -6586,7 +5608,7 @@ var FilterComponent = (function () {
         var clientWidth = document.documentElement.clientWidth || window.innerWidth;
 
         // Chống tràn màn hình bên phải
-        var maxLeft = clientWidth - panelWidth - 10; 
+        var maxLeft = clientWidth - panelWidth - 10;
         if (panelLeft > maxLeft) panelLeft = maxLeft;
 
         // Chống tràn màn hình bên trái
@@ -6596,7 +5618,7 @@ var FilterComponent = (function () {
 
         // Căn mũi tên chĩa đúng tâm nút bấm
         var arrowPos = centerBtnX - panelLeft;
-        
+
         // Chặn không cho mũi tên bay ra khỏi ranh giới của popup
         if (arrowPos < 20) arrowPos = 20;
         if (arrowPos > panelWidth - 20) arrowPos = panelWidth - 20;
@@ -6675,7 +5697,6 @@ var FilterComponent = (function () {
   };
 })();
 
-
 /* --- Input.js --- */
 /**
  * Input Component
@@ -6708,11 +5729,11 @@ var UIInput = (function () {
     input.className = 'ui-input';
     if (config.id) input.id = config.id;
     if (config.name) input.name = config.name;
-    
+
     var finalPlaceholder = config.placeholder;
     // Removed auto-placeholder generation to clean up UI as requested by user
     if (finalPlaceholder) input.placeholder = finalPlaceholder;
-    
+
     if (config.value !== undefined) input.value = config.value;
     if (config.disabled) input.disabled = true;
     if (config.readonly) input.readOnly = true;
@@ -6776,10 +5797,10 @@ var UIInput = (function () {
     icon.style.color = 'var(--color-text-secondary)';
     icon.style.pointerEvents = 'none';
     icon.style.fontSize = '18px';
-    
+
     // Đảm bảo wrapper là relative để canh vị trí icon
     obj.wrapper.style.position = 'relative';
-    
+
     // Ẩn icon nếu đang dùng label inline hoặc config khác
     if (!config.label) icon.style.top = '10px';
     obj.wrapper.appendChild(icon);
@@ -6818,18 +5839,18 @@ var UIInput = (function () {
     obj.wrapper.classList.add('modern-checkbox-wrapper');
     obj.input.className = 'modern-checkbox';
     obj.input.style.cursor = 'pointer';
-    
+
     // Checkbox uses checked instead of value
     if (config.value === '1' || config.value === 1 || config.value === true || String(config.value).toLowerCase() === 'true') {
         obj.input.checked = true;
     }
-    
+
     // Thêm giá trị thực vào dataset để tự động serialize thành 1/0
     obj.input.value = obj.input.checked ? 1 : 0;
     obj.input.onchange = function() {
         this.value = this.checked ? 1 : 0;
     };
-    
+
     // Đảo ngược thứ tự input và label cho đẹp
     var label = obj.wrapper.querySelector('label');
     if (label) {
@@ -6839,7 +5860,7 @@ var UIInput = (function () {
         // Đảo ngược thứ tự: input trước, label sau
         obj.wrapper.insertBefore(obj.input, label);
     }
-    
+
     return obj.wrapper;
   }
 
@@ -6942,7 +5963,7 @@ var UIInput = (function () {
     var onIncrease = config.onIncrease || '';
     var onChange = config.onChange || '';
     var stopPropagation = config.stopPropagation ? 'event.stopPropagation(); ' : '';
-    
+
     var h = config.height || 32;
     var w = config.width || 96;
     var btnW = config.btnWidth || 30;
@@ -7002,7 +6023,7 @@ var UIInput = (function () {
    */
   function setupMoneyInput(inputEl, textEl) {
     if (!inputEl) return;
-    
+
     function refresh() {
       var raw = parseInt(inputEl.value.replace(/\D/g, ''), 10) || 0;
       inputEl.value = raw === 0 ? '' : raw.toLocaleString('vi-VN');
@@ -7013,14 +6034,14 @@ var UIInput = (function () {
       var pos = this.selectionStart;
       var oldLen = this.value.length;
       var raw = parseInt(this.value.replace(/\D/g, ''), 10) || 0;
-      
+
       this.value = raw === 0 ? '' : raw.toLocaleString('vi-VN');
-      
+
       var diff = this.value.length - oldLen;
       if (pos !== null) {
         this.setSelectionRange(pos + diff, pos + diff);
       }
-      
+
       if (textEl) textEl.innerText = raw === 0 ? '' : docSoTienVN(raw);
     });
 
@@ -7045,7 +6066,6 @@ var UIInput = (function () {
   };
 })();
 
-
 /* --- Button.js --- */
 /**
  * Button Component
@@ -7060,13 +6080,13 @@ var UIButton = (function () {
   function create(config) {
     var btn = document.createElement('button');
     btn.type = 'button'; // Prevent form submission
-    
+
     // Base class
     var typeClass = config.type ? 'btn-' + config.type : 'btn-primary';
     if (config.type === 'tool') typeClass = 'btn-tool'; // Special case for toolbar
-    
+
     btn.className = 'btn ' + typeClass + (config.className ? ' ' + config.className : '');
-    
+
     if (config.id) btn.id = config.id;
     if (config.disabled) btn.disabled = true;
     if (config.tooltip) btn.title = config.tooltip;
@@ -7168,10 +6188,10 @@ var UIButton = (function () {
       panel.classList.add('open');
       overlay.classList.add('open');
       trigger.classList.add('active');
-      
+
       var rect = trigger.getBoundingClientRect();
       var panelRect = panel.getBoundingClientRect();
-      
+
       var top = rect.bottom + 4;
       if (top + panelRect.height > window.innerHeight && rect.top > panelRect.height) {
         top = rect.top - panelRect.height - 4; // pop upwards
@@ -7179,9 +6199,9 @@ var UIButton = (function () {
       } else {
         panel.style.transformOrigin = 'top left';
       }
-      
+
       panel.style.top = top + 'px';
-      
+
       // Smart positioning for left/right
       if (rect.left < window.innerWidth / 2) {
         // Button is on the left, anchor to the left
@@ -7262,21 +6282,21 @@ var UIButton = (function () {
   function createHTML(config) {
     var typeClass = config.type ? 'btn-' + config.type : 'btn-primary';
     if (config.type === 'tool') typeClass = 'btn-tool';
-    
+
     var className = 'btn ' + typeClass + (config.className ? ' ' + config.className : '');
     var idAttr = config.id ? ` id="${config.id}"` : '';
     var disabledAttr = config.disabled ? ' disabled' : '';
     var titleAttr = config.tooltip ? ` title="${config.tooltip}"` : '';
     var onClickAttr = config.onClick ? ` onclick="${config.onClick}"` : '';
     var styleAttr = config.style ? ` style="${config.style}"` : '';
-    
+
     var dataAttrs = '';
     if (config.data) {
       for (var key in config.data) {
         dataAttrs += ` data-${key}="${config.data[key]}"`;
       }
     }
-    
+
     var innerHTML = '';
     if (config.icon) {
       var iconStyle = config.iconStyle ? ` style="${config.iconStyle}"` : '';
@@ -7297,14 +6317,13 @@ var UIButton = (function () {
   };
 })();
 
-
 /* --- Icon.js --- */
 /**
  * Icon Component
  * Quản lý và render Icon (Hỗ trợ cả Material Symbols và Icon font riêng biệt)
  */
 var UIIcon = (function () {
-  
+
   /**
    * Sinh ra mã HTML của Icon
    * @param {string} iconName - Tên icon (VD: 'home', 'bar_chart', 'icon-grid')
@@ -7316,7 +6335,7 @@ var UIIcon = (function () {
     var styleAttr = style ? ' style="' + style + '"' : '';
     var extraClass = className ? ' ' + className : '';
     var onClickAttr = onClick ? ' onclick="' + onClick + '"' : '';
-    
+
     // Nếu có chứa "icon-" hoặc dấu cách, hoặc dấu gạch ngang -> Dùng thẻ <i> cho Icon font
     if (iconName.indexOf('icon-') >= 0 || iconName.indexOf(' ') >= 0 || iconName.indexOf('-') > 0) {
       return '<i class="' + iconName + extraClass + '"' + styleAttr + onClickAttr + '></i>';
@@ -7328,8 +6347,8 @@ var UIIcon = (function () {
 
   /**
    * Tạo DOM Element của Icon
-   * @param {string} iconName 
-   * @param {string} className 
+   * @param {string} iconName
+   * @param {string} className
    */
   function create(iconName, className) {
     if (!iconName) return null;
@@ -7352,7 +6371,6 @@ var UIIcon = (function () {
   };
 })();
 
-
 /* --- ActionToolbar.js --- */
 /**
  * Action Toolbar Component
@@ -7366,7 +6384,7 @@ var UIActionToolbar = (function () {
    */
   function create(actions) {
     actions = actions || {};
-    
+
     var buttons = [
       { text: 'Thêm',  icon: 'add',        type: 'primary', onClick: actions.onAdd,    attrs: 'data-tooltip="Thêm bản ghi mới (Ins)"' },
       { text: 'Xem',   icon: 'visibility', type: 'outline-secondary',    onClick: actions.onView,   attrs: 'data-tooltip="Xem chi tiết bản ghi đã chọn"' },
@@ -7403,7 +6421,6 @@ var UIActionToolbar = (function () {
   };
 })();
 
-
 /* --- Card.js --- */
 /**
  * Card Component
@@ -7423,7 +6440,7 @@ var UICard = (function () {
     if (config.title || config.rightElement) {
       var header = document.createElement('div');
       header.className = 'card-header';
-      
+
       var titleSpan = document.createElement('span');
       titleSpan.innerText = config.title || '';
       header.appendChild(titleSpan);
@@ -7437,7 +6454,7 @@ var UICard = (function () {
     // Body
     var body = document.createElement('div');
     body.className = 'card-body';
-    
+
     if (config.bodyContent) {
       if (typeof config.bodyContent === 'string') {
         body.innerHTML = config.bodyContent;
@@ -7455,7 +6472,6 @@ var UICard = (function () {
     create: create
   };
 })();
-
 
 /* --- Table.js --- */
 /**
@@ -8060,9 +7076,9 @@ var UITable = (function () {
                   if (Array.isArray(parsed)) {
                     if (parsed.length === 0) return '<span style="color: var(--color-text-muted, #94a3b8); font-style: italic;">Trống</span>';
 
-                    // Check if it's a schedule (BatDau/KetThuc/NoiDung/Sanh)
+                    // Check if it's a generic schedule (time + content)
                     var isSchedule = parsed.some(function (item) {
-                      return item && (item.BatDau !== undefined || item.KetThuc !== undefined || item.Sanh !== undefined || item.NoiDung !== undefined);
+                      return item && (item.BatDau !== undefined || item.KetThuc !== undefined || item.NoiDung !== undefined);
                     });
 
                     // Check if it's payment (STT/SoTien/Ngay/NoiDung)
@@ -8074,10 +7090,9 @@ var UITable = (function () {
                       var html = '<div class="json-schedule-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; padding: 2px 0;">';
                       parsed.forEach(function (item) {
                         var timeStr = (item.BatDau || '') + (item.KetThuc ? ' - ' + item.KetThuc : '');
-                        var hallStr = item.Sanh ? '<span style="background: rgba(59, 130, 246, 0.18); color: var(--color-primary, #4361ee); border-radius: 4px; padding: 1px 4px; font-weight: 600; margin-right: 4px;">' + item.Sanh + '</span>' : '';
                         var timeBadge = timeStr ? '<span style="background: rgba(16, 185, 129, 0.18); color: var(--color-success, #10b981); border-radius: 4px; padding: 1px 4px; font-weight: 600; margin-right: 4px; white-space: nowrap;">' + timeStr + '</span>' : '';
                         var contentStr = item.NoiDung ? '<span style="color: var(--color-text, inherit); font-weight: 500;">' + item.NoiDung + '</span>' : '';
-                        html += '<div class="schedule-row" style="display: flex; align-items: center; flex-wrap: wrap; gap: 2px;">' + timeBadge + hallStr + contentStr + '</div>';
+                        html += '<div class="schedule-row" style="display: flex; align-items: center; flex-wrap: wrap; gap: 2px;">' + timeBadge + contentStr + '</div>';
                       });
                       html += '</div>';
                       return html;
@@ -8526,7 +7541,6 @@ var UITabs = (function () {
     create: create
   };
 })();
-
 
 /* --- NestedTabs.js --- */
 /**
@@ -8995,9 +8009,9 @@ var UINestedTabs = (function () {
       pBtn.dataset.nodeId = node.id;
       pBtn.dataset.parentId = node.parent || '';
       if (!isRoot) {
-          pBtn.dataset.childId = node.id; 
+          pBtn.dataset.childId = node.id;
       }
-      
+
       if (level > 0) {
         pBtn.style.paddingLeft = (16 + level * 20) + 'px';
       }
@@ -9090,7 +8104,7 @@ var UINestedTabs = (function () {
         if (!isPanelActive) {
           parentPanel.classList.add('active');
           if (childList) childList.classList.add('open');
-          
+
           var curr = parentGroup.parentElement;
           while(curr && curr.classList.contains('ui-nested-tabs__child-list')) {
             curr.classList.add('open');
@@ -9143,18 +8157,18 @@ var UINestedTabs = (function () {
       resizer.classList.add('is-resizing');
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
-      
+
       var onMouseMove = function (e) {
         if (!isResizing) return;
-        
+
         // Tính toán độ rộng mới dựa trên vị trí chuột
         var containerRect = sidebar.parentElement.getBoundingClientRect();
         var newWidth = e.clientX - containerRect.left;
-        
+
         // Giới hạn width từ 180px đến 600px
         if (newWidth < 180) newWidth = 180;
         if (newWidth > 600) newWidth = 600;
-        
+
         sidebar.style.width = newWidth + 'px';
       };
 
@@ -9212,10 +8226,10 @@ var UINestedTabs = (function () {
       if (!dragging || !placeholder || !placeholder.parentNode) return;
       childList.insertBefore(dragging, placeholder);
       placeholder.parentNode.removeChild(placeholder);
-      
+
       // Sync panel order for UI (if needed, but panels are all flat in contentArea)
       // Array.from(childList.children).forEach(...) is possible, but contentArea order doesn't break CSS rendering.
-      
+
       if (typeof options.onReorder === 'function') {
         var ids = Array.from(childList.querySelectorAll(':scope > .ui-nested-tabs__sidebar-parent > .ui-nested-tab-child-btn--v')).map(function (b) { return b.dataset.childId || b.dataset.nodeId; });
         options.onReorder('child', ids, parentId);
@@ -9301,7 +8315,6 @@ var UINestedTabs = (function () {
 
 })();
 
-
 /* --- TotalBar.js --- */
 /**
  * Total Bar Component
@@ -9316,7 +8329,7 @@ var UITotalBar = (function () {
   function create(config) {
     var bar = document.createElement('div');
     bar.className = 'total-bar ' + (config.className || '');
-    
+
     var label = document.createElement('div');
     label.className = 'total-bar-label';
     label.innerText = config.label || 'Tổng cộng';
@@ -9335,7 +8348,6 @@ var UITotalBar = (function () {
     create: create
   };
 })();
-
 
 /* --- Badge.js --- */
 /**
@@ -9370,10 +8382,9 @@ var UIBadge = (function () {
   };
 })();
 
-
 /* --- Chart.js --- */
 /**
- * Chart.js Wrapper Component 
+ * Chart.js Wrapper Component
  * Cần nạp Chart.js CDN trong index.html
  */
 var UIChart = (function () {
@@ -9395,7 +8406,7 @@ var UIChart = (function () {
 
     var chartContainer = document.createElement('div');
     chartContainer.className = 'chart-container';
-    
+
     var canvas = document.createElement('canvas');
     chartContainer.appendChild(canvas);
     wrapper.appendChild(chartContainer);
@@ -9422,7 +8433,6 @@ var UIChart = (function () {
   };
 })();
 
-
 /* --- Stepper.js --- */
 /**
  * Stepper Component
@@ -9437,14 +8447,14 @@ var UIStepper = (function () {
    */
   function create(steps, currentStepIndex) {
     currentStepIndex = currentStepIndex || 0;
-    
+
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-stepper';
 
     steps.forEach(function(step, index) {
       var stepDiv = document.createElement('div');
       stepDiv.className = 'ui-step';
-      
+
       if (index < currentStepIndex) {
         stepDiv.classList.add('completed');
       } else if (index === currentStepIndex) {
@@ -9487,7 +8497,6 @@ var UIStepper = (function () {
     create: create
   };
 })();
-
 
 /* --- Timeline.js --- */
 /**
@@ -9544,7 +8553,6 @@ var UITimeline = (function () {
     create: create
   };
 })();
-
 
 /* --- EmptyState.js --- */
 /**
@@ -9630,7 +8638,6 @@ var UIEmptyState = (function () {
   };
 })();
 
-
 /* --- FileUpload.js --- */
 /**
  * File Upload Component
@@ -9697,19 +8704,18 @@ var UIFileUpload = (function () {
   };
 })();
 
-
 /* --- ContextMenu.js --- */
 /**
  * Context Menu Component
  * Bắt sự kiện Click Chuột Phải -> Hiện Menu thả xuống tùy chỉnh (Ví dụ: Tick/Bỏ Tick dòng, Đổi trạng thái)
  */
 var UIContextMenu = (function () {
-  
+
   var currentMenu = null;
   var activeTrigger = null;
 
   /**
-   * Khởi tạo Menu 
+   * Khởi tạo Menu
    * @param {Event} e - Sự kiện chuột phải (Dùng để lấy toạ độ X, Y)
    * @param {Array} items - [{ label, icon, onClick }, '|' ]
    */
@@ -9732,7 +8738,7 @@ var UIContextMenu = (function () {
 
     var menu = document.createElement('div');
     menu.className = 'ui-context-menu';
-    
+
     // Đặt visibility hidden và vị trí 0 để đo kích thước chuẩn, tránh bị trình duyệt ép nhỏ khi đặt ở sát mép phải
     menu.style.visibility = 'hidden';
     menu.style.top = '0px';
@@ -9746,10 +8752,10 @@ var UIContextMenu = (function () {
       } else {
         var btn = document.createElement('div');
         btn.className = 'context-menu-item';
-        
+
         var iconHtml = item.icon ? '<span class="material-symbols-outlined">' + item.icon + '</span>' : '';
         btn.innerHTML = iconHtml + '<span style="white-space: nowrap;">' + item.label + '</span>';
-        
+
         btn.onclick = function() {
           hide();
           if (typeof item.onClick === 'function') item.onClick();
@@ -9839,7 +8845,6 @@ var UIContextMenu = (function () {
   };
 })();
 
-
 /* --- Accordion.js --- */
 /**
  * Accordion Component (Mở rộng / Thu gọn)
@@ -9893,7 +8898,6 @@ var UIAccordion = (function () {
   };
 })();
 
-
 /* --- TreeView.js --- */
 /**
  * TreeView Component
@@ -9909,7 +8913,7 @@ var UITreeView = (function () {
 
     nodes.forEach(function(node) {
       var li = document.createElement('li');
-      
+
       var nodeWrapper = document.createElement('div');
       nodeWrapper.className = 'ui-tree-node';
 
@@ -9958,7 +8962,7 @@ var UITreeView = (function () {
   function create(data) {
     var wrapper = document.createElement('div');
     wrapper.className = 'ui-tree';
-    
+
     var rootUl = buildNodes(data);
     rootUl.style.display = 'block'; // Root luôn mở
     rootUl.style.paddingLeft = '0'; // Xoá padding thừa của root
@@ -9971,7 +8975,6 @@ var UITreeView = (function () {
     create: create
   };
 })();
-
 
 /* --- Calendar.js --- */
 /**
@@ -9999,7 +9002,7 @@ var UICalendar = (function () {
       // Header
       var header = document.createElement('div');
       header.className = 'calendar-header';
-      
+
       var titleContainer = document.createElement('div');
       titleContainer.className = 'calendar-month-picker';
 
@@ -10016,7 +9019,7 @@ var UICalendar = (function () {
 
       titleContainer.onclick = function() {
         if (document.getElementById('custom-month-picker-overlay')) return;
-        
+
         var overlay = document.createElement('div');
         overlay.id = 'custom-month-picker-overlay';
         overlay.style.position = 'fixed';
@@ -10025,44 +9028,44 @@ var UICalendar = (function () {
         overlay.style.width = '100%';
         overlay.style.height = '100%';
         overlay.style.zIndex = '9999';
-        
+
         var dropdown = document.createElement('div');
         dropdown.className = 'calendar-dropdown-picker';
         var rect = titleContainer.getBoundingClientRect();
         dropdown.style.top = (rect.bottom + 8) + 'px';
         dropdown.style.left = rect.left + 'px';
         dropdown.onclick = function(ev) { ev.stopPropagation(); };
-        
+
         var yearHeader = document.createElement('div');
         yearHeader.className = 'calendar-dropdown-header';
-        
+
         var btnPrevYear = document.createElement('button');
         btnPrevYear.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
         btnPrevYear.style.width = '32px'; btnPrevYear.style.height = '32px';
         btnPrevYear.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">chevron_left</span>';
-        
+
         var yearLabel = document.createElement('div');
         yearLabel.className = 'calendar-dropdown-year-label';
         yearLabel.innerText = year;
-        
+
         var btnNextYear = document.createElement('button');
         btnNextYear.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
         btnNextYear.style.width = '32px'; btnNextYear.style.height = '32px';
         btnNextYear.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>';
-        
+
         var tempYear = year;
-        
+
         btnPrevYear.onclick = function() { tempYear--; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
         btnNextYear.onclick = function() { tempYear++; yearLabel.innerText = tempYear; loadSummaryAndRender(); };
-        
+
         yearHeader.appendChild(btnPrevYear);
         yearHeader.appendChild(yearLabel);
         yearHeader.appendChild(btnNextYear);
         dropdown.appendChild(yearHeader);
-        
+
         var monthsGrid = document.createElement('div');
         monthsGrid.className = 'calendar-dropdown-months-grid';
-        
+
         function renderMonths() {
           monthsGrid.innerHTML = '';
           var monthNames = ['Thg 1', 'Thg 2', 'Thg 3', 'Thg 4', 'Thg 5', 'Thg 6', 'Thg 7', 'Thg 8', 'Thg 9', 'Thg 10', 'Thg 11', 'Thg 12'];
@@ -10099,7 +9102,7 @@ var UICalendar = (function () {
             renderMonths();
           }
         }
-        
+
         loadSummaryAndRender();
         dropdown.appendChild(monthsGrid);
         overlay.appendChild(dropdown);
@@ -10108,10 +9111,10 @@ var UICalendar = (function () {
       };
 
       header.appendChild(titleContainer);
-      
+
       var controls = document.createElement('div');
       controls.className = 'd-flex align-items-center gap-2';
-      
+
       var btnPrev = document.createElement('button');
       btnPrev.className = 'btn btn-outline d-flex align-items-center justify-content-center p-0 rounded-circle';
       btnPrev.style.width = '36px';
@@ -10181,7 +9184,7 @@ var UICalendar = (function () {
       var firstDay = jsFirstDay === 0 ? 6 : jsFirstDay - 1;
       var daysInMonth = new Date(year, month + 1, 0).getDate();
       var daysInPrevMonth = new Date(year, month, 0).getDate();
-      
+
       var cellIndex = 0;
 
       // Helper function to generate Lunar date HTML using native Intl API
@@ -10213,7 +9216,7 @@ var UICalendar = (function () {
         var empty = document.createElement('div');
         empty.className = 'calendar-day empty-day animate-pop';
         empty.style.animationDelay = (cellIndex * 0.015) + 's';
-        
+
         var dNum = document.createElement('div');
         dNum.className = 'calendar-day-number';
         var prevDateNum = daysInPrevMonth - firstDay + i + 1;
@@ -10222,7 +9225,7 @@ var UICalendar = (function () {
         if (prevM < 0) { prevM = 11; prevY--; }
         dNum.innerHTML = '<span class="solar-date">' + prevDateNum + '</span>' + _getLunarDateHTML(prevY, prevM, prevDateNum);
         empty.appendChild(dNum);
-        
+
         empty.onclick = (function(d, pY, pM) {
           return function() {
             if (typeof config.onSelect === 'function') {
@@ -10241,7 +9244,7 @@ var UICalendar = (function () {
         var dayCell = document.createElement('div');
         dayCell.className = 'calendar-day animate-pop';
         dayCell.style.animationDelay = (cellIndex * 0.015) + 's';
-        
+
         if (today.getFullYear() === year && today.getMonth() === month && today.getDate() === i) {
           dayCell.classList.add('today');
         }
@@ -10254,13 +9257,13 @@ var UICalendar = (function () {
         // Thêm events
         var evtDiv = document.createElement('div');
         evtDiv.className = 'calendar-events';
-        
+
         var dayEvents = config.events ? config.events[i] : null;
-        
+
         if (dayEvents && dayEvents.length > 0) {
            var cocCount = 0;
            var hdCount = 0;
-           
+
            dayEvents.forEach(function(e) {
               if (e.rawData) {
                  var lp = e.rawData.LoaiPhieu !== undefined ? e.rawData.LoaiPhieu : e.rawData.loaiPhieu;
@@ -10319,7 +9322,7 @@ var UICalendar = (function () {
         var emptyEnd = document.createElement('div');
         emptyEnd.className = 'calendar-day empty-day animate-pop';
         emptyEnd.style.animationDelay = (cellIndex * 0.015) + 's';
-        
+
         var dNumEnd = document.createElement('div');
         dNumEnd.className = 'calendar-day-number';
         var nextDateNum = i + 1;
@@ -10328,7 +9331,7 @@ var UICalendar = (function () {
         if (nextM > 11) { nextM = 0; nextY++; }
         dNumEnd.innerHTML = '<span class="solar-date">' + nextDateNum + '</span>' + _getLunarDateHTML(nextY, nextM, nextDateNum);
         emptyEnd.appendChild(dNumEnd);
-        
+
         emptyEnd.onclick = (function(d, nY, nM) {
           return function() {
             if (typeof config.onSelect === 'function') {
@@ -10346,12 +9349,12 @@ var UICalendar = (function () {
     }
 
     render(currentYear, currentMonth);
-    
+
     wrapper.updateEvents = function(newEvents) {
       config.events = newEvents;
       render(currentYear, currentMonth);
     };
-    
+
     return wrapper;
   }
 
@@ -10359,7 +9362,6 @@ var UICalendar = (function () {
     create: create
   };
 })();
-
 
 /* --- Slider.js --- */
 /**
@@ -10386,7 +9388,7 @@ var UISlider = (function () {
 
     var valDisplay = document.createElement('div');
     valDisplay.className = 'ui-slider-value';
-    
+
     function updateDisplay(val) {
       if (typeof config.formatValue === 'function') {
         valDisplay.innerText = config.formatValue(val);
@@ -10416,7 +9418,6 @@ var UISlider = (function () {
     create: create
   };
 })();
-
 
 /* --- Toast.js --- */
 /**
@@ -10487,14 +9488,13 @@ var UIToast = (function () {
   };
 })();
 
-
 /* --- Popover.js --- */
 /**
  * Popover Component
  * Một khung form nổi lên nhỏ gọn nằm cạnh Nút được bấm (Ví dụ: Form nhập nhanh số lượng)
  */
 var UIPopover = (function () {
-  
+
   var currentPopover = null;
 
   /**
@@ -10535,7 +9535,7 @@ var UIPopover = (function () {
     // Tránh tràn viền
     if (left < 10) left = 10;
     if (left + pWidth > window.innerWidth - 10) left = window.innerWidth - pWidth - 10;
-    
+
     popover.style.left = left + 'px';
 
     // Show animation
@@ -10571,14 +9571,13 @@ var UIPopover = (function () {
   };
 })();
 
-
 /* --- Header.js --- */
 /**
  * Header Component
  * Cấu trúc thanh Header trên cùng
  */
 var Header = (function () {
-  
+
   function render(containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
@@ -10643,7 +9642,6 @@ var Header = (function () {
     render: render
   };
 })();
-
 
 /* --- Sidebar.js --- */
 /**
@@ -10844,7 +9842,6 @@ var Sidebar = (function () {
   };
 })();
 
-
 /* --- SearchDropdown.js --- */
 /**
  * Search Dropdown Component
@@ -10875,7 +9872,7 @@ UIControls.createSearchDropdown = function (options) {
 
   var dropdown = document.createElement('div');
   dropdown.className = 'ui-search-dropdown-menu';
-  
+
   wrapper.appendChild(input);
   wrapper.appendChild(btn);
   wrapper.appendChild(dropdown);
@@ -10919,7 +9916,7 @@ UIControls.createSearchDropdown = function (options) {
     }
     dropdown.innerHTML = '<div class="p-3 text-center text-secondary">Đang tìm kiếm...</div>';
     showDropdown();
-    
+
     if (typeof options.onSearch === 'function') {
       options.onSearch(keyword, renderResults, hideDropdown);
     }
@@ -10939,7 +9936,6 @@ UIControls.createSearchDropdown = function (options) {
   return wrapper;
 };
 
-
 /* --- SidePanel.js --- */
 /**
  * SidePanel Component (Right Drawer)
@@ -10947,14 +9943,14 @@ UIControls.createSearchDropdown = function (options) {
  */
 var UISidePanel = (function () {
   function SidePanel(selectorOrElement) {
-    this.panel = typeof selectorOrElement === 'string' 
-      ? document.querySelector(selectorOrElement) 
+    this.panel = typeof selectorOrElement === 'string'
+      ? document.querySelector(selectorOrElement)
       : selectorOrElement;
-      
+
     if (!this.panel) return;
 
     this.panel.classList.add('ui-side-panel');
-    
+
     // Ensure initial state is off-screen and display:none
     this.panel.style.display = 'none';
     this.panel.style.right = '-1000px';
@@ -10968,7 +9964,7 @@ var UISidePanel = (function () {
     }
 
     var self = this;
-    
+
     // Bind close buttons
     var closeBtns = this.panel.querySelectorAll('[data-dismiss="side-panel"]');
     closeBtns.forEach(function(btn) {
@@ -11009,7 +10005,6 @@ var UISidePanel = (function () {
   return SidePanel;
 })();
 
-
 /* --- ScreenCapture.js --- */
 /* ═══════════════════════════════════════════
    SCREEN CAPTURE COMPONENT (Canvas-based)
@@ -11023,7 +10018,7 @@ var ScreenCapture = (function () {
   var currentRect = null;
   var currentCallback = null;
   var ww = 0, wh = 0;
-  
+
   var mode = 'select'; // 'select' | 'draw'
   var shapes = []; // {left, top, width, height}
   var shapeStartX = 0, shapeStartY = 0;
@@ -11034,10 +10029,10 @@ var ScreenCapture = (function () {
 
   function initOverlay() {
     if (overlayCanvas) return;
-    
+
     ww = window.innerWidth;
     wh = window.innerHeight;
-    
+
     mode = 'select';
     shapes = [];
     currentRect = null;
@@ -11049,19 +10044,19 @@ var ScreenCapture = (function () {
     overlayCanvas.className = 'screen-capture-canvas';
     overlayCanvas.width = ww;
     overlayCanvas.height = wh;
-    
+
     overlayCanvas.style.position = 'fixed';
     overlayCanvas.style.top = '0';
     overlayCanvas.style.left = '0';
     overlayCanvas.style.zIndex = '999990';
     overlayCanvas.style.cursor = 'crosshair';
-    
+
     ctx = overlayCanvas.getContext('2d');
-    
+
     document.body.appendChild(overlayCanvas);
-    
-    drawMask(0, 0, 0, 0); 
-    
+
+    drawMask(0, 0, 0, 0);
+
     overlayCanvas.addEventListener('mousedown', onMouseDown);
     overlayCanvas.addEventListener('mousemove', onMouseMove);
     overlayCanvas.addEventListener('mouseup', onMouseUp);
@@ -11117,7 +10112,7 @@ var ScreenCapture = (function () {
       toolbar.style.display = 'flex';
       toolbar.style.gap = '2px';
       toolbar.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)';
-      
+
       var btnRect = createToolbarBtn('crop_square', 'Vẽ khung đỏ', function() {
         isShapeModeActive = true;
         btnRect.style.background = '#E0E7FF';
@@ -11125,7 +10120,7 @@ var ScreenCapture = (function () {
         btnRect.classList.add('active');
         overlayCanvas.style.cursor = 'crosshair';
       });
-      
+
       var btnCopy = createToolbarBtn('content_copy', 'Copy (Ctrl+C)', function() {
         captureAndAction();
       });
@@ -11135,7 +10130,7 @@ var ScreenCapture = (function () {
         destroyOverlay();
       });
       btnClose.style.color = '#F43F5E';
-      
+
       toolbar.appendChild(btnRect);
       var divider = document.createElement('div');
       divider.style.width = '1px';
@@ -11144,18 +10139,18 @@ var ScreenCapture = (function () {
       toolbar.appendChild(divider);
       toolbar.appendChild(btnCopy);
       toolbar.appendChild(btnClose);
-      
+
       document.body.appendChild(toolbar);
     }
-    
+
     toolbar.style.display = 'flex';
-    
+
     // Position toolbar at bottom right of the selection
     var tLeft = currentRect.left + currentRect.width - 120;
     var tTop = currentRect.top + currentRect.height + 10;
     if (tLeft < 10) tLeft = 10;
     if (tTop + 50 > wh) tTop = currentRect.top - 50;
-    
+
     toolbar.style.left = tLeft + 'px';
     toolbar.style.top = tTop + 'px';
   }
@@ -11173,7 +10168,7 @@ var ScreenCapture = (function () {
 
   function drawMask(x, y, w, h) {
     if (!ctx) return;
-    
+
     ctx.clearRect(0, 0, ww, wh); // Xóa sạch canvas
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, ww, wh);
@@ -11186,7 +10181,7 @@ var ScreenCapture = (function () {
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(x, y, w, h);
       }
-      
+
       if (!isDrawing && w === 0) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(ww/2 - 150, 20, 300, 40);
@@ -11201,14 +10196,14 @@ var ScreenCapture = (function () {
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       ctx.strokeRect(currentRect.left, currentRect.top, currentRect.width, currentRect.height);
-      
+
       ctx.strokeStyle = '#EF4444'; // Red
       ctx.lineWidth = 3;
-      
+
       shapes.forEach(function(s) {
         ctx.strokeRect(s.left, s.top, s.width, s.height);
       });
-      
+
       if (isDrawing && currentShape && isShapeModeActive) {
         ctx.strokeRect(currentShape.left, currentShape.top, currentShape.width, currentShape.height);
       }
@@ -11223,10 +10218,10 @@ var ScreenCapture = (function () {
       drawMask(startX, startY, 0, 0);
     } else if (mode === 'draw') {
       if (!isShapeModeActive) return; // Không cho vẽ nếu chưa click nút hình
-      
+
       var cx = e.clientX;
       var cy = e.clientY;
-      
+
       // Chỉ cho phép vẽ bên trong vùng đã chọn
       if (cx >= currentRect.left && cx <= currentRect.left + currentRect.width &&
           cy >= currentRect.top && cy <= currentRect.top + currentRect.height) {
@@ -11255,16 +10250,16 @@ var ScreenCapture = (function () {
         drawMask(left, top, width, height);
       } else if (mode === 'draw') {
         if (!isShapeModeActive) return;
-        
+
         // Giới hạn trong currentRect
         var limitedX = Math.max(currentRect.left, Math.min(currentX, currentRect.left + currentRect.width));
         var limitedY = Math.max(currentRect.top, Math.min(currentY, currentRect.top + currentRect.height));
-        
+
         var sLeft = Math.min(shapeStartX, limitedX);
         var sTop = Math.min(shapeStartY, limitedY);
         var sWidth = Math.abs(limitedX - shapeStartX);
         var sHeight = Math.abs(limitedY - shapeStartY);
-        
+
         currentShape = { left: sLeft, top: sTop, width: sWidth, height: sHeight };
         drawMask();
       }
@@ -11274,7 +10269,7 @@ var ScreenCapture = (function () {
   function onMouseUp(e) {
     if (!isDrawing) return;
     isDrawing = false;
-    
+
     if (mode === 'select') {
       var endX = e.clientX;
       var endY = e.clientY;
@@ -11290,7 +10285,7 @@ var ScreenCapture = (function () {
         drawMask();
         showToolbar();
       } else {
-        destroyOverlay(); 
+        destroyOverlay();
       }
     } else if (mode === 'draw') {
       if (currentShape && currentShape.width > 5 && currentShape.height > 5) {
@@ -11335,7 +10330,7 @@ var ScreenCapture = (function () {
     document.body.appendChild(shapeContainer);
 
     destroyOverlay(); // Xóa canvas
-    
+
     if (typeof UIToast !== 'undefined') UIToast.show('Đang xử lý ảnh...', 'info');
 
     var isDone = false;
@@ -11361,7 +10356,7 @@ var ScreenCapture = (function () {
         if (isDone) return;
         isDone = true;
         clearTimeout(timeoutId);
-        
+
         if (shapeContainer.parentNode) document.body.removeChild(shapeContainer);
 
         if (currentCallback) {
@@ -11412,7 +10407,6 @@ var ScreenCapture = (function () {
   };
 })();
 
-
 /* --- RuleBuilderDialog.js --- */
 (function (global) {
   'use strict';
@@ -11435,18 +10429,18 @@ var ScreenCapture = (function () {
       formNameContainer.style.display = 'flex';
       formNameContainer.style.gap = '10px';
       formNameContainer.style.alignItems = 'center';
-      
+
       var lblForm = document.createElement('label');
       lblForm.innerText = 'Lấy danh sách cột từ Form:';
       lblForm.style.fontWeight = '500';
       lblForm.style.whiteSpace = 'nowrap';
-      
+
       var txtFormName = document.createElement('input');
       txtFormName.className = 'ui-input';
-      txtFormName.placeholder = 'Ví dụ: frmCustomer';
+      txtFormName.placeholder = 'Ví dụ: WA_PersonFullFrm';
       txtFormName.value = targetFormName;
       txtFormName.style.flex = '1';
-      
+
       var btnLoadFieldsWrapper = document.createElement('div');
       btnLoadFieldsWrapper.innerHTML = UIButton.createHTML({ text: 'Tải Cột', type: 'secondary', icon: 'sync' });
       var btnLoadFields = btnLoadFieldsWrapper.firstElementChild;
@@ -11480,9 +10474,9 @@ var ScreenCapture = (function () {
                 txtFormName.style.borderColor = 'var(--color-danger)';
                 Alert.warning('Lỗi', 'Không tìm thấy cột nào cho form: ' + formName);
               }
-            }).catch(function(e) { 
+            }).catch(function(e) {
               btnLoadFields.innerHTML = '<span class="material-symbols-outlined">sync</span> Tải Cột';
-              console.error('Lỗi load cột', e); 
+              console.error('Lỗi load cột', e);
             });
         }
       };
@@ -11588,18 +10582,18 @@ var ScreenCapture = (function () {
       logicSelectWrapper.style.alignItems = 'center';
       logicSelectWrapper.style.gap = '10px';
       logicSelectWrapper.innerHTML = '<span style="font-weight: 500;">Nối bằng:</span>';
-      
+
       var logicSelect = document.createElement('select');
       logicSelect.className = 'ui-input';
       logicSelect.style.width = '140px';
       logicSelect.innerHTML = '<option value="&">VÀ (AND)</option><option value="|">HOẶC (OR)</option>';
       if (currentRule.includes('|')) logicSelect.value = '|';
       logicSelectWrapper.appendChild(logicSelect);
-      
+
       var actionGroup = document.createElement('div');
       actionGroup.style.display = 'flex';
       actionGroup.style.gap = '10px';
-      actionGroup.innerHTML = 
+      actionGroup.innerHTML =
         UIButton.createHTML({ text: 'Hủy', type: 'secondary', className: 'btn-cancel-rule' }) +
         UIButton.createHTML({ text: 'Lưu Quy Tắc', type: 'primary', icon: 'save', className: 'btn-save-rule' });
 
@@ -11632,7 +10626,7 @@ var ScreenCapture = (function () {
         }
         var joiner = logicSelect.value;
         var resultString = finalRules.join(joiner);
-        
+
         if (onSave) onSave(resultString);
         ruleModal.closeNow();
       };
@@ -11642,6 +10636,169 @@ var ScreenCapture = (function () {
   global.RuleBuilderDialog = RuleBuilderDialog;
 })(window);
 
+/* --- ResponsiveDataRenderer.js --- */
+/**
+ * Metadata-aware table/card renderer used by HR list modules.
+ * Desktop keeps a table; mobile receives the same records as stacked cards.
+ */
+window.ResponsiveDataRenderer = (function () {
+  function escape(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
+    });
+  }
+
+  function columns(metadata) {
+    return (metadata || []).filter(function (field) { return field && field.MobileVisible !== false; }).sort(function (a, b) {
+      return (a.MobileOrder == null ? 9999 : a.MobileOrder) - (b.MobileOrder == null ? 9999 : b.MobileOrder);
+    });
+  }
+
+  function render(container, records, metadata) {
+    if (!container) return null;
+    var fields = columns(metadata);
+    var wrapper = document.createElement('div');
+    wrapper.className = 'responsive-data-renderer';
+    var table = document.createElement('table');
+    table.className = 'data-table responsive-data-renderer__table';
+    var head = document.createElement('thead');
+    head.innerHTML = '<tr>' + fields.map(function (field) { return '<th>' + escape(field.label || field.MobileLabel || field.name) + '</th>'; }).join('') + '</tr>';
+    var body = document.createElement('tbody');
+    (records || []).forEach(function (record) {
+      var row = document.createElement('tr');
+      row.innerHTML = fields.map(function (field) {
+        var key = field.name || field.field;
+        return '<td data-label="' + escape(field.MobileLabel || field.label || key) + '">' + escape(record[key]) + '</td>';
+      }).join('');
+      body.appendChild(row);
+    });
+    table.appendChild(head); table.appendChild(body); wrapper.appendChild(table);
+    container.innerHTML = ''; container.appendChild(wrapper);
+    return wrapper;
+  }
+
+  return { render: render };
+})();
+
+/* --- AppConfig.js --- */
+/** Runtime-safe defaults and feature flags shared by HR modules. */
+window.AppConfig = Object.freeze({
+  version: '2.15',
+  defaults: Object.freeze({ pageSize: 15, mobileBreakpoint: 768 }),
+  features: Object.freeze({ responsiveCards: true, metadataForms: true, documentExport: true })
+});
+
+/* --- ModuleDefinition.js --- */
+/**
+ * Normalizes metadata-driven module definitions while preserving API fields.
+ * Modules may opt into small capabilities instead of copying CRUD logic.
+ */
+window.ModuleDefinition = (function () {
+  var DEFAULT_CAPABILITIES = ['responsive'];
+
+  function unique(values) {
+    var seen = {};
+    return (values || []).filter(function (value) {
+      var key = String(value || '').trim();
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+
+  function create(input) {
+    var config = Object.assign({}, input || {});
+    config.capabilities = unique(DEFAULT_CAPABILITIES.concat(config.capabilities || []));
+    if (Array.isArray(config.FormFields)) {
+      config.FormFields = config.FormFields.map(function (field) {
+        var next = Object.assign({}, field);
+        if (next.MobileVisible === undefined) next.MobileVisible = true;
+        if (next.MobileOrder === undefined && next.orderNo !== undefined) next.MobileOrder = next.orderNo;
+        if (!next.MobileLabel && next.label) next.MobileLabel = next.label;
+        return next;
+      });
+    }
+    return config;
+  }
+
+  return { create: create };
+})();
+
+/* --- FormActionRegistry.js --- */
+/** Small async action registry for metadata-driven forms. */
+window.FormActionRegistry = (function () {
+  var actions = Object.create(null);
+
+  function register(name, handler) {
+    if (!name || typeof handler !== 'function') throw new TypeError('Form action requires a name and handler');
+    actions[String(name)] = handler;
+    return handler;
+  }
+
+  function has(name) { return typeof actions[String(name)] === 'function'; }
+
+  function execute(name, context) {
+    if (!has(name)) return Promise.reject(new Error('Unknown form action: ' + name));
+    try { return Promise.resolve(actions[String(name)](context || {})); }
+    catch (error) { return Promise.reject(error); }
+  }
+
+  return { register: register, has: has, execute: execute };
+})();
+
+/* --- SafeFormula.js --- */
+/** Small arithmetic evaluator for metadata formulas; never executes code. */
+window.SafeFormula = (function () {
+  function evaluate(input) {
+    var expression = String(input == null ? '' : input).trim();
+    var tokens = expression.match(/\d+(?:\.\d+)?|[()+\-*/]/g);
+    if (!tokens || tokens.join('') !== expression.replace(/\s+/g, '')) throw new Error('Unsupported formula');
+    var index = 0;
+
+    function primary() {
+      var token = tokens[index++];
+      if (token === '(') {
+        var value = additive();
+        if (tokens[index++] !== ')') throw new Error('Unbalanced formula');
+        return value;
+      }
+      if (token === '+' || token === '-') {
+        var next = primary();
+        return token === '-' ? -next : next;
+      }
+      var number = Number(token);
+      if (!isFinite(number)) throw new Error('Invalid number');
+      return number;
+    }
+
+    function multiplicative() {
+      var value = primary();
+      while (tokens[index] === '*' || tokens[index] === '/') {
+        var operator = tokens[index++];
+        var right = primary();
+        if (operator === '/' && right === 0) throw new Error('Division by zero');
+        value = operator === '*' ? value * right : value / right;
+      }
+      return value;
+    }
+
+    function additive() {
+      var value = multiplicative();
+      while (tokens[index] === '+' || tokens[index] === '-') {
+        var operator = tokens[index++];
+        var right = multiplicative();
+        value = operator === '+' ? value + right : value - right;
+      }
+      return value;
+    }
+
+    var result = additive();
+    if (index !== tokens.length || !isFinite(result)) throw new Error('Unsupported formula');
+    return result;
+  }
+
+  return { evaluate: evaluate };
+})();
 
 /* --- WizardForm.js --- */
 /**
@@ -12006,7 +11163,7 @@ var WizardForm = (function () {
         // Thu thập data hiện tại
         _collect();
         var hasData = currentStep > 0 || Object.keys(formState).length > 0;
-        
+
         if (hasData) {
           if (typeof ConfirmModal !== 'undefined') {
             ConfirmModal.show({
@@ -12026,7 +11183,7 @@ var WizardForm = (function () {
           }
         }
       }
-      
+
       overlay.style.opacity = '0';
       overlay.style.transition = 'opacity 0.18s';
       if (typeof _onKeydown === 'function') document.removeEventListener('keydown', _onKeydown);
@@ -12330,18 +11487,18 @@ var WizardForm = (function () {
       } else {
         // Only show avatar on the very first data step (step 0 if no branch, step 1 if branch is present)
         var isFirstDataStep = hideBranch ? (uiIdx === 0) : (uiIdx === 1);
-        
+
         if (isFirstDataStep && moduleConfig.AttachmentApi) {
           var bodyWrapper = document.createElement('div');
           bodyWrapper.className = 'wz-step-body-wrapper';
-          
+
           // Render photo box on the left
           var photoArea = document.createElement('div');
           photoArea.className = 'wz-avatar-col';
 
           var frame = document.createElement('div');
           frame.className = 'wz-avatar-frame';
-          
+
           var img = document.createElement('img');
           img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
           var defaultAvatar = 'https://cdn-icons-png.flaticon.com/512/149/149071.png';
@@ -12377,12 +11534,12 @@ var WizardForm = (function () {
               img.src = defaultAvatar;
             }
           }
-          
-          img.onerror = function () { 
+
+          img.onerror = function () {
             var self = this;
             var pkField = formSchema.PrimaryKey || 'PersonID';
             var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
-            
+
             if (!pkVal || !moduleConfig.AttachmentApi) {
               self.src = defaultAvatar;
               return;
@@ -12437,7 +11594,7 @@ var WizardForm = (function () {
           var btnUpload = document.createElement('button');
           btnUpload.className = 'btn btn-outline btn-sm w-100 wz-avatar-btn';
           btnUpload.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">photo_camera</span> Tải ảnh lên';
-          
+
           var handleUploadClick = function () {
             var input = document.createElement('input');
             input.type = 'file';
@@ -12448,7 +11605,7 @@ var WizardForm = (function () {
                 var reader = new FileReader();
                 reader.onload = function (re) {
                   img.src = re.target.result;
-                  photoInput.value = re.target.result; 
+                  photoInput.value = re.target.result;
 
                   var dataUrl = re.target.result;
                   var base64Content = dataUrl.split(',')[1] || dataUrl;
@@ -12466,7 +11623,7 @@ var WizardForm = (function () {
                     formState.HinhAnh = '0x' + hexStr;
                     formState.Base64Content = base64Content;
                     formState.Content = '0x' + hexStr;
-                    
+
                     window._pendingWizardAvatar = {
                       file: file,
                       base64Content: base64Content,
@@ -12480,7 +11637,7 @@ var WizardForm = (function () {
             };
             input.click();
           };
-          
+
           btnUpload.onclick = handleUploadClick;
           frame.onclick = handleUploadClick;
 
@@ -12491,12 +11648,12 @@ var WizardForm = (function () {
           var fieldsArea = document.createElement('div');
           fieldsArea.className = 'wz-fields-col';
           fieldsArea.style.cssText = 'flex: 1; min-width: 0;';
-          
+
           bodyWrapper.appendChild(photoArea);
           bodyWrapper.appendChild(fieldsArea);
-          
+
           content.appendChild(bodyWrapper);
-          
+
           _renderFields(fieldsArea, step.fields);
         } else {
           _renderFields(content, step.fields);
@@ -12596,14 +11753,14 @@ var WizardForm = (function () {
         var wrapper = document.createElement('div');
         wrapper.className = colClass;
         wrapper.style.animation = 'wz-fadein 0.16s ease';
-        
+
         // Loại bỏ placeholder để UI thoáng hơn, tránh rối mắt khi form dài
         var inputs = inputEl.querySelectorAll('input, textarea');
         for (var i = 0; i < inputs.length; i++) {
           inputs[i].removeAttribute('placeholder');
           inputs[i].placeholder = '';
         }
-        
+
         wrapper.appendChild(inputEl);
         grid.appendChild(wrapper);
       });
@@ -12671,7 +11828,7 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
-            
+
             // Lọc bớt cột nếu field có cấu hình hiddenColumns
             var displayKeys = keys;
             if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
@@ -12899,7 +12056,7 @@ var WizardForm = (function () {
     // ── Khởi tạo ──────────────────────────────────────────────────────
     document.getElementById('modal-container').appendChild(overlay);
     history.pushState({ wizardOpen: true }, null, window.location.href);
-    
+
     if (hideBranch) {
       // Tự động resolve ID khi bỏ qua bước chọn chi nhánh
       var pkName = moduleConfig.PrimaryKey || 'PersonID';
@@ -13114,20 +12271,20 @@ var WizardForm = (function () {
             img.src = defaultAvatar;
           }
         }
-        
-        img.onerror = function () { 
+
+        img.onerror = function () {
           // Nếu ảnh tĩnh lỗi (chưa cấu hình backend /Images/), ta thử gọi API để lấy Base64 Content từ Database
           var self = this;
           var pkField = formSchema.PrimaryKey || 'PersonID';
           var pkVal = formState[pkField] || formState['PersonID'] || formState['CandidateID'] || '';
-          
+
           if (!pkVal || !moduleConfig.AttachmentApi) {
             self.src = defaultAvatar;
             return;
           }
 
           var attachApi = moduleConfig.AttachmentApi;
-          
+
           var fetchPayload = {
             List: attachApi,
             Func: 'View',
@@ -13139,7 +12296,7 @@ var WizardForm = (function () {
           };
 
           var apiUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
-          
+
           fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -13252,10 +12409,10 @@ var WizardForm = (function () {
         // Was opened in view mode, but now in edit mode. Revert!
         isViewMode = true;
         formState = Object.assign({}, rowData); // Revert data
-        
+
         var titleText = moduleConfig.TitleView || 'Thông tin cá nhân';
         title.innerHTML = '<span class="material-symbols-outlined" style="color:var(--color-primary)">person</span> ' + titleText;
-        
+
         btnSave.innerHTML = '<span class="material-symbols-outlined">edit</span> Sửa';
         btnSave.onclick = function () {
           isViewMode = false;
@@ -13265,7 +12422,7 @@ var WizardForm = (function () {
           btnSave.onclick = _onSaveData;
           _renderTabContent();
         };
-        
+
         _renderTabContent();
       } else {
         btnClose.click();
@@ -13470,7 +12627,7 @@ var WizardForm = (function () {
             var keys = Object.keys(list[0]);
 
             var comboData = [];
-            
+
             var displayKeys = keys;
             if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
               var hcols = field.hiddenColumns.map(function(c){ return c.toUpperCase(); });
@@ -13540,7 +12697,6 @@ var WizardForm = (function () {
 
   return { open: open };
 })();
-
 
 /* --- DynamicFormEngine.js --- */
 /**
@@ -14143,7 +13299,11 @@ window.DynamicFormEngine = (function () {
     }
 
     $container = container;
-    MODULE_CONFIG = config;
+    // Keep DynamicFormEngine as the single CRUD path while allowing small,
+    // metadata-owned capabilities (mobile visibility, lookup, exports).
+    MODULE_CONFIG = (window.ModuleDefinition && typeof ModuleDefinition.create === 'function')
+      ? ModuleDefinition.create(config)
+      : config;
     currentFormName = config.FormName;
 
     // 2. Khôi phục state của module mới (nếu đã từng vào trước đó)
@@ -14450,7 +13610,7 @@ window.DynamicFormEngine = (function () {
               flex: 1;
               min-width: 0;
             }
-            
+
             /* Hide detail container by default on Desktop too */
             .split-master-detail-container:not(.show-detail) #dynamic-detail-container {
               display: none !important;
@@ -14470,7 +13630,7 @@ window.DynamicFormEngine = (function () {
                 flex-direction: column !important;
                 gap: 0 !important;
               }
-              
+
               /* Hide detail container by default on mobile */
               .split-master-detail-container #dynamic-detail-container {
                 display: none !important;
@@ -15877,13 +15037,13 @@ window.DynamicFormEngine = (function () {
 
           var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n';
 
-
           var colDef = {
             title: dictionary[fieldName] || fieldName,
             field: actualField,
             editor: isEditable ? (isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input")) : false,
-            maxWidth: 400,
-            tooltip: true
+            maxWidth: 400, // UX: Giới hạn độ rộng tối đa để text dài (như Mô tả) không đẩy vỡ khung Grid
+            tooltip: true  // UX: Cho phép xem đầy đủ text khi hover chuột vào ô bị cắt chữ (...)
+            // Đã loại bỏ headerFilter: "input" để header gọn gàng, người dùng sẽ xài Popup lọc dữ liệu thay thế
           };
 
           if (isNumeric) {
@@ -15893,99 +15053,72 @@ window.DynamicFormEngine = (function () {
               var n = parseFloat(val);
               return isNaN(n) ? (val || '') : n.toLocaleString('vi-VN');
             };
-            colDef.hozAlign = "right";
+            colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
 
+          // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {
             colDef.visible = savedVisibility[actualField];
           }
 
-          // ── SMART UI/UX DEFAULTS ──────────────────────────────────
-          // Ưu tiên format cho PersonStatus trước
+
+
+          // Fix: Cột PersonStatus ưu tiên hiển thị chữ (PersonStatusName) thay vì số
           if (actualField.toLowerCase() === 'personstatus') {
             colDef.formatter = function (cell) {
               var data = cell.getData();
               var val = cell.getValue();
               var text = data.PersonStatusName || data.personstatusname || val;
               if (!text && !val) return '';
-              var s = String(text).toLowerCase();
-              var badgeVariant = 'badge-neutral';
-              if (String(val) === '1' || s.includes('chính thức') || s.includes('hoạt động') || s.includes('thành công')) badgeVariant = 'badge-active';
-              else if (String(val) === '4' || String(val) === '8' || String(val) === '9' || s.includes('nghỉ') || s.includes('thôi việc') || s.includes('hủy') || s.includes('xóa')) badgeVariant = 'badge-danger';
-              else if (String(val) === '2' || s.includes('thử việc') || s.includes('tạm hoãn') || s.includes('chờ')) badgeVariant = 'badge-warning';
-              else if (String(val) === '3' || s.includes('thực tập') || s.includes('mới')) badgeVariant = 'badge-info';
-              return '<span class="badge ' + badgeVariant + '">' + (text || '') + '</span>';
+
+              var badgeClass = 'badge-info';
+              var textLower = String(text).toLowerCase();
+              if (String(val) === '1' || textLower.includes('chính thức') || textLower.includes('hoạt động') || textLower.includes('thành công')) badgeClass = 'badge-active';
+              else if (String(val) === '4' || String(val) === '8' || String(val) === '9' || textLower.includes('nghỉ') || textLower.includes('thôi việc') || textLower.includes('hủy') || textLower.includes('xóa')) badgeClass = 'badge-danger';
+              else if (String(val) === '2' || textLower.includes('thử việc') || textLower.includes('tạm hoãn') || textLower.includes('chờ')) badgeClass = 'badge-warning';
+              else if (String(val) === '3' || textLower.includes('thực tập') || textLower.includes('mới')) badgeClass = 'badge-info';
+
+              return '<span class="badge-status ' + badgeClass + '">' + (text || '') + '</span>';
             };
           }
 
-
-          // ── SMART UI/UX DEFAULTS ──────────────────────────────────────
-          // Áp dụng tự động dựa vào tên field / tiêu đề cột.
-          // cssClass cho identifier cells (hoạt động đúng trên cả edit & view mode).
-          // HTML string badge cho các cột trạng thái.
-          // ─────────────────────────────────────────────────────────────
+          // Smart UI/UX Defaults (Kế thừa cho toàn bộ lưới nếu không bị ghi đè)
           if (!colDef.formatter) {
             var fName = actualField.toLowerCase();
-            var colTitle = (colDef.title || '').toLowerCase();
+            var title = (colDef.title || '').toLowerCase();
 
-            // Mã nhân viên, Employee ID
-            if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid'
-                || fName === 'personid' || fName === 'newpersonid'
-                || colTitle.includes('mã nhân viên') || colTitle === 'mã nv') {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-primary';
-
-            // Số điện thoại
-            } else if (fName.includes('dienthoai') || fName.includes('phone') || fName.includes('sdt')
-                || colTitle.includes('điện thoại')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-primary';
-
-            // Email
-            } else if (fName.includes('email') || colTitle.includes('email')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-primary';
+            if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid' || fName === 'personid' || title.includes('mã nhân viên')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
+            } else if (fName.includes('dienthoai') || fName.includes('phone') || fName.includes('sdt') || title.includes('điện thoại')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
+            } else if (fName.includes('email') || title.includes('email')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
               colDef.formatter = function (cell) {
                 var v = cell.getValue();
                 if (!v) return '';
-                return '<a href="mailto:' + v + '" style="color:inherit;text-decoration:underline dotted;">' + v + '</a>';
+                return '<a href="mailto:' + v + '">' + v + '</a>';
               };
-
-            // CMND / CCCD (dữ liệu nhạy cảm)
-            } else if (fName.includes('cmnd') || fName.includes('cccd') || fName.includes('idcard')
-                || fName.includes('socccd') || colTitle.includes('cmnd') || colTitle.includes('cccd')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-danger';
-
-            // Số hợp đồng, Lương, Phụ cấp (tài chính)
-            } else if (fName.includes('sohopdong') || fName.includes('hopdong') || fName.includes('luong')
-                || fName.includes('salary') || fName.includes('phucap') || fName.includes('bhxh')
-                || colTitle.includes('hợp đồng') || colTitle.includes('lương') || colTitle.includes('phụ cấp')) {
-              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-hl-financial';
-
-            // Trạng thái chung (không phải PersonStatus)
-            } else if ((fName.includes('trangthai') || (fName.includes('status') && fName !== 'personstatus'))
-                || colTitle.includes('trạng thái')) {
+            } else if (fName.includes('cmnd') || fName.includes('cccd') || fName.includes('idcard') || title.includes('cmnd') || title.includes('cccd')) {
+              colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-danger';
+            } else if (fName.includes('trangthai') || fName.includes('status') || title.includes('trạng thái')) {
               colDef.formatter = function (cell) {
                 var v = cell.getValue();
                 if (!v && v !== 0) return '';
-                var s = String(v).toLowerCase();
-                var bv = 'badge-neutral';
-                if (s.includes('chính thức') || s.includes('đã ký') || s.includes('hoàn thành')
-                    || s.includes('duyệt') || s.includes('đồng ý') || s.includes('success')
-                    || s.includes('active') || s.includes('đạt')) {
-                  bv = 'badge-active';
-                } else if (s.includes('nghỉ') || s.includes('hủy') || s.includes('từ chối')
-                    || s.includes('khóa') || s.includes('fail') || s.includes('lỗi')
-                    || s.includes('không đạt') || s.includes('thôi việc')) {
-                  bv = 'badge-danger';
-                } else if (s.includes('thử việc') || s.includes('chờ') || s.includes('pending')
-                    || s.includes('tạm') || s.includes('đang')) {
-                  bv = 'badge-warning';
-                } else if (s.includes('thực tập') || s.includes('mới') || s.includes('info')) {
-                  bv = 'badge-info';
+                var textLower = String(v).toLowerCase();
+                var badgeClass = 'badge-info';
+
+                if (textLower.includes('chính thức') || textLower.includes('đã ký') || textLower.includes('hoàn thành') || textLower.includes('success') || textLower.includes('active') || textLower.includes('đạt') || textLower.includes('duyệt') || textLower.includes('đồng ý')) {
+                  badgeClass = 'badge-active';
+                } else if (textLower.includes('nghỉ') || textLower.includes('hủy') || textLower.includes('từ chối') || textLower.includes('khóa') || textLower.includes('fail') || textLower.includes('lỗi') || textLower.includes('không đạt')) {
+                  badgeClass = 'badge-danger';
+                } else if (textLower.includes('thử việc') || textLower.includes('chờ') || textLower.includes('pending') || textLower.includes('tạm') || textLower.includes('đang')) {
+                  badgeClass = 'badge-warning';
                 }
-                return '<span class="badge ' + bv + '">' + v + '</span>';
+
+                return '<span class="badge-status ' + badgeClass + '">' + v + '</span>';
               };
             }
           }
-
 
           if (renderers[fieldName]) {
             colDef.formatter = function (cell) {
@@ -17243,7 +16376,7 @@ window.DynamicFormEngine = (function () {
     var targetFormInput = UIInput.createText({
       label: 'Nhập cho Tên Form nào? (*)',
       required: true,
-      placeholder: 'Ví dụ: frmCustomer'
+      placeholder: 'Ví dụ: WA_PersonFullFrm'
     });
     body.appendChild(targetFormInput);
 
@@ -17290,7 +16423,7 @@ window.DynamicFormEngine = (function () {
     function addRow() {
       var tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="p-1"><input type="text" class="ui-input" name="FieldName" placeholder="Ví dụ: CustomerID"></td>
+        <td class="p-1"><input type="text" class="ui-input" name="FieldName" placeholder="Ví dụ: PersonID"></td>
         <td class="p-1"><input type="text" class="ui-input" name="CaptionVN" placeholder="Tiêu đề hiển thị"></td>
         <td class="p-1">
           <select class="ui-input" name="FormatID">
@@ -17304,8 +16437,8 @@ window.DynamicFormEngine = (function () {
         <td class="p-1 text-center align-middle">
           <div class="d-flex justify-content-center h-100 align-items-center">
             <input type="checkbox" class="modern-ch
-            
-            
+
+
             eckbox" name="IsRequired" value="1" style="cursor: pointer; margin-top: 0;">
           </div>
         </td>
@@ -17520,7 +16653,7 @@ window.DynamicFormEngine = (function () {
         .table-bulk-edit input.ui-input:focus { background: rgba(255,255,255,0.05) !important; }
         .table-bulk-edit .switch { justify-content: center; padding: 0; margin: 0; width: 100%; height: 100%; display: flex; align-items: center; min-height: 40px; }
         .table-bulk-edit .dropdown-wrapper .material-symbols-outlined { right: 8px; }
-        
+
         /* Custom Scrollbar cho bảng */
         .table-bulk-edit-container::-webkit-scrollbar { width: 8px; height: 8px; }
         .table-bulk-edit-container::-webkit-scrollbar-track { background: transparent; }
@@ -18157,18 +17290,18 @@ window.DynamicFormEngine = (function () {
     formSchema.forEach(function (f) {
       var rule = (f.renderRule || f.formatId || f.FormatID || '').toLowerCase();
       if (rule === 'sw' || rule === 'boolean') {
-         var children = formSchema.filter(function (cf) {
-            return cf.name !== f.name && cf.name.indexOf(f.name) > -1;
-         });
-         if (children.length > 0) {
-            parentFields[f.name] = children;
-            children.forEach(function(c) { childToParent[c.name] = f.name; });
-         }
+        var children = formSchema.filter(function (cf) {
+          return cf.name !== f.name && cf.name.indexOf(f.name) > -1;
+        });
+        if (children.length > 0) {
+          parentFields[f.name] = children;
+          children.forEach(function (c) { childToParent[c.name] = f.name; });
+        }
       }
     });
 
-    var normalAndParentFields = formSchema.filter(function(f) { return !childToParent[f.name]; });
-    var childFields = formSchema.filter(function(f) { return childToParent[f.name]; });
+    var normalAndParentFields = formSchema.filter(function (f) { return !childToParent[f.name]; });
+    var childFields = formSchema.filter(function (f) { return childToParent[f.name]; });
     var orderedSchema = normalAndParentFields.concat(childFields);
 
     orderedSchema.forEach(function (field) {
@@ -18581,102 +17714,102 @@ window.DynamicFormEngine = (function () {
       }
 
       if (childToParent[field.name]) {
-         var parentName = childToParent[field.name];
-         var parentFlexGroup = parentWrappers[parentName];
-         if (parentFlexGroup) {
-            var childWrapper = document.createElement('div');
-            childWrapper.className = 'child-field-wrapper';
-            childWrapper.style.flex = '1';
-            childWrapper.style.minWidth = '0'; // Bù chiều ngang cho các Combobox
-            childWrapper.style.transition = 'all 0.25s cubic-bezier(0.16,1,0.3,1)';
-            
-            // Ẩn label để form gọn gàng, đưa label vào placeholder (Không hardcode, hỗ trợ kế thừa)
-            var labels = inputEl.querySelectorAll('label');
-            labels.forEach(function(l) { l.style.display = 'none'; });
-            
-            var fGroups = inputEl.querySelectorAll('.form-group');
-            fGroups.forEach(function(fg) { fg.style.marginBottom = '0'; });
-            if (inputEl.classList && inputEl.classList.contains('form-group')) {
-               inputEl.style.marginBottom = '0';
+        var parentName = childToParent[field.name];
+        var parentFlexGroup = parentWrappers[parentName];
+        if (parentFlexGroup) {
+          var childWrapper = document.createElement('div');
+          childWrapper.className = 'child-field-wrapper';
+          childWrapper.style.flex = '1';
+          childWrapper.style.minWidth = '0'; // Bù chiều ngang cho các Combobox
+          childWrapper.style.transition = 'all 0.25s cubic-bezier(0.16,1,0.3,1)';
+
+          // Ẩn label để form gọn gàng, đưa label vào placeholder (Không hardcode, hỗ trợ kế thừa)
+          var labels = inputEl.querySelectorAll('label');
+          labels.forEach(function (l) { l.style.display = 'none'; });
+
+          var fGroups = inputEl.querySelectorAll('.form-group');
+          fGroups.forEach(function (fg) { fg.style.marginBottom = '0'; });
+          if (inputEl.classList && inputEl.classList.contains('form-group')) {
+            inputEl.style.marginBottom = '0';
+          }
+
+          var isSelect = field.renderRule === 'sl' || field.renderRule === 'select' || field.dataSource;
+          var prefix = isSelect ? 'Chọn ' : 'Nhập ';
+          var inps = inputEl.querySelectorAll('input:not([type="hidden"]), select, textarea');
+          inps.forEach(function (inp) {
+            if (inp.placeholder === '-- Vui lòng chọn --' || inp.placeholder === 'Nhập...' || !inp.placeholder) {
+              // Xóa chữ "Vui lòng chọn" thay bằng "Chọn [Tên field]"
+              var lblText = (field.label || '').trim().toLowerCase();
+              if (lblText) {
+                inp.placeholder = prefix + lblText;
+              }
             }
+          });
 
-            var isSelect = field.renderRule === 'sl' || field.renderRule === 'select' || field.dataSource;
-            var prefix = isSelect ? 'Chọn ' : 'Nhập ';
-            var inps = inputEl.querySelectorAll('input:not([type="hidden"]), select, textarea');
-            inps.forEach(function(inp) {
-               if (inp.placeholder === '-- Vui lòng chọn --' || inp.placeholder === 'Nhập...' || !inp.placeholder) {
-                  // Xóa chữ "Vui lòng chọn" thay bằng "Chọn [Tên field]"
-                  var lblText = (field.label || '').trim().toLowerCase();
-                  if (lblText) {
-                     inp.placeholder = prefix + lblText;
-                  }
-               }
-            });
-
-            childWrapper.appendChild(inputEl);
-            parentFlexGroup.appendChild(childWrapper);
-         }
+          childWrapper.appendChild(inputEl);
+          parentFlexGroup.appendChild(childWrapper);
+        }
       } else if (parentFields[field.name]) {
-         var wrapper = document.createElement('div');
-         wrapper.className = 'df-col-' + span;
-         if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
-         
-         var flexGroup = document.createElement('div');
-         flexGroup.style.display = 'flex';
-         flexGroup.style.flexWrap = 'nowrap';
-         flexGroup.style.gap = '12px';
-         flexGroup.style.alignItems = 'center';
-         flexGroup.style.width = '100%';
-         flexGroup.style.padding = '8px 12px';
-         flexGroup.style.background = 'var(--color-surface, #fff)';
-         flexGroup.style.border = '1px solid var(--color-border, #e2e8f0)';
-         flexGroup.style.borderRadius = '8px';
+        var wrapper = document.createElement('div');
+        wrapper.className = 'df-col-' + span;
+        if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
 
-         var parentInputWrapper = document.createElement('div');
-         parentInputWrapper.style.flexShrink = '0';
-         parentInputWrapper.style.minWidth = '90px'; 
-         parentInputWrapper.appendChild(inputEl);
-         flexGroup.appendChild(parentInputWrapper);
+        var flexGroup = document.createElement('div');
+        flexGroup.style.display = 'flex';
+        flexGroup.style.flexWrap = 'nowrap';
+        flexGroup.style.gap = '12px';
+        flexGroup.style.alignItems = 'center';
+        flexGroup.style.width = '100%';
+        flexGroup.style.padding = '8px 12px';
+        flexGroup.style.background = 'var(--color-surface, #fff)';
+        flexGroup.style.border = '1px solid var(--color-border, #e2e8f0)';
+        flexGroup.style.borderRadius = '8px';
 
-         parentWrappers[field.name] = flexGroup;
-         wrapper.appendChild(flexGroup);
-         targetGrid.appendChild(wrapper);
+        var parentInputWrapper = document.createElement('div');
+        parentInputWrapper.style.flexShrink = '0';
+        parentInputWrapper.style.minWidth = '90px';
+        parentInputWrapper.appendChild(inputEl);
+        flexGroup.appendChild(parentInputWrapper);
 
-         setTimeout(function() {
-            var parentCb = parentInputWrapper.querySelector('input[type="checkbox"]');
-            if (parentCb) {
-               var toggleChildren = function(isAutoChange) {
-                  var isChecked = parentCb.checked;
-                  var childEls = flexGroup.querySelectorAll('.child-field-wrapper');
-                  childEls.forEach(function(ce) {
-                     if (isChecked) {
-                        ce.style.opacity = '1';
-                        ce.style.pointerEvents = 'auto';
-                     } else {
-                        ce.style.opacity = '0.4';
-                        ce.style.pointerEvents = 'none';
-                        if (isAutoChange === true && !isViewMode) {
-                          var select = ce.querySelector('select');
-                          if (select) { select.value = ''; select.dispatchEvent(new Event('change')); }
-                          var input = ce.querySelector('input:not([type="hidden"])');
-                          if (input) { input.value = ''; input.dispatchEvent(new Event('change')); }
-                          var select2 = ce.querySelector('.select2-hidden-accessible');
-                          if (select2 && window.$) { $(select2).val('').trigger('change'); }
-                        }
-                     }
-                  });
-               };
-               parentCb.addEventListener('change', function() { toggleChildren(true); });
-               toggleChildren(false);
-            }
-         }, 100);
+        parentWrappers[field.name] = flexGroup;
+        wrapper.appendChild(flexGroup);
+        targetGrid.appendChild(wrapper);
+
+        setTimeout(function () {
+          var parentCb = parentInputWrapper.querySelector('input[type="checkbox"]');
+          if (parentCb) {
+            var toggleChildren = function (isAutoChange) {
+              var isChecked = parentCb.checked;
+              var childEls = flexGroup.querySelectorAll('.child-field-wrapper');
+              childEls.forEach(function (ce) {
+                if (isChecked) {
+                  ce.style.opacity = '1';
+                  ce.style.pointerEvents = 'auto';
+                } else {
+                  ce.style.opacity = '0.4';
+                  ce.style.pointerEvents = 'none';
+                  if (isAutoChange === true && !isViewMode) {
+                    var select = ce.querySelector('select');
+                    if (select) { select.value = ''; select.dispatchEvent(new Event('change')); }
+                    var input = ce.querySelector('input:not([type="hidden"])');
+                    if (input) { input.value = ''; input.dispatchEvent(new Event('change')); }
+                    var select2 = ce.querySelector('.select2-hidden-accessible');
+                    if (select2 && window.$) { $(select2).val('').trigger('change'); }
+                  }
+                }
+              });
+            };
+            parentCb.addEventListener('change', function () { toggleChildren(true); });
+            toggleChildren(false);
+          }
+        }, 100);
 
       } else {
-         var wrapper = document.createElement('div');
-         wrapper.className = 'df-col-' + span;
-         if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
-         wrapper.appendChild(inputEl);
-         targetGrid.appendChild(wrapper);
+        var wrapper = document.createElement('div');
+        wrapper.className = 'df-col-' + span;
+        if (field.visibleRule) wrapper.dataset.visibleRule = field.visibleRule;
+        wrapper.appendChild(inputEl);
+        targetGrid.appendChild(wrapper);
       }
 
       // Gán giá trị mặc định vào currentModalFormState
@@ -18722,7 +17855,7 @@ window.DynamicFormEngine = (function () {
               formula = formula.split('{' + key + '}').join(v);
             }
             try {
-              var result = new Function('return ' + formula)();
+              var result = window.SafeFormula ? SafeFormula.evaluate(formula) : NaN;
               if (!isNaN(result) && isFinite(result)) {
                 var targetInput = body.querySelector('input[name="' + f.name + '"]');
                 if (targetInput && targetInput.value != result) {
@@ -19990,7 +19123,6 @@ window.DynamicFormEngine = (function () {
   return { render: render };
 })();
 
-
 /* --- index.js --- */
 /**
  * Bootstraps the application layout & interactions
@@ -20104,7 +19236,7 @@ document.addEventListener('DOMContentLoaded', function () {
         onClick: function (ctx) {
           var tuNgay = '';
           var denNgay = '';
-          
+
           if (ctx.isEdit) {
             var elTu = ctx.body ? ctx.body.querySelector('[name="TuNgay"]') : null;
             var elDen = ctx.body ? ctx.body.querySelector('[name="DenNgay"]') : null;
@@ -20154,7 +19286,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
               };
               document.addEventListener('dynamicFormSaved', saveHandler);
-              
+
               // Tự động gọi hàm lưu của Engine
               if (ctx.btnSave) {
                 ctx.btnSave.click();
@@ -21546,7 +20678,6 @@ window.SapCaTuDong = function () {
   window.SapCaTuDong_ByID(sapCaInput ? sapCaInput.value : '', btn);
 };
 
-
 /* --- router.js --- */
 /**
  * Router — Hash-based SPA routing cho Quản lý Nhân sự
@@ -21559,21 +20690,14 @@ var Router = (function () {
 
   // ── Route definitions ──────────────────────────────────────────────────
   var ROUTES = [
-    { path: '/dashboard', template: 'src/pages/dashboard/dashboard.html', script: 'src/pages/dashboard/dashboard.js', perm: 'tongquan', title: 'Tổng quan', pageFn: 'DashboardPage', hideHeader: true },
+    { path: '/dashboard', template: 'src/pages/dashboard/dashboard.html', script: 'src/pages/dashboard/dashboard.js', perm: 'tongquan', title: 'Tổng quan', pageFn: 'DashboardPage' },
     { path: '/components-demo', template: 'src/pages/components-demo/components-demo.html', script: 'src/pages/components-demo/components-demo.js', perm: 'uidemo', title: 'Bản test Component', pageFn: 'ComponentsDemoPage' },
     { path: '/appearance', template: 'src/pages/appearance/appearance.html', script: 'src/pages/appearance/appearance.js', perm: '', title: 'Cấu hình Giao diện', pageFn: 'AppearancePage' },
     { path: '/document-manager', template: 'src/pages/document-manager/document-manager.html', script: 'src/pages/document-manager/document-manager.js', perm: '', title: 'Workspace Tài Liệu', pageFn: 'DocumentManagerPage', hideHeader: true },
     { path: '/categories', template: 'src/pages/categories/categories.html', script: 'src/pages/categories/categories.js', perm: '', title: '', pageFn: 'CategoriesPage' },
     { path: '/inventory', template: 'src/pages/inventory/inventory.html', script: 'src/pages/inventory/inventory.js', perm: '', title: 'Kho & Định lượng', pageFn: 'InventoryPage' },
     { path: '/cash-flow', template: 'src/pages/cash-flow/cash-flow.html', script: 'src/pages/cash-flow/cash-flow.js', perm: '', title: 'Kế toán & Quỹ tiền mặt', pageFn: 'CashFlowPage' },
-    { path: '/calendar', template: 'src/pages/calendar/calendar.html', script: 'src/pages/calendar/calendar.js', perm: '', title: '', pageFn: 'CalendarPage' },
     { path: '/menus', template: 'src/pages/menus/menus.html', script: 'src/pages/menus/menus.js?v=2', perm: '', title: '', pageFn: 'MenusPage' },
-    { path: '/promotions', template: 'src/pages/promotions/promotions.html', script: 'src/pages/promotions/promotions.js', perm: '', title: '', pageFn: 'PromotionsPage' },
-    { path: '/report-revenue', template: 'src/pages/report-revenue/report-revenue.html', script: 'src/pages/report-revenue/report-revenue.js', perm: '', title: '', pageFn: 'ReportRevenuePage' },
-    { path: '/report-cost', template: 'src/pages/report-cost/report-cost.html', script: 'src/pages/report-cost/report-cost.js', perm: '', title: '', pageFn: 'ReportCostPage' },
-    { path: '/report-other', template: 'src/pages/report-other/report-other.html', script: 'src/pages/report-other/report-other.js', perm: '', title: '', pageFn: 'ReportOtherPage' },
-    { path: '/survey', template: 'src/pages/survey/survey.html', script: 'src/pages/survey/survey.js', perm: '', title: '', pageFn: 'SurveyPage' },
-    { path: '/hall-status', template: 'src/pages/hall-status/hall-status.html', script: 'src/pages/hall-status/hall-status.js', perm: '', title: '', pageFn: 'HallStatusPage' },
     { path: '/settings', template: 'src/pages/settings/settings.html', script: 'src/pages/settings/settings.js', perm: '', title: '', pageFn: 'SettingsPage' },
     { path: '/permissions', template: 'src/pages/permissions/permissions.html', script: 'src/pages/permissions/permissions.js', perm: '', title: '', pageFn: 'PermissionsPage' },
     { path: '/detail', template: 'src/pages/detail/detail.html', script: 'src/pages/detail/detail.js', perm: '', title: 'Chi tiết', pageFn: 'DetailPage', hideHeader: true }
@@ -21590,7 +20714,7 @@ var Router = (function () {
       var rawUrl = m.URLPara || m.urlPara || '';
       if (!rawUrl || rawUrl.trim() === '') return;
 
-      // Chỉnh sửa: Loại bỏ dấu '#' và '/' thừa nếu người dùng lỡ nhập vào DB (vd: '#/customers' -> 'customers')
+      // Chuẩn hóa dấu '#' và '/' thừa nếu menu DB gửi vào.
       var url = rawUrl.trim().replace(/^#\/?/, '').replace(/^\//, '');
       if (url === '') return;
 
@@ -21695,7 +20819,7 @@ var Router = (function () {
 
   // ── Preload templates phổ biến (tải trước nền) ─────────────────────────
   function _preloadTemplates() {
-    var priority = ['/dashboard', '/visitor', '/booking'];
+    var priority = ['/dashboard'];
     priority.forEach(function (p) {
       var r = _findRoute(p);
       if (r && r.template) fetchTemplate(r.template).catch(function () { });
@@ -21980,5 +21104,4 @@ var Router = (function () {
     fetchTemplate: fetchTemplate   // Cho page modules dùng chung cache layer
   };
 })();
-
-
+/* --- end js --- */

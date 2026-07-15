@@ -305,7 +305,7 @@ body.dark-theme .calendar-days-header {
   flex-shrink: 0;
 }
 
-/* Soft success themed booking tags */
+/* Soft success themed event tags */
 .calendar-event-label.success {
   background: rgba(16, 185, 129, 0.1);
   color: #059669;

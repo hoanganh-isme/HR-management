@@ -107,6 +107,22 @@ const ApiClient = (function () {
         }
     }
 
+    /**
+     * Normalize the response envelopes used by existing HR endpoints without
+     * changing the wire contract. Consumers can safely handle records/list/data
+     * and still inspect the original payload when they need status metadata.
+     */
+    function normalizeResponse(payload) {
+        if (Array.isArray(payload)) return { records: payload, raw: payload };
+        if (!payload || typeof payload !== 'object') return { records: [], raw: payload };
+        var records = payload.records || payload.list || payload.data || payload.Records || payload.List || payload.Data;
+        return { records: Array.isArray(records) ? records : [], raw: payload };
+    }
+
+    function requestRecords(endpoint, options) {
+        return request(endpoint, options).then(normalizeResponse);
+    }
+
     return {
         /**
          * G\u1eedi request GET
@@ -143,6 +159,9 @@ const ApiClient = (function () {
         delete: function (endpoint, options = {}) {
             return request(endpoint, { ...options, method: 'DELETE' });
         },
+
+        normalizeResponse: normalizeResponse,
+        requestRecords: requestRecords,
 
         // Expose cookie helpers to be used globally (e.g., in login and logout)
         setCookie: setCookie,

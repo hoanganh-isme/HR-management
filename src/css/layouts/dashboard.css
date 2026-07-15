@@ -4,7 +4,7 @@
    Không dùng inline styles trong JS — tất cả layout qua class.
    Các visual styles đã chuyển sang component CSS:
      - compare-badge.css, metric-card.css, sparkline.css
-     - kv-table.css, hall-gauge.css, section-panel.css
+     - kv-table.css, section-panel.css
    ═══════════════════════════════════════════ */
 
 /* ─── WARNING BANNER ─── */
@@ -532,7 +532,7 @@
 /* ─── TODAY GRID: 7 cột ngang liền mạch ─── */
 .db-today-grid {
   display: grid;
-  grid-template-columns: 1.3fr 1.3fr 1.4fr 1fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 /* Mỗi cell có border phải */
@@ -541,12 +541,6 @@
 }
 .db-today-grid > *:last-child {
   border-right: none;
-}
-
-/* Hall cell không dùng MetricCard layout */
-.db-today-hall-cell {
-  border-right: 1px solid var(--color-border);
-  background: rgba(79, 70, 229, 0.02);
 }
 
 /* ─── REVENUE GRID: 3 cột ─── */
@@ -662,10 +656,6 @@
     grid-template-columns: 1fr 1fr 1fr 1fr;
     grid-template-rows: auto auto;
   }
-  .db-today-hall-cell {
-    grid-column: 3 / 5;
-    border-right: none;
-  }
   .db-revenue-grid {
     grid-template-columns: 1.5fr 1fr 1fr;
   }
@@ -679,7 +669,6 @@
 
 @media (max-width: 900px) {
   .db-today-grid { grid-template-columns: 1fr 1fr; }
-  .db-today-hall-cell { grid-column: 1 / 3; border-right: none; }
   .db-revenue-grid { grid-template-columns: 1fr; }
   .db-revenue-main { border-right: none !important; border-bottom: 1px solid var(--color-border); }
   .db-revenue-stat-col { border-right: none !important; flex-direction: row; }
@@ -695,9 +684,6 @@
     gap: 1px;
     background: var(--color-border);
     border-bottom: 1px solid var(--color-border);
-  }
-  .db-today-hall-cell { 
-    grid-column: 1 / 3; 
   }
   .db-today-grid > * { 
     border: none !important; 

@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════
    Design Tokens — TailAdmin Style
-   Dành cho Quản lý Tiệc Cưới
+   Dành cho Quản lý Nhân sự
    ═══════════════════════════════════════════ */
 
 :root {
@@ -19,8 +19,10 @@
   /* Rose 500 - đỏ hồng hiện đại */
   --color-info: #0EA5E9;
 
-  /* Specific Banquet Colors */
-  --color-booking: #10B981;
+  /* Semantic HR status colors */
+  --color-attendance: #10B981;
+  --color-leave: #F59E0B;
+  --color-payroll: #4F46E5;
   --color-contract: #F43F5E;
 
   /* Surfaces & Backgrounds */

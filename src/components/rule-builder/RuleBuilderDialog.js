@@ -27,7 +27,7 @@
       
       var txtFormName = document.createElement('input');
       txtFormName.className = 'ui-input';
-      txtFormName.placeholder = 'Ví dụ: frmCustomer';
+      txtFormName.placeholder = 'Ví dụ: WA_PersonFullFrm';
       txtFormName.value = targetFormName;
       txtFormName.style.flex = '1';
       

@@ -107,55 +107,13 @@ window.API_CONFIG = {
             GET_MY_PERMISSIONS: '/api/API_LayQuyenCuaToi',
         },
 
-        BOOKING: {
-            LIST: '/api/API_DanhSachPhieuCoc',
-            SAVE: '/api/API_LuuPhieuCoc',
-            CANCEL: '/api/API_HuyPhieuCoc',
-            DELETE: '/api/API_XoaPhieuCoc',
-        },
-        CUSTOMER: {
-            SEARCH: '/api/API_DanhSachKhachHang',
-            SAVE: '/api/API_LuuKhachHang',
-        },
         SYSTEM: {
-            HALLS: '/api/API_DanhSachSanh',
             SHIFTS: '/api/API_DanhSachCaLam',
-            BANQUET_TYPES: '/api/API_DanhSachLoaiHinhTiec',
             SETUP_VALUE: '/api/API_LayGiaTriSetup',
             GET_UI_DICTIONARY: '/api/API_LayCacTruongGiaoDien',
             GET_FIELDS_LIST: '/api/API_DanhSachTruongGiaoDien',
             SAVE_FIELD: '/api/API_LuuTruongGiaoDien',
             DELETE_FIELD: '/api/API_XoaTruongGiaoDien'
-        },
-        CONTRACT: {
-            LIST: '/api/API_DanhSachHopDong',
-            SAVE: '/api/API_LuuHopDong',
-        },
-        FOODS: {
-            LIST: '/api/API_DanhSachThucDon',
-        },
-        CALENDAR: {
-            LIST: '/api/API_DanhSachLich',
-            SAVE: '/api/API_LuuLich',
-            LEGEND: '/api/API_LayChuThichLich'
-        },
-        REPORTS: {
-            SALES_STATS: '/api/API_Report_SalesStats',
-            REVENUE: '/api/API_Report_Revenue',
-            COST: '/api/API_Report_Cost',
-        },
-        VISITOR: {
-            LIST: '/api/API_DanhSachKhachDen',
-            SAVE: '/api/API_LuuKhachDen',
-        },
-        STAFF: {
-            LIST: '/api/API_DanhSachNhanVien',
-            SAVE: '/api/API_LuuNhanVien',
-        },
-        CHECKOUT: {
-            LIST: '/api/API_DanhSachQuyetToan',
-            SAVE: '/api/API_LuuQuyenToan',
-            CONTRACT_LIST: '/api/API_DanhSachHopDong',
         },
         MENUS: {
             GET_ALL: '/api/API_LayDanhSachMenuTatCa',

@@ -598,7 +598,11 @@ window.DynamicFormEngine = (function () {
     }
 
     $container = container;
-    MODULE_CONFIG = config;
+    // Keep DynamicFormEngine as the single CRUD path while allowing small,
+    // metadata-owned capabilities (mobile visibility, lookup, exports).
+    MODULE_CONFIG = (window.ModuleDefinition && typeof ModuleDefinition.create === 'function')
+      ? ModuleDefinition.create(config)
+      : config;
     currentFormName = config.FormName;
 
     // 2. Khôi phục state của module mới (nếu đã từng vào trước đó)
@@ -3671,7 +3675,7 @@ window.DynamicFormEngine = (function () {
     var targetFormInput = UIInput.createText({
       label: 'Nhập cho Tên Form nào? (*)',
       required: true,
-      placeholder: 'Ví dụ: frmCustomer'
+      placeholder: 'Ví dụ: WA_PersonFullFrm'
     });
     body.appendChild(targetFormInput);
 
@@ -3718,7 +3722,7 @@ window.DynamicFormEngine = (function () {
     function addRow() {
       var tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="p-1"><input type="text" class="ui-input" name="FieldName" placeholder="Ví dụ: CustomerID"></td>
+        <td class="p-1"><input type="text" class="ui-input" name="FieldName" placeholder="Ví dụ: PersonID"></td>
         <td class="p-1"><input type="text" class="ui-input" name="CaptionVN" placeholder="Tiêu đề hiển thị"></td>
         <td class="p-1">
           <select class="ui-input" name="FormatID">
@@ -5150,7 +5154,7 @@ window.DynamicFormEngine = (function () {
               formula = formula.split('{' + key + '}').join(v);
             }
             try {
-              var result = new Function('return ' + formula)();
+              var result = window.SafeFormula ? SafeFormula.evaluate(formula) : NaN;
               if (!isNaN(result) && isFinite(result)) {
                 var targetInput = body.querySelector('input[name="' + f.name + '"]');
                 if (targetInput && targetInput.value != result) {

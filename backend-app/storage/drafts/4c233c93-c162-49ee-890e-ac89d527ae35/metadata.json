@@ -1,0 +1,21 @@
+{
+  "maHopDong": "9999999999999999999999999",
+  "branchId": "COBI",
+  "templateFile": "HR_HopDongLaoDong3Report.docx",
+  "fileName": "9999999999999999999999999_HR_HopDongLaoDong3Report.docx",
+  "fileSize": 30568,
+  "userName": "admin",
+  "attachmentUserAutoID": "ce17ace7-dcdc-44ab-a5aa-6e9ee9d98f8f",
+  "draftId": "4c233c93-c162-49ee-890e-ac89d527ae35",
+  "editSessionId": "fce9cefe-9a86-431e-a78a-70e0ea87c7ba",
+  "documentKey": "8cf297bf77d70ef7aa5a5540af1a507eff433d1e",
+  "createdAt": "2026-07-15T08:15:30.771Z",
+  "updatedAt": "2026-07-15T08:16:54.649Z",
+  "finalCallbackCompleted": true,
+  "forceSaveCompleted": false,
+  "finalized": false,
+  "signingKeyId": "5d4ce798a4d5b14b",
+  "lastOnlyOfficeStatus": 2,
+  "lastCallbackError": null,
+  "lastCallbackAt": "2026-07-15T08:16:54.645Z"
+}

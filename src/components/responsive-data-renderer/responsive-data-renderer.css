@@ -1,0 +1,6 @@
+.responsive-data-renderer { width: 100%; min-width: 0; }
+.responsive-data-renderer__table { width: 100%; }
+@media (max-width: 768px) {
+  .responsive-data-renderer__table tbody td { min-height: 42px; }
+  .responsive-data-renderer__table tbody td::before { content: attr(data-label); }
+}

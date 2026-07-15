@@ -381,6 +381,9 @@ var DocumentExportPlugin = (function () {
       headers: headers,
       body: JSON.stringify({
         templateType: actualDocType,
+        // documentId is the internal HR-neutral name. Keep customerId as a
+        // compatibility alias because the document API still accepts it.
+        documentId: docId,
         customerId: docId,
         outputFileName: actualDocType + '_' + docId,
         rowData: row,

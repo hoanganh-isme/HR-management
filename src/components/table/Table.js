@@ -600,9 +600,9 @@ var UITable = (function () {
                   if (Array.isArray(parsed)) {
                     if (parsed.length === 0) return '<span style="color: var(--color-text-muted, #94a3b8); font-style: italic;">Trống</span>';
 
-                    // Check if it's a schedule (BatDau/KetThuc/NoiDung/Sanh)
+                    // Check if it's a generic schedule (time + content)
                     var isSchedule = parsed.some(function (item) {
-                      return item && (item.BatDau !== undefined || item.KetThuc !== undefined || item.Sanh !== undefined || item.NoiDung !== undefined);
+                      return item && (item.BatDau !== undefined || item.KetThuc !== undefined || item.NoiDung !== undefined);
                     });
 
                     // Check if it's payment (STT/SoTien/Ngay/NoiDung)
@@ -614,10 +614,9 @@ var UITable = (function () {
                       var html = '<div class="json-schedule-list" style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; padding: 2px 0;">';
                       parsed.forEach(function (item) {
                         var timeStr = (item.BatDau || '') + (item.KetThuc ? ' - ' + item.KetThuc : '');
-                        var hallStr = item.Sanh ? '<span style="background: rgba(59, 130, 246, 0.18); color: var(--color-primary, #4361ee); border-radius: 4px; padding: 1px 4px; font-weight: 600; margin-right: 4px;">' + item.Sanh + '</span>' : '';
                         var timeBadge = timeStr ? '<span style="background: rgba(16, 185, 129, 0.18); color: var(--color-success, #10b981); border-radius: 4px; padding: 1px 4px; font-weight: 600; margin-right: 4px; white-space: nowrap;">' + timeStr + '</span>' : '';
                         var contentStr = item.NoiDung ? '<span style="color: var(--color-text, inherit); font-weight: 500;">' + item.NoiDung + '</span>' : '';
-                        html += '<div class="schedule-row" style="display: flex; align-items: center; flex-wrap: wrap; gap: 2px;">' + timeBadge + hallStr + contentStr + '</div>';
+                        html += '<div class="schedule-row" style="display: flex; align-items: center; flex-wrap: wrap; gap: 2px;">' + timeBadge + contentStr + '</div>';
                       });
                       html += '</div>';
                       return html;
