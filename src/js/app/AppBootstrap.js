@@ -2,11 +2,26 @@ window.AppBootstrap = (function () {
   function startRouter() {
     if (typeof Router === 'undefined') return;
     if (!AppStorage.getStored('user', null)) { Router.init(); return; }
-    BranchRepository.getAll().then(function (response) {
-      var branches = Array.isArray(response) ? response : (response.data || response.list || response.records || []);
+    AppStorage.setStored('sys_branches', '[]');
+    UserContextRepository.resolveCurrent().catch(function (error) {
+      console.warn('[AppBootstrap] Unable to resolve user profile; branch gateway fallback will be used.', error);
+      return AppContext.getCurrentUser();
+    }).then(function (user) {
+      var scope = BranchAccessPolicy.getScope(user);
+      AppStorage.setStored('branch_scope', JSON.stringify({
+        UserName: AppContext.getUserName(),
+        UserGroupID: user && (user.UserGroupID || user.userGroupID || user.GroupID || ''),
+        BranchID: scope.branchIds.join(','),
+        IsAdmin: scope.isAdmin
+      }));
+      return BranchRepository.getAccessible();
+    }).then(function (branches) {
       AppStorage.setStored('sys_branches', JSON.stringify(branches));
       Router.init();
-    }).catch(function () { Router.init(); });
+    }).catch(function (error) {
+      console.error('[AppBootstrap] Unable to load branch scope.', error);
+      Router.init();
+    });
   }
 
   function renderNavbar() {
@@ -54,4 +69,3 @@ window.AppBootstrap = (function () {
   }
   return { start: start };
 })();
-

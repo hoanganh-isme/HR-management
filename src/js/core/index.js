@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     AppStorage.removeStored('user');
+    AppStorage.removeStored('sys_branches');
+    AppStorage.removeStored('auth_username');
     if (typeof ApiClient !== 'undefined' && ApiClient.deleteCookie) {
       ApiClient.deleteCookie('auth_token');
     }

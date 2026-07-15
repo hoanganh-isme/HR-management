@@ -77,6 +77,7 @@ window.MetadataModuleConfig = (function () {
   }
 
   function isAdminUser(user) {
+    if (window.BranchAccessPolicy) return BranchAccessPolicy.isAdmin(user);
     var source = user || {};
     if (source.IsAdmin === true || source.IsAdmin === 1 || String(source.IsAdmin).toLowerCase() === 'true') {
       return true;

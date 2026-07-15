@@ -96,7 +96,11 @@ const ApiClient = (function () {
             const textResponse = await response.text();
             try {
                 // Trả về Object nếu JSON hợp lệ
-                return textResponse ? JSON.parse(textResponse) : {};
+                const parsedResponse = textResponse ? JSON.parse(textResponse) : {};
+                if (window.BranchAccessPolicy && window.AppContext) {
+                    return BranchAccessPolicy.applyResponseScope(parsedResponse, AppContext.getCurrentUser());
+                }
+                return parsedResponse;
             } catch (err) {
                 // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
                 return textResponse;
@@ -200,14 +204,203 @@ window.AppStorage = (function () {
 
 /* --- js/app/AppContext.js --- */
 window.AppContext = {
-  getCurrentUser: function () {
+  _resolvedUser: null,
+  getRawSession: function () {
     try { return JSON.parse(AppStorage.getStored('user', '{}') || '{}'); } catch (error) { return {}; }
+  },
+  getCurrentUser: function () {
+    var session = this.getRawSession();
+    if (!session || typeof session !== 'object') return {};
+    var candidates = [session.user, session.User, session.data, session.Data, session.records, session.Records];
+    for (var i = 0; i < candidates.length; i++) {
+      var candidate = Array.isArray(candidates[i]) ? candidates[i][0] : candidates[i];
+      if (candidate && typeof candidate === 'object') {
+        return Object.assign({}, session, candidate, this._resolvedUser || {});
+      }
+    }
+    return Object.assign({}, session, this._resolvedUser || {});
+  },
+  setResolvedUser: function (user) {
+    this._resolvedUser = user && typeof user === 'object' ? Object.assign({}, user) : null;
+    return this.getCurrentUser();
   },
   getUserName: function () {
     var user = this.getCurrentUser();
-    return user.UserName || user.username || user.userName || '';
+    return user.UserName || user.Username || user.username || user.userName ||
+      user.LoginName || user.loginName || user.Account || user.account ||
+      AppStorage.getStored('auth_username', '') || '';
   }
 };
+
+/* --- js/app/BranchAccessPolicy.js --- */
+/**
+ * Central branch scope policy. The database remains the source of assigned BranchID values;
+ * this module only normalizes and applies that scope consistently in the browser.
+ */
+window.BranchAccessPolicy = (function () {
+  function _read(source, names) {
+    source = source || {};
+    for (var i = 0; i < names.length; i++) {
+      if (source[names[i]] !== undefined && source[names[i]] !== null) return source[names[i]];
+    }
+    return '';
+  }
+
+  function _normalizeId(value) {
+    return String(value == null ? '' : value).trim().toUpperCase();
+  }
+
+  function getAssignedBranchIds(user) {
+    var raw = _read(user, ['BranchID', 'branchID', 'branchId', 'Branches', 'BranchCodes']);
+    var values = Array.isArray(raw) ? raw : String(raw || '').split(',');
+    var seen = {};
+    var result = [];
+
+    values.forEach(function (value) {
+      var rawId = value && typeof value === 'object'
+        ? _read(value, ['BranchID', 'branchID', 'branchId', 'Code', 'id', 'value'])
+        : value;
+      var id = _normalizeId(rawId);
+      if (id && !seen[id]) {
+        seen[id] = true;
+        result.push(id);
+      }
+    });
+    return result;
+  }
+
+  function isAdmin(user) {
+    var source = user || {};
+    var groupId = _normalizeId(_read(source, [
+      'UserGroupID', 'userGroupID', 'userGroupId', 'GroupID', 'Group', 'GroupUser', 'NhomQuyen'
+    ]));
+    var configured = window.APP_SETTINGS && Array.isArray(window.APP_SETTINGS.adminGroupIds)
+      ? window.APP_SETTINGS.adminGroupIds
+      : [];
+    if (groupId) {
+      return configured.some(function (id) { return _normalizeId(id) === groupId; });
+    }
+
+    // Keep compatibility with APIs that do not return a group, while preventing
+    // a generic IsAdmin flag from promoting a known non-admin group.
+    var explicit = _read(source, ['IsAdmin', 'isAdmin']);
+    return explicit === true || explicit === 1 || String(explicit).toLowerCase() === 'true';
+  }
+
+  function getScope(user) {
+    var source = user || (window.AppContext ? AppContext.getCurrentUser() : {});
+    var admin = isAdmin(source);
+    var branchIds = getAssignedBranchIds(source);
+    return {
+      isAdmin: admin,
+      branchIds: branchIds,
+      defaultBranch: admin ? '' : branchIds.join(',')
+    };
+  }
+
+  function _branchIdFromRow(row) {
+    return _read(row, ['BranchID', 'branchID', 'branchId', 'BranchCode', 'Code', 'id', 'value']);
+  }
+
+  function filterBranches(rows, user) {
+    var list = Array.isArray(rows) ? rows : [];
+    var scope = getScope(user);
+    if (scope.isAdmin) return list.slice();
+    if (scope.branchIds.length === 0) return [];
+
+    var allowed = {};
+    scope.branchIds.forEach(function (id) { allowed[id] = true; });
+    return list.filter(function (row) { return !!allowed[_normalizeId(_branchIdFromRow(row))]; });
+  }
+
+  function isBranchLookup(field) {
+    var source = field || {};
+    var fieldName = _normalizeId(_read(source, ['name', 'FieldName', 'fieldName']));
+    var valueField = _normalizeId(_read(source, ['valueField', 'ValueField']));
+    var dataSource = _normalizeId(_read(source, ['dataSource', 'DataSource', 'api', 'listName']));
+    return fieldName === 'BRANCHID' || valueField === 'BRANCHID' || dataSource.indexOf('CF_BRANCHLISTFRM') > -1;
+  }
+
+  function filterLookupRows(rows, field, user) {
+    return isBranchLookup(field) ? filterBranches(rows, user) : (Array.isArray(rows) ? rows : []);
+  }
+
+  function applyScopeToFilter(filter, user, fieldName) {
+    var result = Object.assign({}, filter || {});
+    var scope = getScope(user);
+    var key = fieldName || 'BranchID';
+    if (scope.isAdmin) return result;
+
+    var requested = getAssignedBranchIds({ BranchID: result[key] || result.ChiNhanhID || '' });
+    var allowed = {};
+    scope.branchIds.forEach(function (id) { allowed[id] = true; });
+    var effective = requested.length > 0
+      ? requested.filter(function (id) { return !!allowed[id]; })
+      : scope.branchIds;
+
+    delete result.ChiNhanhID;
+    result[key] = effective.join(',');
+    return result;
+  }
+
+  function filterScopedRows(rows, user) {
+    var list = Array.isArray(rows) ? rows : [];
+    var scope = getScope(user);
+    if (scope.isAdmin) return list.slice();
+
+    var allowed = {};
+    scope.branchIds.forEach(function (id) { allowed[id] = true; });
+    return list.filter(function (row) {
+      if (!row || typeof row !== 'object') return true;
+      var hasBranchField = Object.keys(row).some(function (key) {
+        return key.toLowerCase() === 'branchid';
+      });
+      if (!hasBranchField) return true;
+      if (scope.branchIds.length === 0) return false;
+      return getAssignedBranchIds({ BranchID: _branchIdFromRow(row) }).some(function (id) {
+        return !!allowed[id];
+      });
+    });
+  }
+
+  function applyResponseScope(response, user) {
+    if (!response || typeof response !== 'object') return response;
+    if (Array.isArray(response)) return filterScopedRows(response, user);
+
+    var result = Object.assign({}, response);
+    var arrayKeys = ['records', 'list', 'data', 'Records', 'List', 'Data'];
+    var scopedKey = '';
+    arrayKeys.some(function (key) {
+      if (Array.isArray(response[key])) {
+        scopedKey = key;
+        return true;
+      }
+      return false;
+    });
+    if (!scopedKey) return response;
+
+    var originalRows = response[scopedKey];
+    var scopedRows = filterScopedRows(originalRows, user);
+    result[scopedKey] = scopedRows;
+    if (scopedRows.length !== originalRows.length) {
+      if (result._recordtotal !== undefined) result._recordtotal = scopedRows.length;
+      if (result._pagetotal !== undefined) result._pagetotal = scopedRows.length > 0 ? 1 : 0;
+    }
+    return result;
+  }
+
+  return {
+    getAssignedBranchIds: getAssignedBranchIds,
+    isAdmin: isAdmin,
+    getScope: getScope,
+    filterBranches: filterBranches,
+    isBranchLookup: isBranchLookup,
+    filterLookupRows: filterLookupRows,
+    applyScopeToFilter: applyScopeToFilter,
+    filterScopedRows: filterScopedRows,
+    applyResponseScope: applyResponseScope
+  };
+})();
 
 /* --- js/app/LegacyCompatibility.js --- */
 window.LegacyCompatibility = (function () {
@@ -253,11 +446,26 @@ window.AppBootstrap = (function () {
   function startRouter() {
     if (typeof Router === 'undefined') return;
     if (!AppStorage.getStored('user', null)) { Router.init(); return; }
-    BranchRepository.getAll().then(function (response) {
-      var branches = Array.isArray(response) ? response : (response.data || response.list || response.records || []);
+    AppStorage.setStored('sys_branches', '[]');
+    UserContextRepository.resolveCurrent().catch(function (error) {
+      console.warn('[AppBootstrap] Unable to resolve user profile; branch gateway fallback will be used.', error);
+      return AppContext.getCurrentUser();
+    }).then(function (user) {
+      var scope = BranchAccessPolicy.getScope(user);
+      AppStorage.setStored('branch_scope', JSON.stringify({
+        UserName: AppContext.getUserName(),
+        UserGroupID: user && (user.UserGroupID || user.userGroupID || user.GroupID || ''),
+        BranchID: scope.branchIds.join(','),
+        IsAdmin: scope.isAdmin
+      }));
+      return BranchRepository.getAccessible();
+    }).then(function (branches) {
       AppStorage.setStored('sys_branches', JSON.stringify(branches));
       Router.init();
-    }).catch(function () { Router.init(); });
+    }).catch(function (error) {
+      console.error('[AppBootstrap] Unable to load branch scope.', error);
+      Router.init();
+    });
   }
 
   function renderNavbar() {
@@ -394,11 +602,91 @@ window.LookupRepository = {
 };
 
 /* --- js/data/BranchRepository.js --- */
-window.BranchRepository = {
-  getAll: function () {
-    return GatewayClient.view('CF_BranchListFrm', { limit: 1000 });
+window.BranchRepository = (function () {
+  function _rows(response) {
+    return Array.isArray(response)
+      ? response
+      : ((response && (response.data || response.list || response.records || response.Data || response.List || response.Records)) || []);
   }
-};
+
+  function getAccessible() {
+    var user = AppContext.getCurrentUser();
+    var scope = BranchAccessPolicy.getScope(user);
+    var userName = AppContext.getUserName();
+    if (!userName) return Promise.resolve([]);
+
+    var filter = scope.isAdmin ? {} : { BranchID: scope.branchIds.join(',') };
+    return GatewayClient.execute('CF_BranchListFrm', filter, {
+      limit: 1000,
+      payload: { UserName: userName }
+    }).then(function (response) {
+      var rows = _rows(response);
+      if (!scope.isAdmin && scope.branchIds.length === 0) return [];
+      return BranchAccessPolicy.filterBranches(rows, user);
+    });
+  }
+
+  return { getAccessible: getAccessible, getAll: getAccessible };
+})();
+
+/* --- js/data/UserContextRepository.js --- */
+/**
+ * Resolves the authoritative user context when the login endpoint only returns tokens.
+ */
+window.UserContextRepository = (function () {
+  function _rows(response) {
+    return Array.isArray(response)
+      ? response
+      : ((response && (response.data || response.list || response.records || response.Data || response.List || response.Records)) || []);
+  }
+
+  function _userName(row) {
+    return String((row && (row.UserName || row.Username || row.username || row.userName)) || '').trim();
+  }
+
+  function _withoutSecrets(row) {
+    var safe = {};
+    Object.keys(row || {}).forEach(function (key) {
+      if (!/password|token|secret/i.test(key)) safe[key] = row[key];
+    });
+    return safe;
+  }
+
+  function _responseContext(response) {
+    if (!response || typeof response !== 'object' || Array.isArray(response)) return {};
+    var context = {};
+    Object.keys(response).forEach(function (key) {
+      var value = response[key];
+      if (!Array.isArray(value) && value !== null && typeof value !== 'object') context[key] = value;
+    });
+    return context;
+  }
+
+  function resolveCurrent() {
+    var current = AppContext.getCurrentUser();
+    var userName = AppContext.getUserName();
+    if (!userName) return Promise.resolve(current);
+
+    return GatewayClient.view('WA_NguoiDungFrm', {
+      keyword: userName,
+      limit: 50,
+      payload: { UserName: userName }
+    }).then(function (response) {
+      var normalizedName = userName.toLowerCase();
+      var row = _rows(response).find(function (item) {
+        return _userName(item).toLowerCase() === normalizedName;
+      });
+      // Gateway fields are authoritative. Some legacy APIs also return a partial
+      // records[0], which must not overwrite the user's BranchID or group.
+      var resolved = Object.assign({}, row || {}, _responseContext(response));
+      return _userName(resolved)
+        ? AppContext.setResolvedUser(_withoutSecrets(resolved))
+        : current;
+    });
+  }
+
+  return { resolveCurrent: resolveCurrent };
+})();
 
 /* --- js/utils/permission.js --- */
 /**
@@ -11607,6 +11895,7 @@ window.MetadataModuleConfig = (function () {
   }
 
   function isAdminUser(user) {
+    if (window.BranchAccessPolicy) return BranchAccessPolicy.isAdmin(user);
     var source = user || {};
     if (source.IsAdmin === true || source.IsAdmin === 1 || String(source.IsAdmin).toLowerCase() === 'true') {
       return true;
@@ -15607,6 +15896,12 @@ window.DynamicFormEngine = (function () {
                 var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
                 ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
                   var dataList = res.list || res.records || [];
+                  if (window.BranchAccessPolicy && window.BranchAccessPolicy.filterLookupRows) {
+                    var uStr = window.AppStorage ? AppStorage.getStored('user') : localStorage.getItem('pmql_user');
+                    var userObj = {};
+                    try { userObj = JSON.parse(uStr || '{}'); } catch(e){}
+                    dataList = BranchAccessPolicy.filterLookupRows(dataList, { dataSource: f.dataSource, name: f.name }, userObj);
+                  }
                   var options = [];
                   if (dataList && dataList.length > 0) {
                     var keys = Object.keys(dataList[0]);
@@ -15827,10 +16122,9 @@ window.DynamicFormEngine = (function () {
         }
       }
 
-      // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
+      // Resolve the effective branch scope before building the gateway payload.
       var _sessionUser = {};
       try { _sessionUser = AppContext.getCurrentUser(); } catch (e) { }
-      var _branchID = (_sessionUser.BranchID || '').toString().trim();
 
       var query = {
         List: MODULE_CONFIG.FormName,
@@ -15844,13 +16138,9 @@ window.DynamicFormEngine = (function () {
         Keyword: currentKeyword || ''
       };
 
-      // Gửi BranchID vào JsonData để backend API Gateway mapping thành tham số SP
-      if (_branchID) {
-        // Chỉ thêm nếu user chưa chủ động filter chi nhánh
-        if (!activeFilters.BranchID && !activeFilters.ChiNhanhID) {
-          activeFilters.BranchID = _branchID;
-        }
-      }
+      var requestFilters = window.BranchAccessPolicy
+        ? BranchAccessPolicy.applyScopeToFilter(activeFilters, _sessionUser)
+        : Object.assign({}, activeFilters);
 
       if (MODULE_CONFIG.IsFullPageDetail) {
         query.Limit = 1;
@@ -15859,8 +16149,8 @@ window.DynamicFormEngine = (function () {
         var detailFilter = {};
         detailFilter[MODULE_CONFIG.PrimaryKey] = MODULE_CONFIG.DetailRowId;
         query.JsonData = JSON.stringify(detailFilter);
-      } else if (Object.keys(activeFilters).length > 0) {
-        query.JsonData = JSON.stringify(activeFilters);
+      } else if (Object.keys(requestFilters).length > 0) {
+        query.JsonData = JSON.stringify(requestFilters);
       }
 
       console.log('[DynamicFormEngine] Sending query to ApiSearch:', query);
@@ -17963,6 +18253,12 @@ window.DynamicFormEngine = (function () {
               }
               optionRequest.then(function (res) {
                 var dataList = res.list || res.records || [];
+                if (window.BranchAccessPolicy && window.BranchAccessPolicy.filterLookupRows) {
+                  var uStr = window.AppStorage ? AppStorage.getStored('user') : localStorage.getItem('pmql_user');
+                  var userObj = {};
+                  try { userObj = JSON.parse(uStr || '{}'); } catch(e){}
+                  dataList = BranchAccessPolicy.filterLookupRows(dataList, field, userObj);
+                }
                 var optionTable = _buildOptionTable(dataList, field, 0);
                 var newCombo = UIControls.createDataComboBox({
                   placeholder: '-- Chọn --', headers: optionTable.headers, data: optionTable.data, colFilterIndex: optionTable.colFilterIndex,
@@ -21743,6 +22039,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     AppStorage.removeStored('user');
+    AppStorage.removeStored('sys_branches');
+    AppStorage.removeStored('auth_username');
     if (typeof ApiClient !== 'undefined' && ApiClient.deleteCookie) {
       ApiClient.deleteCookie('auth_token');
     }

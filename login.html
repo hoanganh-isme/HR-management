@@ -708,6 +708,7 @@
                   localStorage.removeItem('remember_user');
                   localStorage.removeItem('remember_pw');
                 }
+                AppStorage.set('auth_username', user);
                 AppStorage.set('user', JSON.stringify(res));
                 window.location.href = 'index.html';
               } else {

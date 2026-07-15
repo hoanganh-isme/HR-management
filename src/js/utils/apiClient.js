@@ -94,7 +94,11 @@ const ApiClient = (function () {
             const textResponse = await response.text();
             try {
                 // Trả về Object nếu JSON hợp lệ
-                return textResponse ? JSON.parse(textResponse) : {};
+                const parsedResponse = textResponse ? JSON.parse(textResponse) : {};
+                if (window.BranchAccessPolicy && window.AppContext) {
+                    return BranchAccessPolicy.applyResponseScope(parsedResponse, AppContext.getCurrentUser());
+                }
+                return parsedResponse;
             } catch (err) {
                 // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
                 return textResponse;

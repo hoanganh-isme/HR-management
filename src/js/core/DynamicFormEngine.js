@@ -1843,6 +1843,12 @@ window.DynamicFormEngine = (function () {
                 var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
                 ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
                   var dataList = res.list || res.records || [];
+                  if (window.BranchAccessPolicy && window.BranchAccessPolicy.filterLookupRows) {
+                    var uStr = window.AppStorage ? AppStorage.getStored('user') : localStorage.getItem('pmql_user');
+                    var userObj = {};
+                    try { userObj = JSON.parse(uStr || '{}'); } catch(e){}
+                    dataList = BranchAccessPolicy.filterLookupRows(dataList, { dataSource: f.dataSource, name: f.name }, userObj);
+                  }
                   var options = [];
                   if (dataList && dataList.length > 0) {
                     var keys = Object.keys(dataList[0]);
@@ -2063,10 +2069,9 @@ window.DynamicFormEngine = (function () {
         }
       }
 
-      // Đọc BranchID từ session user (backend dùng để lọc theo chi nhánh)
+      // Resolve the effective branch scope before building the gateway payload.
       var _sessionUser = {};
       try { _sessionUser = AppContext.getCurrentUser(); } catch (e) { }
-      var _branchID = (_sessionUser.BranchID || '').toString().trim();
 
       var query = {
         List: MODULE_CONFIG.FormName,
@@ -2080,13 +2085,9 @@ window.DynamicFormEngine = (function () {
         Keyword: currentKeyword || ''
       };
 
-      // Gửi BranchID vào JsonData để backend API Gateway mapping thành tham số SP
-      if (_branchID) {
-        // Chỉ thêm nếu user chưa chủ động filter chi nhánh
-        if (!activeFilters.BranchID && !activeFilters.ChiNhanhID) {
-          activeFilters.BranchID = _branchID;
-        }
-      }
+      var requestFilters = window.BranchAccessPolicy
+        ? BranchAccessPolicy.applyScopeToFilter(activeFilters, _sessionUser)
+        : Object.assign({}, activeFilters);
 
       if (MODULE_CONFIG.IsFullPageDetail) {
         query.Limit = 1;
@@ -2095,8 +2096,8 @@ window.DynamicFormEngine = (function () {
         var detailFilter = {};
         detailFilter[MODULE_CONFIG.PrimaryKey] = MODULE_CONFIG.DetailRowId;
         query.JsonData = JSON.stringify(detailFilter);
-      } else if (Object.keys(activeFilters).length > 0) {
-        query.JsonData = JSON.stringify(activeFilters);
+      } else if (Object.keys(requestFilters).length > 0) {
+        query.JsonData = JSON.stringify(requestFilters);
       }
 
       console.log('[DynamicFormEngine] Sending query to ApiSearch:', query);
@@ -4199,6 +4200,12 @@ window.DynamicFormEngine = (function () {
               }
               optionRequest.then(function (res) {
                 var dataList = res.list || res.records || [];
+                if (window.BranchAccessPolicy && window.BranchAccessPolicy.filterLookupRows) {
+                  var uStr = window.AppStorage ? AppStorage.getStored('user') : localStorage.getItem('pmql_user');
+                  var userObj = {};
+                  try { userObj = JSON.parse(uStr || '{}'); } catch(e){}
+                  dataList = BranchAccessPolicy.filterLookupRows(dataList, field, userObj);
+                }
                 var optionTable = _buildOptionTable(dataList, field, 0);
                 var newCombo = UIControls.createDataComboBox({
                   placeholder: '-- Chọn --', headers: optionTable.headers, data: optionTable.data, colFilterIndex: optionTable.colFilterIndex,
