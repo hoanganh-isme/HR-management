@@ -26,7 +26,7 @@ var FormBuilderPlugin = (function () {
 
   // ── Lấy Nút Cấu Hình Toolbar ──────────────────────────────────────────────
   function getExtraButtons(formName, getSelectedRows, moduleConfig, onReloadFormEngine) {
-    if ((window.location.hash || '').indexOf('/system/form-builder') === -1) return [];
+    if ((window.location.hash || '').indexOf('form-builder') === -1) return [];
 
     return [
       {

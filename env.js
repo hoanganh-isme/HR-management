@@ -8,6 +8,8 @@
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
     API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
+    DOCUMENT_SERVICE_BASE: (window.HRM_RUNTIME_CONFIG && window.HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE) || 'http://127.0.0.1:8081',
+    ONLYOFFICE_PUBLIC_URL: (window.HRM_RUNTIME_CONFIG && window.HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL) || 'http://127.0.0.1:8001',
 
     // Tự động phát hiện HOST chạy (Local dev vs Production)
     get BACKEND_HOST() {
@@ -42,7 +44,7 @@ const ENV_VARS = {
     },
 
     get ONLYOFFICE_HOST() {
-        return this.BACKEND_HOST + ':8000';
+        return this.BACKEND_HOST + ':8001';
     }
 };
 
@@ -59,41 +61,23 @@ window.API_CONFIG = {
         },
 
         DOCUMENT_MANAGER: {
-            NODE_IP: ENV_VARS.BACKEND_HOST,
-            get BASE_API() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/api/documents'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/documents';
-            },
+            SERVICE_BASE: ENV_VARS.DOCUMENT_SERVICE_BASE,
+            CONTRACT_API_BASE: ENV_VARS.DOCUMENT_SERVICE_BASE + '/api',
+            LEGACY_DOCUMENT_API_BASE: ENV_VARS.DOCUMENT_SERVICE_BASE + '/api/documents',
+            ONLYOFFICE_PUBLIC_URL: ENV_VARS.ONLYOFFICE_PUBLIC_URL,
+            NODE_IP: '127.0.0.1',
+            get BASE_API() { return this.LEGACY_DOCUMENT_API_BASE; },
             get ONLYOFFICE_API() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/onlyoffice/web-apps/apps/api/documents/api.js'
-                    : 'https://qlt.bms79.com/onlyoffice/web-apps/apps/api/documents/api.js';
+                return this.ONLYOFFICE_PUBLIC_URL + '/web-apps/apps/api/documents/api.js';
             },
             get UPLOADS_URL() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/uploads/'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/uploads/';
+                return this.SERVICE_BASE + '/uploads/';
             },
             get SAMPLES_URL() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/samples/'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/samples/';
+                return this.SERVICE_BASE + '/samples/';
             },
             get UPLOAD_LOGO_API() {
-                var useProxy = typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http');
-                var origin = (typeof window !== 'undefined' && window.location) ? window.location.origin : '';
-                return useProxy
-                    ? origin + '/docserver/api/upload-logo'
-                    : 'http://' + ENV_VARS.BACKEND_HOST + ':8083/api/upload-logo';
+                return this.SERVICE_BASE + '/api/upload-logo';
             }
         },
 

@@ -24,26 +24,65 @@ window.DynamicAttachmentManager = (function () {
     overlay.onclick = function () { overlay.remove(); };
   }
 
-  function contentUrl(item) {
+  function contentBytes(item) {
     var content = item.Content || item.content || item.Base64Content || item.base64Content || '';
-    if (!content) return '';
-    var name = String(item.FileName || '').toLowerCase();
-    var mime = name.endsWith('.pdf') ? 'application/pdf' : (name.match(/\.(png|gif|webp)$/) ? 'image/' + name.split('.').pop() : (name.match(/\.(jpg|jpeg)$/) ? 'image/jpeg' : 'application/octet-stream'));
+    if (!content) return null;
     try {
       if (/^0x[0-9a-f]+$/i.test(String(content).trim())) {
         var hex = String(content).trim().slice(2);
         var bytes = new Uint8Array(hex.length / 2);
         for (var i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-        return URL.createObjectURL(new Blob([bytes], { type: mime }));
+        return bytes;
       }
       var base64 = String(content).trim().replace(/^data:[^;]+;base64,/, '');
       var binary = window.atob(base64);
       var data = new Uint8Array(binary.length);
       for (var j = 0; j < binary.length; j++) data[j] = binary.charCodeAt(j);
-      return URL.createObjectURL(new Blob([data], { type: mime }));
+      return data;
     } catch (e) {
-      return '';
+      return null;
     }
+  }
+
+  function hasPrefix(bytes, values) {
+    if (!bytes || bytes.length < values.length) return false;
+    for (var i = 0; i < values.length; i++) {
+      if (bytes[i] !== values[i]) return false;
+    }
+    return true;
+  }
+
+  function attachmentInfo(item) {
+    var bytes = contentBytes(item);
+    if (!bytes) return null;
+    var originalName = String(item.FileName || '').trim();
+    var lowerName = originalName.toLowerCase();
+    var isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(originalName);
+    var isPdf = lowerName.endsWith('.pdf') || hasPrefix(bytes, [0x25, 0x50, 0x44, 0x46]);
+    // DOCX is a ZIP package. Legacy attachment rows may have only a UUID as
+    // FileName, so infer .docx from the package signature for a useful name.
+    var isDocx = lowerName.endsWith('.docx') || (!isImage && !isPdf && hasPrefix(bytes, [0x50, 0x4b, 0x03, 0x04]));
+    var mime = isPdf ? 'application/pdf' : (lowerName.match(/\.(png|gif|webp)$/) ? 'image/' + lowerName.split('.').pop() : (lowerName.match(/\.(jpg|jpeg)$/) ? 'image/jpeg' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'));
+    var fileName = originalName || 'tai-lieu';
+    if (isDocx && !/\.docx$/i.test(fileName)) fileName += '.docx';
+    return {
+      url: URL.createObjectURL(new Blob([bytes], { type: mime })),
+      fileName: fileName,
+      isImage: isImage,
+      isPdf: isPdf,
+      isDocx: isDocx
+    };
+  }
+
+  function downloadBlob(info) {
+    var link = document.createElement('a');
+    link.href = info.url;
+    link.download = info.fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(info.url); }, 1000);
   }
 
   function create(options) {
@@ -87,8 +126,9 @@ window.DynamicAttachmentManager = (function () {
           icon.className = 'material-symbols-outlined';
           icon.textContent = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.FileName || '') ? 'image' : (/\.pdf$/i.test(item.FileName || '') ? 'picture_as_pdf' : 'description');
           icon.style.cssText = 'font-size:24px;color:var(--color-primary);';
-          var blobUrl = contentUrl(item);
-          if (blobUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(item.FileName || '')) {
+          var attachment = attachmentInfo(item);
+          var blobUrl = attachment && attachment.url;
+          if (blobUrl && attachment.isImage) {
             var thumb = document.createElement('img');
             thumb.src = blobUrl;
             thumb.style.cssText = 'width:40px;height:40px;object-fit:cover;border-radius:6px;cursor:zoom-in;';
@@ -117,8 +157,11 @@ window.DynamicAttachmentManager = (function () {
             var open = document.createElement('button');
             open.type = 'button';
             open.className = 'btn btn-sm btn-outline-primary';
-            open.textContent = 'Mở';
-            open.onclick = function () { window.open(blobUrl, '_blank', 'noopener'); };
+            open.textContent = attachment.isDocx ? 'Tải DOCX' : 'Mở';
+            open.onclick = function () {
+              if (attachment.isDocx) downloadBlob(attachment);
+              else window.open(blobUrl, '_blank', 'noopener');
+            };
             actions.appendChild(open);
           }
           if (isEditable && tabDef.primaryKey && attachmentKey) {

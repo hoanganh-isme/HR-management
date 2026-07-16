@@ -696,6 +696,7 @@
                   localStorage.removeItem('remember_user');
                   localStorage.removeItem('remember_pw');
                 }
+                res.UserName = res.UserName || res.Username || res.username || res.TaiKhoan || user;
                 localStorage.setItem('pmql_user', JSON.stringify(res));
                 window.location.href = 'index.html';
               } else {

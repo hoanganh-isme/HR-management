@@ -7,16 +7,21 @@ import { fileURLToPath } from 'url';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import crypto from 'crypto';
+import { documentConfig } from './src/config/document-config.js';
+import { createContractDocumentStore } from './src/contracts/contract-document.store.js';
+import { createContractDocumentDb } from './src/contracts/contract-document.db.js';
+import { createContractDocumentService } from './src/contracts/contract-document.service.js';
+import { createContractDocumentRouter } from './src/contracts/contract-document.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 8081;
+const PORT = documentConfig.port;
 
 // Setup directories
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const SAMPLES_DIR = path.join(__dirname, 'samples');
+const UPLOADS_DIR = documentConfig.paths.uploadsDir;
+const SAMPLES_DIR = documentConfig.paths.samplesDir;
 
 [UPLOADS_DIR, SAMPLES_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -40,21 +45,22 @@ try {
     console.warn('[MIGRATE] ⚠️ Lỗi migrate file cũ:', migrateErr.message);
 }
 
-app.use(cors({ origin: '*' }));
+app.use(cors({
+    origin(origin, callback) {
+        if (!origin || documentConfig.corsAllowedOrigins.includes(origin)) return callback(null, true);
+        const error = new Error(`Origin không được CORS cho phép: ${origin}`);
+        error.statusCode = 403;
+        return callback(error);
+    },
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Username']
+}));
 
-app.use('/uploads', function (req, res, next) {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', '*');
-    next();
-}, express.static(UPLOADS_DIR));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
-app.use('/samples', function (req, res, next) {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', '*');
-    next();
-}, express.static(SAMPLES_DIR));
+app.use('/samples', express.static(SAMPLES_DIR));
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
@@ -64,38 +70,18 @@ app.use((err, req, res, next) => {
     next();
 });
 
-let SQL_API_BASE;
-const SQL_API_USER = 'admin';
+const SQL_API_BASE = documentConfig.sqlApiBase;
+const SQL_API_USER = documentConfig.sqlApiUser;
 
-// Load env.js config
-try {
-    const possiblePaths = [
-        path.join(__dirname, '../env.js'),
-        path.join(__dirname, 'env.js'),
-        '/env.js',
-        '/app/env.js'
-    ];
-    let envJsPath = null;
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
-            envJsPath = p;
-            break;
-        }
-    }
-    if (!envJsPath) {
-        throw new Error(`Không tìm thấy file env.js ở bất kỳ đường dẫn nào: ${possiblePaths.join(', ')}`);
-    }
-    const envContent = fs.readFileSync(envJsPath, 'utf8');
-    const matchBase = envContent.match(/API_BASE\s*:\s*['"`](.*?)['"`]/);
-    if (!matchBase || !matchBase[1]) {
-        throw new Error('Không tìm thấy API_BASE trong file env.js!');
-    }
-    SQL_API_BASE = matchBase[1].trim();
-    console.log(`[CONFIG] Đã tải SQL_API_BASE từ env.js (${envJsPath}): ${SQL_API_BASE}`);
-} catch (err) {
-    console.error('[CRITICAL] Không thể chạy server vì thiếu cấu hình env.js:', err.message);
-    process.exit(1);
-}
+const contractDocumentStore = createContractDocumentStore(documentConfig);
+const contractDocumentDb = createContractDocumentDb(documentConfig);
+const contractDocumentService = createContractDocumentService(
+    documentConfig,
+    contractDocumentStore,
+    contractDocumentDb
+);
+
+app.use('/api', createContractDocumentRouter(documentConfig, contractDocumentService));
 
 function extractUserName(req) {
     const authHeader = req.headers.authorization;
@@ -339,7 +325,7 @@ app.get('/api/documents/fields/:listName', async (req, res) => {
         let formFields = [];
         try {
             const fieldsUrl = `${SQL_API_BASE}/api/API_DanhSachTruongGiaoDien`;
-            const payload = { FormName: sqlListName, Username: 'admin', Limit: 1000 };
+            const payload = { FormName: sqlListName, Username: extractUserName(req), Limit: 1000 };
             const headers = {};
             if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
             const fieldsResp = await axios.post(fieldsUrl, payload, { headers, timeout: 5000 });
@@ -766,6 +752,19 @@ function findTemplatePath(baseDir, templateName) {
     return findRecursive(baseDir);
 }
 
+app.get('/health', async (req, res) => {
+    const storageWritable = await contractDocumentService.storageIsWritable();
+    res.status(storageWritable ? 200 : 503).json({
+        status: storageWritable ? 'ok' : 'degraded',
+        service: 'HR Contract Document API',
+        environment: documentConfig.environment,
+        onlyOfficeConfigured: Boolean(documentConfig.onlyOfficePublicUrl),
+        samplesAvailable: fs.existsSync(SAMPLES_DIR),
+        storageWritable,
+        sqlApiConfigured: Boolean(SQL_API_BASE)
+    });
+});
+
 app.get('/', (req, res) => {
     res.json({
         service: 'HR Document API',
@@ -779,11 +778,28 @@ app.get('/', (req, res) => {
     });
 });
 
+contractDocumentService.cleanupExpired().catch((error) => {
+    console.error('[CONTRACT CLEANUP]', error.message);
+});
+const cleanupTimer = setInterval(() => {
+    contractDocumentService.cleanupExpired().catch((error) => {
+        console.error('[CONTRACT CLEANUP]', error.message);
+    });
+}, 60 * 60 * 1000);
+cleanupTimer.unref();
+
+app.use((error, req, res, next) => {
+    if (res.headersSent) return next(error);
+    const status = Number(error.statusCode) || 500;
+    if (status >= 500) console.error('[SERVER]', error.message);
+    return res.status(status).json({ success: false, message: error.message || 'Lỗi máy chủ.' });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
     console.log('=======================================================');
     console.log('       ✨ BACKEND SERVER - HR DOCUMENT MANAGEMENT     ');
     console.log('=======================================================');
-    console.log(`[🚀] Server : http://localhost:${PORT}`);
+    console.log(`[🚀] Server : http://127.0.0.1:${PORT}`);
     console.log(`[📁] Uploads: ${UPLOADS_DIR}`);
     console.log(`[📁] Samples: ${SAMPLES_DIR}`);
     console.log(`[🔗] SQL API: ${SQL_API_BASE}`);

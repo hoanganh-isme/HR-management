@@ -27,7 +27,7 @@ window.AppSession = (function () {
 
   function getUserName() {
     var user = getUser();
-    return user.Username || user.UserName || user.username || '';
+    return user.Username || user.UserName || user.username || user.TaiKhoan || user.taiKhoan || user.LoginName || user.loginName || '';
   }
 
   function getGroupId() {

@@ -77,6 +77,8 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    if (global.__hrAppInitialized) return;
+    global.__hrAppInitialized = true;
     registerLogout();
     if (!requireAuthentication()) return;
     initializePermissions();

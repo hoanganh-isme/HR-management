@@ -82,7 +82,10 @@ var Router = (function () {
         // 2. Fallback: tự suy luận từ urlPara (vd: form-builder -> FORM_BUILDER)
         if (!existingConfig) {
           var deducedKey = url.trim().replace(/-/g, '_').toUpperCase();
-          if (window.APP_MODULES[deducedKey]) {
+          if (deducedKey === 'FORM_BUILDER') {
+            existingConfig = { FormName: 'SY_FormatFields', PageTitle: 'Cấu hình động', UseSplitLayout: false };
+            formKey = deducedKey;
+          } else if (window.APP_MODULES[deducedKey]) {
             existingConfig = window.APP_MODULES[deducedKey];
             formKey = deducedKey;
           }
@@ -360,7 +363,10 @@ var Router = (function () {
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
 
-      if (svVersion && svVersion !== localVer) {
+      var pmqlPerms = localStorage.getItem('pmql_permissions');
+      var isEmptyCache = !pmqlPerms || pmqlPerms === '{}';
+
+      if ((svVersion && svVersion !== localVer) || isEmptyCache) {
         var userJson = localStorage.getItem('pmql_user');
         var userObj = userJson ? JSON.parse(userJson) : {};
         return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {

@@ -4,6 +4,11 @@
     definitions.contract['WA_HOPDONGLAODONGFRM'] = {
     FormName: 'WA_HopDongLaoDongFrm',
     PrimaryKey: 'MaHopDong',
+    documentExport: {
+      enabled: true,
+      primaryKey: 'MaHopDong',
+      label: 'Xuất Hợp Đồng'
+    },
     UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn hợp đồng lao động để xem chi tiết',
     SplitLayoutEmptyText: 'Không có phụ cấp nào trong hợp đồng này',

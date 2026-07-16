@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap-utilities.min.css"
     crossorigin="anonymous">
   <!-- App Styles (design-tokens + global + layouts + 30 components) -->
-  <link rel="stylesheet" href="./src/css/styles.bundle.css?v=5">
+  <link rel="stylesheet" href="./src/css/styles.bundle.css?v=10">
   <link rel="stylesheet" href="./src/components/responsive-data-renderer/responsive-data-renderer.css?v=1">
 
   <!-- Thư viện Flatpickr (Datepicker đẹp) -->
@@ -94,22 +94,12 @@
     defer></script>
 
   <!-- APP CONFIG -->
-  <script src="./env.js?v=5"></script>
-  <script src="./src/js/core/AppConfig.js?v=1"></script>
-  <script src="./src/js/core/ModuleDefinition.js?v=1"></script>
-  <script src="./src/js/core/FormActionRegistry.js?v=1"></script>
-  <script src="./src/js/core/SafeFormula.js?v=1"></script>
-  <script src="./src/components/responsive-data-renderer/ResponsiveDataRenderer.js?v=1"></script>
+  <script src="./env.js?v=11"></script>
 
-  <!-- 2. App Bundle (mockData + utils + services + plugins + components) -->
-  <script src="./src/js/app.bundle.js?v=5"></script>
+  <!-- 2. App Bundle (utils + services + plugins + components + core runtime) -->
+  <script src="./src/js/app.bundle.js?v=11"></script>
 
-  <!-- 3. Core System -->
-  <script src="./src/js/core/WizardForm.js?v=3"></script>
-  <script src="./src/js/core/router.js?v=59"></script>
-  <script src="./src/js/core/index.js?v=28"></script>
-
-  <!-- 4. Tắt splash → hiện app -->
+  <!-- 3. Tắt splash → hiện app -->
   <script>
     (function () {
       var splash = document.getElementById('app-splash');

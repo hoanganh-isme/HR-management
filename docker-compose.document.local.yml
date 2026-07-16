@@ -1,0 +1,23 @@
+services:
+  onlyoffice-document-server:
+    image: onlyoffice/documentserver:9.3.1.2
+    container_name: hrm-onlyoffice-document-server
+    restart: unless-stopped
+    ports:
+      - "8001:80"
+    environment:
+      JWT_ENABLED: "false"
+      # Chỉ dùng cho local: Document Server phải gọi được Node.js qua
+      # host.docker.internal, địa chỉ này luôn phân giải về private IP.
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - onlyoffice_document_logs:/var/log/onlyoffice
+      - onlyoffice_document_data:/var/www/onlyoffice/Data
+      - onlyoffice_document_lib:/var/lib/onlyoffice
+
+volumes:
+  onlyoffice_document_logs:
+  onlyoffice_document_data:
+  onlyoffice_document_lib:

@@ -53,7 +53,8 @@
     "src/components/search-dropdown/search-dropdown.css",
     "src/components/side-panel/side-panel.css",
     "src/components/screen-capture/screen-capture.css",
-    "src/components/responsive-data-renderer/responsive-data-renderer.css"
+    "src/components/responsive-data-renderer/responsive-data-renderer.css",
+    "src/css/modules/contract-document.css"
   ],
   "js": [
     "src/js/utils/apiClient.js",
@@ -62,7 +63,6 @@
     "src/js/core/AppTheme.js",
     "src/js/data/mockData.js",
     "src/js/utils/permission.js",
-    "src/js/utils/DocumentExportPlugin.js",
     "src/js/utils/FormBuilderPlugin.js",
     "src/js/utils/FormatUtils.js",
     "src/js/utils/UITooltip.js",
@@ -135,6 +135,9 @@
     "src/js/modules/hr/definitions/payroll.js",
     "src/js/modules/hr/definitions/contract.js",
     "src/js/modules/hr/HRMetadataAdapter.js",
+    "src/js/modules/hr/actions/contract-document.api.js",
+    "src/js/modules/hr/actions/contract-document.actions.js",
+    "src/js/utils/DocumentExportPlugin.js",
     "src/js/modules/hr/actions/payroll-actions.js",
     "src/js/modules/hr/actions/timesheet-actions.js",
     "src/js/modules/hr/actions/shift-actions.js",

@@ -1,12 +1,12 @@
-FROM oven/bun:1
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
 # Copy package files
-COPY package.json bun.lock ./
+COPY package.json package-lock.json ./
 
-# Install dependencies using Bun
-RUN bun install
+# Install production dependencies with the Node.js package manager.
+RUN npm ci --omit=dev
 
 # Copy application code
 COPY . .
@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 8081
 
 # Run the server
-CMD ["bun", "run", "server.js"]
+CMD ["npm", "run", "start"]
