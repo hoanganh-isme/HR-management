@@ -23,7 +23,7 @@ test('ModuleDefinition keeps form contract and adds mobile metadata', () => {
   assert.equal(result.FormFields[0].MobileOrder, 1);
 });
 
-test('HR module registry keeps all 13 module keys outside core/index.js', () => {
+test('HR module registry keeps the original 13 modules and adds the leave-request slice', () => {
   const files = [
     'src/js/core/ModuleDefinition.js',
     'src/js/modules/hr/definitions/access.js',
@@ -42,10 +42,14 @@ test('HR module registry keeps all 13 module keys outside core/index.js', () => 
     { filename: file }
   ));
   const keys = window.HRModuleRegistry.keys().sort();
-  assert.equal(keys.length, 13);
+  assert.equal(keys.length, 14);
   assert.equal(window.APP_MODULES.WA_PERSONFULLFRM.FormName, 'WA_PersonFullFrm');
   assert.equal(window.APP_MODULES.WA_PAYROLLFRM.PrimaryKey, 'DocumentID');
   assert.equal(window.APP_MODULES.WA_CALAMVIECFRM.PrimaryKey, 'SapCaID');
+  assert.equal(window.APP_MODULES.WA_DONXINNGHIPHEPFRM.PrimaryKey, 'DocumentID');
+  assert.equal(window.APP_MODULES.WA_DONXINNGHIPHEPFRM.DetailTabs[0].api, 'API_HR_NghiPhep_ChiTiet');
+  assert.equal(window.APP_MODULES.WA_DONXINNGHIPHEPFRM.DetailTabs[0].primaryKey, 'DetailID');
+  assert.equal(window.APP_MODULES.WA_DONXINNGHIPHEPFRM.DetailTabs[1].saveApi, 'API_HR_NghiPhep_Attach_Save');
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'src/js/core/index.js'), 'utf8'), /APP_MODULES\[/);
 });
 
@@ -139,4 +143,38 @@ test('DocumentExportPlugin carries the HR-neutral id and compatibility alias', (
   const source = fs.readFileSync(path.join(root, 'src/js/utils/DocumentExportPlugin.js'), 'utf8');
   assert.match(source, /documentId:\s*docId/);
   assert.match(source, /customerId:\s*docId/);
+});
+
+test('Attachment upload uses each tab business key and optional dedicated save API', () => {
+  const source = fs.readFileSync(path.join(root, 'src/js/core/DynamicFormEngine.js'), 'utf8');
+  assert.match(source, /attachmentData\[tabDef\.filterField \|\| pkField\] = pkVal/);
+  assert.match(source, /List:\s*tabDef\.saveApi \|\| tabDef\.api/);
+  assert.match(source, /Func:\s*tabDef\.saveFunc \|\| 'Save'/);
+  assert.doesNotMatch(source, /MaHopDong:\s*pkVal/);
+});
+
+test('Editable detail tabs use their configured primary key and preserve the legacy default', () => {
+  const source = fs.readFileSync(path.join(root, 'src/js/core/DynamicFormEngine.js'), 'utf8');
+  assert.match(source, /var detailPrimaryKey = tabDef\.primaryKey \|\| 'UserAutoID'/);
+  assert.match(source, /r\[detailPrimaryKey\]/);
+  assert.match(source, /currRow\[detailPrimaryKey\]/);
+});
+
+test('HRM release SQL is add-only, dry-run safe, and has a unique FormatFields allow-list', () => {
+  const source = fs.readFileSync(path.join(root, 'sql/Deploy/HRM_Web_Install.sql'), 'utf8');
+  const formatKeys = Array.from(
+    source.matchAll(/^INSERT INTO #FormatManifest .* VALUES \(N'([^']+)', N'([^']+)'/gmi),
+    (match) => `${match[1]}|${match[2]}`.toLowerCase()
+  );
+
+  assert.equal(formatKeys.length, 464);
+  assert.equal(new Set(formatKeys).size, formatKeys.length);
+  assert.match(source, /PRIMARY KEY \(FormName, FieldName\)/);
+  assert.match(source, /DECLARE @DryRun bit = 1/);
+  assert.match(source, /IF @DryRun = 0/);
+  assert.match(source, /#AppliedChanges/);
+  assert.match(source, /API_HR_NghiPhep_Attach_Save', 'Execute'/);
+  assert.doesNotMatch(source, /CREATE\s+OR\s+ALTER/i);
+  assert.doesNotMatch(source, /\b(?:DELETE\s+FROM|TRUNCATE\s+TABLE|IDENTITY_INSERT)\b/i);
+  assert.doesNotMatch(source, /\bUPDATE\s+(?:dbo\.)?(?:SY_FormatFields|SY_FmtFldTbl|WA_API|WA_Menu|SY_FrmLstTbl)\b/i);
 });

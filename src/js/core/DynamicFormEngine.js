@@ -272,7 +272,7 @@ window.DynamicFormEngine = (function () {
         if (data.length === 0) {
           var empty = document.createElement('div');
           empty.style.cssText = 'color: var(--color-text-secondary); text-align: center; padding: 20px; font-size: 13px; border: 1px dashed var(--color-border); border-radius: 8px;';
-          empty.textContent = 'Chưa có tệp hay ảnh đính kèm nào cho hợp đồng này.';
+          empty.textContent = 'Chưa có tệp hay ảnh đính kèm nào cho bản ghi này.';
           listWrap.appendChild(empty);
         } else {
           data.forEach(function (fileItem) {
@@ -510,19 +510,21 @@ window.DynamicFormEngine = (function () {
         var currentItems = cntRes.list || cntRes.records || [];
         var nextSTT = currentItems.length + 1;
 
+        var attachmentData = {
+          IsEdit: 0,
+          FileName: file.name,
+          FileType: fileTypeNum,
+          STT: nextSTT,
+          FileSize: file.size,
+          Base64Content: base64Content,
+          Content: hexStr
+        };
+        attachmentData[tabDef.filterField || pkField] = pkVal;
+
         var savePayload = {
-          List: tabDef.api,
-          Func: 'Save',
-          JsonData: JSON.stringify({
-            IsEdit: 0,
-            MaHopDong: pkVal,
-            FileName: file.name,
-            FileType: fileTypeNum,
-            STT: nextSTT,
-            FileSize: file.size,
-            Base64Content: base64Content,
-            Content: hexStr
-          })
+          List: tabDef.saveApi || tabDef.api,
+          Func: tabDef.saveFunc || 'Save',
+          JsonData: JSON.stringify(attachmentData)
         };
 
         container.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang lưu tài liệu lên máy chủ...</div>';
@@ -665,10 +667,13 @@ window.DynamicFormEngine = (function () {
 
       // 2. Lưu Từ điển vào biến toàn cục
       var dataList = resConfig ? (resConfig.list || resConfig.records) : null;
+      var resolvedMetadata = null;
       if (window.HRMetadataAdapter && typeof window.HRMetadataAdapter.resolve === 'function') {
-        dataList = window.HRMetadataAdapter.resolve(resConfig, MODULE_CONFIG.FormName, MODULE_CONFIG).fields;
+        resolvedMetadata = window.HRMetadataAdapter.resolve(resConfig, MODULE_CONFIG.FormName, MODULE_CONFIG);
+        dataList = resolvedMetadata.fields;
       }
-      if (resConfig && resConfig.code === 0 && dataList) {
+      var hasResolvedFallback = resolvedMetadata && dataList && dataList.length > 0;
+      if ((resConfig && resConfig.code === 0 && dataList) || hasResolvedFallback) {
 
         // --- NO-CODE MAGIC: Đọc cấu hình cấp Form từ Record đầu tiên ---
         if (dataList.length > 0) {
@@ -711,8 +716,11 @@ window.DynamicFormEngine = (function () {
         }
 
         dataList.forEach(function (item) {
+          var fieldName = item.name || item.FieldName;
+          if (!fieldName) return;
+
           // Xây Dictionary cho Table
-          globalDictionary[item.name] = item.label;
+          globalDictionary[fieldName] = item.label || item.CaptionVN || fieldName;
 
 
           // Xây dựng Custom Renderers Động từ cấu hình DB (FormatID hoặc renderRule)
@@ -764,7 +772,6 @@ window.DynamicFormEngine = (function () {
           var formulaMatch = rawValidate.match(/formula:([^|]+)/i) || rawVisible.match(/formula:([^|]+)/i);
           var triggerMatch = rawValidate.match(/trigger:([^|]+)/i) || rawVisible.match(/trigger:([^|]+)/i);
 
-          var fieldName = item.name || item.FieldName;
           var isReadOnlyEditVal = _bool(item.isReadOnlyEdit, item.IsReadOnlyEdit);
           var isReadOnlyAddVal = _bool(item.isReadOnlyAdd, item.IsReadOnlyAdd);
           var hiddenColsVal = [];
@@ -5533,7 +5540,7 @@ window.DynamicFormEngine = (function () {
                 title: 'Xác nhận xóa',
                 message: 'Bạn có chắc muốn xóa dòng này không?',
                 onConfirm: function () {
-                  var detailPK = 'UserAutoID';
+                  var detailPK = tabDef.primaryKey || 'UserAutoID';
                   if (currRow[detailPK]) {
                     panel._deletedRows.push(currRow);
                   }
@@ -5542,7 +5549,7 @@ window.DynamicFormEngine = (function () {
                 }
               });
             } else {
-              var detailPK = 'UserAutoID';
+              var detailPK = tabDef.primaryKey || 'UserAutoID';
               if (currRow[detailPK]) {
                 panel._deletedRows.push(currRow);
               }
@@ -6223,10 +6230,11 @@ window.DynamicFormEngine = (function () {
               if (panel._tabDef && panel._tabDef.editable) {
                 var tabDef = panel._tabDef;
                 var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
+                var detailPrimaryKey = tabDef.primaryKey || 'UserAutoID';
 
                 // 1. Process deleted rows
                 if (panel._deletedRows && panel._deletedRows.length > 0) {
-                  var deletedIds = panel._deletedRows.map(function (r) { return r.UserAutoID; }).filter(Boolean).join(',');
+                  var deletedIds = panel._deletedRows.map(function (r) { return r[detailPrimaryKey]; }).filter(Boolean).join(',');
                   if (deletedIds) {
                     var delPayload = {
                       List: tabDef.api,
@@ -6251,7 +6259,7 @@ window.DynamicFormEngine = (function () {
                 if (panel._currentRows && panel._currentRows.length > 0) {
                   panel._currentRows.forEach(function (currRow) {
                     currRow[tabDef.filterField] = masterKeyVal;
-                    var isRowEdit = !!currRow.UserAutoID;
+                    var isRowEdit = !!currRow[detailPrimaryKey];
                     var rowPayload = Object.assign({}, currRow);
                     rowPayload.UserName = _currentUser();
                     rowPayload.UserCreate = _currentUser();

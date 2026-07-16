@@ -5,79 +5,16 @@
   Không chứa SY_User, mật khẩu, quyền, chi nhánh hay dữ liệu nhân sự.
   @DryRun = 1 là mặc định; chỉ đặt 0 sau khi xem báo cáo trên DB test.
 */
-SET ANSI_NULLS ON;
-SET QUOTED_IDENTIFIER ON;
-GO
-
-CREATE OR ALTER PROCEDURE dbo.HRM_RegisterWebFormSafe
-    @FormName       varchar(100),
-    @TableName      varchar(100),
-    @PrimaryKey     varchar(100),
-    @CaptionVN      nvarchar(200),
-    @CaptionEN      nvarchar(200) = NULL,
-    @FormType       varchar(50) = 'EDIT',
-    @ViewProcedure  varchar(128) = NULL,
-    @ViewParameters nvarchar(max) = NULL,
-    @Mode           varchar(20) = 'RECONCILE_REPORT',
-    @DryRun         bit = 1,
-    @EmitResult     bit = 1
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
-
-    IF UPPER(LTRIM(RTRIM(ISNULL(@Mode, '')))) NOT IN ('ADD_ONLY', 'RECONCILE_REPORT', 'EXPLICIT_UPDATE')
-        THROW 51420, 'HRM_RegisterWebFormSafe: mode khong hop le.', 1;
-    IF NULLIF(LTRIM(RTRIM(@FormName)), '') IS NULL
-        THROW 51421, 'HRM_RegisterWebFormSafe: thieu FormName.', 1;
-    IF NULLIF(LTRIM(RTRIM(@TableName)), '') IS NULL
-        THROW 51422, 'HRM_RegisterWebFormSafe: thieu TableName.', 1;
-    IF NULLIF(LTRIM(RTRIM(@PrimaryKey)), '') IS NULL
-        THROW 51423, 'HRM_RegisterWebFormSafe: thieu PrimaryKey.', 1;
-    IF OBJECT_ID('dbo.SY_FrmLstTbl', 'U') IS NULL OR OBJECT_ID('dbo.WA_API', 'U') IS NULL
-        THROW 51424, 'HRM_RegisterWebFormSafe: thieu bang metadata.', 1;
-
-    DECLARE @Action varchar(30) = 'SKIP_EXISTING';
-    DECLARE @Conflict bit = 0;
-    IF EXISTS (SELECT 1 FROM dbo.SY_FrmLstTbl WHERE FormID = @FormName)
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM dbo.SY_FrmLstTbl
-            WHERE FormID = @FormName
-              AND (ISNULL(TableName, '') <> ISNULL(@TableName, '')
-                OR ISNULL(PrimaryKey, '') <> ISNULL(@PrimaryKey, ''))
-        ) SET @Conflict = 1;
-        IF @Conflict = 1 SET @Action = 'CONFLICT';
-    END
-    ELSE
-    BEGIN
-        SET @Action = CASE WHEN @DryRun = 1 THEN 'WOULD_INSERT' ELSE 'INSERT' END;
-        IF @DryRun = 0
-            INSERT INTO dbo.SY_FrmLstTbl (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
-            VALUES (@FormName, @FormType, @CaptionVN, @CaptionEN, @TableName, @PrimaryKey);
-    END
-
-    IF @ViewProcedure IS NOT NULL AND NULLIF(LTRIM(RTRIM(@ViewProcedure)), '') IS NOT NULL
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM dbo.WA_API WHERE list = @FormName AND func = 'View')
-        BEGIN
-            SET @Action = CASE WHEN @DryRun = 1 THEN 'WOULD_INSERT_API' ELSE @Action END;
-            IF @DryRun = 0
-                INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-                VALUES (@FormName, 'View', @ViewProcedure, COALESCE(@ViewParameters, N'@Keyword=N''{Keyword}'''));
-        END
-    END
-
-    IF @EmitResult = 1
-        SELECT @FormName AS FormName, @Action AS [Action], @Conflict AS [Conflict], @DryRun AS DryRun;
-END;
-GO
-
 SET XACT_ABORT ON;
 SET NOCOUNT ON;
 
 DECLARE @DryRun bit = 1;
-DECLARE @ApplyExplicitUpdates bit = 0;
+/* Để NULL theo mặc định: release không sao chép quyền thật từ snapshot test. */
+DECLARE @TargetUserGroupID varchar(20) = NULL;
+DECLARE @TargetIsRun bit = 1;
+DECLARE @TargetIsAdd bit = 0;
+DECLARE @TargetIsUpdate bit = 0;
+DECLARE @TargetIsDelete bit = 0;
 DECLARE @MigrationID uniqueidentifier = NEWID();
 
 IF OBJECT_ID('dbo.WA_Menu', 'U') IS NULL
@@ -90,10 +27,28 @@ IF OBJECT_ID('dbo.SY_FormatFields', 'U') IS NULL
     THROW 51433, 'HRM_Web_Install: thieu dbo.SY_FormatFields.', 1;
 IF OBJECT_ID('dbo.SY_FmtFldTbl', 'U') IS NULL
     THROW 51434, 'HRM_Web_Install: thieu dbo.SY_FmtFldTbl.', 1;
+IF OBJECT_ID('dbo.WA_UserGroupPermisstion', 'U') IS NULL
+    THROW 51435, 'HRM_Web_Install: thieu dbo.WA_UserGroupPermisstion de gan quyen tuy chon.', 1;
+IF OBJECT_ID('dbo.SY_UserGroup', 'U') IS NULL
+    THROW 51441, 'HRM_Web_Install: thieu dbo.SY_UserGroup de xac minh nhom dich.', 1;
+IF @TargetUserGroupID IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM dbo.SY_UserGroup WHERE UserGroupID = @TargetUserGroupID
+)
+    THROW 51442, 'HRM_Web_Install: TargetUserGroupID khong ton tai.', 1;
 IF COL_LENGTH('dbo.WA_Menu', 'MenuID') IS NULL OR COL_LENGTH('dbo.WA_Menu', 'isDisable') IS NULL
-    THROW 51435, 'HRM_Web_Install: WA_Menu thieu cot khoa.', 1;
+    THROW 51436, 'HRM_Web_Install: WA_Menu thieu cot khoa.', 1;
+IF COL_LENGTH('dbo.SY_FrmLstTbl', 'FormID') IS NULL OR COL_LENGTH('dbo.SY_FrmLstTbl', 'PrimaryKey') IS NULL
+    THROW 51437, 'HRM_Web_Install: SY_FrmLstTbl thieu cot contract.', 1;
+IF COL_LENGTH('dbo.WA_API', 'list') IS NULL OR COL_LENGTH('dbo.WA_API', 'func') IS NULL OR COL_LENGTH('dbo.WA_API', 'SQL') IS NULL
+    THROW 51438, 'HRM_Web_Install: WA_API thieu cot routing.', 1;
 IF COL_LENGTH('dbo.SY_FormatFields', 'FormName') IS NULL OR COL_LENGTH('dbo.SY_FormatFields', 'FieldName') IS NULL
-    THROW 51436, 'HRM_Web_Install: SY_FormatFields thieu cot khoa.', 1;
+    THROW 51439, 'HRM_Web_Install: SY_FormatFields thieu cot khoa.', 1;
+IF (
+    COL_LENGTH('dbo.WA_UserGroupPermisstion', 'UserGroupID') IS NULL
+    OR COL_LENGTH('dbo.WA_UserGroupPermisstion', 'MenuID') IS NULL
+    OR COL_LENGTH('dbo.WA_UserGroupPermisstion', 'ID') IS NULL
+)
+    THROW 51440, 'HRM_Web_Install: WA_UserGroupPermisstion thieu cot business key.', 1;
 
 CREATE TABLE #Audit (
     AuditID int IDENTITY(1, 1) NOT NULL,
@@ -101,6 +56,25 @@ CREATE TABLE #Audit (
     BusinessKey nvarchar(250) NOT NULL,
     StatusCode varchar(30) NOT NULL,
     Detail nvarchar(1000) NULL
+);
+
+/* Nhật ký insert là dữ liệu đủ để rollback vì migration ADD_ONLY không update/delete row hiện hữu. */
+CREATE TABLE #AppliedChanges (
+    ObjectName varchar(40) NOT NULL,
+    BusinessKey nvarchar(250) NOT NULL,
+    ChangeType varchar(20) NOT NULL
+);
+
+CREATE TABLE #BeforeCounts (
+    ObjectName varchar(40) NOT NULL PRIMARY KEY,
+    TotalRows bigint NOT NULL,
+    AllowListRows bigint NOT NULL
+);
+
+CREATE TABLE #AfterCounts (
+    ObjectName varchar(40) NOT NULL PRIMARY KEY,
+    TotalRows bigint NOT NULL,
+    AllowListRows bigint NOT NULL
 );
 
 CREATE TABLE #MenuManifest (
@@ -165,7 +139,7 @@ CREATE TABLE #FormManifest (
     PrimaryKey varchar(100) NOT NULL
 );
 
-/* TableName/PrimaryKey chỉ dùng các giá trị đã xuất hiện trong file Register/Insert nguồn. */
+/* TableName/PrimaryKey chỉ dùng giá trị đã có bằng chứng trong source hoặc schema snapshot. */
 INSERT INTO #FormManifest (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
 VALUES
 ('WA_PersonFullFrm', 'EDIT', N'Hồ sơ nhân viên tổng hợp', N'General Employee Profile', 'HR_PersonTbl', 'PersonID'),
@@ -177,12 +151,15 @@ VALUES
 ('WA_KinhPhiCongDoanFrm', 'EDIT', N'Kinh phí công đoàn', N'Trade Union Fees', 'HR_KinhPhiCongDoanTbl', 'UserAutoID'),
 ('WA_TimeSheetFrm', 'EDIT', N'Chấm công tổng hợp tháng', N'Monthly Timesheet Summary', 'HR_TimeSheetTbl', 'UserAutoID'),
 ('WA_TimeSheetDayFrm', 'EDIT', N'Xử lý chấm công hàng ngày', N'Daily Timesheet Processing', 'HR_TimeSheetDayTbl', 'UserAutoID'),
-('WA_TimeSheetCTReport', 'EDIT', N'Báo cáo chấm công chi tiết', N'Detailed Timesheet Report', 'HR_TimeSheetDayTbl', '_UserAutoID'),
+('WA_TimeSheetCTReport', 'EDIT', N'Báo cáo chấm công chi tiết', N'Detailed Timesheet Report', 'HR_TimeSheetDayTbl', 'UserAutoID'),
 ('WA_TimeSheetTH2Report', 'EDIT', N'Báo cáo công tổng hợp', N'Timesheet Model 2', 'HR_TimeSheetTbl', 'UserAutoID'),
 ('WA_CaLamViecFrm', 'EDIT', N'Sắp ca làm việc', N'Shift Scheduling', 'HR_SapCaTbl', 'SapCaID'),
 ('API_CaLamViec_NhanVien', 'EDIT', N'Nhân viên sắp ca', N'Shift Employees', 'HR_SapCaNhanVienTbl', 'UserAutoID'),
 ('WA_QuanLyNghiPhepNamFrm', 'EDIT', N'Quản lý nghỉ phép năm', N'Annual Leave Management', 'HR_PersonTbl', 'PersonID'),
 ('WA_QuanLyNghiLeFrm', 'EDIT', N'Quản lý nghỉ lễ', N'Holiday Management', 'HR_HolidayTbl', 'HolidayID'),
+('WA_DonXinNghiPhepFrm', 'EDIT', N'Đơn xin nghỉ phép', N'Leave Request', 'HR_NghiPhepTbl', 'DocumentID'),
+('API_HR_NghiPhep_ChiTiet', 'EDIT', N'Chi tiết đơn nghỉ phép', N'Leave Request Details', 'HR_NghiPhepDetailTbl', 'DetailID'),
+('API_HR_NghiPhep_Attach', 'EDIT', N'Tài liệu đơn nghỉ phép', N'Leave Request Attachments', 'HR_NghiPhepAttachTbl', 'UserAutoID'),
 ('WA_PayrollFrm', 'LIST', N'Bảng tính lương tháng', N'Monthly Payroll', 'HR_PayrollTbl', 'DocumentID'),
 ('WA_BangPhuCapFrm', 'LIST', N'Bảng phụ cấp hàng tháng', N'Monthly Allowance', 'HR_BangPhuCapTbl', 'MaPhuCap'),
 ('WA_LuongKhoanFrm', 'LIST', N'Lương khoán', N'Contractor Salary', 'HR_LuongKhoanTbl', 'UserAutoID'),
@@ -237,6 +214,7 @@ VALUES
 ('API_HR_NghiPhep_Attach', 'View', N'API_HR_NghiPhep_Attach', N'@DocumentID=N''{DocumentID}'''),
 ('API_HR_NghiPhep_Attach', 'Save', N'API_LuuDong', N'@List=N''API_HR_NghiPhep_Attach'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('API_HR_NghiPhep_Attach', 'Delete', N'API_XoaDong', N'@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
+('API_HR_NghiPhep_Attach_Save', 'Execute', N'API_HR_NghiPhep_Attach_Save', N'@Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('WA_PayrollFrm', 'View', N'API_Payroll', N'@PeriodID=N''{PeriodID}'', @PhongBan=N''{PhongBan}'', @Keyword=N''{Keyword}'''),
 ('WA_BangPhuCapFrm', 'View', N'API_BangPhuCap', N'@Keyword=N''{Keyword}'''),
 ('WA_LuongKhoanFrm', 'View', N'API_LuongKhoan', N'@Keyword=N''{Keyword}'''),
@@ -263,342 +241,11 @@ CREATE TABLE #FormatManifest (
     VisibleRule nvarchar(255) NULL,
     OrderNo int NOT NULL,
     ShowInFilter bit NOT NULL,
-    DataSource nvarchar(max) NULL
+    DataSource nvarchar(max) NULL,
+    PRIMARY KEY (FormName, FieldName)
 );
 
 /* Chỉ chứa các override đã được xác nhận trong snapshot; dictionary SY_FmtFldTbl không bị ghi. */
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'MaHopDong', N'Mã hợp đồng', N'Contract Code', N't', 1, N'grid', 1, 1, 1, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N'sl', 1, N'grid', 1, 1, 1, 0, NULL, NULL, NULL, 3, 0, N'HR_PersonTbl');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'PersonName', N'Họ tên nhân viên', N'Employee Name', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'NgayKyHopDong', N'Ngày ký HĐ', N'Date Signed', N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'NoiDung', N'Nội dung hợp đồng', N'Contract Content', N't', 0, N'12', 1, 1, 0, 0, NULL, NULL, NULL, 26, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'LoaiHopDong', N'Loại hợp đồng', N'Contract Type', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, N'STATIC:Không thời hạn|Không thời hạn,Có thời hạn|Có thời hạn');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'ThoiGianLamViec', N'Thời gian làm việc', N'Working Hours', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'NgayCoHieuLuc', N'Ngày có hiệu lực', N'Effective Date', N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'NgayHetHieuLuc', N'Ngày hết hiệu lực', N'Expiry Date', N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'PhuongTien', N'Phương tiện đi làm', N'Transport', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 20, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'HinhThucTraLuong', N'Hình thức trả lương', N'Payment Method', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 18, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'LuongCoBan', N'Lương cơ bản', N'Basic Salary', N'n', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 15, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'NguoiKy', N'Người ký', N'Signatory', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 12, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'ChucDanhChuyenMonHD', N'Chức danh chuyên môn', N'Professional Title', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 14, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'ChucVuNguoiKy', N'Chức vụ người ký', N'Signatory Position', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 13, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'DiaDiemLamViec', N'Địa điểm làm việc', N'Working Location', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 19, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'PersonStatus', N'Trạng thái NV', N'Employee Status', N't', 0, N'6', 0, 1, 1, 0, NULL, NULL, NULL, 21, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'UserCreate', N'Người tạo', N'Creator', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 27, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'UserUpdate', N'Người cập nhật', N'Updater', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'DateUpdate', N'Ngày cập nhật', N'Updated Date', N'd', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'DateCreate', N'Ngày tạo', N'Created Date', N'd', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 28, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'LoaiTien', N'Loại tiền', N'Currency', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 17, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'NamLap', N'Năm lập', N'Year Created', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 1, N'API_HopDongLaoDong_NamLap');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'LoaiHD', N'Loại HD', N'Contract Group', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 1, N'API_HopDongLaoDong_LoaiHD');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'MucDong', N'Mức đóng BH', N'Insurance Contribution', N'n', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 16, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'ThoiGianThuViec', N'Thử việc (tháng)', N'Probation (months)', N'n', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'BranchID', N'Chi nhánh', N'Branch', N'sl', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 1, N'CF_BranchListFrm');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'CMND', N'Số CCCD/CMND', N'National ID', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 22, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'CMNDNgayCap', N'Ngày cấp CCCD', N'ID Issued Date', N'd', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 23, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'CMNDNoiCap', N'Nơi cấp CCCD', N'ID Issued Place', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 24, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HopDongLaoDongFrm', N'DiaChiThuongTru', N'Địa chỉ thường trú', N'Permanent Address', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 25, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'UserAutoID', N'UserAutoID', N'UserAutoID', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'MaHopDong', N'MaHopDong', N'MaHopDong', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'MaPhuCap', N'Mã phụ cấp', N'Allowance Code', N'sl', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, N'WA_BangPhuCapFrm');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'TenPhuCap', N'Tên phụ cấp', N'Allowance Name', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'TienPhuCap', N'Tiền phụ cấp', N'Allowance Value', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'TienPhuCapNgay', N'PC theo ngày', N'Daily Allowance', N'n', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'TienPhuCapThang', N'PC theo tháng', N'Monthly Allowance', N'n', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_ChiTiet', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_Attach', N'UserAutoID', N'UserAutoID', N'UserAutoID', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_Attach', N'MaHopDong', N'MaHopDong', N'MaHopDong', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_Attach', N'FileName', N'Tên tệp', N'File Name', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_Attach', N'FileType', N'Loại tệp', N'File Type', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_Attach', N'STT', N'Số thứ tự', N'Order No', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_Attach', N'FileSize', N'Kích thước', N'File Size', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HopDongLaoDong_Attach', N'Content', N'Nội dung tệp nhị phân', N'Binary Content', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BaoHiemFrm', N'DocumentID', N'Số chứng từ', NULL, N't', 1, N'grid', 1, 1, 1, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BaoHiemFrm', N'DocumentDate', N'Ngày lập', NULL, N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BaoHiemFrm', N'Notes', N'Ghi chú', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BaoHiemFrm', N'UserCreate', N'UserCreate', NULL, N't', 0, N'form', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BaoHiemFrm', N'UserUpdate', N'UserUpdate', NULL, N't', 0, N'form', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BaoHiemFrm', N'DateUpdate', N'DateUpdate', NULL, N't', 0, N'form', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-I…4592 tokens truncated…e No', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 31, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'ThoiGianHuongBHYT', N'Thời gian hưởng BHYT', N'HI Effective Date', N'd', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 32, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NoiDangKyBHYT', N'Nơi ĐK KCB ban đầu', N'KCB Initial Place', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 33, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'ChamCong', N'Có chấm công', N'Has Timekeeping', N'sw', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 34, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'LoaiHopDong', N'Loại hợp đồng', N'Contract Type', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 35, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NgayHetHopDong', N'Ngày hết hiệu lực HĐ', N'Contract Expiry', N'd', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 36, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NguoiLienHe', N'Người liên hệ khẩn cấp', N'Emergency Contact', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 37, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'MoiQuanHe', N'Mối quan hệ người LH', N'Relationship', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 38, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NguoiLienHeSoDT', N'Số ĐT người liên hệ', N'Contact Phone', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 39, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'GioiTinh', N'Giới tính', N'Gender', N'sl', 0, N'grid|6', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, N'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'HonNhan', N'Tình trạng hôn nhân', N'Marital Status', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'CMNDNgayCap', N'Ngày cấp CCCD', N'ID Issue Date', N'd', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'CMNDNoiCap', N'Nơi cấp CCCD', N'ID Issue Place', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NoiSinh', N'Nơi sinh', N'Place of Birth', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'PeoplesName', N'Dân tộc', N'Ethnicity', N't', 0, N'grid|6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'ReligionName', N'Tôn giáo', N'Religion', N't', 0, N'grid|6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'Email', N'Email', N'Email', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'EducationName', N'Trình độ học vấn', N'Education', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'Nationality', N'Quốc tịch', N'Nationality', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'JobName', N'Nghề nghiệp', N'Job', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'CareerName', N'Chuyên ngành', N'Career', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'HospitalName', N'Nơi KCB', N'Hospital', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'MaNVChamCong', N'Mã NV chấm công', N'Timekeeping ID', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 40, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'PersonName2', N'Tên gọi khác', N'Alias/Other Name', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 41, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'PostionName', N'Vị trí công việc', N'Position', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 42, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NgayNghiViec', N'Ngày nghỉ việc', N'Resignation Date', N'd', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 46, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'WorkingGroupName', N'Tổ/nhóm làm việc', N'Working Group', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 43, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'DungCuLamViec', N'Dụng cụ làm việc', N'Working Tools', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 47, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 48, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'LocationID', N'Địa điểm làm việc', N'Work Location', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 44, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NgayDuKienTV', N'Ngày DK thử việc', N'Expected Probation Date', N'd', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 49, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'UserCreate', N'Người tạo', N'Created By', N't', 0, N'6', 0, 0, 1, 1, NULL, NULL, NULL, 52, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'UserUpdate', N'Người cập nhật', N'Updated By', N't', 0, N'6', 0, 0, 1, 1, NULL, NULL, NULL, 54, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'DateUpdate', N'Ngày cập nhật', N'Updated Date', N'd', 0, N'6', 0, 0, 1, 1, NULL, NULL, NULL, 55, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'DateCreate', N'Ngày tạo', N'Created Date', N'd', 0, N'6', 0, 0, 1, 1, NULL, NULL, NULL, 53, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'DiaChiTamTru', N'Địa chỉ tạm trú', N'Temporary Address', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 45, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'isTaiTuyen', N'Đã tái tuyển', N'Re-hired', N'sw', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 50, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'PersonStatusName', N'Trạng thái', N'Status Name', N't', 0, N'grid|6', 0, 0, 1, 1, NULL, NULL, NULL, 16, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'LoaiHD', N'LoaiHD', N'LoaiHD', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 1, N'API_DanhSachLoaiHD');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'NamLap', N'NamLap', N'NamLap', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 1, N'API_HopDongLaoDong_NamLap');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'FileName', N'Tên file ảnh', N'File Name', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 57, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'Content', N'Content', N'Content', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'UserAutoID', N'Mã hệ thống', N'System ID', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N'sl', 1, N'grid', 1, 0, 0, 0, NULL, NULL, NULL, 1, 0, N'API_Calculate_MucDong_CongDoan');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'PersonName', N'Họ Tên', N'Full Name', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'ChucDanhChuyenMon', N'Chức danh chuyên môn', N'Professional Title', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'MucDong', N'Mức đóng', N'Insurance Base Salary', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'KinhPhiNopCongDoanVN', N'Kinh phí nộp công đoàn VN', N'Union Fee Total (2%)', N'n', 0, N'grid', 1, 1, 1, 1, N'formula:{MucDong}*0.02', NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'CongDoanVN', N'Công đoàn VN', N'Union VN Retained (25%)', N'n', 0, N'grid', 1, 1, 1, 1, N'formula:{KinhPhiNopCongDoanVN}*0.25', NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'CongDoanCTY', N'Công đoàn CTY', N'Union Company Retained (75%)', N'n', 0, N'grid', 1, 1, 1, 1, N'formula:{KinhPhiNopCongDoanVN}*0.75', NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'BranchID', N'Chi nhánh', N'Branch ID', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 1, N'CF_BranchListFrm');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'PeriodID', N'Kỳ', N'Period', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 9, 1, N'SY_Period');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_KinhPhiCongDoanFrm', N'LoaiHD', N'Đội ngũ', N'Workforce', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'UserAutoID', N'UserAutoID', N'UserAutoID', N't', 0, N'form', 0, 0, 1, 1, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'PeriodID', N'Kỳ', N'Period', N'sl', 0, N'grid', 1, 1, 1, 1, NULL, NULL, NULL, 2, 1, N'SY_Period');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N't', 0, N'grid', 1, 1, 1, 1, NULL, NULL, NULL, 3, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'PersonName', N'Họ Tên', N'Employee Name', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'PhongBan', N'Bộ phận', N'Department', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'DocumentDate', N'Ngày', N'Date', N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'SoNgayThang', N'Tổng ngày công trong tháng', N'Total Month Days', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'SoNgayDiLam', N'Số ngày đi làm', N'Actual Workdays', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'SoNgayLe', N'SoNgayLe', N'Holiday Workdays', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'TangCa', N'Tăng ca', N'Overtime', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'SoNgayCongTac', N'Số ngày công tác', N'Business Trip Days', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'CongPhep', N'Cộng phép', N'Add Leave', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 12, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'NghiPhep', N'Nghỉ phép', N'Paid Leave', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 13, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'NghiKhongPhep', N'Nghỉ không phép', N'Unpaid Leave', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 14, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetFrm', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 15, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'PersonID', N'Mã nhân viên', N'Employee ID', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'PeriodID', N'Kỳ', N'Period', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 1, N'SY_Period');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'Ngay', N'Ngày', N'Date', N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'ThoiGianVao', N'Thời gian vào', N'Time In', N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'ThoiGianRa', N'Thời gian ra', N'Time Out', N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'GioVao', N'Giờ vào', N'Hour In', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'GioRa', N'Giờ ra', N'Hour Out', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'SoGio', N'Số giờ', N'Hours Worked', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'SoPhut', N'Số phút', N'Minutes', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'SoCong', N'Số công', N'Workday Units', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 12, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'LyDo', N'Lý do', N'Reason', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 13, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'NewPersonID', N'Mã nhân viên cũ', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 15, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'MaNVChamCong', N'Lấy dữ liệu chấm công từ NV khác', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 16, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'PersonName', N'Họ Tên', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 17, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'PersonName2', N'Tên tiếng anh', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 18, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'PhongBan', N'Bộ phận', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 19, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'DienThoai', N'Điện thoại', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 20, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'GioiTinh', N'Giới tính', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 21, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'BranchID', N'Chi nhánh', NULL, N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 22, 1, N'CF_BranchListFrm');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'TitleName', N'Chức vụ', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 23, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'ChucDanhChuyenMon', N'Chức danh chuyên môn', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 24, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'PostionName', N'Vị trí', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 25, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'ProvineName', N'Tỉnh thành', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 26, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'NationName', N'Quốc gia', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 27, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'Nationality', N'Nationality', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 28, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'JobName', N'Công việc', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 29, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'NgayVaoLam', N'Ngày nhận việc', NULL, N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 30, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'ShiftID', N'Ca', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 31, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'EnrollNumber', N'Mã CC', NULL, N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 32, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'CardNo', N'Mã số thẻ', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 33, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'CMND', N'CCCD', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 34, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'CMNDNgayCap', N'Ngày cấp', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 35, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'CMNDNoiCap', N'Nơi cấp CCCD', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 36, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'NgaySinh', N'Ngày sinh', NULL, N'd', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 37, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'NamSinh', N'Năm sinh', NULL, N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 38, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'NoiSinh', N'Nơi Sinh', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 39, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'DiaChiThuongTru', N'Địa chỉ thường trú', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 40, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetCTReport', N'DiaChiHienNay', N'Địa chỉ hiện nay', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL,…7858 tokens truncated…it, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'16', N'16', N'16', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 34, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'17', N'17', N'17', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 35, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'18', N'18', N'18', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 36, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'19', N'19', N'19', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 37, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'20', N'20', N'20', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 38, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'21', N'21', N'21', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 39, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'22', N'22', N'22', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 40, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'23', N'23', N'23', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 41, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'24', N'24', N'24', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 42, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'25', N'25', N'25', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 43, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'26', N'26', N'26', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 44, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'27', N'27', N'27', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 45, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'28', N'28', N'28', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 46, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'29', N'29', N'29', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 47, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'30', N'30', N'30', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 48, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'31', N'31', N'31', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 49, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'IsLuongKhoan', N'Lương khoán', N'Is Fixed Salary', N'b', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 50, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'SoTienKhoan', N'Số tiền khoán', N'Fixed Salary Amount', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 51, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'PeriodID', N'Kỳ', N'Period', N'sl', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 100, 1, N'SY_Period');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetTH2Report', N'PhongBan', N'Bộ phận', N'Department', N'sl', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 101, 1, N'HR_DepartmentListTbl');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'UserAutoID', NULL, NULL, N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'PersonName', N'Họ Tên', N'Employee Name', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'PhongBan', N'Bộ phận', N'Department', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 14, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'BranchID', N'Chi nhánh', N'Branch', N'sl', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 15, 1, N'API_DanhSachChiNhanh');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'LoaiHD', N'Loại HD', NULL, N'sl', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 99, 1, N'WA_DanhSachLoaiHD');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'PeriodID', N'Kỳ', N'Period', N'sl', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 3, 1, N'SY_Period');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'Ngay', N'Ngày', N'Date', N'd', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'ThoiGianVao', N'Thời gian vào', N'Time In', N'dt', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'ThoiGianRa', N'Thời gian ra', N'Time Out', N'dt', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'GioVao', N'Giờ vào', N'Hour In', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'GioRa', N'Giờ ra', N'Hour Out', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'SoGio', N'Số giờ', N'Hours', N'n', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'SoPhut', N'Số phút', N'Minutes', N'n', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'SoCong', N'Số công', N'Workday Units', N'n', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 12, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TimeSheetDayFrm', N'LyDo', N'Lý do', N'Reason', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 13, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'SapCaID', N'Mã sắp ca', N'Schedule ID', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'TenBangCa', N'Tên bảng ca', N'Schedule Name', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'TuNgay', N'Từ ngày', N'From Date', N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'DenNgay', N'Đến ngày', N'To Date', N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'Thu2', N'Thứ 2', N'Monday', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'Thu3', N'Thứ 3', N'Tuesday', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'Thu4', N'Thứ 4', N'Wednesday', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'Thu5', N'Thứ 5', N'Thursday', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'Thu6', N'Thứ 6', N'Friday', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'Thu7', N'Thứ 7', N'Saturday', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ChuNhat', N'Chủ nhật', N'Sunday', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ShiftIDThu2', N'Ca T2', N'Shift Mon', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 12, 0, N'API_HR_DropdownShifts');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ShiftIDThu3', N'Ca T3', N'Shift Tue', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 13, 0, N'API_HR_DropdownShifts');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ShiftIDThu4', N'Ca T4', N'Shift Wed', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 14, 0, N'API_HR_DropdownShifts');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ShiftIDThu5', N'Ca T5', N'Shift Thu', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 15, 0, N'API_HR_DropdownShifts');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ShiftIDThu6', N'Ca T6', N'Shift Fri', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 16, 0, N'API_HR_DropdownShifts');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ShiftIDThu7', N'Ca T7', N'Shift Sat', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 17, 0, N'API_HR_DropdownShifts');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_CaLamViecFrm', N'ShiftIDChuNhat', N'Ca CN', N'Shift Sun', N'sl', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 18, 0, N'API_HR_DropdownShifts');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N'sl', 1, N'grid', 0, 0, 1, 0, NULL, NULL, NULL, 1, 1, N'WA_PersonFullFrm|4');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'PersonName', N'Họ tên', N'Full Name', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 2, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'PhongBan', N'Bộ phận', N'Department', N'sl', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 3, 1, N'HR_DepartmentListTbl');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'BranchID', N'Chi nhánh', N'Branch', N'sl', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 4, 1, N'CF_BranchListFrm');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiLeFrm', N'HolidayID', N'Mã nghỉ lễ', N'Holiday ID', N't', 1, N'grid', 1, 0, 1, 0, NULL, NULL, NULL, 1, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiLeFrm', N'HolidayDate', N'Ngày nghỉ lễ', N'Holiday Date', N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiLeFrm', N'HolidayName', N'Tên lễ', N'Holiday Name', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiLeFrm', N'SoCong', N'Số công', N'Workday Coefficient', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 13, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'Nam', N'Năm', N'Year', N'n', 1, N'grid', 1, 1, 0, 0, N'number|minval:2000|maxval:2100', NULL, NULL, 5, 1, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'NgayCapNhat', N'Ngày cập nhật', N'Updated date', N'dt', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 14, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'PhepThamNien', N'Phép thâm niên', N'Seniority leave', N'n', 0, N'grid', 1, 1, 0, 0, N'minval:0', NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'PhepTonNamTruoc', N'Phép tồn năm trước', N'Previous year balance', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'SoNgay', N'Số ngày phép', N'Leave days', N'n', 0, N'grid', 1, 1, 0, 0, N'minval:0', NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'SoNgayConLai', N'Số ngày còn lại', N'Remaining days', N'n', 0, N'grid', 0, 1, 1, 1, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'SoNgayDaSuDung', N'Số ngày đã sử dụng', N'Used days', N'n', 0, N'grid', 0, 1, 1, 1, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'SoNgayPhepOm', N'Số ngày phép ốm', N'Sick leave days', N'n', 0, N'grid', 1, 1, 0, 0, N'minval:0', NULL, NULL, 12, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'SoNgayPhepTet', N'Số ngày phép Tết', N'Holiday leave days', N'n', 0, N'grid', 1, 1, 0, 0, N'minval:0', NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'UserAutoID', N'Mã hệ thống', N'System ID', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_QuanLyNghiPhepNamFrm', N'UserUpdate', N'Người cập nhật', N'Updated by', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 15, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'BackColor', N'BackColor', NULL, N'n', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 20, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'CeoID', N'CeoID', N'CeoID', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'CeoName', N'CeoName', NULL, N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 21, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'DateCreate', N'Ngày tạo', N'开始日期', N'd', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 15, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'DateUpdate', N'Ngày sửa', N'编辑日期', N'd', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 14, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'DenNgay', N'Đến ngày', N'Đến ngày', N'd', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 17, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'DetailID', N'DetailID', NULL, N'n', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 27, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'DocumentDate', N'Ngày', N'Ngày chứng từ', N'd', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'DocumentID', N'Số chứng từ', N'Số chứng từ', N't', 0, N'grid', 0, 0, 1, 1, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'Expr2', N'Expr2', NULL, N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 26, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'HinhThucNghi', N'Hình thức nghỉ', N'HinhThucNghi', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 25, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'IsAnCom', N'Có ăn cơm', NULL, N'c', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'IsXinHuy', N'Xin hủy đơn', NULL, N'c', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'LyDo', N'Lý do nghỉ', N'LyDo', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'ManagerID', N'ManagerID', N'ManagerID', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'ManagerName', N'ManagerName', NULL, N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 18, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'NgayDuyet', N'Ngày duyệt', N'NgayDuyet', N'd', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 24, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'NgayXinPhep', N'Ngày xin phép', NULL, N'd', 0, N'grid', 1, 1, 1, 1, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'NghiTuNgay', N'Nghỉ từ ngày', N'NghiTuNgay', N'd', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'NguoiXinPhep', N'Người xin phép', NULL, N't', 0, N'grid', 1, 1, 1, 1, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'Notes', N'Ghi chú', N'型号', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'PersonBranchID', N'PersonBranchID', NULL, N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 29, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'PersonID', N'Mã nhân viên', N'PersonID', N'sl', 1, N'grid', 1, 1, 1, 0, NULL, NULL, NULL, 1, 1, N'WA_PersonFullFrm|4');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'PersonName', N'Họ Tên', N'Họ và tên', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 28, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'SoNgayNghi', N'Số ngày nghỉ', N'Số ngày nghỉ', N'n', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'StatusID', N'Trạng thái', N'StatusID', N'sl', 0, N'grid', 1, 1, 1, 1, NULL, NULL, NULL, 2, 0, N'SELECT StatusID as ID, StatusName as Name FROM HR_StatusTbl');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'StatusName', N'Trạng thái', N'Trạng thái', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 19, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'UserCreate', N'Người tạo', N'Creator', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 12, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DonXinNghiPhepFrm', N'UserUpdate', N'Người sửa', N'Editor', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 13, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_ChiTiet', N'DenNgay', N'Đến ngày', N'Đến ngày', N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_ChiTiet', N'DetailID', N'DetailID', NULL, N'n', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_ChiTiet', N'DocumentID', N'Số chứng từ', N'Số chứng từ', N't', 0, N'grid', 0, 0, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_ChiTiet', N'HinhThucNghi', N'Hình thức nghỉ', N'HinhThucNghi', N'sl', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, N'SELECT HinhThucNghi as ID, TenHinhThucNghi as Name FROM HR_HinhThucNghiListTbl');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_ChiTiet', N'NghiTuNgay', N'Từ ngày', N'NghiTuNgay', N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_ChiTiet', N'Notes', N'Ghi chú', N'型号', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_ChiTiet', N'SoNgayNghi', N'Số ngày nghỉ', N'Số ngày nghỉ', N'n2', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_Attach', N'Content', N'Content', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_Attach', N'DocumentID', N'Số chứng từ', N'Số chứng từ', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_Attach', N'FileName', N'FileName', N'FileName', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_Attach', N'FileSize', N'FileSize', NULL, N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_Attach', N'FileType', N'FileType', NULL, N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_Attach', N'STT', N'STT', N'STT', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'API_HR_NghiPhep_Attach', N'UserAutoID', N'UserAutoID', N'UserAutoID', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DepartmentListFrm', N'PhongBan', N'Mã phòng ban', N'Department ID', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DepartmentListFrm', N'TenPhongBan', N'Tên phòng ban', N'Department Name', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TitleListFrm', N'TitleName', N'Tên chức vụ', N'Title Name', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_TitleListFrm', N'GhiChu', N'Ghi chú', N'Note', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'ShiftID', N'Mã ca', N'Shift ID', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'ShiftName', N'Tên ca', N'Shift Name', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'GioBatDau', N'Giờ bắt đầu', N'Start Time', N'tm', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'GioKetThuc', N'Giờ kết thúc', N'End Time', N'tm', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'SoGioCong', N'Số giờ công', N'Work Hours', N'n', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'GioCaDem', N'Giờ ca đêm', N'Night Shift Hours', N'n', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'CaTuDong', N'Ca tự động', N'Auto Shift', N'sw', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'ShiftType', N'Loại ca', N'Shift Type', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'CachChamCong', N'Cách chấm công', N'Timekeeping Method', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'Color', N'Màu hiển thị', N'Display Color', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'SoCong', N'Số công', N'Shift Weight', N'n', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 12, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HinhThucNghiListFrm', N'HinhThucNghi', N'Mã hình thức nghỉ', N'Leave Type Code', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HinhThucNghiListFrm', N'TenHinhThucNghi', N'Tên hình thức nghỉ', N'Leave Type Name', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_HinhThucNghiListFrm', N'NghiCoLuong', N'Có hưởng lương', N'With Pay', N'sw', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'CF_BranchListFrm', N'BranchID', N'Mã chi nhánh', N'Branch ID', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'CF_BranchListFrm', N'BranchName', N'Tên chi nhánh', N'Branch Name', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DepartmentListFrm', N'GhiChu', N'GhiChu', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_DepartmentListFrm', N'BranchID', N'BranchID', NULL, N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_ShiftListFrm', N'STT', N'Số thứ tự', N'Index', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_LuongKhoanFrm', N'UserAutoID', N'UserAutoID', N'UserAutoID', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_LuongKhoanFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N'sl', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, N'HR_PersonTbl');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_LuongKhoanFrm', N'PersonName', N'Họ tên nhân viên', N'Employee Name', N't', 0, N'grid', 1, 1, 1, 1, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_LuongKhoanFrm', N'TuNgay', N'Từ ngày', N'From Date', N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_LuongKhoanFrm', N'DenNgay', N'Đến ngày', N'To Date', N'd', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_LuongKhoanFrm', N'SoTienKhoan', N'Số tiền khoán', N'Fixed Salary', N'n', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_LuongKhoanFrm', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'12', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'MaPhuCap', N'Loại phụ cấp', N'Allowance Type', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'TenPhuCap', N'Mô tả', N'Description', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'NhomPhuCap', N'Nhóm phụ cấp', N'Allowance Group', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'TienPhuCapNgay', N'Tiền phụ cấp ngày', N'Daily Allowance', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'TienPhuCapThang', N'Tiền phụ cấp tháng', N'Monthly Allowance', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'GhiChu', N'Ghi chú', N'Notes', N't', 0, N'12', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'DVT', N'Unit', N'Unit', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'UserCreate', N'UserCreate', N'UserCreate', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'UserUpdate', N'UserUpdate', N'UserUpdate', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'DateUpdate', N'DateUpdate', N'DateUpdate', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_BangPhuCapFrm', N'DateCreate', N'DateCreate', N'DateCreate', N't', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 99, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'DocumentID', N'Số chứng từ', N'Document ID', N't', 0, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 11, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'DocumentDate', N'Ngày lập', N'Document Date', N'd', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 14, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'PeriodID', N'Kỳ lương', N'Period', N'sl', 1, N'6', 1, 1, 0, 0, NULL, NULL, NULL, 12, 1, N'SY_Period');
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N't', 1, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 1, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'PersonName', N'Họ Tên', N'Full Name', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'LuongCoBan', N'Lương cơ bản', N'Basic Salary', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 8, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'LuongTong', N'Lương Tổng', N'Gross Salary', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'TienBuTru', N'Tiền bù trừ', N'Adjustments', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 5, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'SoNguoiPhuThuoc', N'Số người phụ thuộc', N'Dependents', N't', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 6, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'MucDong', N'Mức đóng', N'Insurance Base', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 7, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'TongLuong', N'Tổng Lương', N'Net Salary', N'n', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 3, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'IsBH', N'Đóng BH', N'Insurance', N'c', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 9, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'IsHuuTri', N'Hưu trí', N'Retirement', N'c', 0, N'grid', 1, 1, 0, 0, NULL, NULL, NULL, 10, 0, NULL);
-INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PayrollFrm', N'PhongBan', N'Bộ phận', N'Department', N'sl', 0, N'6', 0, 0, 0, 0, NULL, NULL, NULL, 13, 1, N'API_DanhSachBoPhan');
-
 INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'PersonID', N'Mã nhân viên', N'Employee ID', N't', 0, N'grid|6', 0, 0, 1, 1, NULL, NULL, NULL, 1, 0, NULL);
 INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'PersonName', N'Họ tên', N'Full Name', N't', 0, N'grid|6', 1, 1, 0, 0, NULL, NULL, NULL, 2, 0, NULL);
 INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule, OrderNo, ShowInFilter, DataSource) VALUES (N'WA_PersonFullFrm', N'PhongBan', N'Bộ phận', N'Department', N'sl', 0, N'grid|6', 1, 1, 0, 0, NULL, NULL, NULL, 4, 0, N'HR_DepartmentListTbl');
@@ -1066,6 +713,32 @@ INSERT INTO #FormatManifest (FormName, FieldName, CaptionVN, CaptionEN, FormatID
 BEGIN TRY
     BEGIN TRANSACTION;
 
+    INSERT INTO #BeforeCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'WA_Menu', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.MenuID IS NOT NULL THEN 1 END)
+    FROM dbo.WA_Menu x
+    LEFT JOIN #MenuManifest m ON m.MenuID = x.MenuID;
+
+    INSERT INTO #BeforeCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'SY_FrmLstTbl', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.FormID IS NOT NULL THEN 1 END)
+    FROM dbo.SY_FrmLstTbl x
+    LEFT JOIN #FormManifest m ON m.FormID = x.FormID;
+
+    INSERT INTO #BeforeCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'WA_API', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.list IS NOT NULL THEN 1 END)
+    FROM dbo.WA_API x
+    LEFT JOIN #ApiManifest m ON m.list = x.list AND m.func = x.func;
+
+    INSERT INTO #BeforeCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'SY_FormatFields', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.FormName IS NOT NULL THEN 1 END)
+    FROM dbo.SY_FormatFields x
+    LEFT JOIN #FormatManifest m ON m.FormName = x.FormName AND m.FieldName = x.FieldName;
+
+    INSERT INTO #BeforeCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'WA_UserGroupPermisstion', COUNT_BIG(*),
+           COUNT_BIG(CASE WHEN @TargetUserGroupID IS NOT NULL AND m.MenuID IS NOT NULL AND x.UserGroupID = @TargetUserGroupID THEN 1 END)
+    FROM dbo.WA_UserGroupPermisstion x
+    LEFT JOIN #MenuManifest m ON m.MenuID = x.MenuID;
+
     INSERT INTO #Audit (ObjectName, BusinessKey, StatusCode, Detail)
     SELECT 'WA_Menu', m.MenuID,
            CASE WHEN x.MenuID IS NULL THEN 'MISSING' WHEN x.isDisable = 1 THEN 'DISABLED_IN_DB' ELSE 'IMPLEMENTED' END,
@@ -1089,6 +762,29 @@ BEGIN TRY
                 ELSE N'Đã khớp TableName/PrimaryKey.' END
     FROM #FormManifest f
     LEFT JOIN dbo.SY_FrmLstTbl x ON x.FormID = f.FormID;
+
+    INSERT INTO #Audit (ObjectName, BusinessKey, StatusCode, Detail)
+    SELECT 'SQL_TABLE', CONCAT(f.TableName, '.', f.PrimaryKey),
+           CASE WHEN OBJECT_ID(N'dbo.' + f.TableName, 'U') IS NULL THEN 'MISSING_OBJECT'
+                WHEN COL_LENGTH(N'dbo.' + f.TableName, f.PrimaryKey) IS NULL THEN 'MISSING_COLUMN'
+                ELSE 'IMPLEMENTED' END,
+           CASE WHEN OBJECT_ID(N'dbo.' + f.TableName, 'U') IS NULL THEN N'Thiếu bảng vật lý; không được apply routing.'
+                WHEN COL_LENGTH(N'dbo.' + f.TableName, f.PrimaryKey) IS NULL THEN N'Thiếu cột khóa chính đã khai báo; cần review contract.'
+                ELSE N'Bảng và cột khóa đã tồn tại.' END
+    FROM #FormManifest f;
+
+    INSERT INTO #Audit (ObjectName, BusinessKey, StatusCode, Detail)
+    SELECT 'SQL_PROCEDURE', a.[SQL],
+           CASE WHEN OBJECT_ID(N'dbo.' + a.[SQL], 'P') IS NULL THEN 'MISSING_OBJECT' ELSE 'IMPLEMENTED' END,
+           CASE WHEN OBJECT_ID(N'dbo.' + a.[SQL], 'P') IS NULL
+                THEN N'Thiếu stored procedure đích; không được tạo WA_API trỏ vào object không tồn tại.'
+                ELSE N'Stored procedure đích đã tồn tại.' END
+    FROM (SELECT DISTINCT [SQL] FROM #ApiManifest) a;
+
+    IF EXISTS (SELECT 1 FROM #ApiManifest WHERE LEN(list) > 50 OR LEN(func) > 50 OR LEN([SQL]) > 50)
+        THROW 51443, 'HRM_Web_Install: API manifest vuot kich thuoc cot WA_API.', 1;
+    IF EXISTS (SELECT 1 FROM #FormManifest WHERE LEN(CaptionVN) > 100 OR LEN(CaptionEN) > 100)
+        THROW 51444, 'HRM_Web_Install: form manifest vuot kich thuoc caption SY_FrmLstTbl.', 1;
 
     INSERT INTO #Audit (ObjectName, BusinessKey, StatusCode, Detail)
     SELECT 'WA_API', CONCAT(a.list, ':', a.func),
@@ -1145,53 +841,149 @@ BEGIN TRY
     WHERE NOT EXISTS (SELECT 1 FROM #FormManifest f WHERE f.FormID = m.FormName)
       AND NOT EXISTS (SELECT 1 FROM #MenuManifest menu WHERE menu.FormName = m.FormName);
 
+    IF @TargetUserGroupID IS NOT NULL
+    BEGIN
+        INSERT INTO #Audit (ObjectName, BusinessKey, StatusCode, Detail)
+        SELECT 'WA_UserGroupPermisstion', CONCAT(@TargetUserGroupID, ':', m.MenuID),
+               CASE WHEN p.ID IS NULL AND idOwner.ID IS NOT NULL THEN 'CONFLICT'
+                    WHEN p.ID IS NULL THEN 'MISSING'
+                    WHEN p.IsRun <> @TargetIsRun OR p.IsAdd <> @TargetIsAdd
+                      OR p.IsUpdate <> @TargetIsUpdate OR p.IsDelete <> @TargetIsDelete THEN 'CONFLICT'
+                    ELSE 'IMPLEMENTED' END,
+               CASE WHEN p.ID IS NULL AND idOwner.ID IS NOT NULL THEN N'ID quyền đã thuộc business key khác; không ghi.'
+                    WHEN p.ID IS NULL THEN N'Có thể thêm quyền theo UserGroupID+MenuID.'
+                    WHEN p.IsRun <> @TargetIsRun OR p.IsAdd <> @TargetIsAdd
+                      OR p.IsUpdate <> @TargetIsUpdate OR p.IsDelete <> @TargetIsDelete THEN N'Quyền hiện hữu khác tham số yêu cầu; giữ nguyên và dừng apply.'
+                    ELSE N'Quyền hiện hữu đã khớp.' END
+        FROM #MenuManifest m
+        LEFT JOIN dbo.WA_UserGroupPermisstion p
+          ON p.UserGroupID = @TargetUserGroupID AND p.MenuID = m.MenuID
+        LEFT JOIN dbo.WA_UserGroupPermisstion idOwner
+          ON idOwner.ID = CONCAT(@TargetUserGroupID, '_', m.MenuID)
+         AND (idOwner.UserGroupID <> @TargetUserGroupID OR idOwner.MenuID <> m.MenuID)
+        WHERE m.ExpectedDisabled = 0;
+
+        INSERT INTO #Audit (ObjectName, BusinessKey, StatusCode, Detail)
+        SELECT 'WA_UserGroupPermisstion', CONCAT(@TargetUserGroupID, ':', p.MenuID), 'DUPLICATE_KEY',
+               N'Có nhiều hơn một quyền theo UserGroupID+MenuID; migration không tự chọn row.'
+        FROM dbo.WA_UserGroupPermisstion p
+        INNER JOIN #MenuManifest m ON m.MenuID = p.MenuID
+        WHERE p.UserGroupID = @TargetUserGroupID
+        GROUP BY p.MenuID
+        HAVING COUNT(*) > 1;
+    END;
+
+    IF @DryRun = 0 AND EXISTS (
+        SELECT 1 FROM #Audit
+        WHERE StatusCode IN ('CONFLICT', 'DUPLICATE_KEY', 'MISSING_OBJECT', 'MISSING_COLUMN')
+    )
+        THROW 51445, 'HRM_Web_Install: preflight co conflict, duplicate hoac thieu SQL object; da rollback.', 1;
+
     IF @DryRun = 0
     BEGIN
         INSERT INTO dbo.WA_Menu (MenuID, Parent, VN, EN, FormName, FormKey, isDisable, isNotCheckPermission)
+        OUTPUT 'WA_Menu', inserted.MenuID, 'INSERT'
+          INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
         SELECT m.MenuID, m.Parent, m.VN, m.EN, m.FormName, m.FormKey, 0, 0
         FROM #MenuManifest m
         WHERE NOT EXISTS (SELECT 1 FROM dbo.WA_Menu x WHERE x.MenuID = m.MenuID)
           AND m.ExpectedDisabled = 0;
 
         INSERT INTO dbo.SY_FrmLstTbl (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
+        OUTPUT 'SY_FrmLstTbl', inserted.FormID, 'INSERT'
+          INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
         SELECT f.FormID, f.FormType, f.CaptionVN, f.CaptionEN, f.TableName, f.PrimaryKey
         FROM #FormManifest f
         WHERE NOT EXISTS (SELECT 1 FROM dbo.SY_FrmLstTbl x WHERE x.FormID = f.FormID);
 
         INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+        OUTPUT 'WA_API', CONCAT(inserted.list, ':', inserted.func), 'INSERT'
+          INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
         SELECT a.list, a.func, a.[SQL], a.Para
         FROM #ApiManifest a
         WHERE NOT EXISTS (SELECT 1 FROM dbo.WA_API x WHERE x.list = a.list AND x.func = a.func);
 
-        ;WITH FormatManifestDedup AS (
-            SELECT ff.*, ROW_NUMBER() OVER (PARTITION BY ff.FormName, ff.FieldName ORDER BY ff.FormName, ff.FieldName) AS rn
-            FROM #FormatManifest ff
-        )
         INSERT INTO dbo.SY_FormatFields
             (FormName, FieldName, CaptionVN, FormatID, CaptionEN, DataSource, IsRequired, FormPosition,
              ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, ValidateRule, DependsOn, VisibleRule,
              OrderNo, ShowInFilter)
+        OUTPUT 'SY_FormatFields', CONCAT(inserted.FormName, ':', inserted.FieldName), 'INSERT'
+          INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
         SELECT ff.FormName, ff.FieldName, ff.CaptionVN, ff.FormatID, ff.CaptionEN, ff.DataSource, ff.IsRequired, ff.FormPosition,
                ff.ShowInAdd, ff.ShowInEdit, ff.IsReadOnlyEdit, ff.IsReadOnlyAdd, ff.ValidateRule, ff.DependsOn, ff.VisibleRule,
                ff.OrderNo, ff.ShowInFilter
-        FROM FormatManifestDedup ff
+        FROM #FormatManifest ff
         WHERE NOT EXISTS (
             SELECT 1 FROM dbo.SY_FormatFields x
             WHERE x.FormName = ff.FormName AND x.FieldName = ff.FieldName
-        ) AND ff.rn = 1;
+        )
+          AND (
+            EXISTS (SELECT 1 FROM #FormManifest f WHERE f.FormID = ff.FormName)
+            OR EXISTS (SELECT 1 FROM #MenuManifest m WHERE m.FormName = ff.FormName)
+          );
+
+        IF @TargetUserGroupID IS NOT NULL
+        BEGIN
+            INSERT INTO dbo.WA_UserGroupPermisstion
+                (ID, UserGroupID, MenuID, IsRun, IsAdd, IsUpdate, IsDelete,
+                 isManager, isAdmin, isAutoLock, isHideAmount, isUnLockDoc, isLockDoc, isExportExcel)
+            OUTPUT 'WA_UserGroupPermisstion', CONCAT(inserted.UserGroupID, ':', inserted.MenuID), 'INSERT'
+              INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
+            SELECT CONCAT(@TargetUserGroupID, '_', m.MenuID), @TargetUserGroupID, m.MenuID,
+                   @TargetIsRun, @TargetIsAdd, @TargetIsUpdate, @TargetIsDelete,
+                   0, 0, 0, 0, 0, 0, 0
+            FROM #MenuManifest m
+            WHERE m.ExpectedDisabled = 0
+              AND LEN(CONCAT(@TargetUserGroupID, '_', m.MenuID)) <= 50
+              AND NOT EXISTS (
+                  SELECT 1 FROM dbo.WA_UserGroupPermisstion p
+                  WHERE p.UserGroupID = @TargetUserGroupID AND p.MenuID = m.MenuID
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM dbo.WA_UserGroupPermisstion p
+                  WHERE p.ID = CONCAT(@TargetUserGroupID, '_', m.MenuID)
+              );
+        END;
     END
 
-    SELECT @MigrationID AS MigrationID, @DryRun AS DryRun, @ApplyExplicitUpdates AS ApplyExplicitUpdates,
-           ObjectName,
-           SUM(CASE WHEN StatusCode = 'MISSING' THEN 1 ELSE 0 END) AS InsertOrWouldInsert,
-           SUM(CASE WHEN StatusCode IN ('WOULD_UPDATE', 'UPDATED') THEN 1 ELSE 0 END) AS UpdateOrWouldUpdate,
-           SUM(CASE WHEN StatusCode IN ('IMPLEMENTED', 'DISABLED_IN_DB', 'DUPLICATE_KEY') THEN 1 ELSE 0 END) AS SkipExisting,
-           SUM(CASE WHEN StatusCode = 'CONFLICT' THEN 1 ELSE 0 END) AS Conflict,
-           SUM(CASE WHEN StatusCode = 'ORPHAN' THEN 1 ELSE 0 END) AS Orphan,
-           SUM(CASE WHEN StatusCode IN ('IMPLEMENTED', 'DISABLED_IN_DB', 'CONFLICT', 'DUPLICATE_KEY') THEN 1 ELSE 0 END) AS PreservedExisting
-    FROM #Audit
-    GROUP BY ObjectName
-    ORDER BY ObjectName;
+    INSERT INTO #AfterCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'WA_Menu', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.MenuID IS NOT NULL THEN 1 END)
+    FROM dbo.WA_Menu x
+    LEFT JOIN #MenuManifest m ON m.MenuID = x.MenuID;
+
+    INSERT INTO #AfterCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'SY_FrmLstTbl', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.FormID IS NOT NULL THEN 1 END)
+    FROM dbo.SY_FrmLstTbl x
+    LEFT JOIN #FormManifest m ON m.FormID = x.FormID;
+
+    INSERT INTO #AfterCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'WA_API', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.list IS NOT NULL THEN 1 END)
+    FROM dbo.WA_API x
+    LEFT JOIN #ApiManifest m ON m.list = x.list AND m.func = x.func;
+
+    INSERT INTO #AfterCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'SY_FormatFields', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.FormName IS NOT NULL THEN 1 END)
+    FROM dbo.SY_FormatFields x
+    LEFT JOIN #FormatManifest m ON m.FormName = x.FormName AND m.FieldName = x.FieldName;
+
+    INSERT INTO #AfterCounts (ObjectName, TotalRows, AllowListRows)
+    SELECT 'WA_UserGroupPermisstion', COUNT_BIG(*),
+           COUNT_BIG(CASE WHEN @TargetUserGroupID IS NOT NULL AND m.MenuID IS NOT NULL AND x.UserGroupID = @TargetUserGroupID THEN 1 END)
+    FROM dbo.WA_UserGroupPermisstion x
+    LEFT JOIN #MenuManifest m ON m.MenuID = x.MenuID;
+
+    SELECT @MigrationID AS MigrationID, @DryRun AS DryRun, @TargetUserGroupID AS TargetUserGroupID,
+           a.ObjectName,
+           SUM(CASE WHEN a.StatusCode = 'MISSING' THEN 1 ELSE 0 END) AS InsertOrWouldInsert,
+           (SELECT COUNT_BIG(*) FROM #AppliedChanges c WHERE c.ObjectName = a.ObjectName) AS AppliedInsert,
+           SUM(CASE WHEN a.StatusCode IN ('IMPLEMENTED', 'DISABLED_IN_DB', 'DUPLICATE_KEY') THEN 1 ELSE 0 END) AS SkipExisting,
+           SUM(CASE WHEN a.StatusCode = 'CONFLICT' THEN 1 ELSE 0 END) AS Conflict,
+           SUM(CASE WHEN a.StatusCode = 'ORPHAN' THEN 1 ELSE 0 END) AS Orphan,
+           SUM(CASE WHEN a.StatusCode IN ('MISSING_OBJECT', 'MISSING_COLUMN') THEN 1 ELSE 0 END) AS MissingSqlContract,
+           SUM(CASE WHEN a.StatusCode IN ('IMPLEMENTED', 'DISABLED_IN_DB', 'CONFLICT', 'DUPLICATE_KEY') THEN 1 ELSE 0 END) AS PreservedExisting
+    FROM #Audit a
+    GROUP BY a.ObjectName
+    ORDER BY a.ObjectName;
 
     SELECT ObjectName, StatusCode, COUNT(*) AS ItemCount
     FROM #Audit
@@ -1200,7 +992,22 @@ BEGIN TRY
 
     SELECT ObjectName, BusinessKey, StatusCode, Detail
     FROM #Audit
-    WHERE StatusCode IN ('CONFLICT', 'DISABLED_IN_DB')
+    WHERE StatusCode IN ('CONFLICT', 'DUPLICATE_KEY', 'DISABLED_IN_DB', 'ORPHAN', 'MISSING_OBJECT', 'MISSING_COLUMN')
+    ORDER BY ObjectName, BusinessKey;
+
+    SELECT b.ObjectName,
+           b.TotalRows AS BeforeTotalRows,
+           a.TotalRows AS AfterTotalRows,
+           b.AllowListRows AS BeforeAllowListRows,
+           a.AllowListRows AS AfterAllowListRows,
+           a.TotalRows - b.TotalRows AS TotalRowDelta,
+           a.AllowListRows - b.AllowListRows AS AllowListRowDelta
+    FROM #BeforeCounts b
+    INNER JOIN #AfterCounts a ON a.ObjectName = b.ObjectName
+    ORDER BY b.ObjectName;
+
+    SELECT ObjectName, BusinessKey, ChangeType
+    FROM #AppliedChanges
     ORDER BY ObjectName, BusinessKey;
 
     IF @DryRun = 1 ROLLBACK TRANSACTION;

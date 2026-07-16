@@ -16,9 +16,11 @@ Registry mới dùng global/IIFE tương thích bundle hiện tại:
 
 `ModuleDefinition.create` vẫn là nơi normalize capability/mobile metadata. `DynamicFormEngine`, API client, router, auth, permission và storage không bị viết lại.
 
-## 13 module được bảo toàn
+## 13 module cũ được bảo toàn và 1 slice mới
 
 `WA_NguoiDungNhomFrm`, `WA_NguoiDungFrm`, `WA_TimeSheetDayFrm`, `WA_CaLamViecFrm`, `WA_QuanLyNghiPhepNamFrm`, `WA_KinhPhiCongDoanFrm`, `WA_PersonFullFrm`, `WA_DanhSachUngVienFrm`, `WA_LuongKhoanFrm`, `WA_BangPhuCapFrm`, `WA_BaoHiemFrm`, `WA_PayrollFrm`, `WA_HopDongLaoDongFrm`.
+
+Slice mới là `WA_DonXinNghiPhepFrm`. Module dùng DynamicFormEngine hiện hữu, `DocumentID` làm business key, hai detail tab cho ngày nghỉ và tài liệu, cùng metadata mobile do `ModuleDefinition.create` normalize. Tổng registry hiện là 14 module; 13 module cũ vẫn giữ nguyên.
 
 Các key, `FormName`, `PrimaryKey`, action callback, detail tab và API payload được giữ nguyên. Registry gọi `ModuleDefinition.create` một lần khi bundle khởi tạo và vẫn cho router tra theo FormKey/FormName.
 
@@ -31,4 +33,3 @@ Các key, `FormName`, `PrimaryKey`, action callback, detail tab và API payload 
 ## Ràng buộc contract
 
 Không đổi tên API, FormName, FormKey, storage key, field name hoặc response envelope. Không sửa trực tiếp bundle; manifest hiện build 77 JS từ source. Module mới được thêm vào `scripts/frontend-bundle.manifest.json` trước `HRModuleRegistry` và `DynamicFormEngine`.
-

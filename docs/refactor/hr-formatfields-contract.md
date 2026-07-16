@@ -17,7 +17,7 @@ Với cặp `(FormName, FieldName)`, frontend phải chọn theo thứ tự:
 - `SY_FmtFldTbl` có 2.648 row, chỉ có khóa identity `AutoID`; đây là dictionary fallback, không phải contract riêng form.
 - `API_LayCacTruongGiaoDien` trả `FormatID`, `FormPosition`, `OrderNo`, `DataSource`, `ValidateRule`, `DependsOn`, `VisibleRule`, `ShowInAdd`, `ShowInEdit`, `IsReadOnlyAdd`, `IsReadOnlyEdit`, `ShowInFilter` từ `SY_FormatFields`.
 - `API_DongBoTruongGiaoDien` trong schema có các tham số `@Overrides` và `@DeleteMissingFields`; logic cũ vẫn có nhánh xoá field không còn trong result và tự suy đoán `FormatID`. Không dùng procedure này làm bước cài mặc định.
-- `API_DangKyFormWeb` tồn tại trong snapshot, nhưng gọi đồng bộ field và có thể thay routing. Migration mới dùng `HRM_RegisterWebFormSafe`, không đổi signature procedure cũ.
+- `API_DangKyFormWeb` tồn tại trong snapshot, nhưng gọi đồng bộ field và có thể thay routing. Migration release không gọi procedure này và không tạo wrapper DDL mới; toàn bộ allow-list nằm trong transaction của file cài đặt.
 
 ## Thay đổi frontend
 
@@ -29,5 +29,4 @@ Với cặp `(FormName, FieldName)`, frontend phải chọn theo thứ tự:
 - `RECONCILE_REPORT`: chỉ báo cáo thiếu, conflict, duplicate và orphan.
 - `EXPLICIT_UPDATE`: chỉ dùng cho allow-list đã review, có before/after và rollback.
 
-`sql/Deploy/HRM_Web_Install.sql` mặc định `@DryRun=1`, `@ApplyExplicitUpdates=0`. Migration không ghi `SY_FmtFldTbl`, không `DELETE` và không cập nhật field đang có giá trị khác. Conflict `FormatID` hoặc layout được giữ nguyên và xuất trong báo cáo.
-
+`sql/Deploy/HRM_Web_Install.sql` mặc định `@DryRun=1`. Manifest có khóa chính tạm `(FormName, FieldName)` và 464 khóa duy nhất; migration không ghi `SY_FmtFldTbl`, không `DELETE`, không tạo/alter object trong dry-run và không cập nhật field đang có giá trị khác. Conflict `FormatID` hoặc layout được giữ nguyên, xuất trong báo cáo và chặn chế độ apply.
