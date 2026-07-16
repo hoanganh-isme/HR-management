@@ -6,3 +6,6 @@ backend-app/storage/template-workspaces/**
 backend-app/samples/backups/**
 backend-app/uploads/**
 !backend-app/uploads/.gitkeep
+
+# Production secrets are created only on the deployment host.
+.env.production

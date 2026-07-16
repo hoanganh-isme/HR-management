@@ -1,0 +1,16 @@
+.git
+.vscode
+.agents
+.env
+.env.*
+docker-compose*.yml
+backend-app
+brain
+docs
+scratch
+tests
+HR_ManagementProject
+node_modules
+**/node_modules
+**/*.log
+**/~$*

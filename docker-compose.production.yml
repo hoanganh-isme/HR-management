@@ -1,0 +1,72 @@
+name: hr-management
+
+services:
+  backend-app:
+    build:
+      context: ./backend-app
+      dockerfile: Dockerfile
+    container_name: backend_app
+    environment:
+      NODE_ENV: production
+      PORT: 8081
+      SQL_API_BASE: ${SQL_API_BASE:?Khai bao SQL_API_BASE trong .env.production}
+      SQL_API_USER: ${SQL_API_USER:-}
+      DOCUMENT_PUBLIC_BASE_URL: ${DOCUMENT_PUBLIC_BASE_URL:?Khai bao DOCUMENT_PUBLIC_BASE_URL trong .env.production}
+      DOCUMENT_INTERNAL_BASE_URL: ${DOCUMENT_INTERNAL_BASE_URL:-http://backend-app:8081}
+      ONLYOFFICE_PUBLIC_URL: ${ONLYOFFICE_PUBLIC_URL:?Khai bao ONLYOFFICE_PUBLIC_URL trong .env.production}
+      ONLYOFFICE_JWT_ENABLED: "true"
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Khai bao ONLYOFFICE_JWT_SECRET trong .env.production}
+      DRAFT_SIGNING_SECRET: ${DRAFT_SIGNING_SECRET:?Khai bao DRAFT_SIGNING_SECRET trong .env.production}
+      DRAFT_TTL_HOURS: ${DRAFT_TTL_HOURS:-24}
+      MAX_DOCX_SIZE_MB: ${MAX_DOCX_SIZE_MB:-20}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Khai bao CORS_ALLOWED_ORIGINS trong .env.production}
+    ports:
+      - "127.0.0.1:8083:8081"
+    volumes:
+      - ./backend-app/storage:/app/storage
+      - ./backend-app/samples:/app/samples
+      - ./backend-app/uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - hrm-network
+
+  onlyoffice:
+    image: onlyoffice/documentserver:9.3.1.2
+    container_name: onlyoffice_server
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:?Khai bao ONLYOFFICE_JWT_SECRET trong .env.production}
+      # Backend nằm trong private Docker network. Chỉ bật cho network HR cô lập.
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+    ports:
+      - "127.0.0.1:8082:80"
+    volumes:
+      - onlyoffice_document_logs:/var/log/onlyoffice
+      - onlyoffice_document_data:/var/www/onlyoffice/Data
+      - onlyoffice_document_lib:/var/lib/onlyoffice
+    restart: unless-stopped
+    networks:
+      - hrm-network
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hr_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend-app
+      - onlyoffice
+    restart: unless-stopped
+    networks:
+      - hrm-network
+
+networks:
+  hrm-network:
+    name: hrm-network
+
+volumes:
+  onlyoffice_document_logs:
+  onlyoffice_document_data:
+  onlyoffice_document_lib:

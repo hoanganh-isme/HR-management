@@ -5,11 +5,24 @@
  * ============================================================
  */
 
+function isLocalDocumentDevelopment() {
+    if (typeof window === 'undefined' || !window.location) return false;
+    return window.location.protocol === 'file:' ||
+        window.location.port === '5500' ||
+        window.location.port === '4173';
+}
+
+var HRM_RUNTIME_CONFIG = (typeof window !== 'undefined' && window.HRM_RUNTIME_CONFIG) || {};
+var HRM_FRONTEND_ORIGIN = (typeof window !== 'undefined' && window.location && /^https?:$/.test(window.location.protocol))
+    ? window.location.origin
+    : '';
+var HRM_LOCAL_DOCUMENT_DEVELOPMENT = isLocalDocumentDevelopment();
+
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
     API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
-    DOCUMENT_SERVICE_BASE: (window.HRM_RUNTIME_CONFIG && window.HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE) || 'http://127.0.0.1:8081',
-    ONLYOFFICE_PUBLIC_URL: (window.HRM_RUNTIME_CONFIG && window.HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL) || 'http://127.0.0.1:8001',
+    DOCUMENT_SERVICE_BASE: HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8081' : HRM_FRONTEND_ORIGIN + '/docserver'),
+    ONLYOFFICE_PUBLIC_URL: HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8001' : HRM_FRONTEND_ORIGIN + '/onlyoffice'),
 
     // Tự động phát hiện HOST chạy (Local dev vs Production)
     get BACKEND_HOST() {
