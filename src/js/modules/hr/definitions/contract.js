@@ -120,6 +120,8 @@
         api: 'API_HopDongLaoDong_ChiTiet',
         filterField: 'MaHopDong',
         editable: true,
+        duplicateField: 'MaPhuCap',
+        readOnlyFields: ['TenPhuCap'],
         customButtons: [
           {
             id: 'btn-multi-select-phucap',
@@ -131,7 +133,7 @@
               var loadingMsg = null;
               if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách phụ cấp...', 'info', 0);
 
-              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', lookupPayload).then(function (res) {
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, lookupPayload).then(function (res) {
                 if (loadingMsg) loadingMsg.close();
                 var dataList = res.list || res.records || [];
                 UIControls.utils.showMultiSelectGridModal({
@@ -222,6 +224,7 @@
         label: 'Tài liệu đính kèm',
         type: 'attachments',
         api: 'API_HopDongLaoDong_Attach',
+        primaryKey: 'UserAutoID',
         filterField: 'MaHopDong',
         fields: ['FileName', 'FileType', 'STT', 'FileSize', 'Content'],
         headers: {
@@ -234,4 +237,3 @@
     ]
   };
 })(window);
-

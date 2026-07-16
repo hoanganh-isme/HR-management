@@ -15,9 +15,27 @@ window.ModuleDefinition = (function () {
     });
   }
 
-  function create(input) {
-    var config = Object.assign({}, input || {});
-    config.capabilities = unique(DEFAULT_CAPABILITIES.concat(config.capabilities || []));
+  function mergeObject(base, overrides) {
+    if (!base && !overrides) return undefined;
+    return Object.assign({}, base || {}, overrides || {});
+  }
+
+  function create(baseDefinition, overrides) {
+    var hasBase = arguments.length > 1;
+    var base = hasBase ? (baseDefinition || {}) : {};
+    var input = hasBase ? (overrides || {}) : (baseDefinition || {});
+    var config = Object.assign({}, base, input);
+    config.api = mergeObject(base.api, input.api);
+    config.mobile = mergeObject(base.mobile, input.mobile);
+    config.defaults = mergeObject(base.defaults, input.defaults);
+    var baseCapabilities = base.capabilities;
+    var inputCapabilities = input.capabilities;
+    if ((baseCapabilities && !Array.isArray(baseCapabilities)) || (inputCapabilities && !Array.isArray(inputCapabilities))) {
+      config.capabilities = Object.assign({}, Array.isArray(baseCapabilities) ? {} : (baseCapabilities || {}), Array.isArray(inputCapabilities) ? {} : (inputCapabilities || {}));
+      if (config.capabilities.responsive === undefined) config.capabilities.responsive = true;
+    } else {
+      config.capabilities = unique(DEFAULT_CAPABILITIES.concat(baseCapabilities || [], inputCapabilities || []));
+    }
     if (Array.isArray(config.FormFields)) {
       config.FormFields = config.FormFields.map(function (field) {
         var next = Object.assign({}, field);

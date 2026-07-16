@@ -84,6 +84,7 @@
         label: 'Tài liệu đính kèm',
         type: 'attachments',
         api: 'API_HR_NghiPhep_Attach',
+        primaryKey: 'UserAutoID',
         saveApi: 'API_HR_NghiPhep_Attach_Save',
         saveFunc: 'Execute',
         filterField: 'DocumentID',

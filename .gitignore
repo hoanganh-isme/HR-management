@@ -1,0 +1,5 @@
+# Runtime document data and local signing material
+backend-app/storage/.draft-signing-secret
+backend-app/storage/drafts/**
+backend-app/storage/template-workspaces/**
+

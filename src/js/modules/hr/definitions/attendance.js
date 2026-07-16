@@ -4,6 +4,7 @@
     definitions.attendance['WA_TIMESHEETDAYFRM'] = {
     FormName: 'WA_TimeSheetDayFrm',
     PrimaryKey: 'UserAutoID',
+    ProcessAction: 'hr.timesheet.process',
     HideAddBtn: true,
     HideEditBtn: true,
     HideDeleteBtn: true,
@@ -12,6 +13,7 @@
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
+    ShiftAction: 'hr.shift.auto',
     ModalWidth: '860px',
     // Nút Sắp ca tự động nằm trên thanh thao tác (cạnh Lưu thay đổi/Sửa)
     // Hoạt động ở cả chế độ Xem và Sửa
@@ -95,6 +97,8 @@
         api: 'API_CaLamViec_NhanVien',
         filterField: 'SapCaID',
         editable: true,
+        duplicateField: 'PersonID',
+        readOnlyFields: ['PersonName', 'PhongBan', 'TitleName'],
         customButtons: [
           {
             id: 'btn-chon-nhanvien',
@@ -105,7 +109,7 @@
               var loadingMsg = null;
               if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
 
-              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', {
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, {
                 List: 'HR_PersonTbl',
                 Func: 'View',
                 Keyword: ''
@@ -225,4 +229,3 @@
     ]
   };
 })(window);
-

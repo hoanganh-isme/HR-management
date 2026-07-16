@@ -20,9 +20,10 @@ window.DynamicFormEngine = (function () {
   var totalPagesFromApi = 0;
   var lastTimestamp = '';
 
-  // Lưu trữ state (page, sort, filter) theo từng FormName để giữ vết khi chuyển lại
-  var moduleStates = {};
   var currentFormName = '';
+  var formState = null;
+  var attachmentManager = null;
+  var detailManager = null;
 
   // Dữ liệu Từ điển lấy từ API (Database)
   var globalDictionary = {};
@@ -31,29 +32,19 @@ window.DynamicFormEngine = (function () {
 
   var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
 
-  // Khôi phục moduleStates từ sessionStorage nếu có (để giữ filter khi F5)
-  try {
-    var cachedStates = sessionStorage.getItem('DynamicFormEngine_States');
-    if (cachedStates) moduleStates = JSON.parse(cachedStates);
-  } catch (e) { }
-
-  function _saveModuleStates() {
-    try {
-      sessionStorage.setItem('DynamicFormEngine_States', JSON.stringify(moduleStates));
-    } catch (e) { }
-  }
-
   var MODULE_CONFIG = {};
 
   // ── Helpers ──────────────────────────────────────────────
+  function _gateway() {
+    return window.AppConfig && AppConfig.apiGateway || (window.API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER) || '';
+  }
+
   function _currentGroup() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    return window.AppSession ? AppSession.getGroupId() : '';
   }
 
   function _currentUser() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Username || u.UserName || u.username || 'Admin';
+    return window.AppSession ? AppSession.getUserName() : '';
   }
 
   /**
@@ -65,14 +56,13 @@ window.DynamicFormEngine = (function () {
    */
   function _getUserBranches() {
     try {
-      var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-      var branchRaw = (u.BranchID || u.branchID || u.branchId || u.Branch || '').toString().trim();
-      var userGrp = (u.UserGroupID || u.userGroupID || u.userGroupId || u.Group || u.NhomQuyen || _currentGroup() || '').toString().toLowerCase();
+      var branchRaw = (window.AppSession ? AppSession.getBranchId() : '').toString().trim();
+      var userGrp = (_currentGroup() || '').toString().toLowerCase();
 
       var isAdmin = (userGrp === 'admin');
 
       // Load ALL_BRANCHES từ local storage
-      var sysBranches = JSON.parse(localStorage.getItem('pmql_sys_branches') || '[]');
+      var sysBranches = window.AppSession ? AppSession.getBranches() : [];
       var ALL_BRANCHES = sysBranches.map(function (b) {
         return {
           id: (b.BranchID || b.branchID || b.branchId || '').toString().trim(),
@@ -172,380 +162,27 @@ window.DynamicFormEngine = (function () {
 
   /** Lưu selectedRows vào sessionStorage (silent fail) */
   function _saveSelectedRows() {
-    try {
-      sessionStorage.setItem('selectedRows_' + MODULE_CONFIG.FormName, JSON.stringify(selectedRows));
-    } catch (e) { }
+    if (formState) formState.setSelectedRows(selectedRows);
+    _persistFormState();
   }
 
   /** Đọc selectedRows từ sessionStorage (silent fail, trả mảng rỗng nếu lỗi) */
   function _loadSelectedRows() {
-    selectedRows = [];
+    selectedRows = formState ? formState.get().selectedRows || [] : [];
   }
 
-  /**
-   * Phóng to hình ảnh trong một lightbox overlay đẹp mắt
-   * @param {string} imgSrc - URL hoặc Base64 của ảnh
-   */
-  function _showImageZoom(imgSrc) {
-    if (!imgSrc || imgSrc.indexOf('data:image/svg+xml') === 0) return;
-
-    var overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;z-index:99999;cursor:zoom-out;opacity:0;transition:opacity 0.2s ease-out;';
-
-    var zoomImg = document.createElement('img');
-    zoomImg.src = imgSrc;
-    zoomImg.style.cssText = 'max-width:88vw;max-height:88vh;object-fit:contain;border-radius:10px;box-shadow:0 16px 56px rgba(0,0,0,0.7);transform:scale(0.88);transition:transform 0.25s cubic-bezier(0.16,1,0.3,1);';
-
-    overlay.appendChild(zoomImg);
-    document.body.appendChild(overlay);
-
-    requestAnimationFrame(function () {
-      overlay.style.opacity = '1';
-      zoomImg.style.transform = 'scale(1)';
+  function _persistFormState() {
+    if (!formState) return;
+    formState.persist({
+      keyword: currentKeyword,
+      sortCol: currentSortCol,
+      sortDir: currentSortDir,
+      page: currentPage,
+      limit: currentLimit,
+      filters: window.currentFilters,
+      selectedRows: selectedRows,
+      activeDetailTab: activeDetailTabIdx
     });
-
-    overlay.onclick = function () {
-      overlay.style.opacity = '0';
-      zoomImg.style.transform = 'scale(0.88)';
-      setTimeout(function () { overlay.remove(); }, 220);
-    };
-  }
-
-  function _renderAttachmentsTab(tabDef, container, isEditable, row) {
-    container.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải tệp đính kèm...</div>';
-    var pkField = MODULE_CONFIG.PrimaryKey || 'PersonID';
-    var pkVal = row[pkField] || '';
-    var filterData = {};
-    filterData[tabDef.filterField || pkField] = pkVal;
-
-    function _getContentAsBlobUrl(fileItem) {
-      var content = fileItem.Content || fileItem.content || fileItem.Base64Content || fileItem.base64Content || '';
-      if (!content) return '';
-
-      var ext = (fileItem.FileName || '').split('.').pop().toLowerCase();
-      var mime = 'application/octet-stream';
-      if (ext === 'pdf') mime = 'application/pdf';
-      else if (ext === 'png') mime = 'image/png';
-      else if (ext === 'jpg' || ext === 'jpeg') mime = 'image/jpeg';
-      else if (ext === 'gif') mime = 'image/gif';
-      else if (ext === 'webp') mime = 'image/webp';
-
-      try {
-        if (/^0x/i.test(content)) {
-          var hexStr = content.replace(/^0x/i, '').replace(/\s/g, '');
-          var bytes = new Uint8Array(hexStr.length / 2);
-          for (var bi = 0; bi < bytes.length; bi++) {
-            bytes[bi] = parseInt(hexStr.substr(bi * 2, 2), 16);
-          }
-          var blob = new Blob([bytes], { type: mime });
-          return URL.createObjectURL(blob);
-        } else {
-          var cleanBase64 = content.trim();
-          if (cleanBase64.indexOf(';base64,') > -1) {
-            cleanBase64 = cleanBase64.split(';base64,')[1];
-          }
-          var binaryStr = window.atob(cleanBase64);
-          var bytes = new Uint8Array(binaryStr.length);
-          for (var i = 0; i < binaryStr.length; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
-          }
-          var blob = new Blob([bytes], { type: mime });
-          return URL.createObjectURL(blob);
-        }
-      } catch (e) {
-        console.error('[ATTACHMENT ERROR] Failed to convert content to blob url:', e);
-        return '';
-      }
-    }
-
-    function _loadAttachments() {
-      var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
-      ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payload).then(function (res) {
-        var data = res.list || res.records || [];
-        container.innerHTML = '';
-
-        // 1. Container cho danh sách tệp đính kèm
-        var listWrap = document.createElement('div');
-        listWrap.className = 'attachments-list';
-        listWrap.style.cssText = 'display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; max-height: 300px; overflow-y: auto;';
-
-        if (data.length === 0) {
-          var empty = document.createElement('div');
-          empty.style.cssText = 'color: var(--color-text-secondary); text-align: center; padding: 20px; font-size: 13px; border: 1px dashed var(--color-border); border-radius: 8px;';
-          empty.textContent = 'Chưa có tệp hay ảnh đính kèm nào cho bản ghi này.';
-          listWrap.appendChild(empty);
-        } else {
-          data.forEach(function (fileItem) {
-            var card = document.createElement('div');
-            card.style.cssText = 'display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 12px; background: var(--color-surface);';
-
-            // Left: Icon/Thumbnail + Info
-            var leftArea = document.createElement('div');
-            leftArea.style.cssText = 'display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;';
-
-            var iconWrap = document.createElement('div');
-            iconWrap.style.cssText = 'width: 40px; height: 40px; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--color-background, #f1f5f9); flex-shrink: 0;';
-
-            var blobUrl = _getContentAsBlobUrl(fileItem);
-            var isImage = parseInt(fileItem.FileType) === 1 || /\.(jpg|jpeg|png|gif|webp)$/i.test(fileItem.FileName);
-            if (isImage && blobUrl) {
-              // Hiển thị ảnh thumbnail thực tế từ Blob URL
-              var thumb = document.createElement('img');
-              thumb.src = blobUrl;
-              thumb.style.cssText = 'width: 100%; height: 100%; object-fit: cover; cursor: zoom-in;';
-              thumb.addEventListener('click', function () { _showImageZoom(blobUrl); });
-              iconWrap.appendChild(thumb);
-            } else {
-              var icon = document.createElement('span');
-              icon.className = 'material-symbols-outlined';
-              icon.style.fontSize = '24px';
-              icon.style.color = isImage ? 'var(--color-success)' : 'var(--color-primary)';
-              icon.innerText = isImage ? 'image' : (/\.(pdf)$/i.test(fileItem.FileName) ? 'picture_as_pdf' : 'description');
-              iconWrap.appendChild(icon);
-            }
-
-            var infoArea = document.createElement('div');
-            infoArea.style.cssText = 'display: flex; flex-direction: column; gap: 2px; min-width: 0;';
-
-            var nameSpan = document.createElement('span');
-            nameSpan.textContent = fileItem.FileName || 'Chưa đặt tên';
-            nameSpan.style.cssText = 'font-size: 13px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
-
-            var metaSpan = document.createElement('span');
-            var kbSize = fileItem.FileSize ? (parseFloat(fileItem.FileSize) / 1024).toFixed(1) + ' KB' : '—';
-            metaSpan.textContent = kbSize + ' | STT: ' + (fileItem.STT || '—');
-            metaSpan.style.cssText = 'font-size: 11px; color: var(--color-text-secondary);';
-
-            infoArea.appendChild(nameSpan);
-            infoArea.appendChild(metaSpan);
-
-            leftArea.appendChild(iconWrap);
-            leftArea.appendChild(infoArea);
-
-            // Right: Actions (Download & Preview & Delete)
-            var actions = document.createElement('div');
-            actions.style.cssText = 'display: flex; gap: 4px;';
-
-            if (blobUrl) {
-              // Icon mắt (Xem trước/Preview) cho Ảnh hoặc PDF
-              var ext = (fileItem.FileName || '').split('.').pop().toLowerCase();
-              var isPdf = ext === 'pdf';
-              if (isImage || isPdf) {
-                var btnPreview = document.createElement('button');
-                btnPreview.type = 'button';
-                btnPreview.className = 'btn btn-icon';
-                btnPreview.style.cssText = 'padding: 4px; border: none; background: none; cursor: pointer; color: var(--color-success); display: flex; align-items: center;';
-                btnPreview.title = 'Xem trực tiếp';
-                btnPreview.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>';
-                btnPreview.onclick = function () {
-                  if (isImage) {
-                    _showImageZoom(blobUrl);
-                  } else if (isPdf) {
-                    window.open(blobUrl, '_blank');
-                  }
-                };
-                actions.appendChild(btnPreview);
-              }
-
-              var btnDownload = document.createElement('button');
-              btnDownload.type = 'button';
-              btnDownload.className = 'btn btn-icon';
-              btnDownload.style.cssText = 'padding: 4px; border: none; background: none; cursor: pointer; color: var(--color-primary); display: flex; align-items: center;';
-              btnDownload.title = 'Tải xuống';
-              btnDownload.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">download</span>';
-              btnDownload.onclick = function () {
-                var a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = fileItem.FileName || 'download';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-              };
-              actions.appendChild(btnDownload);
-            }
-
-            // CHỈ HIỂN THỊ NÚT XÓA KHI ĐƯỢC PHÉP CHỈNH SỬA
-            if (isEditable) {
-              var btnDelete = document.createElement('button');
-              btnDelete.type = 'button';
-              btnDelete.className = 'btn btn-icon';
-              btnDelete.style.cssText = 'padding: 4px; border: none; background: none; cursor: pointer; color: var(--color-danger); display: flex; align-items: center;';
-              btnDelete.title = 'Xóa tệp';
-              btnDelete.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">delete</span>';
-              btnDelete.onclick = function () {
-                if (typeof ConfirmModal !== 'undefined') {
-                  ConfirmModal.show({
-                    title: 'Xóa tệp đính kèm',
-                    message: 'Bạn có chắc chắn muốn xóa tệp "' + fileItem.FileName + '" không?',
-                    onConfirm: function () {
-                      var delPayload = {
-                        List: tabDef.api,
-                        Func: 'Delete',
-                        Ids: fileItem.UserAutoID,
-                        JsonData: JSON.stringify({ UserAutoID: fileItem.UserAutoID })
-                      };
-                      ApiClient.post('/api/API_Gateway_Router', delPayload).then(function (delRes) {
-                        if (delRes.code === 0 || delRes.code === '0') {
-                          UIToast.show('Xóa tệp thành công!', 'success');
-                          _loadAttachments();
-                        } else {
-                          Alert.error('Lỗi', delRes.msg || 'Không thể xóa tệp');
-                        }
-                      }).catch(function (err) {
-                        Alert.error('Lỗi', 'Không thể kết nối máy chủ');
-                      });
-                    }
-                  });
-                }
-              };
-              actions.appendChild(btnDelete);
-            }
-
-            card.appendChild(leftArea);
-            card.appendChild(actions);
-            listWrap.appendChild(card);
-          });
-        }
-        container.appendChild(listWrap);
-
-        // CHỈ HIỂN THỊ VÙNG TẢI LÊN KHI ĐƯỢC PHÉP CHỈNH SỬA
-        if (isEditable) {
-          var uploadZoneWrap = document.createElement('div');
-          uploadZoneWrap.style.cssText = 'border: 1px dashed var(--color-border-strong); border-radius: 8px; padding: 16px; background: var(--color-surface); display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center;';
-
-          if (typeof UIFileUpload !== 'undefined') {
-            var fileUploadEl = UIFileUpload.create({
-              id: 'attach-upload-input',
-              text: 'Kéo thả tệp/ảnh hoặc click để tải lên',
-              hint: 'Hỗ trợ: PDF, JPG, PNG... Tối đa 10MB',
-              onChange: function (file) {
-                _uploadFileToServer(file);
-              }
-            });
-            uploadZoneWrap.appendChild(fileUploadEl);
-          }
-          container.appendChild(uploadZoneWrap);
-        }
-      }).catch(function (err) {
-        container.innerHTML = '<div style="color:var(--color-danger);padding:12px;text-align:center;">Lỗi tải danh sách tệp đính kèm</div>';
-      });
-    }
-
-    function _uploadFileToServer(file) {
-      if (!file) return;
-      if (file.size > 10 * 1024 * 1024) {
-        Alert.error('Tệp quá lớn', 'Hệ thống chỉ hỗ trợ tệp tối đa 10MB.');
-        return;
-      }
-
-      var reader = new FileReader();
-      reader.onload = function (e) {
-        var arrayBuffer = e.target.result;
-        var bytes = new Uint8Array(arrayBuffer);
-        var hexArray = [];
-        for (var i = 0; i < bytes.length; i++) {
-          var hexVal = bytes[i].toString(16);
-          if (hexVal.length < 2) hexVal = '0' + hexVal;
-          hexArray.push(hexVal);
-        }
-        var hexStr = '0x' + hexArray.join('');
-
-        var base64Reader = new FileReader();
-        base64Reader.onload = function (bEvent) {
-          var dataUrl = bEvent.target.result;
-          var base64Content = dataUrl.split(',')[1] || dataUrl;
-
-          var ext = file.name.split('.').pop().toLowerCase();
-          var isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp'].indexOf(ext) >= 0;
-          var fileTypeNum = isImg ? 1 : 0;
-
-          var previewHtml = '';
-          if (isImg) {
-            previewHtml = `
-              <div style="margin: 12px 0; text-align: center;">
-                <img src="${dataUrl}" style="max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 6px; border: 1px solid var(--color-border); box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
-              </div>
-            `;
-          } else {
-            var iconName = ext === 'pdf' ? 'picture_as_pdf' : 'description';
-            var iconColor = ext === 'pdf' ? 'var(--color-danger)' : 'var(--color-primary)';
-            previewHtml = `
-              <div style="margin: 12px 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: var(--color-background, #f8fafc); border-radius: 6px; border: 1px solid var(--color-border);">
-                <span class="material-symbols-outlined" style="font-size: 32px; color: ${iconColor};">${iconName}</span>
-                <span style="font-weight: 500; font-size: 13px; color: var(--color-text); word-break: break-all;"> Định dạng: ${ext.toUpperCase()} </span>
-              </div>
-            `;
-          }
-
-          var kbSize = (file.size / 1024).toFixed(1) + ' KB';
-          var confirmMessage = `
-            <div style="font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; text-align: left;">
-              Bạn có chắc chắn muốn tải tệp này lên không?
-              <div style="margin-top: 10px; padding: 10px; background: var(--color-background, #f1f5f9); border-radius: 6px; border: 1px solid var(--color-border); font-family: monospace; font-size: 12px; color: var(--color-text); word-break: break-all;">
-                <strong>Tên file:</strong> ${file.name}<br/>
-                <strong>Dung lượng:</strong> ${kbSize}
-              </div>
-              ${previewHtml}
-            </div>
-          `;
-
-          ConfirmModal.show({
-            title: 'Xác nhận tải tệp lên',
-            message: confirmMessage,
-            confirmText: 'Tải lên',
-            confirmClass: 'btn-primary',
-            onConfirm: function () {
-              _executeUpload(file, hexStr, base64Content, fileTypeNum);
-            }
-          });
-        };
-        base64Reader.readAsDataURL(file);
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    function _executeUpload(file, hexStr, base64Content, fileTypeNum) {
-      var payloadCount = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
-      ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payloadCount).then(function (cntRes) {
-        var currentItems = cntRes.list || cntRes.records || [];
-        var nextSTT = currentItems.length + 1;
-
-        var attachmentData = {
-          IsEdit: 0,
-          FileName: file.name,
-          FileType: fileTypeNum,
-          STT: nextSTT,
-          FileSize: file.size,
-          Base64Content: base64Content,
-          Content: hexStr
-        };
-        attachmentData[tabDef.filterField || pkField] = pkVal;
-
-        var savePayload = {
-          List: tabDef.saveApi || tabDef.api,
-          Func: tabDef.saveFunc || 'Save',
-          JsonData: JSON.stringify(attachmentData)
-        };
-
-        container.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang lưu tài liệu lên máy chủ...</div>';
-        ApiClient.post('/api/API_Gateway_Router', savePayload).then(function (saveRes) {
-          if (saveRes.code === 0 || saveRes.code === '0') {
-            UIToast.show('Tải tệp đính kèm lên thành công!', 'success');
-            _loadAttachments();
-          } else {
-            Alert.error('Lỗi lưu tệp', saveRes.msg || 'Không thể lưu tệp lên CSDL.');
-            _loadAttachments();
-          }
-        }).catch(function (err) {
-          Alert.error('Lỗi', 'Không thể kết nối đến máy chủ.');
-          _loadAttachments();
-        });
-      }).catch(function () {
-        _loadAttachments();
-      });
-    }
-
-    _loadAttachments();
   }
 
   /**
@@ -588,16 +225,7 @@ window.DynamicFormEngine = (function () {
       return;
     }
 
-    // 1. Lưu lại state của module hiện tại trước khi chuyển sang module mới
-    if (currentFormName) {
-      moduleStates[currentFormName] = {
-        keyword: currentKeyword,
-        sortCol: currentSortCol,
-        sortDir: currentSortDir,
-        page: currentPage,
-        filters: window.currentFilters
-      };
-    }
+    _persistFormState();
 
     $container = container;
     // Keep DynamicFormEngine as the single CRUD path while allowing small,
@@ -606,15 +234,24 @@ window.DynamicFormEngine = (function () {
       ? ModuleDefinition.create(config)
       : config;
     currentFormName = config.FormName;
+    formState = window.DynamicFormState ? DynamicFormState.create(currentFormName) : null;
+    attachmentManager = window.DynamicAttachmentManager ? DynamicAttachmentManager.create({ moduleConfig: MODULE_CONFIG, currentUser: _currentUser }) : null;
+    detailManager = window.DynamicDetailManager ? DynamicDetailManager.create({
+      moduleConfig: MODULE_CONFIG,
+      currentUser: _currentUser,
+      getDictionary: function () { return globalDictionary; }
+    }) : null;
 
     // 2. Khôi phục state của module mới (nếu đã từng vào trước đó)
-    var savedState = moduleStates[currentFormName];
+    var savedState = formState ? formState.restore() : null;
     if (savedState) {
-      currentKeyword = savedState.keyword;
-      currentSortCol = savedState.sortCol;
-      currentSortDir = savedState.sortDir;
-      currentPage = savedState.page;
-      window.currentFilters = savedState.filters;
+      currentKeyword = savedState.keyword || '';
+      currentSortCol = savedState.sortCol || '';
+      currentSortDir = savedState.sortDir || '';
+      currentPage = savedState.page || 1;
+      currentLimit = savedState.limit || currentLimit;
+      window.currentFilters = savedState.filters || null;
+      activeDetailTabIdx = savedState.activeDetailTab || 0;
     } else {
       // Nếu chưa từng vào thì reset về mặc định
       currentKeyword = '';
@@ -631,9 +268,9 @@ window.DynamicFormEngine = (function () {
 
     // API defaults: FormBuilder dùng API chuyên biệt, các form khác dùng generic No-Code API
     _setDefaults(MODULE_CONFIG, {
-      ApiSearch: '/api/API_Gateway_Router',
-      ApiSave: '/api/API_Gateway_Router',
-      ApiDelete: '/api/API_Gateway_Router'
+      ApiSearch: _gateway(),
+      ApiSave: _gateway(),
+      ApiDelete: _gateway()
     });
     _setDefaults(MODULE_CONFIG, { ApiDictionary: '/api/API_LayCacTruongGiaoDien' });
 
@@ -1764,7 +1401,7 @@ window.DynamicFormEngine = (function () {
               } else if (f.dataSource) {
                 filterObj.dataSource = f.dataSource;
                 // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
-                var apiSearchUrl = MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router';
+                var apiSearchUrl = MODULE_CONFIG.ApiSearch || _gateway();
                 ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
                   var dataList = res.list || res.records || [];
                   var options = [];
@@ -1909,17 +1546,7 @@ window.DynamicFormEngine = (function () {
   var savedScrollY = 0; // Lưu vị trí scroll
 
   function _loadData() {
-    // Đồng bộ state hiện tại vào cache để tránh mất filter khi F5
-    if (currentFormName) {
-      moduleStates[currentFormName] = {
-        keyword: currentKeyword,
-        sortCol: currentSortCol,
-        sortDir: currentSortDir,
-        page: currentPage,
-        filters: window.currentFilters
-      };
-      _saveModuleStates();
-    }
+    _persistFormState();
 
     if (MODULE_CONFIG.IsFullPageDetail && MODULE_CONFIG.DetailRowData) {
       _openModal(true, MODULE_CONFIG.DetailRowData, !MODULE_CONFIG.IsDetailForceEdit);
@@ -2219,7 +1846,7 @@ window.DynamicFormEngine = (function () {
             var finalUrl;
             var fetchPayload = {};
             if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
-              finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
+              finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + _gateway();
               fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View' };
             } else {
               var endpoint = endpointRaw.startsWith('http') ? endpointRaw : ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + endpointRaw);
@@ -2235,7 +1862,7 @@ window.DynamicFormEngine = (function () {
 
             var searchApiCall = function (q, page) {
               var payload = Object.assign({}, fetchPayload);
-              var isGateway = finalUrl.indexOf('API_Gateway_Router') > -1;
+              var isGateway = finalUrl.indexOf(_gateway()) > -1;
               var dynamicFilters = {};
               if (f.dependsOn) {
                 var parents = f.dependsOn.split(',').map(function (p) { return p.trim(); });
@@ -2292,7 +1919,7 @@ window.DynamicFormEngine = (function () {
                       }
                       colFilterIndex = validIdx !== -1 ? validIdx : 0;
                     }
-                    if (f.name === 'PersonID') colFilterIndex = 0;
+                    if (f.name === MODULE_CONFIG.PrimaryKey) colFilterIndex = 0;
                     if (f.name === 'PeriodKeyID') {
                       var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
@@ -2543,7 +2170,7 @@ window.DynamicFormEngine = (function () {
         var field = cell.getField();
         var newVal = cell.getValue();
 
-        var endpoint = MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router';
+        var endpoint = MODULE_CONFIG.ApiSave || _gateway();
         if (!endpoint) return;
 
         var schema = null;
@@ -3196,7 +2823,8 @@ window.DynamicFormEngine = (function () {
             valSpan.className = 'inline-edit-field';
 
             var fieldSchema = globalFormSchema.find(function (s) { return s.name === fName; });
-            var isReadOnly = fieldSchema ? fieldSchema.isReadOnlyEdit : (fName === MODULE_CONFIG.PrimaryKey || fName === 'NewPersonID');
+            var readOnlyKeys = MODULE_CONFIG.ReadOnlyKeyFields || [];
+            var isReadOnly = fieldSchema ? fieldSchema.isReadOnlyEdit : (fName === MODULE_CONFIG.PrimaryKey || readOnlyKeys.indexOf(fName) >= 0);
             var isDate = fName.toLowerCase().indexOf('ngay') >= 0 || (fieldSchema && fieldSchema.renderRule === 'dt');
 
             if (isReadOnly) {
@@ -3319,7 +2947,7 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
+          var imgIdVal = row && MODULE_CONFIG.PrimaryKey ? (row[MODULE_CONFIG.PrimaryKey] || '') : '';
           var isLoadingHex = false;
 
           if (rawContent && typeof rawContent === 'string' && rawContent.length > 2) {
@@ -3377,17 +3005,16 @@ window.DynamicFormEngine = (function () {
               var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
                 ? 'API_CandidateAttach' : 'API_PersonAttach';
 
+              var fetchData = {};
+              (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) fetchData[key] = imgIdVal; });
               var fetchPayload = {
                 List: attachApi,
                 Func: 'View',
-                JsonData: JSON.stringify({
-                  CandidateID: imgIdVal,
-                  PersonID: imgIdVal
-                }),
+                JsonData: JSON.stringify(fetchData),
                 UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
               };
 
-              ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+              ApiClient.post(_gateway(), fetchPayload)
                 .then(function (data) {
                   if (data && data.code === 0 && data.records && data.records.length > 0) {
                     var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
@@ -3481,7 +3108,7 @@ window.DynamicFormEngine = (function () {
       } else if (tabDef.type === 'kv-form') {
         // KV-Form tab: gọi API riêng và hiển thị từng record dướng form nhãn-giá trị
         tabContentContainer.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải dữ liệu...</div>';
-        var pkFieldKV = MODULE_CONFIG.PrimaryKey || 'PersonID';
+        var pkFieldKV = MODULE_CONFIG.PrimaryKey;
         var pkValKV = row[pkFieldKV] || '';
         var filterKV = {};
         filterKV[tabDef.filterField || pkFieldKV] = pkValKV;
@@ -3489,7 +3116,7 @@ window.DynamicFormEngine = (function () {
         var MONEY_KV = ['MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'LuongCoBan', 'MucDong'];
         var DATE_KV = ['NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayHetHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'NgayThayDoi', 'NgayCapNhat', 'FromDate', 'ToDate', 'LogDate', 'GiamTruTuThang', 'GiamTruDenThang'];
 
-        ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payloadKV).then(function (resKV) {
+        ApiClient.post(MODULE_CONFIG.ApiSearch || _gateway(), payloadKV).then(function (resKV) {
           var dataKV = resKV.list || resKV.records || [];
           tabContentContainer.innerHTML = '';
           if (dataKV.length === 0) {
@@ -3499,7 +3126,7 @@ window.DynamicFormEngine = (function () {
             tabContentContainer.appendChild(emptyKV);
             return;
           }
-          var fieldsKV = tabDef.fields || Object.keys(dataKV[0]).filter(function (k) { return !k.startsWith('_') && k !== 'UserAutoID' && k !== 'PersonID'; });
+          var fieldsKV = tabDef.fields || Object.keys(dataKV[0]).filter(function (k) { return !k.startsWith('_') && k !== tabDef.primaryKey && k !== MODULE_CONFIG.PrimaryKey; });
           dataKV.forEach(function (rec, idx) {
             var card = document.createElement('div');
             card.style.cssText = 'background:var(--color-background,#f8fafc);border:1px solid var(--color-border);border-radius:8px;padding:14px 16px;margin-bottom:12px;';
@@ -3550,21 +3177,21 @@ window.DynamicFormEngine = (function () {
           tabContentContainer.innerHTML = '<div style="color:var(--color-danger);padding:12px;text-align:center;">Lỗi tải dữ liệu</div>';
         });
       } else if (tabDef.type === 'attachments') {
-        _renderAttachmentsTab(tabDef, tabContentContainer, false, row);
+        if (attachmentManager) attachmentManager.render(tabDef, tabContentContainer, false, row);
       } else {
         // Table tab
         tabContentContainer.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải chi tiết...</div>';
-        var pkField = MODULE_CONFIG.PrimaryKey || 'PersonID';
+        var pkField = MODULE_CONFIG.PrimaryKey;
         var pkVal = row[pkField] || '';
         var filterData = {};
         filterData[tabDef.filterField || pkField] = pkVal;
         var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
 
-        ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payload).then(function (res) {
+        ApiClient.post(MODULE_CONFIG.ApiSearch || _gateway(), payload).then(function (res) {
           var data = res.list || res.records || [];
           // Lọc bỏ hàng trống: nếu tất cả field hiển thị đều là null/''/'0'/0 thì bỏ qua
           if (tabDef.fields && tabDef.fields.length > 0) {
-            var SKIP_KEYS = ['UserAutoID', 'PersonID', 'SapCaID', 'MaHopDong', 'RelationID', 'MaPhuCap'];
+            var SKIP_KEYS = [tabDef.primaryKey, MODULE_CONFIG.PrimaryKey].concat(tabDef.ignoreEmptyFields || []).filter(Boolean);
             var displayKeys = tabDef.fields.filter(function (k) { return SKIP_KEYS.indexOf(k) < 0; });
             data = data.filter(function (r) {
               return displayKeys.some(function (k) {
@@ -4116,7 +3743,7 @@ window.DynamicFormEngine = (function () {
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeysFull.find(function (k) { return labelRegex.test(k); });
                     colFilterIndex = displayKey ? displayKeysFull.indexOf(displayKey) : (displayKeysFull.length > 1 ? 1 : 0);
-                    if (field.name === 'PersonID') colFilterIndex = 0;
+                    if (field.name === MODULE_CONFIG.PrimaryKey) colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
                       var keyIdx = displayKeysFull.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
@@ -4386,7 +4013,7 @@ window.DynamicFormEngine = (function () {
         }
       }
 
-      var imgIdVal = row ? (isPersonForm ? (row.PersonID || '') : (row.CandidateID || '')) : '';
+      var imgIdVal = row && MODULE_CONFIG.PrimaryKey ? (row[MODULE_CONFIG.PrimaryKey] || '') : '';
       var isLoadingHex = false;
 
       if (rawContent && typeof rawContent === 'string' && rawContent.length > 2) {
@@ -4443,17 +4070,16 @@ window.DynamicFormEngine = (function () {
           var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
             ? 'API_CandidateAttach' : 'API_PersonAttach';
 
-          var fetchPayload = {
-            List: attachApi,
-            Func: 'View',
-            JsonData: JSON.stringify({
-              CandidateID: imgIdVal,
-              PersonID: imgIdVal
-            }),
+            var fetchData = {};
+            (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) fetchData[key] = imgIdVal; });
+            var fetchPayload = {
+              List: attachApi,
+              Func: 'View',
+              JsonData: JSON.stringify(fetchData),
             UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
           };
 
-          ApiClient.post('/api/API_Gateway_Router', fetchPayload)
+          ApiClient.post(_gateway(), fetchPayload)
             .then(function (data) {
               if (data && data.code === 0 && data.records && data.records.length > 0) {
                 var b64 = data.records[0].Base64Content || data.records[0].Content || data.records[0].HinhAnh || '';
@@ -4738,7 +4364,7 @@ window.DynamicFormEngine = (function () {
             var fetchPayload = {};
             if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
               // Nếu dataSource chỉ là tên danh mục (không chứa slash), tự động dùng Gateway Router
-              finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + '/api/API_Gateway_Router';
+              finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + _gateway();
               fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View' };
             } else {
               var endpoint = endpointRaw.startsWith('http') ? endpointRaw : ((typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + endpointRaw);
@@ -4754,7 +4380,7 @@ window.DynamicFormEngine = (function () {
 
             var searchApiCall = function (q, page) {
               var payload = Object.assign({}, fetchPayload);
-              var isGateway = finalUrl.indexOf('API_Gateway_Router') > -1;
+              var isGateway = finalUrl.indexOf(_gateway()) > -1;
               var dynamicFilters = {};
 
               if (typeof currentModalFormState !== 'undefined') {
@@ -4821,7 +4447,7 @@ window.DynamicFormEngine = (function () {
                       }
                       colFilterIndex = validIdx !== -1 ? validIdx : 0;
                     }
-                    if (field.name === 'PersonID') colFilterIndex = 0;
+                    if (field.name === MODULE_CONFIG.PrimaryKey) colFilterIndex = 0;
                     if (field.name === 'PeriodKeyID') {
                       var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
@@ -5311,416 +4937,20 @@ window.DynamicFormEngine = (function () {
 
       tabsContainer.appendChild(tabNav);
 
-      // Render Editable Grid inside Tab Panel
-      function _renderEditableGrid(tabDef, panel) {
-        panel.innerHTML = '';
-
-        var wrap = document.createElement('div');
-        wrap.style.cssText = 'overflow-x: auto; border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: 12px; background: var(--color-surface);';
-
-        var t = document.createElement('table');
-        t.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 13px; table-layout: auto;';
-
-        var thead = document.createElement('thead');
-        var trH = document.createElement('tr');
-        trH.style.cssText = 'background: var(--color-background); border-bottom: 2px solid var(--color-border);';
-
-        var keys = tabDef.fields;
-
-        // Headers
-        keys.forEach(function (k) {
-          var th = document.createElement('th');
-          var label = (tabDef.headers && tabDef.headers[k]) ? tabDef.headers[k] : (globalDictionary[k] || k);
-          th.textContent = label;
-          th.style.cssText = 'padding: 10px 12px; font-weight: 700; color: var(--color-text); background-color: var(--color-surface-elevated); text-align: left; white-space: nowrap;';
-          trH.appendChild(th);
-        });
-
-        // Add action header (for Delete button)
-        var thAction = document.createElement('th');
-        thAction.style.cssText = 'padding: 10px 12px; width: 50px; text-align: center;';
-        if (!isViewMode) {
-          trH.appendChild(thAction);
-        }
-        thead.appendChild(trH);
-        t.appendChild(thead);
-
-        var tbody = document.createElement('tbody');
-
-        panel._currentRows.forEach(function (currRow, rIdx) {
-          var tr = document.createElement('tr');
-          tr.style.cssText = 'border-bottom: 1px solid var(--color-border); transition: background-color 0.2s;';
-          tr.onmouseover = function () { this.style.backgroundColor = 'rgba(0, 0, 0, 0.02)'; };
-          tr.onmouseout = function () { this.style.backgroundColor = ''; };
-
-          // Pass 1: Tạo tất cả các td và lưu vào cellMap để closure onSelect có thể tham chiếu trực tiếp
-          var cellMap = {};
-          keys.forEach(function (k) {
-            var td = document.createElement('td');
-            td.style.cssText = 'padding: 6px 12px; vertical-align: middle; position: relative;';
-            td.setAttribute('data-field', k);
-            cellMap[k] = td;
-            tr.appendChild(td);
-          });
-
-          // Pass 2: Điền nội dung vào từng td
-          keys.forEach(function (fName) {
-            var td = cellMap[fName];
-
-            var lConf = (tabDef.lookupConfig && tabDef.lookupConfig[fName]) || null;
-
-            if (lConf) {
-              // isBH: BaoHiem có cột STT ở đầu nên PersonID nằm ở colFilterIndex=1.
-              // Các form khác (CaLamViec, ...) PersonID nằm ở colFilterIndex=0.
-              // Dùng colFilterIndex để xác định thay vì hardcode fName === 'PersonID'
-              var isBH = (fName === 'PersonID' && (lConf.colFilterIndex || 0) === 1);
-
-              var combo = UIControls.createDataComboBox({
-                placeholder: 'Chọn...',
-                headers: lConf.headers || ['Mã', 'Tên'],
-                colFilterIndex: lConf.colFilterIndex || 0,
-                forceMultiColumn: lConf.forceMultiColumn !== false,
-                onSearch: function (q) {
-                  var lookupPayload = {
-                    List: lConf.apiList,
-                    Func: 'View',
-                    Keyword: q
-                  };
-                  if (typeof lConf.getPayload === 'function') {
-                    Object.assign(lookupPayload, lConf.getPayload());
-                  }
-
-                  return ApiClient.post('/api/API_Gateway_Router', lookupPayload).then(function (res) {
-                    var list = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
-                    var dataList = list.map(function (d) {
-                      return (typeof lConf.mapData === 'function') ? lConf.mapData(d, {}, true) : [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
-                    });
-                    // For legacy WA_BaoHiemFrm that didn't define mapData:
-                    if (fName === 'PersonID' && typeof lConf.mapData !== 'function') {
-                      dataList = list.map(function (d) {
-                        return [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
-                      });
-                    }
-
-                    return {
-                      headers: lConf.headers || ['Mã', 'Tên'],
-                      data: dataList,
-                      colFilterIndex: lConf.colFilterIndex || 0
-                    };
-                  });
-                },
-                onSelect: function (selectedData) {
-                  var selectedVal = selectedData[lConf.colFilterIndex || 0];
-
-                  // Kiểm tra trùng lặp
-                  var isDuplicate = panel._currentRows.some(function (row, index) {
-                    return index !== rIdx && row[fName] === selectedVal;
-                  });
-
-                  if (isDuplicate) {
-                    if (typeof Alert !== 'undefined') {
-                      Alert.warning('Trùng lặp', 'Dữ liệu này đã được chọn trong danh sách!');
-                    } else if (typeof UIToast !== 'undefined') {
-                      UIToast.show('Dữ liệu này đã được chọn!', 'warning');
-                    } else {
-                      alert('Dữ liệu này đã được chọn!');
-                    }
-                    if (displayInp) displayInp.value = '';
-                    currRow[fName] = '';
-
-                    if (typeof lConf.mapData === 'function') {
-                      // Reset based on generic mapData logic if needed, simple clear for now
-                    } else if (fName === 'PersonID') {
-                      currRow['PersonName'] = '';
-                      currRow['PhongBan'] = '';
-                      if (isBH) {
-                        currRow['MucDong'] = '';
-                        if (cellMap['MucDong']) {
-                          var mInp = cellMap['MucDong'].querySelector('input');
-                          if (mInp) mInp.value = '';
-                        }
-                      } else {
-                        currRow['TitleName'] = '';
-                      }
-                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = '';
-                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = '';
-                      if (cellMap['TitleName']) cellMap['TitleName'].textContent = '';
-                    }
-                    return;
-                  }
-
-                  // Cập nhật dữ liệu hàng
-                  currRow[fName] = selectedVal;
-
-                  if (typeof lConf.mapData === 'function') {
-                    var gridRow = { _tr: tr };
-                    lConf.mapData(selectedData, gridRow, false);
-                    for (var key in gridRow) {
-                      if (key !== '_tr') currRow[key] = gridRow[key];
-                    }
-                  } else if (fName === 'PersonID') {
-                    if (isBH) {
-                      currRow['PersonID'] = selectedData[1];
-                      currRow['PersonName'] = selectedData[2];
-                      currRow['PhongBan'] = selectedData[3];
-                      currRow['MucDong'] = parseFloat(selectedData[4]) || 0;
-
-                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[2] || '';
-                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[3] || '';
-                      if (cellMap['MucDong']) {
-                        var mInp = cellMap['MucDong'].querySelector('input');
-                        if (mInp) {
-                          mInp.value = selectedData[4] || '0';
-                          mInp.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                      }
-                    } else {
-                      currRow['PersonID'] = selectedData[0];
-                      currRow['PersonName'] = selectedData[1];
-                      currRow['PhongBan'] = selectedData[2];
-                      currRow['TitleName'] = selectedData[3];
-                      if (cellMap['PersonName']) cellMap['PersonName'].textContent = selectedData[1] || '';
-                      if (cellMap['PhongBan']) cellMap['PhongBan'].textContent = selectedData[2] || '';
-                      if (cellMap['TitleName']) cellMap['TitleName'].textContent = selectedData[3] || '';
-                    }
-                  }
-                }
-              });
-
-              var displayInp = combo.querySelector('input.ui-input');
-              if (displayInp) {
-                displayInp.value = currRow[fName] || '';
-                displayInp.style.cssText = 'border: 1px solid var(--color-border); border-radius: 4px; padding: 6px 8px; width: 100%; font-size: 13px; outline: none; background: var(--color-surface);';
-                if (isViewMode) displayInp.disabled = true;
-              }
-              combo.style.width = '160px';
-              if (isViewMode) combo.style.pointerEvents = 'none';
-              td.appendChild(combo);
-
-            } else if (['PersonName', 'PhongBan', 'TitleName', 'ChucDanhChuyenMon'].includes(fName)) {
-              // Chỉ đọc — không cho chỉnh sửa, tự động điền khi chọn nhân viên
-              td.textContent = currRow[fName] != null ? currRow[fName] : '';
-              td.style.cssText += 'color: var(--color-text-secondary); font-style: italic;';
-
-            } else {
-              // Input text cho các trường còn lại
-              var inp = document.createElement('input');
-              inp.type = 'text';
-              inp.value = currRow[fName] != null ? currRow[fName] : '';
-              inp.placeholder = 'Nhập...';
-              inp.style.cssText = 'border: 1px solid var(--color-border); border-radius: 4px; padding: 6px 8px; width: 100%; font-size: 13px; outline: none; background: var(--color-surface);';
-              if (isViewMode) inp.disabled = true;
-              inp.addEventListener('input', function () {
-                currRow[fName] = this.value;
-              });
-
-              // Hỗ trợ tính toán động nếu có cấu hình fieldEvents
-              if (tabDef.fieldEvents && tabDef.fieldEvents[fName] && typeof tabDef.fieldEvents[fName].onChange === 'function') {
-                inp.addEventListener('change', function () {
-                  tabDef.fieldEvents[fName].onChange(this.value, currRow, row, tr);
-                });
-              }
-
-              td.appendChild(inp);
-            }
-          });
-
-          // Cột hành động (Xóa dòng)
-          var tdAction = document.createElement('td');
-          tdAction.style.cssText = 'padding: 6px 12px; text-align: center; vertical-align: middle;';
-
-          var btnDel = document.createElement('button');
-          btnDel.type = 'button';
-          btnDel.className = 'btn btn-sm btn-tool text-danger';
-          btnDel.style.cssText = 'padding: 4px; border: none; background: transparent; cursor: pointer; border-radius: 4px;';
-          btnDel.innerHTML = '<span class="material-symbols-outlined" style="font-size: 20px;">delete</span>';
-          btnDel.onclick = function () {
-            if (typeof ConfirmModal !== 'undefined') {
-              ConfirmModal.show({
-                title: 'Xác nhận xóa',
-                message: 'Bạn có chắc muốn xóa dòng này không?',
-                onConfirm: function () {
-                  var detailPK = tabDef.primaryKey || 'UserAutoID';
-                  if (currRow[detailPK]) {
-                    panel._deletedRows.push(currRow);
-                  }
-                  panel._currentRows.splice(rIdx, 1);
-                  _renderEditableGrid(tabDef, panel);
-                }
-              });
-            } else {
-              var detailPK = tabDef.primaryKey || 'UserAutoID';
-              if (currRow[detailPK]) {
-                panel._deletedRows.push(currRow);
-              }
-              panel._currentRows.splice(rIdx, 1);
-              _renderEditableGrid(tabDef, panel);
-            }
-          };
-
-          tdAction.appendChild(btnDel);
-          if (!isViewMode) {
-            tr.appendChild(tdAction);
-          }
-          tbody.appendChild(tr);
-        });
-
-        t.appendChild(tbody);
-        wrap.appendChild(t);
-        panel.appendChild(wrap);
-
-        // Add Row Button below the grid
-        if (!isViewMode) {
-          var btnAddRow = document.createElement('button');
-          btnAddRow.type = 'button';
-          btnAddRow.className = 'btn btn-sm btn-outline-primary';
-          btnAddRow.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px; font-weight: 500; font-size: 13px; cursor: pointer;';
-          btnAddRow.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">add</span> Thêm dòng mới';
-          btnAddRow.onclick = function () {
-            var newRow = {};
-            newRow[tabDef.filterField] = row[MODULE_CONFIG.PrimaryKey] || '';
-            panel._currentRows.push(newRow);
-            _renderEditableGrid(tabDef, panel);
-          };
-          panel.appendChild(btnAddRow);
-
-          if (tabDef.customButtons && tabDef.customButtons.length > 0) {
-            tabDef.customButtons.forEach(function (btnDef) {
-              var cBtn = document.createElement('button');
-              cBtn.type = 'button';
-              cBtn.className = 'btn btn-sm ' + (btnDef.className || 'btn-outline-secondary');
-              cBtn.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px; font-weight: 500; font-size: 13px; cursor: pointer; margin-left: 10px;';
-              if (btnDef.icon) {
-                cBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px;">' + btnDef.icon + '</span> ' + (btnDef.label || '');
-              } else {
-                cBtn.textContent = btnDef.label || '';
-              }
-              cBtn.onclick = function () {
-                if (typeof btnDef.onClick === 'function') {
-                  btnDef.onClick({
-                    panel: panel,
-                    tabDef: tabDef,
-                    row: row,
-                    MODULE_CONFIG: MODULE_CONFIG,
-                    renderGrid: _renderEditableGrid
-                  });
-                }
-              };
-              panel.appendChild(cBtn);
-            });
-          }
-        }
-      }
-
-      // Load data function for each tab
-      function _loadTabData(tabDef, panel) {
-        if (tabDef.type === 'attachments') {
-          _renderAttachmentsTab(tabDef, panel, true, row);
-          return;
-        }
-        if (tabDef.editable) {
-          panel._tabDef = tabDef;
-          panel._initialRows = [];
-          panel._currentRows = [];
-          panel._deletedRows = [];
-
-          var pkField = MODULE_CONFIG.PrimaryKey || 'SapCaID';
-          var pkVal = row[pkField] || '';
-
-          if (pkVal) {
-            var filterData = {};
-            filterData[tabDef.filterField || pkField] = pkVal;
-            var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
-
-            panel.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải...</div>';
-            ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payload).then(function (res) {
-              var data = res.list || res.records || [];
-              panel._initialRows = JSON.parse(JSON.stringify(data));
-              panel._currentRows = JSON.parse(JSON.stringify(data));
-              _renderEditableGrid(tabDef, panel);
-            }).catch(function () {
-              panel.innerHTML = '<div style="color:var(--color-danger);padding:12px;">Lỗi tải dữ liệu chi tiết</div>';
-            });
-          } else {
-            _renderEditableGrid(tabDef, panel);
-          }
-          return;
-        }
-
-        if (!tabDef.api) {
-          panel.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;">(Chưa cấu hình API)</div>';
-          return;
-        }
-        var pkField = MODULE_CONFIG.PrimaryKey || 'SapCaID';
-        var pkVal = row[pkField] || '';
-        var filterData = {};
-        filterData[tabDef.filterField || pkField] = pkVal;
-        var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
-
-        ApiClient.post(MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', payload).then(function (res) {
-          var data = res.list || res.records || [];
-          if (data.length === 0) {
-            panel.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Không có dữ liệu</div>';
-            return;
-          }
-          // Build mini table
-          var keys = tabDef.fields ? tabDef.fields : Object.keys(data[0]).filter(function (k) { return !k.startsWith('_'); });
-          var wrap = document.createElement('div');
-          wrap.style.overflowX = 'auto';
-          wrap.style.maxHeight = '260px';
-          wrap.style.border = '1px solid var(--color-border)';
-          wrap.style.borderRadius = '6px';
-
-          var t = document.createElement('table');
-          t.style.width = '100%';
-          t.style.borderCollapse = 'collapse';
-          t.style.fontSize = '12px';
-
-          var thead = document.createElement('thead');
-          var trH = document.createElement('tr');
-          keys.forEach(function (k) {
-            var th = document.createElement('th');
-            var label = (tabDef.headers && tabDef.headers[k]) ? tabDef.headers[k] : (globalDictionary[k] || k);
-            th.textContent = label;
-            th.style.cssText = 'padding:6px 8px;border-bottom:2px solid var(--color-border);background:var(--color-surface-elevated);position:sticky;top:0;text-align:left;white-space:nowrap;color:var(--color-text);font-weight:700;';
-            trH.appendChild(th);
-          });
-          thead.appendChild(trH);
-          t.appendChild(thead);
-
-          var tbody = document.createElement('tbody');
-          data.forEach(function (r) {
-            var tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid var(--color-border)';
-            keys.forEach(function (k) {
-              var td = document.createElement('td');
-              td.textContent = r[k] != null ? r[k] : '';
-              td.style.cssText = 'padding:5px 8px;white-space:nowrap;';
-              tr.appendChild(td);
-            });
-            tbody.appendChild(tr);
-          });
-          t.appendChild(tbody);
-          wrap.appendChild(t);
-          panel.innerHTML = '';
-          panel.appendChild(wrap);
-        }).catch(function () {
-          panel.innerHTML = '<div style="color:var(--color-danger);padding:12px;">Lỗi tải dữ liệu</div>';
-        });
-      }
-
       MODULE_CONFIG.DetailTabs.forEach(function (tab, idx) {
         var panel = tabPanels[idx].panel;
         tabsContainer.appendChild(panel);
-        // Load first tab immediately, rest lazy
+        var loadPanel = function () {
+          if (tab.type === 'attachments' && attachmentManager) attachmentManager.render(tab, panel, !isViewMode, row);
+          else detailManager.loadTab(tab, panel, row, isViewMode);
+        };
         if (idx === 0) {
-          _loadTabData(tab, panel);
+          loadPanel();
         } else {
-          // Lazy load when tab is clicked
           tabPanels[idx].btn.addEventListener('click', function () {
             if (!tabPanels[idx]._loaded) {
               tabPanels[idx]._loaded = true;
-              _loadTabData(tab, panel);
+              loadPanel();
             }
           }, { once: true });
         }
@@ -5924,7 +5154,7 @@ window.DynamicFormEngine = (function () {
 
     // Gọi API tuần tự
     var finalPayloads = payloads;
-    if (endpoint === '/api/API_Gateway_Router') {
+    if (endpoint === _gateway()) {
       finalPayloads = payloads.map(function (p) {
         return {
           List: MODULE_CONFIG.FormName,
@@ -5964,65 +5194,7 @@ window.DynamicFormEngine = (function () {
       return;
     }
 
-    // 1.4 Kiểm tra các trường bắt buộc trong lưới chi tiết (Detail Tabs) trước khi lưu
-    if (body._detailPanels) {
-      var isDetailInvalid = false;
-      for (var p = 0; p < body._detailPanels.length; p++) {
-        var panel = body._detailPanels[p];
-        if (panel._tabDef && panel._tabDef.editable && panel._currentRows) {
-          var tabDef = panel._tabDef;
-          var keyField = tabDef.fields[0]; // Cột đầu tiên mặc định là cột định danh
-          if (tabDef.fields.indexOf('PersonID') !== -1) {
-            keyField = 'PersonID';
-          }
-          for (var r = 0; r < panel._currentRows.length; r++) {
-            var val = panel._currentRows[r][keyField];
-            if (val === undefined || val === null || String(val).trim() === '') {
-              var label = tabDef.label || 'Danh sách chi tiết';
-              var headerLabel = (tabDef.headers && tabDef.headers[keyField]) || keyField;
-              if (typeof Alert !== 'undefined') {
-                Alert.warning('Thiếu thông tin', 'Vui lòng chọn/nhập đầy đủ "' + headerLabel + '" cho tất cả các dòng ở tab "' + label + '"!');
-              } else {
-                alert('Vui lòng chọn/nhập đầy đủ "' + headerLabel + '" cho tất cả các dòng ở tab "' + label + '"!');
-              }
-              isDetailInvalid = true;
-              break;
-            }
-          }
-        }
-        if (isDetailInvalid) break;
-      }
-      if (isDetailInvalid) return;
-    }
-
-    // 1.5 Kiểm tra trùng lặp trong lưới chi tiết trước khi tiến hành lưu
-    if (body._detailPanels) {
-      var hasDuplicate = false;
-      for (var p = 0; p < body._detailPanels.length; p++) {
-        var panel = body._detailPanels[p];
-        if (panel._tabDef && panel._tabDef.editable && panel._currentRows) {
-          var seen = {};
-          for (var r = 0; r < panel._currentRows.length; r++) {
-            var pid = panel._currentRows[r]['PersonID'];
-            if (pid && pid.trim() !== '') {
-              if (seen[pid]) {
-                var label = panel._tabDef.label || 'Danh sách chi tiết';
-                if (typeof Alert !== 'undefined') {
-                  Alert.warning('Trùng lặp dữ liệu', 'Có nhân viên bị chọn trùng lặp trong tab "' + label + '"!');
-                } else {
-                  alert('Có nhân viên bị chọn trùng lặp trong tab "' + label + '"!');
-                }
-                hasDuplicate = true;
-                break;
-              }
-              seen[pid] = true;
-            }
-          }
-        }
-        if (hasDuplicate) break;
-      }
-      if (hasDuplicate) return;
-    }
+    if (detailManager && !detailManager.validatePanels(body._detailPanels)) return;
 
     // 1. Quét Form: Thu thập các giá trị người dùng vừa gõ vào, loại bỏ các input thuộc lưới chi tiết
     var formInputData = {};
@@ -6151,25 +5323,25 @@ window.DynamicFormEngine = (function () {
 
         var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
         var attachApi = MODULE_CONFIG.AttachmentApi;
+        var avatarData = {
+          IsEdit: 0,
+          FileName: window._pendingWizardAvatar.file.name,
+          FileType: 1,
+          STT: 2,
+          FileSize: window._pendingWizardAvatar.file.size,
+          Base64Content: window._pendingWizardAvatar.base64Content,
+          Content: window._pendingWizardAvatar.hexStr
+        };
+        (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) avatarData[key] = masterKeyVal; });
 
         var avatarPayload = {
           List: attachApi,
           Func: 'SaveAvatar',
-          JsonData: JSON.stringify({
-            IsEdit: 0,
-            PersonID: masterKeyVal,
-            CandidateID: masterKeyVal,
-            FileName: window._pendingWizardAvatar.file.name,
-            FileType: 1, // 1 = Avatar
-            STT: 2,
-            FileSize: window._pendingWizardAvatar.file.size,
-            Base64Content: window._pendingWizardAvatar.base64Content,
-            Content: window._pendingWizardAvatar.hexStr
-          }),
+          JsonData: JSON.stringify(avatarData),
           UserName: _currentUser()
         };
 
-        ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function () {
+        ApiClient.post(_gateway(), avatarPayload).then(function () {
           if (singlePayload && window._pendingWizardAvatar) {
             singlePayload.Content = window._pendingWizardAvatar.hexStr;
             singlePayload.FileName = window._pendingWizardAvatar.file.name;
@@ -6212,7 +5384,7 @@ window.DynamicFormEngine = (function () {
 
     // 5. Gọi API Lưu
     var finalPayload = payloads[0];
-    if (endpoint === '/api/API_Gateway_Router') {
+    if (endpoint === _gateway()) {
       finalPayload = {
         List: MODULE_CONFIG.FormName,
         Func: 'Save',
@@ -6222,79 +5394,17 @@ window.DynamicFormEngine = (function () {
     ApiClient.post(endpoint, finalPayload)
       .then(function (res) {
         if (res && res.code === 0) {
-          // Master save succeeded! Now save/delete details.
-          var detailApiCalls = [];
+          var masterDetailKey = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
+          var detailSave = body._detailPanels && detailManager
+            ? detailManager.savePanels(body._detailPanels, masterDetailKey)
+            : Promise.resolve([]);
 
-          if (body._detailPanels) {
-            body._detailPanels.forEach(function (panel) {
-              if (panel._tabDef && panel._tabDef.editable) {
-                var tabDef = panel._tabDef;
-                var masterKeyVal = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
-                var detailPrimaryKey = tabDef.primaryKey || 'UserAutoID';
-
-                // 1. Process deleted rows
-                if (panel._deletedRows && panel._deletedRows.length > 0) {
-                  var deletedIds = panel._deletedRows.map(function (r) { return r[detailPrimaryKey]; }).filter(Boolean).join(',');
-                  if (deletedIds) {
-                    var delPayload = {
-                      List: tabDef.api,
-                      Func: 'Delete',
-                      Ids: deletedIds,
-                      UserName: _currentUser()
-                    };
-                    if (MODULE_CONFIG.ApiSave === '/api/API_Gateway_Router' || !MODULE_CONFIG.ApiSave) {
-                      delPayload = {
-                        List: tabDef.api,
-                        Func: 'Delete',
-                        Ids: deletedIds,
-                        JsonData: JSON.stringify({ Ids: deletedIds }),
-                        UserName: _currentUser()
-                      };
-                    }
-                    detailApiCalls.push(function () { return ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', delPayload); });
-                  }
-                }
-
-                // 2. Process current (added/modified) rows
-                if (panel._currentRows && panel._currentRows.length > 0) {
-                  panel._currentRows.forEach(function (currRow) {
-                    currRow[tabDef.filterField] = masterKeyVal;
-                    var isRowEdit = !!currRow[detailPrimaryKey];
-                    var rowPayload = Object.assign({}, currRow);
-                    rowPayload.UserName = _currentUser();
-                    rowPayload.UserCreate = _currentUser();
-                    rowPayload.IsEdit = isRowEdit ? 1 : 0;
-
-                    var savePayload = {
-                      List: tabDef.api,
-                      Func: 'Save',
-                      JsonData: JSON.stringify(rowPayload),
-                      UserName: _currentUser()
-                    };
-
-                    detailApiCalls.push(function () { return ApiClient.post(MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router', savePayload); });
-                  });
-                }
-              }
-            });
-          }
-
-          if (detailApiCalls.length > 0) {
-            var detailResults = [];
-            var chain = Promise.resolve();
-            detailApiCalls.forEach(function (apiCall) {
-              chain = chain.then(function () {
-                return apiCall().then(function (res) {
-                  detailResults.push(res);
-                });
-              });
-            });
-            chain.then(function () {
-              var allOk = detailResults.every(function (dr) { return dr && dr.code === 0; });
+          detailSave.then(function (detailResults) {
+              var allOk = detailResults.every(function (dr) { return dr && (dr.code === 0 || dr.code === '0'); });
               if (allOk) {
                 _finalizeSave(isEdit, modal);
               } else {
-                var firstErr = detailResults.find(function (dr) { return dr && dr.code !== 0; });
+                var firstErr = detailResults.find(function (dr) { return dr && dr.code !== 0 && dr.code !== '0'; });
                 var dMsg = firstErr && firstErr.msg ? firstErr.msg : 'Lưu chi tiết thất bại';
                 if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
                   dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';
@@ -6306,9 +5416,6 @@ window.DynamicFormEngine = (function () {
               Alert.error(MODULE_CONFIG.AlertTitleError, 'Lỗi lưu thông tin chi tiết: ' + err.message);
               _restoreSaveBtn();
             });
-          } else {
-            _finalizeSave(isEdit, modal);
-          }
         } else {
           var mMsg = res && res.msg ? res.msg : MODULE_CONFIG.AlertSaveFailed;
           if (mMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || mMsg.indexOf('Cannot insert duplicate key') !== -1) {
@@ -6336,7 +5443,7 @@ window.DynamicFormEngine = (function () {
       }
     });
 
-    var endpoint = MODULE_CONFIG.ApiSave || '/api/API_Gateway_Router';
+    var endpoint = MODULE_CONFIG.ApiSave || _gateway();
     if (!endpoint) {
       Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertApiMissing);
       return;
@@ -6371,27 +5478,27 @@ window.DynamicFormEngine = (function () {
               return;
             }
 
-            var personId = originalRow.PersonID || originalRow.CandidateID;
+            var personId = originalRow[MODULE_CONFIG.PrimaryKey];
             var attachApi = MODULE_CONFIG.AttachmentApi;
+            var avatarData = {
+              IsEdit: 0,
+              FileName: window._pendingAvatar.file.name,
+              FileType: 1,
+              STT: 2,
+              FileSize: window._pendingAvatar.file.size,
+              Base64Content: window._pendingAvatar.base64Content,
+              Content: window._pendingAvatar.hexStr
+            };
+            (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) avatarData[key] = personId; });
 
             var avatarPayload = {
               List: attachApi,
               Func: 'SaveAvatar',
-              JsonData: JSON.stringify({
-                IsEdit: 0,
-                PersonID: personId,
-                CandidateID: personId,
-                FileName: window._pendingAvatar.file.name,
-                FileType: 1, // 1 = Avatar
-                STT: 2,
-                FileSize: window._pendingAvatar.file.size,
-                Base64Content: window._pendingAvatar.base64Content,
-                Content: window._pendingAvatar.hexStr
-              }),
+              JsonData: JSON.stringify(avatarData),
               UserName: _currentUser()
             };
 
-            ApiClient.post('/api/API_Gateway_Router', avatarPayload).then(function (resAvatar) {
+            ApiClient.post(_gateway(), avatarPayload).then(function (resAvatar) {
               if (resAvatar && (resAvatar.code === 0 || resAvatar.code === "0")) {
                 UIToast.show('Đã cập nhật thông tin và ảnh đại diện thành công!', 'success');
               } else {
@@ -6430,5 +5537,23 @@ window.DynamicFormEngine = (function () {
       });
   }
 
-  return { render: render };
+  function reload() {
+    _loadData();
+  }
+
+  function getSelectedRows() {
+    return selectedRows.slice();
+  }
+
+  function reloadDetailTabs() {
+    if (MODULE_CONFIG.UseSplitLayout) _updateDetailView();
+    else _loadData();
+  }
+
+  return {
+    render: render,
+    reload: reload,
+    getSelectedRows: getSelectedRows,
+    reloadDetailTabs: reloadDetailTabs
+  };
 })();

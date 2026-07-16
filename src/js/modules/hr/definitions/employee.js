@@ -7,6 +7,8 @@
     IsFullPageDetail: false,
     isPersonForm: true,
     AttachmentApi: 'API_PersonAttach',
+    AttachmentKeyFields: ['PersonID', 'CandidateID'],
+    ReadOnlyKeyFields: ['NewPersonID'],
     HideAddNewInDropdowns: true,
     fieldOverrides: {
       PersonID: { isReadOnlyEdit: true, isReadOnlyAdd: true },
@@ -219,6 +221,7 @@
     ModalWidth: '960px',
     isCandidateForm: true,
     AttachmentApi: 'API_CandidateAttach',
+    AttachmentKeyFields: ['CandidateID', 'PersonID'],
     useCandidateAttachmentApi: true,
     HideBranchStep: true,
     wizardHooks: {
@@ -288,4 +291,3 @@
     ]
   };
 })(window);
-

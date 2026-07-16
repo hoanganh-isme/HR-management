@@ -27,6 +27,8 @@
         api: 'API_BangPhuCap_Detail',
         filterField: 'MaPhuCap',
         editable: true,
+        duplicateField: 'PersonID',
+        readOnlyFields: ['PersonName', 'PhongBan', 'TitleName'],
         fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'GhiChu', 'NoiDungPhuCap'],
         headers: {
           PersonID: 'Mã nhân viên',
@@ -73,6 +75,8 @@
         api: 'API_BaoHiem_Detail',
         filterField: 'DocumentID',
         editable: true,
+        duplicateField: 'PersonID',
+        readOnlyFields: ['PersonName', 'PhongBan', 'ChucDanhChuyenMon'],
         customButtons: [
           {
             id: 'btn-multi-select',
@@ -102,7 +106,7 @@
               var loadingMsg = null;
               if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
 
-              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || '/api/API_Gateway_Router', lookupPayload).then(function (res) {
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, lookupPayload).then(function (res) {
                 if (loadingMsg) loadingMsg.close();
                 var dataList = res.list || res.records || [];
                 _showMultiSelectModal(dataList, ctx);
@@ -155,7 +159,7 @@
                       if (mDong > 0) {
                         if (!calcCache[mDong]) {
                           calcCache[mDong] = 'pending';
-                          var p = ApiClient.post('/api/API_Gateway_Router', {
+                          var p = ApiClient.post(AppConfig.apiGateway, {
                             List: 'WA_BaoHiemFrm_Calculate',
                             Func: 'View',
                             JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: mDong })
@@ -247,7 +251,7 @@
                 Func: 'View',
                 JsonData: JSON.stringify({ PeriodID: masterPeriodID, LoaiBaoHiem: masterLoaiBaoHiem, MucDong: v })
               };
-              ApiClient.post('/api/API_Gateway_Router', payload).then(function (res) {
+              ApiClient.post(AppConfig.apiGateway, payload).then(function (res) {
                 var data = res.list || res.records || [];
                 if (data && data.length > 0) {
                   var resRow = data[0];
@@ -285,6 +289,7 @@
   definitions.payroll['WA_PAYROLLFRM'] = {
     FormName: 'WA_PayrollFrm',
     PrimaryKey: 'DocumentID',
+    ProcessAction: 'hr.payroll.process',
     UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn chứng từ lương để xem chi tiết',
     SplitLayoutEmptyText: 'Không có chi tiết bảng lương nào cho nhân viên này',
@@ -323,4 +328,3 @@
     ]
   };
 })(window);
-

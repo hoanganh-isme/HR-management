@@ -7,7 +7,7 @@
         Object.keys(buckets[bucket] || {}).forEach(function (key) {
           var value = buckets[bucket][key];
           global.APP_MODULES[key] = (global.ModuleDefinition && typeof global.ModuleDefinition.create === 'function')
-            ? global.ModuleDefinition.create(value)
+            ? global.ModuleDefinition.create(global.HRCrudDefaults, value)
             : value;
         });
       });
