@@ -125,6 +125,14 @@ test('runtime schema chỉ thay grid khi pilot được kích hoạt', () => {
   assert.deepEqual(Array.from(schemas.edit, (field) => field.name), ['LegacyCode']);
   assert.deepEqual(Array.from(schemas.filters, (field) => field.name), ['LegacyCode']);
   assert.equal(schemas.grid[0].metadataSource, 'FIELD_SYNC_V2');
+  assert.equal(schemas.grid[0].serverSortable, false);
+  assert.notEqual(schemas.add[0], schemas.edit[0]);
+  assert.notEqual(schemas.edit[0], schemas.filters[0]);
+  schemas.add[0].name = 'MutatedAddOnly';
+  assert.equal(schemas.edit[0].name, 'LegacyCode');
+
+  const matched = window.FieldSyncService.createRuntimeSchemas(legacy, [{ name: 'LegacyCode', label: 'Legacy' }], true);
+  assert.equal(matched.grid[0].serverSortable, true);
 });
 
 test('Grid V2 không bật lookup đã bị ERP disable', () => {
@@ -137,6 +145,22 @@ test('Grid V2 không bật lookup đã bị ERP disable', () => {
   assert.equal(schemas.grid[0].lookupKey, '');
   assert.equal(schemas.grid[0].dependsOn, '');
   assert.equal(schemas.grid[0].renderRule, 'text');
+});
+
+test('lookup V2 phu thuoc duoc giu legacy de khong goi endpoint thieu context cha', () => {
+  const window = runBrowserFiles(['src/js/services/FieldSyncService.js']);
+  const schemas = window.FieldSyncService.createRuntimeSchemas([
+    { name: 'CompanyID', lookupKey: 'legacy-company', dataSource: 'CF_CompanyListFrm' },
+    { name: 'EmployeeID', lookupKey: 'legacy-employee', dataSource: 'HR_EmployeeListFrm' }
+  ], [{
+    name: 'EmployeeID',
+    label: 'Nhan vien',
+    orderNo: 1,
+    lookup: { key: 'B'.repeat(64), disabled: false, dependsOn: ['CompanyID'] }
+  }], true);
+  assert.equal(schemas.grid[0].lookupKey, 'legacy-employee');
+  assert.equal(schemas.grid[0].dataSource, 'HR_EmployeeListFrm');
+  assert.equal(schemas.grid[0].dependsOn, '');
 });
 
 test('shadow mode giữ nguyên cả bốn runtime schema', () => {
@@ -168,7 +192,28 @@ test('shadow tải schema/compare, lưu parity nhưng không đổi Grid', async
   assert.equal(state.status, 'shadow');
   assert.deepEqual(Array.from(state.runtimeSchemas.grid, (field) => field.name), ['LegacyCode']);
   assert.equal(calls.length, 2);
-  assert.ok(stored['ERP_FIELD_SYNC_PARITY:WA_TestFrm']);
+  assert.ok(Object.keys(stored).some((key) => key.startsWith('ERP_FIELD_SYNC_PARITY:wa_testfrm|wa_testfrm|admin|cn01')));
+});
+
+test('cache shadow tách theo user và branch', async () => {
+  let branch = 'CN01';
+  let calls = 0;
+  const window = runBrowserFiles(['src/js/services/FieldSyncService.js'], {
+    ERP_FIELD_SYNC_CONFIG: { enabled: false, shadowMode: true, pilotForms: ['WA_TestFrm'], pollSeconds: 120, metadataBaseUrl: 'http://metadata' },
+    ApiClient: {
+      get: async (url) => {
+        calls += 1;
+        if (url.includes('/compare?')) return { comparison: { summary: { total: 0, matched: 0 } } };
+        return { schema: { gridFields: [{ name: 'Code' }] } };
+      }
+    },
+    AppSession: { getUserName: () => 'Admin', getBranchId: () => branch },
+    sessionStorage: { setItem() {} }
+  });
+  await window.FieldSyncService.observeForm('WA_TestFrm', [{ name: 'LegacyCode' }]);
+  branch = 'CN02';
+  await window.FieldSyncService.observeForm('WA_TestFrm', [{ name: 'LegacyCode' }]);
+  assert.equal(calls, 4);
 });
 
 test('endpoint V2 lỗi thì fail-open về legacy', async () => {
@@ -269,6 +314,25 @@ test('pilot bị chặn khi resolver phải fallback về table', async () => {
   assert.deepEqual(Array.from(state.runtimeSchemas.grid, (field) => field.name), ['LegacyCode']);
 });
 
+test('pilot bị chặn active khi metadata đang dùng shadow View chưa đăng ký WA_API', async () => {
+  const payloads = validFieldSyncPayloads();
+  payloads.schema.diagnostics = [{ severity: 'warning', code: 'SHADOW_VIEW_NOT_REGISTERED' }];
+  const window = runBrowserFiles(['src/js/services/FieldSyncService.js'], {
+    ERP_FIELD_SYNC_CONFIG: { enabled: true, shadowMode: false, pilotForms: ['WA_TestFrm'], pollSeconds: 120, metadataBaseUrl: 'http://metadata' },
+    ApiClient: {
+      get: async (url) => url.includes('/compare?')
+        ? { comparison: payloads.comparison }
+        : { schema: payloads.schema }
+    },
+    AppSession: { getUserName: () => 'Admin', getBranchId: () => 'CN01' },
+    sessionStorage: { setItem() {} }
+  });
+  const state = await window.FieldSyncService.observeForm('WA_TestFrm', [{ name: 'LegacyCode' }]);
+  assert.equal(state.status, 'pilot-blocked-critical');
+  assert.equal(state.active, false);
+  assert.deepEqual(Array.from(state.runtimeSchemas.grid, (field) => field.name), ['LegacyCode']);
+});
+
 test('alias chỉ chứa mapping đã xác nhận', () => {
   const window = runBrowserFiles(['src/js/config/ErpFormAliases.js']);
   assert.equal(window.ErpFormAliases.resolve('WA_BangThueTNCNFrm'), 'HR_BangThueTNCNFrm');
@@ -285,6 +349,8 @@ test('DynamicFormEngine phân tách grid, add, edit và filters', () => {
   assert.match(source, /_schemaFor\('add'\)/);
   assert.match(source, /_schemaFor\('edit'\)/);
   assert.match(source, /_schemaFor\('filters'\)/);
+  assert.match(source, /headerSort:\s*f\.serverSortable\s*!==\s*false/);
+  assert.match(source, /definition\.headerSort\s*===\s*false/);
 });
 
 test('mobile card renderer nhận field V2 mà không crash', () => {

@@ -16,6 +16,14 @@ BEGIN
         RETURN;
     END
 
+    IF EXISTS (
+        SELECT 1
+        FROM SY_FormatFields
+        WHERE LOWER(FormName) = LOWER('WA_BangThueTNCNFrm')
+          AND AutoID IN (SELECT TRY_CAST(value AS int) FROM STRING_SPLIT(@IDs, ',') WHERE TRY_CAST(value AS int) IS NOT NULL)
+    )
+        THROW 52603, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: không xóa field legacy của form pilot.', 1;
+
     BEGIN TRY
         -- Tách chuỗi ID và xóa (hỗ trợ SQL Server 2016 trở lên)
         DELETE FROM SY_FormatFields 

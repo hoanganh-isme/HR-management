@@ -4957,6 +4957,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    IF LOWER(LTRIM(RTRIM(ISNULL(@FormName, '')))) = LOWER('WA_BangThueTNCNFrm')
+        THROW 52601, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: pilot khong duoc dong bo SY_FormatFields.', 1;
+
     -- Báº£ng táº¡m chá»©a danh sÃ¡ch cá»™t láº¥y Ä‘Æ°á»£c tá»« metadata
     DECLARE @Columns TABLE (
         name NVARCHAR(128),
@@ -5151,15 +5154,15 @@ BEGIN
     -- CHÃš Ã Cáº¤U HÃŒNH TRONG DB: Náº¿u biáº¿n lÃ  chuá»—i, pháº£i cÃ³ dáº¥u nhÃ¡y Ä‘Æ¡n bao quanh. VÃ­ dá»¥: '{User}', N'{Keyword}', {Page}
     
     -- 3.1. Thay tháº¿ cÃ¡c biáº¿n Server-side Context (Báº£o máº­t tuyá»‡t Ä‘á»‘i, Frontend khÃ´ng can thiá»‡p Ä‘Æ°á»£c)
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{User}', ISNULL(@UserName, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserName}', ISNULL(@UserName, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserGroup}', ISNULL(@UserGroup, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{BranchID}', ISNULL(@BranchID, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{ManagerID}', ISNULL(@ManagerID, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{EmployeeID}', ISNULL(@EmployeeID, ''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{User}', REPLACE(ISNULL(@UserName, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserName}', REPLACE(ISNULL(@UserName, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserGroup}', REPLACE(ISNULL(@UserGroup, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{BranchID}', REPLACE(ISNULL(@BranchID, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{ManagerID}', REPLACE(ISNULL(@ManagerID, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{EmployeeID}', REPLACE(ISNULL(@EmployeeID, ''), '''', ''''''));
     
     -- 3.2. Thay tháº¿ cÃ¡c biáº¿n Request tá»« Frontend
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{List}', ISNULL(@List, ''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{List}', REPLACE(ISNULL(@List, ''), '''', ''''''));
     
     -- BÆ¯á»šC Äá»˜T PHÃ Má»šI: Æ¯U TIÃŠN 1 - Tá»° Äá»˜NG MAP Táº¤T Cáº¢ Tá»ª JSON
     IF ISNULL(@JsonData, '') <> '' AND ISJSON(@JsonData) = 1
@@ -5170,8 +5173,8 @@ BEGIN
     
     -- Æ¯U TIÃŠN 2: FALLBACK (Dá»° PHÃ’NG CÃC BIáº¾N Cá»¨NG Tá»ª C# Náº¾U CHÆ¯A ÄÆ¯á»¢C MAP Bá»žI JSON)
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Keyword}', REPLACE(ISNULL(@Keyword, ''), '''', ''''''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortColumn}', ISNULL(@SortColumn, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortDir}', ISNULL(@SortDir, ''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortColumn}', REPLACE(ISNULL(@SortColumn, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortDir}', REPLACE(ISNULL(@SortDir, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Page}', ISNULL(CAST(@Page AS VARCHAR), ''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Limit}', ISNULL(CAST(@Limit AS VARCHAR), ''));
     
@@ -5211,8 +5214,12 @@ BEGIN
         EXEC(@FinalSQL);
     END TRY
     BEGIN CATCH
-        -- Báº¯t lá»—i thÃ´ng minh tráº£ vá» Frontend
-        SELECT -1 AS code, ERROR_MESSAGE() + N' [SQL: ' + ISNULL(@FinalSQL, '') + N']' AS msg, ERROR_LINE() AS error_line;
+        -- Không trả câu lệnh đã nội suy hoặc dữ liệu request về client.
+        -- Chi tiết đầy đủ chỉ được ghi ở server log/SSMS khi vận hành.
+        SELECT -1 AS code,
+               N'API gateway execution failed.' AS msg,
+               ERROR_NUMBER() AS error_number,
+               ERROR_LINE() AS error_line;
     END CATCH
 END
 GO
@@ -7076,6 +7083,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    IF LOWER(LTRIM(RTRIM(ISNULL(@FormName, '')))) = LOWER('WA_BangThueTNCNFrm')
+        THROW 52602, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: pilot chi duoc xem layout legacy.', 1;
+
     -- LÆ°u táº¥t cáº£ trá»±c tiáº¿p vÃ o SY_FormatFields (khÃ´ng dÃ¹ng array trong SY_FrmLstTbl ná»¯a)
     IF EXISTS (SELECT 1 FROM SY_FormatFields WHERE FieldName = @FieldName AND FormName = @FormName)
     BEGIN
@@ -7529,6 +7539,14 @@ BEGIN
         SELECT 1 AS code, N'Thiáº¿u ID cáº§n xÃ³a' AS message;
         RETURN;
     END
+
+    IF EXISTS (
+        SELECT 1
+        FROM SY_FormatFields
+        WHERE LOWER(FormName) = LOWER('WA_BangThueTNCNFrm')
+          AND AutoID IN (SELECT TRY_CAST(value AS int) FROM STRING_SPLIT(@IDs, ',') WHERE TRY_CAST(value AS int) IS NOT NULL)
+    )
+        THROW 52603, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: khong xoa field legacy cua pilot.', 1;
 
     BEGIN TRY
         -- TÃ¡ch chuá»—i ID vÃ  xÃ³a (há»— trá»£ SQL Server 2016 trá»Ÿ lÃªn)

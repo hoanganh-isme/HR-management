@@ -62,6 +62,7 @@
     "src/js/core/AppSession.js",
     "src/js/config/ErpFormAliases.js",
     "src/js/config/FieldSyncConfig.js",
+    "src/js/config/Phase2MigrationRegistry.js",
     "src/js/core/AppTheme.js",
     "src/js/data/mockData.js",
     "src/js/utils/permission.js",

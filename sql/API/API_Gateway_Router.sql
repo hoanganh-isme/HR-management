@@ -87,15 +87,15 @@ BEGIN
     -- CHÚ Ý CẤU HÌNH TRONG DB: Nếu biến là chuỗi, phải có dấu nháy đơn bao quanh. Ví dụ: '{User}', N'{Keyword}', {Page}
     
     -- 3.1. Thay thế các biến Server-side Context (Bảo mật tuyệt đối, Frontend không can thiệp được)
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{User}', ISNULL(@UserName, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserName}', ISNULL(@UserName, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserGroup}', ISNULL(@UserGroup, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{BranchID}', ISNULL(@BranchID, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{ManagerID}', ISNULL(@ManagerID, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{EmployeeID}', ISNULL(@EmployeeID, ''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{User}', REPLACE(ISNULL(@UserName, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserName}', REPLACE(ISNULL(@UserName, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{UserGroup}', REPLACE(ISNULL(@UserGroup, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{BranchID}', REPLACE(ISNULL(@BranchID, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{ManagerID}', REPLACE(ISNULL(@ManagerID, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{EmployeeID}', REPLACE(ISNULL(@EmployeeID, ''), '''', ''''''));
     
     -- 3.2. Thay thế các biến Request từ Frontend
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{List}', ISNULL(@List, ''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{List}', REPLACE(ISNULL(@List, ''), '''', ''''''));
     
     -- BƯỚC ĐỘT PHÁ MỚI: ƯU TIÊN 1 - TỰ ĐỘNG MAP TẤT CẢ TỪ JSON
     IF ISNULL(@JsonData, '') <> '' AND ISJSON(@JsonData) = 1
@@ -106,8 +106,8 @@ BEGIN
     
     -- ƯU TIÊN 2: FALLBACK (DỰ PHÒNG CÁC BIẾN CỨNG TỪ C# NẾU CHƯA ĐƯỢC MAP BỞI JSON)
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Keyword}', REPLACE(ISNULL(@Keyword, ''), '''', ''''''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortColumn}', ISNULL(@SortColumn, ''));
-    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortDir}', ISNULL(@SortDir, ''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortColumn}', REPLACE(ISNULL(@SortColumn, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortDir}', REPLACE(ISNULL(@SortDir, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Page}', ISNULL(CAST(@Page AS VARCHAR), ''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Limit}', ISNULL(CAST(@Limit AS VARCHAR), ''));
     
@@ -147,8 +147,12 @@ BEGIN
         EXEC(@FinalSQL);
     END TRY
     BEGIN CATCH
-        -- Bắt lỗi thông minh trả về Frontend
-        SELECT -1 AS code, ERROR_MESSAGE() + N' [SQL: ' + ISNULL(@FinalSQL, '') + N']' AS msg, ERROR_LINE() AS error_line;
+        -- Không trả câu lệnh đã nội suy hoặc dữ liệu request về client.
+        -- Chi tiết đầy đủ chỉ được ghi ở server log/SSMS khi vận hành.
+        SELECT -1 AS code,
+               N'API gateway execution failed.' AS msg,
+               ERROR_NUMBER() AS error_number,
+               ERROR_LINE() AS error_line;
     END CATCH
 END
 GO

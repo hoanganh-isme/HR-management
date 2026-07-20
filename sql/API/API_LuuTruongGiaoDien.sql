@@ -25,6 +25,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    IF LOWER(LTRIM(RTRIM(ISNULL(@FormName, '')))) = LOWER('WA_BangThueTNCNFrm')
+        THROW 52602, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: form pilot chỉ xem layout legacy.', 1;
+
     -- Lưu tất cả trực tiếp vào SY_FormatFields (không dùng array trong SY_FrmLstTbl nữa)
     IF EXISTS (SELECT 1 FROM SY_FormatFields WHERE FieldName = @FieldName AND FormName = @FormName)
     BEGIN

@@ -30,6 +30,7 @@ window.DynamicFormEngine = (function () {
   var globalFormSchema = [];
   var globalRenderers = {};
   var runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
+  var pendingFieldSyncRender = false;
 
   var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
 
@@ -40,13 +41,26 @@ window.DynamicFormEngine = (function () {
     return window.AppConfig && AppConfig.apiGateway || (window.API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER) || '';
   }
 
+  function _cloneSchemaValue(value) {
+    if (Array.isArray(value)) return value.map(_cloneSchemaValue);
+    if (value && typeof value === 'object') {
+      var copy = {};
+      Object.keys(value).forEach(function (key) { copy[key] = _cloneSchemaValue(value[key]); });
+      return copy;
+    }
+    return value;
+  }
+
+  function _cloneSchema(schema) {
+    return Array.isArray(schema) ? schema.map(_cloneSchemaValue) : [];
+  }
+
   function _setLegacyRuntimeSchemas() {
-    var legacy = globalFormSchema.slice();
     runtimeSchemas = {
-      grid: legacy.slice(),
-      edit: legacy.slice(),
-      add: legacy.slice(),
-      filters: legacy.slice()
+      grid: _cloneSchema(globalFormSchema),
+      edit: _cloneSchema(globalFormSchema),
+      add: _cloneSchema(globalFormSchema),
+      filters: _cloneSchema(globalFormSchema)
     };
   }
 
@@ -55,13 +69,63 @@ window.DynamicFormEngine = (function () {
     return Array.isArray(schema) ? schema : globalFormSchema;
   }
 
+  function _gridSchemaSignature(schemas) {
+    var grid = schemas && Array.isArray(schemas.grid) ? schemas.grid : [];
+    return grid.map(function (field) {
+      return [
+        field && field.name,
+        field && field.label,
+        field && field.renderRule,
+        field && field.metadataSource,
+        field && field.serverSortable,
+        field && field.lookupKey,
+        field && field.dependsOn,
+        field && field.dataSource,
+        field && field.formatId,
+        field && field.formatType,
+        field && field.align,
+        field && field.minWidth,
+        field && field.maxWidth,
+        field && field.numberDecimal,
+        field && field.formatString,
+        field && field.maskString,
+        field && field.orderNo
+      ].join(':');
+    }).join('|');
+  }
+
+  function _flushPendingFieldSyncRender() {
+    if (!pendingFieldSyncRender || _isUserEditing()) return;
+    pendingFieldSyncRender = false;
+    if ($container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+  }
+
+  function _applyFieldSyncState(state) {
+    if (!state || !state.runtimeSchemas) return;
+    if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
+      && state.contextKey && state.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+    var previousSignature = _gridSchemaSignature(runtimeSchemas);
+    var nextSignature = _gridSchemaSignature(state.runtimeSchemas);
+    runtimeSchemas = state.runtimeSchemas;
+    if (previousSignature === nextSignature) return;
+    if (_isUserEditing()) {
+      pendingFieldSyncRender = true;
+      return;
+    }
+    pendingFieldSyncRender = false;
+    if ($container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+  }
+
   function _observeFieldSync() {
     if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') return;
     var observedForm = currentFormName;
+    var observedContextKey = typeof FieldSyncService.getContextKey === 'function'
+      ? FieldSyncService.getContextKey(observedForm)
+      : '';
     FieldSyncService.observeForm(observedForm, globalFormSchema.slice()).then(function (state) {
-      if (currentFormName !== observedForm || !state || !state.runtimeSchemas) return;
-      runtimeSchemas = state.runtimeSchemas;
-      if (state.active && !_isUserEditing() && $container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+      if (currentFormName !== observedForm || !state || !state.runtimeSchemas
+        || (observedContextKey && state.contextKey && state.contextKey !== observedContextKey)) return;
+      _applyFieldSyncState(state);
     });
   }
 
@@ -76,8 +140,13 @@ window.DynamicFormEngine = (function () {
     document.addEventListener('erpFieldSyncUpdated', function (event) {
       var detail = event && event.detail;
       if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
-      runtimeSchemas = detail.state.runtimeSchemas;
-      if (detail.state.active && !_isUserEditing() && $container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+      if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
+        && detail.contextKey && detail.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+      _applyFieldSyncState(detail.state);
+    });
+    document.addEventListener('focusout', function () {
+      if (!pendingFieldSyncRender) return;
+      setTimeout(_flushPendingFieldSyncRender, 0);
     });
   }
 
@@ -87,6 +156,10 @@ window.DynamicFormEngine = (function () {
 
   function _currentUser() {
     return window.AppSession ? AppSession.getUserName() : '';
+  }
+
+  function _currentBranchId() {
+    return window.AppSession && typeof AppSession.getBranchId === 'function' ? AppSession.getBranchId() : '';
   }
 
   /**
@@ -241,7 +314,13 @@ window.DynamicFormEngine = (function () {
     return p;
   }
 
+  function _isPhase2ManagedForm() {
+    var registry = window.Phase2MigrationRegistry;
+    return Boolean(registry && typeof registry.isManagedForm === 'function' && registry.isManagedForm(MODULE_CONFIG.FormName));
+  }
+
   function _hasPermission(action) {
+    if (action === 'DELETE' && _isPhase2ManagedForm()) return false;
     if (typeof window.AppPermissions !== 'undefined') {
       var module = MODULE_CONFIG.FormName;
       if (action === 'ADD') return window.AppPermissions.hasPermission(module, 'IsAdd');
@@ -276,6 +355,7 @@ window.DynamicFormEngine = (function () {
       ? ModuleDefinition.create(config)
       : config;
     currentFormName = config.FormName;
+    pendingFieldSyncRender = false;
     formState = window.DynamicFormState ? DynamicFormState.create(currentFormName) : null;
     attachmentManager = window.DynamicAttachmentManager ? DynamicAttachmentManager.create({ moduleConfig: MODULE_CONFIG, currentUser: _currentUser }) : null;
     detailManager = window.DynamicDetailManager ? DynamicDetailManager.create({
@@ -1249,6 +1329,7 @@ window.DynamicFormEngine = (function () {
             }
           } : 'DISABLED') : false,
           onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
+            if (_isPhase2ManagedForm()) return Alert.info(MODULE_CONFIG.AlertTitleInfo, 'Delete pilot Phase 2 đang bị khóa cho tới khi policy xóa mềm được DB xác minh.');
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
 
             // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
@@ -1271,7 +1352,8 @@ window.DynamicFormEngine = (function () {
                 var payload = {
                   List: MODULE_CONFIG.FormName,
                   Func: 'Delete',
-                  UserName: _currentUser()
+                  UserName: _currentUser(),
+                  BranchID: _currentBranchId()
                 };
 
                 // Bơm toàn bộ dữ liệu gốc của row vào để C# binding không bị mất các cột Not Null (như Ngaytochuc)
@@ -1669,6 +1751,7 @@ window.DynamicFormEngine = (function () {
         Func: 'View',
         UserName: _currentUser(),
         User: _currentUser(),
+        BranchID: _currentBranchId(),
         Page: currentPage,
         Limit: currentLimit,
         SortColumn: currentSortCol || '',
@@ -1880,7 +1963,11 @@ window.DynamicFormEngine = (function () {
           var customComboEditor = function (cell, onRendered, success, cancel) {
             var cellValue = cell.getValue();
             var rowData = cell.getRow().getData();
-            var isFieldSyncLookup = Boolean(f.lookupKey && window.FieldSyncService && typeof FieldSyncService.searchLookup === 'function');
+            var isFieldSyncLookup = Boolean(
+              /^[A-Fa-f0-9]{64}$/.test(String(f.lookupKey || ''))
+              && window.FieldSyncService
+              && typeof FieldSyncService.searchLookup === 'function'
+            );
 
             var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
             var maxCols = 4;
@@ -2034,6 +2121,7 @@ window.DynamicFormEngine = (function () {
           var colDef = {
             title: dictionary[fieldName] || fieldName,
             field: actualField,
+            headerSort: f.serverSortable !== false,
             editor: isEditable ? (isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input")) : false,
             maxWidth: 400, // UX: Giới hạn độ rộng tối đa để text dài (như Mô tả) không đẩy vỡ khung Grid
             tooltip: true  // UX: Cho phép xem đầy đủ text khi hover chuột vào ô bị cắt chữ (...)
@@ -2301,7 +2389,13 @@ window.DynamicFormEngine = (function () {
         }
 
         // Xây dựng payload để lưu
-        var payloadObj = Object.assign({}, rowData);
+        var payloadObj = {};
+        if (_isPhase2ManagedForm()) {
+          payloadObj[MODULE_CONFIG.PrimaryKey] = rowData[MODULE_CONFIG.PrimaryKey];
+        } else {
+          Object.keys(rowData || {}).forEach(function (key) { payloadObj[key] = rowData[key]; });
+        }
+        payloadObj[field] = newVal;
         payloadObj.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
         payloadObj.IsEdit = 1;
 
@@ -2319,7 +2413,9 @@ window.DynamicFormEngine = (function () {
         var finalPayload = {
           List: MODULE_CONFIG.FormName,
           Func: 'Save',
-          JsonData: JSON.stringify(payloadObj)
+          JsonData: JSON.stringify(payloadObj),
+          UserName: _currentUser(),
+          BranchID: _currentBranchId()
         };
 
         ApiClient.post(endpoint, finalPayload)
@@ -2340,6 +2436,8 @@ window.DynamicFormEngine = (function () {
       // Bắt sự kiện click header để sort
       window.tabulatorInstance.on("headerClick", function (e, column) {
         var field = column.getField();
+        var definition = column.getDefinition ? column.getDefinition() : {};
+        if (definition && definition.headerSort === false) return;
         if (field !== "__action__" && field) {
           var currentDir = column.getDir() === "asc" ? "desc" : "asc";
           currentSortCol = field;
@@ -5238,7 +5336,9 @@ window.DynamicFormEngine = (function () {
         return {
           List: MODULE_CONFIG.FormName,
           Func: 'Save',
-          JsonData: JSON.stringify(p)
+          JsonData: JSON.stringify(p),
+          UserName: _currentUser(),
+          BranchID: _currentBranchId()
         };
       });
     }
@@ -5468,7 +5568,9 @@ window.DynamicFormEngine = (function () {
       finalPayload = {
         List: MODULE_CONFIG.FormName,
         Func: 'Save',
-        JsonData: JSON.stringify(payloads[0])
+        JsonData: JSON.stringify(payloads[0]),
+        UserName: _currentUser(),
+        BranchID: _currentBranchId()
       };
     }
     ApiClient.post(endpoint, finalPayload)
@@ -5537,7 +5639,9 @@ window.DynamicFormEngine = (function () {
     var finalPayload = {
       List: MODULE_CONFIG.FormName,
       Func: 'Save',
-      JsonData: JSON.stringify(payloadObj)
+      JsonData: JSON.stringify(payloadObj),
+      UserName: _currentUser(),
+      BranchID: _currentBranchId()
     };
 
     if (btnSave) {
@@ -5632,10 +5736,10 @@ window.DynamicFormEngine = (function () {
 
   function getRuntimeSchemas() {
     return {
-      grid: _schemaFor('grid').slice(),
-      edit: _schemaFor('edit').slice(),
-      add: _schemaFor('add').slice(),
-      filters: _schemaFor('filters').slice()
+      grid: _cloneSchema(_schemaFor('grid')),
+      edit: _cloneSchema(_schemaFor('edit')),
+      add: _cloneSchema(_schemaFor('add')),
+      filters: _cloneSchema(_schemaFor('filters'))
     };
   }
 

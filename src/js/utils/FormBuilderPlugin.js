@@ -6,6 +6,15 @@
  */
 var FormBuilderPlugin = (function () {
 
+  function _phase2Entry(formName) {
+    var registry = window.Phase2MigrationRegistry;
+    return registry && typeof registry.get === 'function' ? registry.get(formName) : null;
+  }
+
+  function _isPhase2Managed(formName) {
+    return Boolean(_phase2Entry(formName));
+  }
+
   // ── Helper: Set Loading State ────────────────────────────────────────────
   function _setBtnLoading(btn, isLoading) {
     if (!btn) return;
@@ -63,6 +72,9 @@ var FormBuilderPlugin = (function () {
         <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: HR_PersonTbl">
         <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
       </div>
+      <div id="syncPhase2Notice" class="alert alert-warning py-2 mb-0" style="display:none;">
+        Form này thuộc Phase 2: không được ghi SY_FormatFields. Nút chạy sẽ chỉ mở màn hình đối chiếu V2.
+      </div>
     `;
 
     var modal = UIModal.show({
@@ -74,12 +86,30 @@ var FormBuilderPlugin = (function () {
     });
 
     var btnRun = modal.node.querySelector('.btn-run-sync');
+    var formInput = modal.node.querySelector('#syncFormName');
+    var phase2Notice = modal.node.querySelector('#syncPhase2Notice');
+    function refreshPhase2Mode() {
+      var managed = _isPhase2Managed(formInput && formInput.value);
+      if (phase2Notice) phase2Notice.style.display = managed ? '' : 'none';
+      if (btnRun) btnRun.textContent = managed ? 'Xem đối chiếu V2' : 'Chạy Đồng Bộ';
+    }
+    if (formInput) formInput.addEventListener('input', refreshPhase2Mode);
+
     btnRun.onclick = function () {
       var fName = document.getElementById('syncFormName').value.trim();
       var tName = document.getElementById('syncTableName').value.trim();
 
-      if (!fName || !tName) {
-        return Alert.warning('Thiếu thông tin', 'Vui lòng nhập đầy đủ tên Form và tên Bảng!');
+      if (!fName) {
+        return Alert.warning('Thiếu thông tin', 'Vui lòng nhập tên Form!');
+      }
+
+      if (_isPhase2Managed(fName)) {
+        modal.closeNow();
+        return _openPhase2Compare(fName);
+      }
+
+      if (!tName) {
+        return Alert.warning('Thiếu thông tin', 'Vui lòng nhập tên Bảng/View!');
       }
 
       _setBtnLoading(btnRun, true);
@@ -102,6 +132,90 @@ var FormBuilderPlugin = (function () {
         _setBtnLoading(btnRun, false);
       });
     };
+  }
+
+  function _appendCompareCell(row, value, className) {
+    var cell = document.createElement('td');
+    cell.className = className || '';
+    cell.textContent = value === undefined || value === null || value === '' ? '—' : String(value);
+    row.appendChild(cell);
+  }
+
+  function _openPhase2Compare(formName) {
+    if (!window.FieldSyncService || typeof FieldSyncService.inspectForm !== 'function') {
+      return Alert.error('Chưa sẵn sàng', 'FieldSyncService chưa hỗ trợ màn hình đối chiếu Phase 2.');
+    }
+
+    var loading = UIModal.show({
+      title: 'Đang đối chiếu View V2...',
+      content: '<div class="text-center p-4">Đang tải result-set và metadata legacy...</div>',
+      buttons: []
+    });
+
+    FieldSyncService.inspectForm(formName).then(function (state) {
+      loading.closeNow();
+      var comparison = state.comparison || {};
+      var schema = state.schema || {};
+      var diagnosticCodes = (schema.diagnostics || []).map(function (item) {
+        return item && item.code ? String(item.code) : '';
+      }).filter(Boolean);
+      var body = document.createElement('div');
+      body.className = 'p-2';
+
+      var warning = document.createElement('div');
+      warning.className = 'alert alert-warning py-2';
+      warning.textContent = 'Compatibility mode: Grid được đối chiếu theo View result-set V2; Add/Edit/Filter vẫn dùng legacy. Form Builder không được ghi schema của form này.';
+      body.appendChild(warning);
+
+      var summary = document.createElement('div');
+      summary.className = 'mb-3';
+      summary.textContent = 'Nguồn: ' + (schema.sourceKind || 'UNKNOWN')
+        + ' | PK: ' + ((comparison.primaryKey && comparison.primaryKey.status) || 'UNKNOWN')
+        + ' | Khác biệt: ' + ((comparison.summary && comparison.summary.different) || 0)
+        + ' | Diagnostic: ' + (diagnosticCodes.length ? diagnosticCodes.join(', ') : 'OK');
+      body.appendChild(summary);
+
+      var wrapper = document.createElement('div');
+      wrapper.className = 'table-responsive';
+      var table = document.createElement('table');
+      table.className = 'table table-sm table-bordered align-middle';
+      var head = document.createElement('thead');
+      var headRow = document.createElement('tr');
+      ['Field', 'Legacy caption', 'V2 caption', 'Legacy format', 'V2 format', 'Legacy dropdown', 'V2 dropdown', 'Trạng thái'].forEach(function (title) {
+        var th = document.createElement('th');
+        th.textContent = title;
+        headRow.appendChild(th);
+      });
+      head.appendChild(headRow);
+      table.appendChild(head);
+
+      var tbody = document.createElement('tbody');
+      (comparison.items || []).forEach(function (item) {
+        var row = document.createElement('tr');
+        _appendCompareCell(row, item.fieldName);
+        _appendCompareCell(row, item.legacyCaption);
+        _appendCompareCell(row, item.v2Caption);
+        _appendCompareCell(row, item.legacyFormatId);
+        _appendCompareCell(row, item.v2FormatId);
+        _appendCompareCell(row, item.legacyHasLookup === true ? 'Có' : 'Không');
+        _appendCompareCell(row, item.v2HasLookup === true ? 'Có' : 'Không');
+        _appendCompareCell(row, item.status, item.status === 'MATCH' ? 'text-success' : 'text-danger');
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      wrapper.appendChild(table);
+      body.appendChild(wrapper);
+
+      UIModal.show({
+        title: 'Đối chiếu Phase 2: ' + formName,
+        width: '1000px',
+        content: body,
+        footer: UIButton.createHTML({ text: 'Đóng', className: 'btn-outline', onclick: 'this.closest(\'.modal-overlay\').remove()' })
+      });
+    }).catch(function (error) {
+      loading.closeNow();
+      Alert.error('Không thể đối chiếu', error && error.message ? error.message : 'Metadata V2 chưa sẵn sàng.');
+    });
   }
 
   // ── Logic Thiết Kế Layout ────────────────────────────────────────────────
@@ -158,6 +272,7 @@ var FormBuilderPlugin = (function () {
   }
 
   function _openVisualLayoutBuilder(targetFormName, moduleConfig, onReloadFormEngine) {
+    var phase2Managed = _isPhase2Managed(targetFormName);
     var loadingModal = UIModal.show({ title: 'Đang tải layout...', content: '<div class="text-center p-4">Đang tải cấu hình form...</div>', buttons: [] });
 
     var payload = {
@@ -187,8 +302,10 @@ var FormBuilderPlugin = (function () {
         body.style.gap = '12px';
 
         var help = document.createElement('div');
-        help.className = 'alert alert-info py-2 mb-0 d-flex align-items-center gap-2';
-        help.innerHTML = '<span class="material-symbols-outlined">info</span> Kéo thả các khối để sắp xếp thứ tự. Bấm các nút phần trăm để chỉnh độ rộng. Layout hiển thị đúng tỷ lệ khung màn hình.';
+        help.className = 'alert ' + (phase2Managed ? 'alert-warning' : 'alert-info') + ' py-2 mb-0 d-flex align-items-center gap-2';
+        help.innerHTML = phase2Managed
+          ? '<span class="material-symbols-outlined">lock</span> Compatibility mode Phase 2: layout Add/Edit legacy chỉ được xem; mọi thao tác ghi đã bị khóa.'
+          : '<span class="material-symbols-outlined">info</span> Kéo thả các khối để sắp xếp thứ tự. Bấm các nút phần trăm để chỉnh độ rộng. Layout hiển thị đúng tỷ lệ khung màn hình.';
         body.appendChild(help);
 
         var dropZone = document.createElement('div');
@@ -212,7 +329,7 @@ var FormBuilderPlugin = (function () {
           if (!['12', '8', '6', '4', '3'].includes(span)) span = '12';
 
           card.className = 'layout-card';
-          card.draggable = true;
+          card.draggable = !phase2Managed;
           card.dataset.id = f.FieldName;
           card.dataset.span = span;
           card.dataset.orig = JSON.stringify(f);
@@ -282,8 +399,10 @@ var FormBuilderPlugin = (function () {
           applyWidth(span);
 
           card.querySelectorAll('.btn-span').forEach(function (b) {
+            b.disabled = phase2Managed;
             b.onclick = function () { applyWidth(b.dataset.val); };
           });
+          card.querySelectorAll('input').forEach(function (input) { input.disabled = phase2Managed; });
 
           card.addEventListener('dragstart', function (e) {
             draggedEl = card;
@@ -332,7 +451,13 @@ var FormBuilderPlugin = (function () {
           modalLayout.closeNow();
         };
 
-        footerNode.querySelector('.btn-save-layout').onclick = function () {
+        var saveLayoutButton = footerNode.querySelector('.btn-save-layout');
+        if (phase2Managed) {
+          saveLayoutButton.disabled = true;
+          saveLayoutButton.textContent = 'Chỉ xem (Phase 2)';
+        }
+        saveLayoutButton.onclick = function () {
+          if (phase2Managed) return Alert.warning('Chế độ tương thích', 'Không được ghi SY_FormatFields cho form pilot Phase 2.');
           var cards = dropZone.querySelectorAll('.layout-card');
           var payloads = [];
 
@@ -411,6 +536,9 @@ var FormBuilderPlugin = (function () {
 
   // Chạy tuần tự các promises
   function _sendSequentialToDB(endpoint, payloads) {
+    if (payloads.some(function (payload) { return _isPhase2Managed(payload && payload.FormName); })) {
+      return Promise.reject(new Error('FORM_BUILDER_WRITE_BLOCKED_PHASE2'));
+    }
     return payloads.reduce(function(promise, payload) {
       return promise.then(function() {
         var finalPayload = payload;

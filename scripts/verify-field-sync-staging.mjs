@@ -10,6 +10,7 @@ const SAFE_BRANCH_ITEM = /^[A-Za-z0-9_.-]{1,100}$/;
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
 const SAFE_FIELD = /^[A-Za-z_][A-Za-z0-9_@$#]{0,127}$/;
 const RESERVED_FIELD_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
+const PHASE2_VIEW_ONLY_V2_FORMS = new Set(['wa_bangthuetncnfrm']);
 
 const FORBIDDEN_RESPONSE_KEYS = new Set([
   'source',
@@ -196,7 +197,9 @@ function validateSchema(schema, formName, erpFormId) {
   const blockingDiagnostics = (Array.isArray(schema.diagnostics) ? schema.diagnostics : []).filter((item) => {
     const severity = String(item && item.severity || '').toLowerCase();
     const code = String(item && item.code || '').toUpperCase();
-    return severity === 'critical' || severity === 'error' || code === 'RESULTSET_FALLBACK_TO_TABLE';
+    return severity === 'critical' || severity === 'error'
+      || code === 'RESULTSET_FALLBACK_TO_TABLE'
+      || code === 'SHADOW_VIEW_NOT_REGISTERED';
   });
   if (blockingDiagnostics.length) fail(`Schema có ${blockingDiagnostics.length} diagnostic chặn pilot.`);
   if (!['RESULT_SET'].includes(String(schema.sourceKind || '').toUpperCase())) {
@@ -234,7 +237,12 @@ function validateComparison(comparison, schema, formName, erpFormId) {
   });
   const gridFieldNames = schema.gridFields.map((field) => String(field.name).toLowerCase());
   if (gridFieldNames.some((fieldName) => !seenFields.has(fieldName))) fail('Compare không bao phủ đủ gridFields.');
-  const blocking = items.filter((item) => blockingStatuses.has(String(item && (item.severity || item.status) || '').toUpperCase()));
+  if (items.some((item) => !gridFieldNames.includes(String(item.fieldName).toLowerCase()))) fail('Compare co field khong xuat hien trong schema grid.');
+  const blocking = items.filter((item) => {
+    const status = String(item && (item.severity || item.status) || '').toUpperCase();
+    return blockingStatuses.has(status)
+      && !(status === 'ONLY_V2' && PHASE2_VIEW_ONLY_V2_FORMS.has(formName.toLowerCase()));
+  });
   if (blocking.length) fail(`Compare có ${blocking.length} khác biệt cấu trúc chặn pilot.`);
   return items.filter((item) => String(item && item.status || '').toUpperCase() !== 'MATCH');
 }

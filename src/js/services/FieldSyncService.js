@@ -11,6 +11,20 @@ window.FieldSyncService = (function (global) {
     return String(value || '').trim().toLowerCase();
   }
 
+  function cloneValue(value) {
+    if (Array.isArray(value)) return value.map(cloneValue);
+    if (value && typeof value === 'object') {
+      var copy = {};
+      Object.keys(value).forEach(function (key) { copy[key] = cloneValue(value[key]); });
+      return copy;
+    }
+    return value;
+  }
+
+  function cloneSchema(schema) {
+    return Array.isArray(schema) ? schema.map(cloneValue) : [];
+  }
+
   function isPilot(formName) {
     var target = normalizeName(formName);
     var pilotForms = Array.isArray(config().pilotForms) ? config().pilotForms : [];
@@ -54,19 +68,31 @@ window.FieldSyncService = (function (global) {
     (legacySchema || []).forEach(function (field) { legacyByName[normalizeName(field.name)] = field; });
 
     return (v2Fields || []).map(function (field, index) {
-      var legacy = legacyByName[normalizeName(field.name)] || {};
+      var legacyKey = normalizeName(field.name);
+      var hasLegacyField = Object.prototype.hasOwnProperty.call(legacyByName, legacyKey);
+      var legacy = legacyByName[legacyKey] || {};
       var editable = legacy.showInEdit === true || String(legacy.showInEdit) === '1';
-      var lookup = field.lookup && field.lookup.disabled !== true ? field.lookup : null;
+      var rawLookup = field.lookup && field.lookup.disabled !== true ? field.lookup : null;
+      var rawDependsOn = rawLookup
+        ? (Array.isArray(rawLookup.dependsOn) ? rawLookup.dependsOn.join(',') : String(rawLookup.dependsOn || '').trim())
+        : '';
+      // Lookup phụ thuộc không có contract truyền giá trị cha ở Phase 2.
+      // Giữ lookup legacy để tránh hiển thị danh sách sai; không âm thầm gọi V2.
+      var lookup = rawLookup && !rawDependsOn
+        ? rawLookup
+        : null;
       return {
         name: field.name,
         label: field.label || field.name,
         orderNo: field.orderNo || index + 1,
         position: 'grid',
-        renderRule: engineRule(field.renderRule),
-        formatId: field.formatId || '',
-        FormatID: field.formatId || '',
-        formatType: field.formatType || '',
+        renderRule: engineRule(field.renderRule || legacy.renderRule || legacy.FormatID),
+        formatId: field.formatId || legacy.formatId || legacy.FormatID || '',
+        FormatID: field.formatId || legacy.formatId || legacy.FormatID || '',
+        formatType: field.formatType || legacy.formatType || legacy.FormatType || '',
         metadataSource: 'FIELD_SYNC_V2',
+        // Field chỉ có ở V2 được hiển thị read-only và không gửi server-sort cho tới khi API có contract tương ứng.
+        serverSortable: hasLegacyField,
         showInAdd: legacy.showInAdd,
         showInEdit: legacy.showInEdit,
         showInFilter: false,
@@ -74,42 +100,50 @@ window.FieldSyncService = (function (global) {
         isReadOnlyEdit: legacy.isReadOnlyEdit,
         ShowInEdit: editable ? 1 : 0,
         IsReadOnlyEdit: legacy.isReadOnlyEdit ? 1 : 0,
-        dataSource: '',
-        lookupKey: lookup && lookup.key ? lookup.key : '',
-        minWidth: field.minWidth,
-        maxWidth: field.maxWidth,
-        maxLength: field.maxLength,
-        minValue: field.minValue,
-        maxValue: field.maxValue,
-        align: field.align,
-        numberDecimal: field.numberDecimal,
-        formatString: field.formatString,
-        maskString: field.maskString,
-        dependsOn: lookup && Array.isArray(lookup.dependsOn) ? lookup.dependsOn.join(',') : ''
+        dataSource: field.dataSource || legacy.dataSource || legacy.DataSource || '',
+        lookupKey: lookup && lookup.key ? lookup.key : (legacy.lookupKey || legacy.LookupKey || ''),
+        minWidth: field.minWidth !== undefined ? field.minWidth : legacy.minWidth,
+        maxWidth: field.maxWidth !== undefined ? field.maxWidth : legacy.maxWidth,
+        maxLength: field.maxLength !== undefined ? field.maxLength : legacy.maxLength,
+        minValue: field.minValue !== undefined ? field.minValue : legacy.minValue,
+        maxValue: field.maxValue !== undefined ? field.maxValue : legacy.maxValue,
+        align: field.align || legacy.align || legacy.Align,
+        numberDecimal: field.numberDecimal !== undefined ? field.numberDecimal : legacy.numberDecimal,
+        formatString: field.formatString || legacy.formatString || legacy.FormatString,
+        maskString: field.maskString || legacy.maskString || legacy.MaskString,
+        dependsOn: lookup && Array.isArray(lookup.dependsOn) ? lookup.dependsOn.join(',') : (legacy.dependsOn || legacy.DependsOn || '')
       };
     });
   }
 
   function createRuntimeSchemas(legacySchema, v2Fields, activateGrid) {
-    var legacy = Array.isArray(legacySchema) ? legacySchema.slice() : [];
+    var legacy = Array.isArray(legacySchema) ? legacySchema : [];
     return {
-      grid: activateGrid && Array.isArray(v2Fields) && v2Fields.length ? adaptGridFields(v2Fields, legacy) : legacy.slice(),
-      edit: legacy.slice(),
-      add: legacy.slice(),
-      filters: legacy.slice()
+      grid: activateGrid && Array.isArray(v2Fields) && v2Fields.length ? adaptGridFields(v2Fields, legacy) : cloneSchema(legacy),
+      edit: cloneSchema(legacy),
+      add: cloneSchema(legacy),
+      filters: cloneSchema(legacy)
     };
   }
 
-  function hasCriticalParity(schema, comparison) {
+  function isPhase2Managed(formName) {
+    var registry = global.Phase2MigrationRegistry;
+    return Boolean(registry && typeof registry.isManagedForm === 'function' && registry.isManagedForm(formName));
+  }
+
+  function hasCriticalParity(schema, comparison, formName) {
+    var allowNewV2Fields = isPhase2Managed(formName);
     if (schema && Array.isArray(schema.diagnostics) && schema.diagnostics.some(function (item) {
       var severity = normalizeName(item && item.severity);
       var code = normalizeName(item && item.code);
-      return severity === 'critical' || severity === 'error' || code === 'resultset_fallback_to_table';
+      return severity === 'critical' || severity === 'error'
+        || code === 'resultset_fallback_to_table'
+        || code === 'shadow_view_not_registered';
     })) return true;
     if (comparison && comparison.primaryKey && normalizeName(comparison.primaryKey.status) === 'critical') return true;
     return Boolean(comparison && Array.isArray(comparison.items) && comparison.items.some(function (item) {
       var status = normalizeName(item && (item.severity || item.status));
-      return status === 'critical' || status === 'only_v2' || status === 'only_legacy';
+      return status === 'critical' || status === 'only_legacy' || (status === 'only_v2' && !allowNewV2Fields);
     }));
   }
 
@@ -174,60 +208,93 @@ window.FieldSyncService = (function (global) {
     return true;
   }
 
+  function stateKey(formName) {
+    var userName = global.AppSession ? AppSession.getUserName() : '';
+    var branchId = global.AppSession ? AppSession.getBranchId() : '';
+    return [normalizeName(formName), normalizeName(erpFormId(formName)), normalizeName(userName), normalizeName(branchId)].join('|');
+  }
+
   function storeParity(formName, comparison) {
     try {
-      global.sessionStorage.setItem('ERP_FIELD_SYNC_PARITY:' + formName, JSON.stringify(comparison));
+      global.sessionStorage.setItem('ERP_FIELD_SYNC_PARITY:' + stateKey(formName), JSON.stringify(comparison));
     } catch (ignore) { }
   }
 
   function dispatchUpdate(formName, state) {
     if (!global.document || typeof global.CustomEvent !== 'function') return;
     global.document.dispatchEvent(new global.CustomEvent('erpFieldSyncUpdated', {
-      detail: { formName: formName, state: state }
+      detail: { formName: formName, contextKey: state && state.contextKey ? state.contextKey : stateKey(formName), state: state }
     }));
   }
 
-  function fetchState(formName, legacySchema, force) {
-    if (!isPilot(formName)) {
-      return Promise.resolve({
-        status: 'not-pilot',
-        active: false,
-        runtimeSchemas: createRuntimeSchemas(legacySchema, [], false)
-      });
-    }
-
-    var current = states[formName];
-    var ttlMs = config().pollSeconds * 1000;
-    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) return Promise.resolve(current);
-    if (!force && current && current.pending) return current.pending;
-
+  function requestMetadata(formName) {
     var headers = requestHeaders();
     var encodedForm = encodeURIComponent(formName);
     var base = metadataBaseUrl() + '/grid-schema/' + encodedForm;
     var expectedErpFormId = erpFormId(formName);
     var aliasQuery = '?erpFormId=' + encodeURIComponent(expectedErpFormId);
-    var requestedActive = config().enabled === true && config().shadowMode === false;
-    var pending = Promise.all([
+    return Promise.all([
       ApiClient.get(base + aliasQuery, { headers: headers }),
       ApiClient.get(base + '/compare' + aliasQuery, { headers: headers })
     ]).then(function (responses) {
-      var schema = responses[0] && responses[0].schema;
-      var comparison = responses[1] && responses[1].comparison;
+      return {
+        schema: responses[0] && responses[0].schema,
+        comparison: responses[1] && responses[1].comparison,
+        expectedErpFormId: expectedErpFormId
+      };
+    });
+  }
+
+  function clearFormTimers(formName) {
+    var prefix = normalizeName(formName) + '|';
+    Object.keys(timers).forEach(function (key) {
+      if (key.indexOf(prefix) !== 0) return;
+      if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
+      delete timers[key];
+    });
+  }
+
+  function fetchState(formName, legacySchema, force) {
+    if (!isPilot(formName)) {
+      clearFormTimers(formName);
+      return Promise.resolve({
+        status: 'not-pilot',
+        active: false,
+        contextKey: stateKey(formName),
+        runtimeSchemas: createRuntimeSchemas(legacySchema, [], false)
+      });
+    }
+
+    var key = stateKey(formName);
+    var current = states[key];
+    var ttlMs = config().pollSeconds * 1000;
+    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
+      current.runtimeSchemas = createRuntimeSchemas(legacySchema, current.schema && current.schema.gridFields, current.active === true);
+      return Promise.resolve(current);
+    }
+    if (!force && current && current.pending) return current.pending;
+
+    var requestedActive = config().enabled === true && config().shadowMode === false;
+    var pending = requestMetadata(formName).then(function (metadata) {
+      var schema = metadata.schema;
+      var comparison = metadata.comparison;
+      var expectedErpFormId = metadata.expectedErpFormId;
       if (!schema || !Array.isArray(schema.gridFields)) throw new Error('Grid Schema V2 không hợp lệ');
       var contractReady = isActivationContractReady(schema, comparison, formName, expectedErpFormId);
-      var critical = hasCriticalParity(schema, comparison) || !contractReady;
+      var critical = hasCriticalParity(schema, comparison, formName) || !contractReady;
       var parityReady = contractReady && comparison && comparison.primaryKey && normalizeName(comparison.primaryKey.status) === 'match';
       var active = requestedActive && !critical && parityReady;
       var next = {
         status: active ? 'pilot-active' : (requestedActive && critical ? 'pilot-blocked-critical' : (requestedActive ? 'pilot-blocked-parity' : 'shadow')),
         active: active,
+        contextKey: key,
         schema: schema,
         comparison: comparison || null,
         runtimeSchemas: createRuntimeSchemas(legacySchema, schema.gridFields, active),
         loadedAt: Date.now(),
         error: null
       };
-      states[formName] = next;
+      states[key] = next;
       if (comparison) storeParity(formName, comparison);
       dispatchUpdate(formName, next);
       return next;
@@ -235,22 +302,30 @@ window.FieldSyncService = (function (global) {
       var fallback = {
         status: 'legacy-fallback',
         active: false,
+        contextKey: key,
         runtimeSchemas: createRuntimeSchemas(legacySchema, [], false),
         loadedAt: Date.now(),
         error: error && error.message ? error.message : 'Không tải được Grid Schema V2'
       };
-      states[formName] = fallback;
+      states[key] = fallback;
       dispatchUpdate(formName, fallback);
       return fallback;
     });
 
-    states[formName] = { status: 'loading', active: false, pending: pending, runtimeSchemas: createRuntimeSchemas(legacySchema, [], false) };
+    states[key] = { status: 'loading', active: false, contextKey: key, pending: pending, runtimeSchemas: createRuntimeSchemas(legacySchema, [], false) };
     return pending;
   }
 
   function ensurePolling(formName, legacySchema) {
-    if (!isPilot(formName) || timers[formName] || typeof global.setInterval !== 'function') return;
-    timers[formName] = global.setInterval(function () {
+    if (!isPilot(formName) || typeof global.setInterval !== 'function') return;
+    var key = stateKey(formName);
+    if (timers[key]) return;
+    timers[key] = global.setInterval(function () {
+      if (!isPilot(formName) || stateKey(formName) !== key) {
+        if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
+        delete timers[key];
+        return;
+      }
       fetchState(formName, legacySchema, true);
     }, config().pollSeconds * 1000);
   }
@@ -277,13 +352,31 @@ window.FieldSyncService = (function (global) {
   }
 
   function getState(formName) {
-    return states[formName] || null;
+    return states[stateKey(formName)] || null;
+  }
+
+  function inspectForm(formName) {
+    var registry = global.Phase2MigrationRegistry;
+    if (!registry || typeof registry.isManagedForm !== 'function' || !registry.isManagedForm(formName)) {
+      return Promise.reject(new Error('Form không nằm trong registry Phase 2'));
+    }
+    return requestMetadata(formName).then(function (metadata) {
+      if (!metadata.schema || !metadata.comparison) throw new Error('Metadata compare V2 không hợp lệ');
+      return {
+        status: 'compare-only',
+        schema: metadata.schema,
+        comparison: metadata.comparison,
+        active: false
+      };
+    });
   }
 
   return Object.freeze({
     observeForm: observeForm,
     searchLookup: searchLookup,
     getState: getState,
+    getContextKey: function (formName) { return stateKey(formName); },
+    inspectForm: inspectForm,
     isPilot: isPilot,
     createRuntimeSchemas: createRuntimeSchemas
   });

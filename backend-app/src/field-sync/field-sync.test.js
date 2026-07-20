@@ -113,6 +113,34 @@ test('resolver làm sạch caption và báo lỗi khi thiếu primary key', () =
     assert.ok(schema.diagnostics.some((item) => item.code === 'NO_PRIMARY_KEY' && item.severity === 'error'));
 });
 
+test('resolver giữ diagnostic shadow để chặn active trước khi WA_API đăng ký V2', () => {
+    const schema = normalizeGridSchema([{
+        FieldName: 'Bac',
+        Caption: 'Bậc',
+        FieldOrdinal: 1,
+        SqlType: 'int',
+        SourceKind: 'RESULT_SET',
+        PrimaryKey: 'Bac',
+        DiagnosticCode: 'SHADOW_VIEW_NOT_REGISTERED'
+    }], 'WA_BangThueTNCNFrm', 'HR_BangThueTNCNFrm');
+    assert.ok(schema.diagnostics.some((item) => item.code === 'SHADOW_VIEW_NOT_REGISTERED'));
+});
+
+test('resolver biến diagnostic result-set không an toàn thành lỗi blocking', () => {
+    for (const code of ['RESULTSET_METADATA_ERROR', 'RESULTSET_UNSAFE_FIELD']) {
+        const schema = normalizeGridSchema([{
+            FieldName: 'Bac',
+            Caption: 'Bậc',
+            FieldOrdinal: 1,
+            SqlType: 'int',
+            SourceKind: 'RESULT_SET',
+            PrimaryKey: 'Bac',
+            DiagnosticCode: code
+        }], 'WA_BangThueTNCNFrm', 'HR_BangThueTNCNFrm');
+        assert.ok(schema.diagnostics.some((item) => item.code === code && item.severity === 'error'));
+    }
+});
+
 test('resolver chỉ trả dependsOn identifier an toàn', () => {
     const schema = normalizeGridSchema([{
         FieldName: 'BranchID',

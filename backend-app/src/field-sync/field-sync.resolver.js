@@ -132,10 +132,17 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
     const firstRow = rows && rows[0] ? rows[0] : {};
     const sourceKind = cleanText(first(firstRow, 'SourceKind', 'sourceKind'), 40);
     const primaryKey = cleanText(first(firstRow, 'PrimaryKey', 'primaryKey'), 128);
+    const sourceDiagnostic = cleanText(first(firstRow, 'DiagnosticCode', 'diagnosticCode'), 80).toUpperCase();
     if (!fields.length) diagnostics.push({ severity: 'error', code: 'NO_GRID_FIELDS' });
     if (!primaryKey) diagnostics.push({ severity: 'error', code: 'NO_PRIMARY_KEY' });
     if (!['RESULT_SET', 'TABLE_FALLBACK'].includes(sourceKind)) diagnostics.push({ severity: 'error', code: 'INVALID_SOURCE_KIND' });
     if (sourceKind === 'TABLE_FALLBACK') diagnostics.push({ severity: 'warning', code: 'RESULTSET_FALLBACK_TO_TABLE' });
+    if (sourceDiagnostic === 'SHADOW_VIEW_NOT_REGISTERED') {
+        diagnostics.push({ severity: 'warning', code: 'SHADOW_VIEW_NOT_REGISTERED' });
+    }
+    if (sourceDiagnostic === 'RESULTSET_METADATA_ERROR' || sourceDiagnostic === 'RESULTSET_UNSAFE_FIELD') {
+        diagnostics.push({ severity: 'error', code: sourceDiagnostic });
+    }
 
     return {
         schemaVersion: '2.0',

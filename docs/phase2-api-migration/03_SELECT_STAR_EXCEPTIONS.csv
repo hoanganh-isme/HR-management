@@ -1,0 +1,19 @@
+File,Procedure,StarExpression,Classification,Reason,Decision
+sql/API/API_ComboFormatID.sql,API_ComboFormatID,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/API_ComboFormPosition.sql,API_ComboFormPosition,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/API_DongBoTruongGiaoDien.sql,API_DongBoTruongGiaoDien,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/API_LuuQuyenToan.sql,API_LuuQuyenToan,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/API_tbmk_Thaydoi_View.sql,API_tbmk_Thaydoi_View,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/APINEW/API_Dashboard_MultiTemplate.sql,API_HR_Dashboard_Department,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/APINEW/API_Dashboard_MultiTemplate.sql,API_HR_Dashboard_Department,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/APINEW/API_HoSoNhanVien.sql,API_PersonFull_T1_Salary,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/APINEW/API_NguoiDungFrm.sql,API_NguoiDungFrm,U.*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/Combined_API.sql,API_ComboFormatID,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/Combined_API.sql,API_ComboFormPosition,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/Combined_API.sql,API_DongBoTruongGiaoDien,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/Combined_API.sql,API_LuuQuyenToan,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/Combined_API.sql,API_NguoiDungFrm,U.*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/Combined_API.sql,API_PersonFull_T1_Salary,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/API/Combined_API.sql,API_tbmk_Thaydoi_View,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK
+sql/Phase2ApiMigration/01_CREATE_VIEW_V2_PILOT.sql,API_BangThueTNCN_V2,T.*,MAIN_TABLE_STAR_APPROVED,"Bảng chính cố định; deny-list, scope và quyền được kiểm tra trước SELECT.",PILOT_ONLY
+sql/Update/Update_HR_HopDongAddfile_MapTemplates.sql,API_HR_GetForm,*,UNSAFE_STAR,Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.,KEEP_EXPLICIT_OR_BLOCK

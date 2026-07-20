@@ -1,0 +1,786 @@
+File,Line,Reference,Role,FormScope,Phase2Action
+sql/API/API_DanhSachTruongGiaoDien.sql,23,-- Thêm bí danh 'ff.' nếu cột nằm trong SY_FormatFields để tránh ambiguous,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/API_DanhSachTruongGiaoDien.sql,23,-- Thêm bí danh 'ff.' nếu cột nằm trong SY_FormatFields để tránh ambiguous,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/API_DanhSachTruongGiaoDien.sql,54,FROM SY_FormatFields ff,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/API_DanhSachTruongGiaoDien.sql,54,FROM SY_FormatFields ff,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/API_DongBoTruongGiaoDien.sql,7,-- API: Đồng bộ các trường dữ liệu từ Stored Procedure/Table vào bảng cấu hình Form (SY_FormatFields),FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_DongBoTruongGiaoDien.sql,19,"THROW 52601, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: không đồng bộ SY_FormatFields cho form pilot.', 1;",FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_DongBoTruongGiaoDien.sql,65,DELETE FROM SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_DongBoTruongGiaoDien.sql,69,-- Cursor duyệt qua các cột để tự động thêm vào SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_DongBoTruongGiaoDien.sql,91,-- Kiểm tra xem field đã có trong SY_FormatFields chưa,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_DongBoTruongGiaoDien.sql,92,IF NOT EXISTS (SELECT 1 FROM SY_FormatFields WHERE FormName = @FormName AND FieldName = @FieldName),FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_DongBoTruongGiaoDien.sql,108,UPDATE SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_LayCacTruongGiaoDien.sql,27,FROM SY_FormatFields ff,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/API_LayCacTruongGiaoDien.sql,27,FROM SY_FormatFields ff,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/API_LuuTruongGiaoDien.sql,31,-- Lưu tất cả trực tiếp vào SY_FormatFields (không dùng array trong SY_FrmLstTbl nữa),FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_LuuTruongGiaoDien.sql,32,IF EXISTS (SELECT 1 FROM SY_FormatFields WHERE FieldName = @FieldName AND FormName = @FormName),FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_LuuTruongGiaoDien.sql,34,UPDATE SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_LuuTruongGiaoDien.sql,54,INSERT INTO SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_LuuTruongGiaoDien.sql,70,FROM SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_TruyVanDong.sql,126,FROM SY_FormatFields,GRID_RUNTIME,GLOBAL_OR_OTHER,REMOVE_FOR_PILOT_ONLY
+sql/API/API_XoaTruongGiaoDien.sql,21,FROM SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/API_XoaTruongGiaoDien.sql,29,DELETE FROM SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/API/APINEW/API_DanhSachBangCap.sql,45,UPDATE SY_FormatFields SET CaptionVN = N'Mã bằng cấp' WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'MaBangCap';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachBangCap.sql,46,UPDATE SY_FormatFields SET CaptionVN = N'Tên bằng cấp' WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'TenBangCap';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachBenhVien.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachBenhVien.sql,49,UPDATE SY_FormatFields SET CaptionVN = N'Tên bệnh viện' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'HospitalName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachBenhVien.sql,50,UPDATE SY_FormatFields SET CaptionVN = N'Địa chỉ' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'Address';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachBenhVien.sql,51,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,62,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,63,UPDATE SY_FormatFields SET CaptionVN = N'Mã ca' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftID';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,64,UPDATE SY_FormatFields SET CaptionVN = N'Tên ca' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,65,UPDATE SY_FormatFields SET CaptionVN = N'Giờ bắt đầu' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioBatDau';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,66,UPDATE SY_FormatFields SET CaptionVN = N'Giờ kết thúc' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioKetThuc';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,67,UPDATE SY_FormatFields SET CaptionVN = N'Số giờ công' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoGioCong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,68,UPDATE SY_FormatFields SET CaptionVN = N'Giờ ca đêm' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioCaDem';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,69,UPDATE SY_FormatFields SET CaptionVN = N'Ca tự động' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CaTuDong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,70,UPDATE SY_FormatFields SET CaptionVN = N'Loại ca' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftType';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,71,UPDATE SY_FormatFields SET CaptionVN = N'Cách chấm công' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CachChamCong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,72,UPDATE SY_FormatFields SET CaptionVN = N'Màu sắc' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'Color';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCaLamViec.sql,73,UPDATE SY_FormatFields SET CaptionVN = N'Số công' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoCong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachChiNhanh.sql,47,UPDATE SY_FormatFields SET CaptionVN = N'Mã chi nhánh' WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchID';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachChiNhanh.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Tên chi nhánh' WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCongViec.sql,53,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_JobListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCongViec.sql,54,UPDATE SY_FormatFields SET CaptionVN = N'Tên công việc' WHERE FormName = 'WA_JobListFrm' AND FieldName = 'JobName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachCongViec.sql,55,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_JobListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachDanToc.sql,51,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachDanToc.sql,52,UPDATE SY_FormatFields SET CaptionVN = N'Tên dân tộc' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachDanToc.sql,53,UPDATE SY_FormatFields SET CaptionVN = N'Tên khác' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName2';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachDanToc.sql,54,UPDATE SY_FormatFields SET CaptionVN = N'Địa bàn cư trú' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesPlace';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachDanToc.sql,55,UPDATE SY_FormatFields SET CaptionVN = N'Mặc định' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'isDefault';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachDanToc.sql,56,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachHinhThucNghi.sql,46,UPDATE SY_FormatFields SET CaptionVN = N'Mã hình thức nghỉ' WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'HinhThucNghi';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachHinhThucNghi.sql,47,UPDATE SY_FormatFields SET CaptionVN = N'Tên hình thức nghỉ' WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'TenHinhThucNghi';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachHinhThucNghi.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Có hưởng lương' WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'NghiCoLuong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachHocVan.sql,45,UPDATE SY_FormatFields SET CaptionVN = N'Trình độ học vấn' WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'EducationName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachHocVan.sql,46,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachNganHang.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachNganHang.sql,49,UPDATE SY_FormatFields SET CaptionVN = N'Tên ngân hàng' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'BankName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachNganHang.sql,50,UPDATE SY_FormatFields SET CaptionVN = N'Địa chỉ chi nhánh' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'Address';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachNganHang.sql,51,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachNgheNghiep.sql,46,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachNgheNghiep.sql,47,UPDATE SY_FormatFields SET CaptionVN = N'Ngành nghề / Nghề nghiệp' WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'CareerName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachNgheNghiep.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachQuocGia.sql,47,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachQuocGia.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Tên quốc gia' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'NationName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachQuocGia.sql,49,UPDATE SY_FormatFields SET CaptionVN = N'Mặc định' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'isDefault';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachQuocGia.sql,50,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachTinhThanh.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachTinhThanh.sql,49,UPDATE SY_FormatFields SET CaptionVN = N'Tên tỉnh / thành' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'ProvineName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachTinhThanh.sql,50,UPDATE SY_FormatFields SET CaptionVN = N'Quận / huyện / TX' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'TownShip';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachTinhThanh.sql,51,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachTonGiao.sql,46,UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự' WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachTonGiao.sql,47,UPDATE SY_FormatFields SET CaptionVN = N'Tên tôn giáo' WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'ReligionName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/APINEW/API_DanhSachTonGiao.sql,48,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,1956,UPDATE SY_FormatFields SET CaptionVN = N'MÃ£ báº±ng cáº¥p' WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'MaBangCap';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,1957,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn báº±ng cáº¥p' WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'TenBangCap';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2009,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2010,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn bá»‡nh viá»‡n' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'HospitalName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2011,UPDATE SY_FormatFields SET CaptionVN = N'Äá»‹a chá»‰' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'Address';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2012,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_HospitalListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2105,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2106,UPDATE SY_FormatFields SET CaptionVN = N'MÃ£ ca' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftID';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2107,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn ca' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2108,UPDATE SY_FormatFields SET CaptionVN = N'Giá» báº¯t Ä‘áº§u' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioBatDau';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2109,UPDATE SY_FormatFields SET CaptionVN = N'Giá» káº¿t thÃºc' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioKetThuc';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2110,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ giá» cÃ´ng' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoGioCong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2111,UPDATE SY_FormatFields SET CaptionVN = N'Giá» ca Ä‘Ãªm' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioCaDem';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2112,UPDATE SY_FormatFields SET CaptionVN = N'Ca tá»± Ä‘á»™ng' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CaTuDong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2113,UPDATE SY_FormatFields SET CaptionVN = N'Loáº¡i ca' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftType';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2114,UPDATE SY_FormatFields SET CaptionVN = N'CÃ¡ch cháº¥m cÃ´ng' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CachChamCong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2115,UPDATE SY_FormatFields SET CaptionVN = N'MÃ u sáº¯c' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'Color';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2116,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ cÃ´ng' WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoCong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2231,UPDATE SY_FormatFields SET CaptionVN = N'MÃ£ chi nhÃ¡nh' WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchID';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2232,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn chi nhÃ¡nh' WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2353,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_JobListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2354,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn cÃ´ng viá»‡c' WHERE FormName = 'WA_JobListFrm' AND FieldName = 'JobName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2355,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_JobListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2410,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2411,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn dÃ¢n tá»™c' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2412,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn khÃ¡c' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName2';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2413,UPDATE SY_FormatFields SET CaptionVN = N'Äá»‹a bÃ n cÆ° trÃº' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesPlace';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2414,UPDATE SY_FormatFields SET CaptionVN = N'Máº·c Ä‘á»‹nh' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'isDefault';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2415,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2465,UPDATE SY_FormatFields SET CaptionVN = N'MÃ£ hÃ¬nh thá»©c nghá»‰' WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'HinhThucNghi';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2466,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn hÃ¬nh thá»©c nghá»‰' WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'TenHinhThucNghi';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2467,UPDATE SY_FormatFields SET CaptionVN = N'CÃ³ hÆ°á»Ÿng lÆ°Æ¡ng' WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'NghiCoLuong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2516,UPDATE SY_FormatFields SET CaptionVN = N'TrÃ¬nh Ä‘á»™ há»c váº¥n' WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'EducationName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2517,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2596,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2597,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn ngÃ¢n hÃ ng' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'BankName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2598,UPDATE SY_FormatFields SET CaptionVN = N'Äá»‹a chá»‰ chi nhÃ¡nh' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'Address';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2599,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_BankListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2649,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2650,UPDATE SY_FormatFields SET CaptionVN = N'NgÃ nh nghá» / Nghá» nghiá»‡p' WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'CareerName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2651,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2702,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2703,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn quá»‘c gia' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'NationName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2704,UPDATE SY_FormatFields SET CaptionVN = N'Máº·c Ä‘á»‹nh' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'isDefault';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2705,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_NationListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2757,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2758,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn tá»‰nh / thÃ nh' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'ProvineName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2759,UPDATE SY_FormatFields SET CaptionVN = N'Quáº­n / huyá»‡n / TX' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'TownShip';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2760,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2810,UPDATE SY_FormatFields SET CaptionVN = N'Sá»‘ thá»© tá»±' WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'STT';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2811,UPDATE SY_FormatFields SET CaptionVN = N'TÃªn tÃ´n giÃ¡o' WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'ReligionName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,2812,UPDATE SY_FormatFields SET CaptionVN = N'Ghi chÃº' WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,4812,-- ThÃªm bÃ­ danh 'ff.' náº¿u cá»™t náº±m trong SY_FormatFields Ä‘á»ƒ trÃ¡nh ambiguous,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,4843,FROM SY_FormatFields ff,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,4949,-- API: Äá»“ng bá»™ cÃ¡c trÆ°á»ng dá»¯ liá»‡u tá»« Stored Procedure/Table vÃ o báº£ng cáº¥u hÃ¬nh Form (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,4961,"THROW 52601, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: pilot khong duoc dong bo SY_FormatFields.', 1;",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,5007,DELETE FROM SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,5011,-- Cursor duyá»‡t qua cÃ¡c cá»™t Ä‘á»ƒ tá»± Ä‘á»™ng thÃªm vÃ o SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,5033,-- Kiá»ƒm tra xem field Ä‘Ã£ cÃ³ trong SY_FormatFields chÆ°a,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,5034,IF NOT EXISTS (SELECT 1 FROM SY_FormatFields WHERE FormName = @FormName AND FieldName = @FieldName),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,5050,UPDATE SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,5255,FROM SY_FormatFields ff,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7089,-- LÆ°u táº¥t cáº£ trá»±c tiáº¿p vÃ o SY_FormatFields (khÃ´ng dÃ¹ng array trong SY_FrmLstTbl ná»¯a),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7090,IF EXISTS (SELECT 1 FROM SY_FormatFields WHERE FieldName = @FieldName AND FormName = @FormName),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7092,UPDATE SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7112,INSERT INTO SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7128,FROM SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7289,FROM SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7545,FROM SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/API/Combined_API.sql,7553,DELETE FROM SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,26,"IF OBJECT_ID('dbo.SY_FormatFields', 'U') IS NULL",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,27,"THROW 51433, 'HRM_Web_Install: thieu dbo.SY_FormatFields.', 1;",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,44,"IF COL_LENGTH('dbo.SY_FormatFields', 'FormName') IS NULL OR COL_LENGTH('dbo.SY_FormatFields', 'FieldName') IS NULL",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,45,"THROW 51439, 'HRM_Web_Install: SY_FormatFields thieu cot khoa.', 1;",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,732,"SELECT 'SY_FormatFields', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.FormName IS NOT NULL THEN 1 END)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,733,FROM dbo.SY_FormatFields x,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,808,"SELECT 'SY_FormatFields', CONCAT(ff.FormName, ':', ff.FieldName),",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,826,FROM dbo.SY_FormatFields f,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,832,"SELECT 'SY_FormatFields', CONCAT(f.FormName, ':', f.FieldName), 'DUPLICATE_KEY', N'Có nhiều hơn một override hiện hữu; migration không tự chọn.'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,833,FROM dbo.SY_FormatFields f,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,839,"SELECT 'SY_FormatFields', CONCAT(m.FormName, ':', m.FieldName), 'ORPHAN', N'Field manifest không có form/menu HR trong allow-list; chỉ báo cáo, không ghi.'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,906,INSERT INTO dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,910,"OUTPUT 'SY_FormatFields', CONCAT(inserted.FormName, ':', inserted.FieldName), 'INSERT'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,917,SELECT 1 FROM dbo.SY_FormatFields x,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,965,"SELECT 'SY_FormatFields', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.FormName IS NOT NULL THEN 1 END)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Deploy/HRM_Web_Install.sql,966,FROM dbo.SY_FormatFields x,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/FieldSyncPhase1/03_API_WEB_GRID_FIELD_COMPARE_V2.sql,54,FROM dbo.SY_FormatFields AS F,PARITY,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,14,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BangPhuCapFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,50,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,52,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,134,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BangThamSoFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,164,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,166,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,258,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BangThueTNCNFrm';,MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,288,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,290,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,348,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoLuongReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,352,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,391,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,395,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,399,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,416,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoNghiPhepReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,420,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,450,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,454,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,482,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoNhanSuReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,517,-- Lệnh này tự động quét metadata của SP và INSERT vào SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,525,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,528,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,713,PRINT 'Da cap nhat SY_FormatFields cho WA_BaoCaoNhanSuReport thanh cong!';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,733,"DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_BaoHiemFrm', 'API_BaoHiem_Detail');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,940,-- 10. ĐỒNG BỘ TRƯỜNG TỪ TABLE VÀO SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,947,-- 11. CẬP NHẬT THUỘC TÍNH FORM FIELDS (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,950,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,990,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1053,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_CaLamViecFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1133,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1136,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1244,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_DanhSachUngVienFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1326,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1328,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1481,"DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_HopDongLaoDongFrm', 'API_HopDongLaoDong_ChiTiet', 'API_HopDongLaoDong_Attach');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1542,"-- 5. CẤU HÌNH NHÃN, VỊ TRÍ, ĐỊNH DẠNG (SY_FormatFields)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1545,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1672,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1714,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1778,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_KinhPhiCongDoanFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1830,"-- 6. CẤU HÌNH ĐỊNH DẠNG, SEARCH DROPDOWN VÀ NHÃN HIỂN THỊ (SY_FormatFields)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1832,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1912,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_LuongKhoanFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1948,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,1950,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2037,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_PayrollFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2088,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2090,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2203,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2280,-- 5. CẤU HÌNH NHÃN + HIỂN THỊ CỘT TRÊN LƯỚI MASTER (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2282,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2540,IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2542,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2546,"UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_DanhSachLoaiHD' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2549,IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'NamLap'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2551,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2555,"UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_HopDongLaoDong_NamLap' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'NamLap'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2559,"UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'CF_BranchListFrm' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'BranchID'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2562,IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2564,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2568,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trạng thái', CaptionEN = 'Status', ShowInFilter = 1, DataSource = 'API_ComboPersonStatus', FormatID = 'sl' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2586,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_QuanLyNghiLeFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2626,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2628,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2698,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_QuanLyNghiPhepNamFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2750,-- 6. CẤU HÌNH NHÃN + HIỂN THỊ CỘT TRÊN LƯỚI MASTER (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2752,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2858,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_ShiftListCNFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2914,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,2917,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3011,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetCTReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3048,-- 5. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3050,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'UserAutoID', CaptionEN = 'UserAutoID', OrderNo = 1 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'UserAutoID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3051,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Kỳ', CaptionEN = 'Period', OrderNo = 2 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PeriodID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3052,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã nhân viên', CaptionEN = 'Employee ID', OrderNo = 3 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PersonID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3053,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Họ Tên', CaptionEN = 'Employee Name', OrderNo = 4 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PersonName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3054,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Bộ phận', CaptionEN = 'Department', OrderNo = 5 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PhongBan';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3055,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Chi nhánh', CaptionEN = 'Branch', OrderNo = 6 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'BranchID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3056,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày', CaptionEN = 'Date', OrderNo = 7 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'Ngay';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3057,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Chức danh', CaptionEN = 'Position', OrderNo = 8 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'ChucDanh';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3058,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ vào', CaptionEN = 'Time In', OrderNo = 9 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'GioVao';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3059,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ ra', CaptionEN = 'Time Out', OrderNo = 10 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'GioRa';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3060,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số giờ', CaptionEN = 'Hours Worked', OrderNo = 11 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'SoGio';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3061,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số công', CaptionEN = 'Workday Units', OrderNo = 12 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'SoCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3062,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số phút', CaptionEN = 'Minutes', OrderNo = 13 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'SoPhut';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3063,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trễ (phút)', CaptionEN = 'Late (min)', OrderNo = 14 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'Tre';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3064,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Lý do', CaptionEN = 'Reason', OrderNo = 15 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'LyDo';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3065,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Notes', OrderNo = 16 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3069,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3163,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetDayFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3202,-- 5. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3204,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3273,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3323,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3367,-- 6. CẤU HÌNH ĐỊNH VỊ CỘT TRONG GRID (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3369,INSERT INTO dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3390,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3437,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3465,-- 4. KHỞI TẠO CẤU HÌNH CỘT GIAO DIỆN (SY_FormatFields) BẰNG LỆNH INSERT,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3468,INSERT INTO dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3582,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetTH2Report';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3610,-- 4. KHỞI TẠO CẤU HÌNH CỘT GIAO DIỆN (SY_FormatFields) BẰNG LỆNH INSERT,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3613,INSERT INTO dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3686,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3691,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3895,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3899,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3935,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên ngân hàng', CaptionEN = 'Bank Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'BankName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3936,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Địa chỉ chi nhánh', CaptionEN = 'Address', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'Address';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3937,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3938,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3959,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên quốc gia', CaptionEN = 'Nation Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'NationName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3960,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mặc định', CaptionEN = 'Default', FormatID = 'sw', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'isDefault';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3961,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3962,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3983,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên tỉnh / thành', CaptionEN = 'Province Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'ProvineName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3984,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Quận / huyện / TX', CaptionEN = 'Township', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'TownShip';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3985,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,3986,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4007,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên dân tộc', CaptionEN = 'Ethnicity Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4008,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên khác', CaptionEN = 'Alternative Name', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName2';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4009,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Địa bàn cư trú', CaptionEN = 'Primary Region', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesPlace';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4010,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mặc định', CaptionEN = 'Default', FormatID = 'sw', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'isDefault';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4011,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 5 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4012,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 6 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4033,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên tôn giáo', CaptionEN = 'Religion Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'ReligionName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4034,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4035,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4056,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trình độ học vấn', CaptionEN = 'Education Level', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'EducationName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4057,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4058,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4079,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã bằng cấp', CaptionEN = 'Certificate ID', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'MaBangCap';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4080,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên bằng cấp', CaptionEN = 'Certificate Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'TenBangCap';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4101,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngành nghề / Nghề nghiệp', CaptionEN = 'Career Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'CareerName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4102,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4103,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4124,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã hình thức nghỉ', CaptionEN = 'Leave Type Code', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'HinhThucNghi';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4125,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên hình thức nghỉ', CaptionEN = 'Leave Type Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'TenHinhThucNghi';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4126,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Có hưởng lương', CaptionEN = 'With Pay', FormatID = 'sw', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'NghiCoLuong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4147,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã chi nhánh', CaptionEN = 'Branch ID', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4148,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên chi nhánh', CaptionEN = 'Branch Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4169,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Bậc', CaptionEN = 'Level', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'Bac';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4170,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Từ', CaptionEN = 'From', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'Tu';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4171,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Đến', CaptionEN = 'To', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'Den';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4172,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Thuế suất (%)', CaptionEN = 'Tax Rate (%)', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'ThueSuat';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4193,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Kỳ', CaptionEN = 'Period', FormatID = 't', DataSource = 'SY_Period', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'PeriodID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4194,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Loại bảo hiểm', CaptionEN = 'Insurance Type', FormatID = 'sl', DataSource = N'STATIC:NVN|Trong nước,NNN|Nước ngoài', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'LoaiBaoHiem';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4195,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHXH NLĐ (%)', CaptionEN = 'SI EE (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHXHNLD';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4196,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHXH Cty (%)', CaptionEN = 'SI ER (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHXHCTY';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4197,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHYT NLĐ (%)', CaptionEN = 'HI EE (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 5 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHYTNLD';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4198,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHYT Cty (%)', CaptionEN = 'HI ER (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 6 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHYTCTY';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4199,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHTN NLĐ (%)', CaptionEN = 'UI EE (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 7 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHTNNLD';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4200,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHTN Cty (%)', CaptionEN = 'UI ER (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 8 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHTNCTY';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4318,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4322,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4428,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4432,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4436,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4440,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4444,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4448,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4452,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4456,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4510,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4514,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4518,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4522,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4576,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4580,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4584,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4588,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4642,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4646,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4650,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4704,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4708,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4762,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4766,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4770,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4824,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4828,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4832,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4886,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4890,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4894,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4898,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4952,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4956,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,4960,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5014,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5018,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5022,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5026,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5080,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5084,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5088,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5092,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5096,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5100,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5154,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5158,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5211,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5215,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5219,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5223,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5277,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5281,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5285,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5339,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã ca', CaptionEN = 'Shift ID', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5340,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên ca', CaptionEN = 'Shift Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5341,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ bắt đầu', CaptionEN = 'Start Time', FormatID = 'tm', IsRequired = 1, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioBatDau';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5342,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ kết thúc', CaptionEN = 'End Time', FormatID = 'tm', IsRequired = 1, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioKetThuc';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5343,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số giờ công', CaptionEN = 'Work Hours', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 5 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoGioCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5344,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ ca đêm', CaptionEN = 'Night Shift Hours', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 6 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioCaDem';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5345,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Index', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 7 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5346,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ca tự động', CaptionEN = 'Auto Shift', FormatID = 'sw', IsRequired = 1, FormPosition = 'grid', OrderNo = 8 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CaTuDong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5347,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Loại ca', CaptionEN = 'Shift Type', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 9 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftType';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5348,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Cách chấm công', CaptionEN = 'Timekeeping Method', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 10 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CachChamCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5349,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Màu hiển thị', CaptionEN = 'Display Color', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 11 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'Color';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5350,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số công', CaptionEN = 'Shift Weight', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 12 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5402,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5406,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5458,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5462,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Combined_Insert_Temp.sql,5466,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,14,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,100,-- 5. CẤU HÌNH NHÃN + HIỂN THỊ CỘT TRÊN LƯỚI MASTER (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,102,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,362,IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,364,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,368,"UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_DanhSachLoaiHD' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'LoaiHD'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,371,IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'NamLap'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,373,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,377,"UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'API_HopDongLaoDong_NamLap' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'NamLap'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,381,"UPDATE dbo.SY_FormatFields SET ShowInFilter = 1, DataSource = 'CF_BranchListFrm' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'BranchID'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,384,IF NOT EXISTS (SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,386,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_HoSoNhanVien.sql,390,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trạng thái', CaptionEN = 'Status', ShowInFilter = 1, DataSource = 'API_ComboPersonStatus', FormatID = 'sl' WHERE FormName = 'WA_PersonFullFrm' AND FieldName = 'PersonStatus'",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangPhuCapFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BangPhuCapFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangPhuCapFrm_SY_FormatFields.sql,52,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangPhuCapFrm_SY_FormatFields.sql,54,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangThamSoFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BangThamSoFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangThamSoFrm_SY_FormatFields.sql,46,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangThamSoFrm_SY_FormatFields.sql,48,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangThueTNCNFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BangThueTNCNFrm';,MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangThueTNCNFrm_SY_FormatFields.sql,46,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BangThueTNCNFrm_SY_FormatFields.sql,48,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoLuongReport_SY_FormatFields.sql,5,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoLuongReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoLuongReport_SY_FormatFields.sql,9,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoLuongReport_SY_FormatFields.sql,48,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoLuongReport_SY_FormatFields.sql,52,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoLuongReport_SY_FormatFields.sql,56,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNghiPhepReport_SY_FormatFields.sql,5,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoNghiPhepReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNghiPhepReport_SY_FormatFields.sql,9,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNghiPhepReport_SY_FormatFields.sql,39,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNghiPhepReport_SY_FormatFields.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_Config.sql,6,-- 2. BỔ SUNG CỘT ẨN DÙNG CHO BỘ LỌC (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_Config.sql,9,"DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoNhanSuReport' AND FieldName IN ('Template', 'FromDate', 'ToDate', 'BranchID', 'Keyword');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_Config.sql,11,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoCaoNhanSuReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_SY_FormatFields.sql,51,-- Lệnh này tự động quét metadata của SP và INSERT vào SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_SY_FormatFields.sql,59,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_SY_FormatFields.sql,62,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoCaoNhanSuReport_SY_FormatFields.sql,247,PRINT 'Da cap nhat SY_FormatFields cho WA_BaoCaoNhanSuReport thanh cong!';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoHiemFrm_Config.sql,18,"DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_BaoHiemFrm', 'API_BaoHiem_Detail');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoHiemFrm_Config.sql,304,-- 10. ĐỒNG BỘ TRƯỜNG TỪ TABLE VÀO SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoHiemFrm_Config.sql,311,-- 11. CẬP NHẬT THUỘC TÍNH FORM FIELDS (SY_FormatFields) DÀNH RIÊNG CHO WEB,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoHiemFrm_Config.sql,315,IF NOT EXISTS(SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_BaoHiemFrm' AND FieldName = 'PeriodKeyID'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoHiemFrm_Config.sql,317,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, FormatID, FormPosition, ShowInAdd, ShowInEdit, IsRequired, DataSource, OrderNo, CaptionVN, CaptionEN)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoHiemFrm_Config.sql,321,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_BaoHiemFrm_Config.sql,362,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_CaLamViecFrm_SY_FormatFields.sql,16,"DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_CaLamViecFrm', 'API_CaLamViec_NhanVien');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_CaLamViecFrm_SY_FormatFields.sql,104,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_CaLamViecFrm_SY_FormatFields.sql,107,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_ChucDanhFrm.sql,15,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_ChucDanhFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_ChucDanhFrm.sql,41,-- 5. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_ChucDanhFrm.sql,42,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_DanhSachUngVienFrm.sql,15,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_DanhSachUngVienFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_DanhSachUngVienFrm.sql,91,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_DanhSachUngVienFrm.sql,92,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_HopDongLaoDongFrm_SY_FormatFields.sql,16,"DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_HopDongLaoDongFrm', 'API_HopDongLaoDong_ChiTiet', 'API_HopDongLaoDong_Attach');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_HopDongLaoDongFrm_SY_FormatFields.sql,77,"-- 5. CẤU HÌNH NHÃN, VỊ TRÍ, ĐỊNH DẠNG (SY_FormatFields)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_HopDongLaoDongFrm_SY_FormatFields.sql,80,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_HopDongLaoDongFrm_SY_FormatFields.sql,207,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_HopDongLaoDongFrm_SY_FormatFields.sql,249,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_KinhPhiCongDoanFrm.sql,10,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_KinhPhiCongDoanFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_KinhPhiCongDoanFrm.sql,62,"-- 6. CẤU HÌNH ĐỊNH DẠNG, SEARCH DROPDOWN VÀ NHÃN HIỂN THỊ (SY_FormatFields)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_KinhPhiCongDoanFrm.sql,64,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_LuongKhoanFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_LuongKhoanFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_LuongKhoanFrm_SY_FormatFields.sql,52,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_LuongKhoanFrm_SY_FormatFields.sql,54,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_PayrollFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_PayrollFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_PayrollFrm_SY_FormatFields.sql,67,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_PayrollFrm_SY_FormatFields.sql,69,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_QuanLyNghiLeFrm_SY_FormatFields.sql,17,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_QuanLyNghiLeFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_QuanLyNghiLeFrm_SY_FormatFields.sql,57,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_QuanLyNghiLeFrm_SY_FormatFields.sql,59,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_QuanLyNghiPhepNamFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_QuanLyNghiPhepNamFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_QuanLyNghiPhepNamFrm_SY_FormatFields.sql,68,-- 6. CẤU HÌNH NHÃN + HIỂN THỊ CỘT TRÊN LƯỚI MASTER (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_QuanLyNghiPhepNamFrm_SY_FormatFields.sql,70,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_ShiftListCNFrm_SY_FormatFields.sql,14,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_ShiftListCNFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_ShiftListCNFrm_SY_FormatFields.sql,70,-- 6. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_ShiftListCNFrm_SY_FormatFields.sql,73,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,12,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetCTReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,49,-- 5. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,51,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'UserAutoID', CaptionEN = 'UserAutoID', OrderNo = 1 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'UserAutoID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,52,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Kỳ', CaptionEN = 'Period', OrderNo = 2 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PeriodID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,53,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã nhân viên', CaptionEN = 'Employee ID', OrderNo = 3 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PersonID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,54,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Họ Tên', CaptionEN = 'Employee Name', OrderNo = 4 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PersonName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,55,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Bộ phận', CaptionEN = 'Department', OrderNo = 5 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'PhongBan';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,56,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Chi nhánh', CaptionEN = 'Branch', OrderNo = 6 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'BranchID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,57,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày', CaptionEN = 'Date', OrderNo = 7 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'Ngay';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,58,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Chức danh', CaptionEN = 'Position', OrderNo = 8 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'ChucDanh';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,59,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ vào', CaptionEN = 'Time In', OrderNo = 9 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'GioVao';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,60,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ ra', CaptionEN = 'Time Out', OrderNo = 10 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'GioRa';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,61,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số giờ', CaptionEN = 'Hours Worked', OrderNo = 11 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'SoGio';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,62,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số công', CaptionEN = 'Workday Units', OrderNo = 12 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'SoCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,63,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số phút', CaptionEN = 'Minutes', OrderNo = 13 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'SoPhut';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,64,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trễ (phút)', CaptionEN = 'Late (min)', OrderNo = 14 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'Tre';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,65,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Lý do', CaptionEN = 'Reason', OrderNo = 15 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'LyDo';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,66,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Notes', OrderNo = 16 WHERE FormName = 'WA_TimeSheetCTReport' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetCTReport_SY_FormatFields.sql,70,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetDayFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetDayFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetDayFrm_SY_FormatFields.sql,55,-- 5. CẤU HÌNH NHÃN HIỂN THỊ CỘT TRÊN GIAO DIỆN (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetDayFrm_SY_FormatFields.sql,57,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetDayFrm_SY_FormatFields.sql,126,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetFrm_SY_FormatFields.sql,16,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetFrm_SY_FormatFields.sql,60,-- 6. CẤU HÌNH ĐỊNH VỊ CỘT TRONG GRID (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetFrm_SY_FormatFields.sql,62,INSERT INTO dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetFrm_SY_FormatFields.sql,83,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetReport_SY_FormatFields.sql,12,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetReport';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetReport_SY_FormatFields.sql,40,-- 4. KHỞI TẠO CẤU HÌNH CỘT GIAO DIỆN (SY_FormatFields) BẰNG LỆNH INSERT,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetReport_SY_FormatFields.sql,43,INSERT INTO dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetTH2Report_SY_FormatFields.sql,12,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_TimeSheetTH2Report';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetTH2Report_SY_FormatFields.sql,40,-- 4. KHỞI TẠO CẤU HÌNH CỘT GIAO DIỆN (SY_FormatFields) BẰNG LỆNH INSERT,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetTH2Report_SY_FormatFields.sql,43,INSERT INTO dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetTH2Report_SY_FormatFields.sql,116,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Insert_WA_TimeSheetTH2Report_SY_FormatFields.sql,121,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_CF_BranchListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_CF_BranchListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,25,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên ngân hàng', CaptionEN = 'Bank Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'BankName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,26,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Địa chỉ chi nhánh', CaptionEN = 'Address', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'Address';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,27,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,28,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_BankListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,49,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên quốc gia', CaptionEN = 'Nation Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'NationName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,50,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mặc định', CaptionEN = 'Default', FormatID = 'sw', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'isDefault';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,51,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,52,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_NationListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,73,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên tỉnh / thành', CaptionEN = 'Province Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'ProvineName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,74,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Quận / huyện / TX', CaptionEN = 'Township', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'TownShip';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,75,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,76,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_ProvinceListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,97,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên dân tộc', CaptionEN = 'Ethnicity Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,98,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên khác', CaptionEN = 'Alternative Name', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesName2';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,99,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Địa bàn cư trú', CaptionEN = 'Primary Region', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'PeoplesPlace';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,100,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mặc định', CaptionEN = 'Default', FormatID = 'sw', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'isDefault';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,101,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 5 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,102,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 6 WHERE FormName = 'WA_PeopleListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,123,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên tôn giáo', CaptionEN = 'Religion Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'ReligionName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,124,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,125,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_ReligionListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,146,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trình độ học vấn', CaptionEN = 'Education Level', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'EducationName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,147,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,148,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_EducationListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,169,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã bằng cấp', CaptionEN = 'Certificate ID', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'MaBangCap';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,170,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên bằng cấp', CaptionEN = 'Certificate Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BangCapListFrm' AND FieldName = 'TenBangCap';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,191,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngành nghề / Nghề nghiệp', CaptionEN = 'Career Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'CareerName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,192,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú', CaptionEN = 'Note', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'GhiChu';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,193,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Order No', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_CareerlListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,214,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã hình thức nghỉ', CaptionEN = 'Leave Type Code', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'HinhThucNghi';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,215,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên hình thức nghỉ', CaptionEN = 'Leave Type Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'TenHinhThucNghi';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,216,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Có hưởng lương', CaptionEN = 'With Pay', FormatID = 'sw', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_HinhThucNghiListFrm' AND FieldName = 'NghiCoLuong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,237,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã chi nhánh', CaptionEN = 'Branch ID', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,238,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên chi nhánh', CaptionEN = 'Branch Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'CF_BranchListFrm' AND FieldName = 'BranchName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,259,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Bậc', CaptionEN = 'Level', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'Bac';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,260,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Từ', CaptionEN = 'From', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'Tu';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,261,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Đến', CaptionEN = 'To', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'Den';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,262,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Thuế suất (%)', CaptionEN = 'Tax Rate (%)', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_BangThueTNCNFrm' AND FieldName = 'ThueSuat';",MIGRATION,PILOT,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,283,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Kỳ', CaptionEN = 'Period', FormatID = 't', DataSource = 'SY_Period', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'PeriodID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,284,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Loại bảo hiểm', CaptionEN = 'Insurance Type', FormatID = 'sl', DataSource = N'STATIC:NVN|Trong nước,NNN|Nước ngoài', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'LoaiBaoHiem';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,285,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHXH NLĐ (%)', CaptionEN = 'SI EE (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHXHNLD';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,286,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHXH Cty (%)', CaptionEN = 'SI ER (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHXHCTY';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,287,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHYT NLĐ (%)', CaptionEN = 'HI EE (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 5 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHYTNLD';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,288,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHYT Cty (%)', CaptionEN = 'HI ER (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 6 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHYTCTY';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,289,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHTN NLĐ (%)', CaptionEN = 'UI EE (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 7 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHTNNLD';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_Remaining_List_Forms.sql,290,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'BHTN Cty (%)', CaptionEN = 'UI ER (%)', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 8 WHERE FormName = 'WA_BangThamSoFrm' AND FieldName = 'BHTNCTY';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangCapListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangCapListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,55,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,59,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,63,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,67,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThamSoFrm.sql,71,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThueTNCNFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThueTNCNFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThueTNCNFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BangThueTNCNFrm.sql,55,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BankListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BankListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BankListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_BankListFrm.sql,55,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_CareerlListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_CareerlListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_CareerlListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_DepartmentListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_DepartmentListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_EducationListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_EducationListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_EducationListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_HinhThucNghiListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_HinhThucNghiListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_HinhThucNghiListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_HospitalListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_HospitalListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_HospitalListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_HospitalListFrm.sql,55,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_JobListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_JobListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_JobListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NationListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NationListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NationListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NationListFrm.sql,55,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungFrm.sql,14,"DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_NguoiDungFrm', 'HR_NguoiDungFrm');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungFrm.sql,73,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungFrm.sql,77,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungFrm.sql,81,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungFrm.sql,85,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungFrm.sql,89,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungFrm.sql,93,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungNhomFrm.sql,15,"DELETE FROM dbo.SY_FormatFields WHERE FormName IN ('WA_NguoiDungNhomFrm', 'NguoiDungNhomFrm');",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungNhomFrm.sql,74,-- Chèn thêm cột ảo CountUser vào SY_FormatFields vì nó không có trong SY_UserGroup,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungNhomFrm.sql,75,IF NOT EXISTS(SELECT 1 FROM dbo.SY_FormatFields WHERE FormName = 'WA_NguoiDungNhomFrm' AND FieldName = 'CountUser'),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungNhomFrm.sql,77,"INSERT INTO dbo.SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyAdd, IsReadOnlyEdit, OrderNo, ShowInFilter, DataSource)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungNhomFrm.sql,81,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungNhomFrm.sql,85,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_NguoiDungNhomFrm.sql,89,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PeopleListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PeopleListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PeopleListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PeopleListFrm.sql,55,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PeopleListFrm.sql,59,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PeopleListFrm.sql,63,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PositionListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_PositionListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ProvinceListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ProvinceListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ProvinceListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ProvinceListFrm.sql,55,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ReligionListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ReligionListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ReligionListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,43,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã ca', CaptionEN = 'Shift ID', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 1 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,44,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên ca', CaptionEN = 'Shift Name', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 2 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,45,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ bắt đầu', CaptionEN = 'Start Time', FormatID = 'tm', IsRequired = 1, FormPosition = 'grid', OrderNo = 3 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioBatDau';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,46,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ kết thúc', CaptionEN = 'End Time', FormatID = 'tm', IsRequired = 1, FormPosition = 'grid', OrderNo = 4 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioKetThuc';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,47,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số giờ công', CaptionEN = 'Work Hours', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 5 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoGioCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,48,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giờ ca đêm', CaptionEN = 'Night Shift Hours', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 6 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioCaDem';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,49,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Index', FormatID = 'n', IsRequired = 0, FormPosition = 'grid', OrderNo = 7 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,50,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ca tự động', CaptionEN = 'Auto Shift', FormatID = 'sw', IsRequired = 1, FormPosition = 'grid', OrderNo = 8 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CaTuDong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,51,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Loại ca', CaptionEN = 'Shift Type', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 9 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftType';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,52,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Cách chấm công', CaptionEN = 'Timekeeping Method', FormatID = 't', IsRequired = 1, FormPosition = 'grid', OrderNo = 10 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CachChamCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,53,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Màu hiển thị', CaptionEN = 'Display Color', FormatID = 't', IsRequired = 0, FormPosition = 'grid', OrderNo = 11 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'Color';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_ShiftListFrm.sql,54,"UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số công', CaptionEN = 'Shift Weight', FormatID = 'n', IsRequired = 1, FormPosition = 'grid', OrderNo = 12 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_TitleListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_TitleListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_WorkingGroupListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_WorkingGroupListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Insert/Register_WA_WorkingGroupListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Query/Query_frmCustomer.sql,15,FROM SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,5,UPDATE SY_FormatFields SET CaptionVN = N'Tên khách hàng' WHERE FormName = 'frmCustomer' AND FieldName = 'Tenkh';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,6,UPDATE SY_FormatFields SET CaptionVN = N'Số hợp đồng' WHERE FormName = 'frmCustomer' AND FieldName = 'Sohopdong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,7,UPDATE SY_FormatFields SET CaptionVN = N'Mã KH' WHERE FormName = 'frmCustomer' AND FieldName = 'Makh';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,8,UPDATE SY_FormatFields SET CaptionVN = N'Tên cô dâu' WHERE FormName = 'frmCustomer' AND FieldName = 'Tencodau';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,9,UPDATE SY_FormatFields SET CaptionVN = N'Tên chú rể' WHERE FormName = 'frmCustomer' AND FieldName = 'Tenchure';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,10,UPDATE SY_FormatFields SET CaptionVN = N'SĐT Chú rể' WHERE FormName = 'frmCustomer' AND FieldName = 'DTchure';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,11,UPDATE SY_FormatFields SET CaptionVN = N'SĐT Cô dâu' WHERE FormName = 'frmCustomer' AND FieldName = 'DTcodau';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,12,UPDATE SY_FormatFields SET CaptionVN = N'Email' WHERE FormName = 'frmCustomer' AND FieldName = 'Mail';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,13,UPDATE SY_FormatFields SET CaptionVN = N'SĐT Chung' WHERE FormName = 'frmCustomer' AND FieldName = 'DienthoaiChung';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,14,UPDATE SY_FormatFields SET CaptionVN = N'Địa chỉ' WHERE FormName = 'frmCustomer' AND FieldName = 'Diachi';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,15,UPDATE SY_FormatFields SET CaptionVN = N'Số lần tham quan' WHERE FormName = 'frmCustomer' AND FieldName = 'SoLanThamQuan';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,19,UPDATE SY_FormatFields SET FormatID = 'nm' WHERE FormName = 'frmCustomer' AND FieldName = 'SoLanThamQuan';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,22,UPDATE SY_FormatFields SET FormPosition = '6',MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Restore/Restore_frmCustomer_Caption.sql,29,UPDATE SY_FormatFields SET FormPosition = '12',MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Fix_BangPhuCap_MoTa_NotRequired.sql,7,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_frmFormBuilder.sql,5,IF NOT EXISTS (SELECT 1 FROM SY_FormatFields WHERE FormName = 'frmFormBuilder' AND FieldName = 'ShowInFilter'),FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,7,"INSERT INTO SY_FormatFields (FormName, FieldName, CaptionVN, CaptionEN, FormatID, IsRequired, FormPosition, ShowInAdd, ShowInEdit, IsReadOnlyEdit, IsReadOnlyAdd, OrderNo)",FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,12,UPDATE SY_FormatFields SET CaptionVN = N'Mã Form' WHERE FormName = 'frmFormBuilder' AND FieldName = 'FormName';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,13,UPDATE SY_FormatFields SET CaptionVN = N'Tên Trường (Database)' WHERE FormName = 'frmFormBuilder' AND FieldName = 'FieldName';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,14,UPDATE SY_FormatFields SET CaptionVN = N'Tiêu đề (Hiển thị)' WHERE FormName = 'frmFormBuilder' AND FieldName = 'CaptionVN';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,15,UPDATE SY_FormatFields SET CaptionVN = N'Tiêu đề (Tiếng Anh)' WHERE FormName = 'frmFormBuilder' AND FieldName = 'CaptionEN';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,16,UPDATE SY_FormatFields SET CaptionVN = N'Loại Input' WHERE FormName = 'frmFormBuilder' AND FieldName = 'FormatID';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,17,UPDATE SY_FormatFields SET CaptionVN = N'Nguồn Dữ Liệu (API/Static)' WHERE FormName = 'frmFormBuilder' AND FieldName = 'DataSource';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,18,UPDATE SY_FormatFields SET CaptionVN = N'Bắt buộc nhập' WHERE FormName = 'frmFormBuilder' AND FieldName = 'IsRequired';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,19,UPDATE SY_FormatFields SET CaptionVN = N'Kích thước hiển thị' WHERE FormName = 'frmFormBuilder' AND FieldName = 'FormPosition';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,20,UPDATE SY_FormatFields SET CaptionVN = N'Hiện khi Thêm' WHERE FormName = 'frmFormBuilder' AND FieldName = 'ShowInAdd';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,21,UPDATE SY_FormatFields SET CaptionVN = N'Hiện khi Sửa' WHERE FormName = 'frmFormBuilder' AND FieldName = 'ShowInEdit';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,22,UPDATE SY_FormatFields SET CaptionVN = N'Chỉ đọc khi Thêm' WHERE FormName = 'frmFormBuilder' AND FieldName = 'IsReadOnlyAdd';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,23,UPDATE SY_FormatFields SET CaptionVN = N'Chỉ đọc khi Sửa' WHERE FormName = 'frmFormBuilder' AND FieldName = 'IsReadOnlyEdit';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,24,UPDATE SY_FormatFields SET CaptionVN = N'Quy tắc hiển thị (JS)' WHERE FormName = 'frmFormBuilder' AND FieldName = 'VisibleRule';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,25,UPDATE SY_FormatFields SET CaptionVN = N'Ràng buộc dữ liệu (JS)' WHERE FormName = 'frmFormBuilder' AND FieldName = 'ValidateRule';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,26,UPDATE SY_FormatFields SET CaptionVN = N'Trường phụ thuộc' WHERE FormName = 'frmFormBuilder' AND FieldName = 'DependsOn';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,27,UPDATE SY_FormatFields SET CaptionVN = N'Thứ tự ưu tiên' WHERE FormName = 'frmFormBuilder' AND FieldName = 'OrderNo';,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,31,UPDATE SY_FormatFields SET FormatID = 'sw',FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,35,"UPDATE SY_FormatFields SET FormatID = 'sl', DataSource = N'STATIC:t|Văn bản (Text),n|Số (Number),dt|Ngày (Date),sw|Bật/Tắt (Switch),sl|Danh sách chọn (Select)'",FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,39,"UPDATE SY_FormatFields SET FormatID = 'sl', DataSource = N'STATIC:12|Đầy đủ 100% (Full),6|Một nửa 50% (Half),4|1/3 Chiều rộng,3|1/4 Chiều rộng'",FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,43,UPDATE SY_FormatFields SET FormatID = 'nm',FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,47,UPDATE SY_FormatFields SET FormPosition = '6',FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,55,UPDATE SY_FormatFields SET FormPosition = '12',FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,59,"DELETE FROM SY_FormatFields WHERE FormName = '' AND FieldName IN ('01','02','03','04','05','06','07','08','09','10','11','12','13','14','15');",FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_frmFormBuilder.sql,62,UPDATE SY_FormatFields,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+sql/Update/Update_SY_FormatFields_Reports.sql,10,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày cập nhật' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'DateUpdate';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,11,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Địa chỉ hiện nay' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'DiaChiHienNay';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,12,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Địa chỉ tạm trú' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'DiaChiTamTru';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,13,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Địa chỉ thường trú' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'DiaChiThuongTru';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,14,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số điện thoại' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'DienThoai';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,15,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Dụng cụ làm việc' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'DungCuLamViec';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,16,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Trình độ học vấn' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'EducationName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,17,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Email' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'Email';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,18,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã chấm công' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'EnrollNumber';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,19,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Dữ liệu vân tay 1' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'FingerData';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,20,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Dữ liệu vân tay 2' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'FingerData2';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,21,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ghi chú' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'GhiChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,22,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Giới tính' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'GioiTinh';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,23,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tình trạng hôn nhân' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'HonNhan';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,24,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Nơi đăng ký KCB' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'HospitalName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,27,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã nhân viên' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'PersonID';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,28,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Họ và tên' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'PersonName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,29,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày sinh' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'BirthDate';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,30,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Nơi sinh' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'BirthPlace';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,31,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số CMND/CCCD' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'IDCard';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,32,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày cấp' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'IDCardDate';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,33,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Nơi cấp' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'IDCardPlace';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,34,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày vào làm' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'JoinDate';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,35,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Ngày nghỉ việc' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'LeftDate';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,36,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên phòng ban' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'DepartmentName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,37,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên chức vụ' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'PositionName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,38,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên chi nhánh' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'BranchName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,39,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số tài khoản' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'BankAccount';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,40,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tên ngân hàng' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'BankName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,41,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Số sổ BHXH' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'SocialInsuranceNo';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,42,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Mã số thuế' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'TaxNo';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,43,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Dân tộc' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'NationName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,44,UPDATE dbo.SY_FormatFields SET CaptionVN = N'Tôn giáo' WHERE FormName = 'HR_BaoCaoNhanSuReport' AND FieldName = 'ReligionName';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_SY_FormatFields_Reports.sql,60,FROM dbo.SY_FormatFields F,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,39,-- 3. Đồng bộ hóa cấu trúc cột từ bảng vật lý vào SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,45,"UPDATE SY_FormatFields SET CaptionVN = N'Mã ca', CaptionEN = 'Shift ID', FormatID = 't', IsRequired = 1, FormPosition = '6', OrderNo = 1 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftID';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,46,"UPDATE SY_FormatFields SET CaptionVN = N'Tên ca', CaptionEN = 'Shift Name', FormatID = 't', IsRequired = 1, FormPosition = '6', OrderNo = 2 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftName';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,47,"UPDATE SY_FormatFields SET CaptionVN = N'Giờ bắt đầu', CaptionEN = 'Start Time', FormatID = 't', IsRequired = 0, FormPosition = '6', OrderNo = 3 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioBatDau';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,48,"UPDATE SY_FormatFields SET CaptionVN = N'Giờ kết thúc', CaptionEN = 'End Time', FormatID = 't', IsRequired = 0, FormPosition = '6', OrderNo = 4 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioKetThuc';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,49,"UPDATE SY_FormatFields SET CaptionVN = N'Số giờ công', CaptionEN = 'Work Hours', FormatID = 'n', IsRequired = 0, FormPosition = '6', OrderNo = 5 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoGioCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,50,"UPDATE SY_FormatFields SET CaptionVN = N'Giờ ca đêm', CaptionEN = 'Night Shift Hours', FormatID = 'n', IsRequired = 0, FormPosition = '6', OrderNo = 6 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'GioCaDem';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,51,"UPDATE SY_FormatFields SET CaptionVN = N'Số thứ tự', CaptionEN = 'Index', FormatID = 'n', IsRequired = 0, FormPosition = '6', OrderNo = 7 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'STT';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,52,"UPDATE SY_FormatFields SET CaptionVN = N'Ca tự động', CaptionEN = 'Auto Shift', FormatID = 'sw', IsRequired = 0, FormPosition = '6', OrderNo = 8 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CaTuDong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,53,"UPDATE SY_FormatFields SET CaptionVN = N'Loại ca', CaptionEN = 'Shift Type', FormatID = 't', IsRequired = 0, FormPosition = '6', OrderNo = 9 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'ShiftType';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,54,"UPDATE SY_FormatFields SET CaptionVN = N'Cách chấm công', CaptionEN = 'Timekeeping Method', FormatID = 't', IsRequired = 0, FormPosition = '6', OrderNo = 10 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'CachChamCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,55,"UPDATE SY_FormatFields SET CaptionVN = N'Màu hiển thị', CaptionEN = 'Display Color', FormatID = 't', IsRequired = 0, FormPosition = '6', OrderNo = 11 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'Color';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Update_TriggerAll.sql,56,"UPDATE SY_FormatFields SET CaptionVN = N'Số công', CaptionEN = 'Shift Weight', FormatID = 'n', IsRequired = 0, FormPosition = '6', OrderNo = 12 WHERE FormName = 'WA_ShiftListFrm' AND FieldName = 'SoCong';",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Upgrade_ShowInFilter.sql,4,-- 1. Thêm cột ShowInFilter vào bảng SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Upgrade_ShowInFilter.sql,5,"IF COL_LENGTH('SY_FormatFields', 'ShowInFilter') IS NULL",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Update/Upgrade_ShowInFilter.sql,7,ALTER TABLE SY_FormatFields ADD ShowInFilter BIT NOT NULL DEFAULT 0;,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,119,UPDATE SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,135,UPDATE SY_FormatFields SET CaptionVN = N'Ngày lập HĐ' WHERE FormName = 'frmHopDong' AND FieldName = 'NgayLapHD';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,136,UPDATE SY_FormatFields SET CaptionVN = N'Tháng lập HĐ' WHERE FormName = 'frmHopDong' AND FieldName = 'ThangLapHD';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,137,UPDATE SY_FormatFields SET CaptionVN = N'Năm lập HĐ' WHERE FormName = 'frmHopDong' AND FieldName = 'NamLapHD';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,139,UPDATE SY_FormatFields SET CaptionVN = N'Nhân viên phụ trách' WHERE FormName = 'frmHopDong' AND FieldName = 'BenA_NhanVienPhuTrach';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,140,UPDATE SY_FormatFields SET CaptionVN = N'SĐT nhân viên' WHERE FormName = 'frmHopDong' AND FieldName = 'BenA_SDT_NhanVien';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,142,UPDATE SY_FormatFields SET CaptionVN = N'Đại diện Bên B' WHERE FormName = 'frmHopDong' AND FieldName = 'BenB_TenDaiDien';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,143,UPDATE SY_FormatFields SET CaptionVN = N'Tên Chủ Tiệc' WHERE FormName = 'frmHopDong' AND FieldName = 'BenB_TenChuTiec';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,144,UPDATE SY_FormatFields SET CaptionVN = N'Địa chỉ Bên B' WHERE FormName = 'frmHopDong' AND FieldName = 'BenB_DiaChi';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,145,UPDATE SY_FormatFields SET CaptionVN = N'SĐT Bên B' WHERE FormName = 'frmHopDong' AND FieldName = 'BenB_DienThoai';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,146,UPDATE SY_FormatFields SET CaptionVN = N'Chức vụ Bên B' WHERE FormName = 'frmHopDong' AND FieldName = 'BenB_ChucVu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,148,UPDATE SY_FormatFields SET CaptionVN = N'Giờ bắt đầu' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_GioBatDau';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,149,UPDATE SY_FormatFields SET CaptionVN = N'Ngày đãi tiệc (DL)' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_NgayDL';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,150,UPDATE SY_FormatFields SET CaptionVN = N'Tháng đãi tiệc (DL)' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_ThangDL';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,151,UPDATE SY_FormatFields SET CaptionVN = N'Năm đãi tiệc (DL)' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_NamDL';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,152,UPDATE SY_FormatFields SET CaptionVN = N'Ngày đãi tiệc (AL)' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_NgayAL';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,153,UPDATE SY_FormatFields SET CaptionVN = N'Tháng đãi tiệc (AL)' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_ThangAL';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,154,UPDATE SY_FormatFields SET CaptionVN = N'Năm đãi tiệc (AL)' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_NamAL';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,156,UPDATE SY_FormatFields SET CaptionVN = N'Sảnh đãi tiệc' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_SanhTiec';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,157,UPDATE SY_FormatFields SET CaptionVN = N'Quy mô tối thiểu' WHERE FormName = 'frmHopDong' AND FieldName = 'Sanh_QuyMoMin';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,158,UPDATE SY_FormatFields SET CaptionVN = N'Quy mô tối đa' WHERE FormName = 'frmHopDong' AND FieldName = 'Sanh_QuyMoMax';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,160,UPDATE SY_FormatFields SET CaptionVN = N'Số bàn chính thức' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_SoBanChinhThuc';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,161,UPDATE SY_FormatFields SET CaptionVN = N'Số bàn tặng' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_SoBanTang';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,162,UPDATE SY_FormatFields SET CaptionVN = N'Số bàn dự phòng' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_SoBanDuPhong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,163,UPDATE SY_FormatFields SET CaptionVN = N'Số khách/Bàn' WHERE FormName = 'frmHopDong' AND FieldName = 'Tiec_SoKhach1Ban';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,165,UPDATE SY_FormatFields SET CaptionVN = N'Tiền cọc lần 1' WHERE FormName = 'frmHopDong' AND FieldName = 'Coc_Lan1_SoTien';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,166,UPDATE SY_FormatFields SET CaptionVN = N'Tiền cọc bằng chữ' WHERE FormName = 'frmHopDong' AND FieldName = 'Coc_Lan1_BangChu';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,167,UPDATE SY_FormatFields SET CaptionVN = N'Ngày cọc' WHERE FormName = 'frmHopDong' AND FieldName = 'Coc_Ngay';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,168,UPDATE SY_FormatFields SET CaptionVN = N'Tháng cọc' WHERE FormName = 'frmHopDong' AND FieldName = 'Coc_Thang';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,169,UPDATE SY_FormatFields SET CaptionVN = N'Năm cọc' WHERE FormName = 'frmHopDong' AND FieldName = 'Coc_Nam';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,171,UPDATE SY_FormatFields SET CaptionVN = N'Điều khoản bổ sung' WHERE FormName = 'frmHopDong' AND FieldName = 'DieuKhoanBoSung';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,172,UPDATE SY_FormatFields SET CaptionVN = N'Khuyến mãi' WHERE FormName = 'frmHopDong' AND FieldName = 'DS_KhuyenMai';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,175,UPDATE SY_FormatFields SET CaptionVN = N'Số hợp đồng' WHERE FormName = 'frmHopDong' AND FieldName = 'Sohopdong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,176,UPDATE SY_FormatFields SET CaptionVN = N'Số biên nhận' WHERE FormName = 'frmHopDong' AND FieldName = 'Sobiennhan';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,177,UPDATE SY_FormatFields SET CaptionVN = N'Mã KH' WHERE FormName = 'frmHopDong' AND FieldName = 'Makh';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,178,UPDATE SY_FormatFields SET CaptionVN = N'Tên khách hàng' WHERE FormName = 'frmHopDong' AND FieldName = 'TenKhachHang';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,179,UPDATE SY_FormatFields SET CaptionVN = N'Điện thoại' WHERE FormName = 'frmHopDong' AND FieldName = 'DienThoai';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,180,UPDATE SY_FormatFields SET CaptionVN = N'Ngày tổ chức' WHERE FormName = 'frmHopDong' AND FieldName = 'NgayToChuc';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,181,UPDATE SY_FormatFields SET CaptionVN = N'Số bàn' WHERE FormName = 'frmHopDong' AND FieldName = 'SoBan';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,182,UPDATE SY_FormatFields SET CaptionVN = N'Sảnh đặt' WHERE FormName = 'frmHopDong' AND FieldName = 'SanhDat';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,183,UPDATE SY_FormatFields SET CaptionVN = N'Tổng tiền' WHERE FormName = 'frmHopDong' AND FieldName = 'TongTien';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/View/v_DanhSachHopDong.sql,184,UPDATE SY_FormatFields SET CaptionVN = N'Trạng thái' WHERE FormName = 'frmHopDong' AND FieldName = 'TrangThai';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/components/report-filter/ReportFilterDialog.js,9,"* formName: 'frmReportFilter', // Tên form trong SY_FormatFields",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/components/report-filter/ReportFilterDialog.js,267,* VisibleRule syntax (lưu trong SY_FormatFields.VisibleRule):,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/components/report-filter/ReportFilterDialog.js,363,* @param {string} opts.formName - FormName trong SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/components/ui-utils/UIUtils.js,315,* Syntax (lưu trong SY_FormatFields.VisibleRule):,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/core/DynamicFormEngine.js,4931,// Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/core/DynamicFormEngine.js,4931,// Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/core/router.js,86,"existingConfig = { FormName: 'SY_FormatFields', PageTitle: 'Cấu hình động', UseSplitLayout: false };",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/definitions/contract.js,86,// Cấu hình ghi đè lên SY_FormatFields từ Database,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/definitions/leave.js,51,// Fallback cục bộ chỉ dùng khi API metadata không trả SY_FormatFields.,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,3,* Ưu tiên: SY_FormatFields theo form -> dictionary theo form -> dictionary chung -> fallback cục bộ.,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,3,* Ưu tiên: SY_FormatFields theo form -> dictionary theo form -> dictionary chung -> fallback cục bộ.,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,38,payload.SY_FormatFields || payload.list || payload.records,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,38,payload.SY_FormatFields || payload.list || payload.records,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,54,"console.warn('[HRMetadataAdapter] Không có SY_FormatFields riêng cho form:', formName, '- dùng dictionary/fallback chỉ đọc.');",ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,54,"console.warn('[HRMetadataAdapter] Không có SY_FormatFields riêng cho form:', formName, '- dùng dictionary/fallback chỉ đọc.');",FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,59,"return { fields: fields, source: specific.length ? 'SY_FormatFields' : 'fallback' };",ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/modules/hr/HRMetadataAdapter.js,59,"return { fields: fields, source: specific.length ? 'SY_FormatFields' : 'fallback' };",FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/utils/FormBuilderPlugin.js,76,Form này thuộc Phase 2: không được ghi SY_FormatFields. Nút chạy sẽ chỉ mở màn hình đối chiếu V2.,FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT
+src/js/utils/FormBuilderPlugin.js,460,"if (phase2Managed) return Alert.warning('Chế độ tương thích', 'Không được ghi SY_FormatFields cho form pilot Phase 2.');",FORM_BUILDER_WRITE,GLOBAL_OR_OTHER,DISABLE_FOR_PILOT

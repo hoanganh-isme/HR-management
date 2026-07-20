@@ -40,21 +40,38 @@ BEGIN
     IF @UserGroupID IS NULL
         THROW 51002, N'Người dùng không hợp lệ hoặc đã bị khóa.', 1;
 
-    IF LOWER(@UserGroupID) <> 'admin'
-       AND NOT EXISTS (
-            SELECT 1
-            FROM dbo.WA_Menu AS M
-            LEFT JOIN dbo.WA_UserGroupPermisstion AS P
-              ON P.MenuID = M.MenuID
-             AND P.UserGroupID = @UserGroupID
-            WHERE M.FormName = @WebFormName
-              AND ISNULL(M.isDisable, 0) = 0
-              AND (ISNULL(M.isNotCheckPermission, 0) = 1 OR ISNULL(P.IsRun, 0) = 1)
-       )
-        THROW 51003, N'Không có quyền đọc metadata của form.', 1;
+    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
+    SELECT TOP (1)
+        @MenuID = M.MenuID,
+        @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
+    FROM dbo.WA_Menu AS M
+    WHERE M.FormName = @WebFormName
+      AND ISNULL(M.isDisable, 0) = 0
+    ORDER BY M.MenuID;
 
-    IF LOWER(@UserGroupID) <> 'admin' AND LTRIM(RTRIM(ISNULL(@UserBranches, ''))) <> ''
+    IF @MenuID IS NULL
+        THROW 51003, N'Form chưa có menu hoạt động để kiểm tra quyền metadata.', 1;
+
+    IF LOWER(@UserGroupID) <> 'admin' AND @SkipPermission = 0
     BEGIN
+        DECLARE @GroupCanRun bit, @UserCanRun bit;
+        SELECT @GroupCanRun = P.IsRun
+        FROM dbo.WA_UserGroupPermisstion AS P
+        WHERE P.UserGroupID = @UserGroupID AND P.MenuID = @MenuID;
+
+        SELECT @UserCanRun = P.IsRun
+        FROM dbo.WA_UserPermisstion AS P
+        WHERE P.UserName = @UserName AND P.MenuID = @MenuID;
+
+        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
+            THROW 51003, N'Không có quyền đọc metadata của form.', 1;
+    END;
+
+    /* PHASE2_BRANCH_FAIL_CLOSED */
+    IF LOWER(@UserGroupID) <> 'admin'
+    BEGIN
+        IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = ''
+            THROW 51009, N'Người dùng không phải admin chưa được gán chi nhánh.', 1;
         IF @BranchID = ''
             THROW 51004, N'Thiếu ngữ cảnh chi nhánh.', 1;
         IF EXISTS (
@@ -64,7 +81,7 @@ BEGIN
               AND NOT EXISTS (
                     SELECT 1
                     FROM STRING_SPLIT(@UserBranches, ',') AS Allowed
-                    WHERE LTRIM(RTRIM(Allowed.[value])) = LTRIM(RTRIM(Requested.[value]))
+                    WHERE UPPER(LTRIM(RTRIM(Allowed.[value]))) = UPPER(LTRIM(RTRIM(Requested.[value])))
               )
         )
             THROW 51005, N'Chi nhánh nằm ngoài phạm vi được cấp.', 1;
@@ -80,6 +97,21 @@ BEGIN
 
     IF ISNULL(@ApiCount, 0) <> 1 OR ISNULL(@ViewProcedure, '') = ''
         THROW 51006, N'WA_API View chưa có duy nhất một đăng ký hợp lệ.', 1;
+
+    /*
+      PHASE2_SHADOW_VIEW_OVERRIDE:
+      Chỉ metadata/compare của đúng pilot được mô tả bằng V2 trước khi đổi WA_API runtime.
+      Diagnostic SHADOW_VIEW_NOT_REGISTERED sẽ chặn frontend active cho tới khi WA_API.View thật sự là V2.
+    */
+    DECLARE @ShadowViewOverride bit = 0;
+    IF LOWER(@WebFormName) = LOWER('WA_BangThueTNCNFrm')
+       AND LOWER(@ERPFormID) = LOWER('HR_BangThueTNCNFrm')
+       AND LOWER(@ViewProcedure) = LOWER('API_TruyVanDong')
+       AND OBJECT_ID(N'dbo.API_BangThueTNCN_V2', N'P') IS NOT NULL
+    BEGIN
+        SET @ViewProcedure = 'API_BangThueTNCN_V2';
+        SET @ShadowViewOverride = 1;
+    END;
 
     DECLARE @TableName varchar(100), @PrimaryKey varchar(100);
     SELECT
@@ -98,6 +130,7 @@ BEGIN
         IsNullable bit NULL,
         SourceKind varchar(30) NOT NULL
     );
+    DECLARE @ResultSetMetadataError bit = 0;
 
     DECLARE @ProcedureObjectID int = COALESCE(
         OBJECT_ID(@ViewProcedure, N'P'),
@@ -107,6 +140,13 @@ BEGIN
     IF @ProcedureObjectID IS NOT NULL
     BEGIN
         BEGIN TRY
+            IF EXISTS (
+                SELECT 1
+                FROM sys.dm_exec_describe_first_result_set_for_object(@ProcedureObjectID, 0) AS D
+                WHERE D.error_number IS NOT NULL
+            )
+                SET @ResultSetMetadataError = 1;
+
             INSERT INTO @Fields (FieldOrdinal, FieldName, SqlType, IsNullable, SourceKind)
             SELECT
                 D.column_ordinal,
@@ -116,6 +156,7 @@ BEGIN
                 'RESULT_SET'
             FROM sys.dm_exec_describe_first_result_set_for_object(@ProcedureObjectID, 0) AS D
             WHERE ISNULL(D.is_hidden, 0) = 0
+              AND D.error_number IS NULL
               AND D.name IS NOT NULL;
         END TRY
         BEGIN CATCH
@@ -154,6 +195,25 @@ BEGIN
         WHERE C.object_id = @TableObjectID
         ORDER BY C.column_id;
     END;
+
+    DECLARE @ResultSetUnsafeField bit = 0;
+    IF EXISTS (
+        SELECT 1
+        FROM @Fields AS F
+        WHERE LOWER(F.FieldName) IN ('content', 'base64content', 'filecontent', 'binarydata', 'password', 'passwordhash',
+                                     'token', 'refreshtoken', 'secret', 'rawsql', 'commandtext')
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%binary%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%image%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%timestamp%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%rowversion%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%xml%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%text%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%sql_variant%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%geography%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%geometry%'
+           OR LOWER(ISNULL(F.SqlType, '')) LIKE '%hierarchyid%'
+    )
+        SET @ResultSetUnsafeField = 1;
 
     SELECT
         CAST('2.0' AS varchar(10)) AS SchemaVersion,
@@ -203,7 +263,13 @@ BEGIN
         CONVERT(bit, ISNULL(D.IsMultiSelect, 0)) AS LookupMultiSelect,
         D.ReloadType AS LookupReloadMode,
         CONVERT(bit, ISNULL(D.IsDisable, 0)) AS LookupDisabled,
-        CASE WHEN F.SourceKind = 'TABLE_FALLBACK' THEN 'RESULTSET_FALLBACK_TO_TABLE' ELSE 'OK' END AS DiagnosticCode
+        CASE
+            WHEN @ResultSetMetadataError = 1 THEN 'RESULTSET_METADATA_ERROR'
+            WHEN F.SourceKind = 'TABLE_FALLBACK' THEN 'RESULTSET_FALLBACK_TO_TABLE'
+            WHEN @ResultSetUnsafeField = 1 THEN 'RESULTSET_UNSAFE_FIELD'
+            WHEN @ShadowViewOverride = 1 THEN 'SHADOW_VIEW_NOT_REGISTERED'
+            ELSE 'OK'
+        END AS DiagnosticCode
     FROM @Fields AS F
     OUTER APPLY (
         SELECT TOP (1)

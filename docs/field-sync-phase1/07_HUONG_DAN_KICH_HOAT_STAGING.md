@@ -80,7 +80,7 @@ Verifier chỉ PASS khi:
 - Schema/compare trả JSON đúng contract và `Cache-Control: no-store`.
 - Field name/order hợp lệ, primary key nằm trong Grid và parity `MATCH` ở cả legacy/V2.
 - Schema phải là `2.0`, lấy từ `RESULT_SET`; fallback table và status không nhận diện đều chặn pilot.
-- Không có diagnostic `error/critical` hoặc status `CRITICAL/ONLY_V2/ONLY_LEGACY`.
+- Không có diagnostic `error/critical`, `RESULTSET_FALLBACK_TO_TABLE` hoặc `SHADOW_VIEW_NOT_REGISTERED`. Với pilot Phase 2 được registry quản lý, `ONLY_V2` là field mới hợp lệ; `CRITICAL/ONLY_LEGACY` vẫn chặn.
 - Response không có key/nội dung giống raw SQL.
 - Request thiếu auth trả `401`; alias ERP cố ý sai trả `409`.
 - Mọi lookup đang bật phải trả `200` với options `value/label`; mọi `409` chứng minh fail-closed nhưng vẫn **chặn pilot**.
@@ -108,9 +108,11 @@ window.HRM_RUNTIME_CONFIG = Object.assign({}, window.HRM_RUNTIME_CONFIG, {
 Sau hard reload:
 
 1. Grid/Add/Edit/Filter phải tiếp tục hiển thị theo legacy.
-2. Xác minh `sessionStorage['ERP_FIELD_SYNC_PARITY:WA_BangThueTNCNFrm']` được tạo.
+2. Xác minh key parity có tiền tố `ERP_FIELD_SYNC_PARITY:` được tạo. Key đầy đủ có thêm ngữ cảnh form ERP, user và branch, ví dụ `ERP_FIELD_SYNC_PARITY:wa_bangthuetncnfrm|hr_bangthuetncnfrm|admin|cn01`.
 3. Thu parity theo user/branch; không ghi token hoặc response thô vào evidence.
 4. Chạy list/sort/search/paging và mobile card; shadow không được thay Grid.
+
+Khi Phase 2 đã cài View V2 nhưng `WA_API.View` còn legacy, metadata shadow cố ý trả `SHADOW_VIEW_NOT_REGISTERED`: màn hình compare vẫn dùng V2 nhưng verifier activation phải FAIL. Diagnostic này chỉ biến mất sau khi Gate View đổi đăng ký thật.
 
 `ERP_FIELD_SYNC_CONFIG`, nếu được khai báo trước bundle, là override **toàn bộ** `HRM_RUNTIME_CONFIG.FIELD_SYNC`. Không cấu hình một nửa ở mỗi nguồn.
 
@@ -120,7 +122,7 @@ Chỉ chuyển sang pilot khi tất cả điều kiện sau có evidence:
 
 - SQL chạy hai lần không phát sinh conflict/trùng registration.
 - Verifier đạt cho ma trận auth/quyền/branch.
-- PK `MATCH`, không có critical/only-one-side và khác biệt caption/format/lookup đã được người phụ trách duyệt.
+- PK `MATCH`, không có `CRITICAL` hoặc `ONLY_LEGACY`; `ONLY_V2` chỉ được chấp nhận cho field mới của form nằm trong registry Phase 2 và đã được người phụ trách duyệt. Khác biệt caption/format/lookup cũng phải được duyệt.
 - Không có raw SQL trong browser/network response.
 - Browser regression đạt cho list/sort/search/paging/add/edit/delete/mobile.
 - Không có người dùng đang nhập liệu trong thời điểm reload.

@@ -1,0 +1,20 @@
+{
+  "fixtureVersion": "2.0",
+  "source": "repository-and-anonymized-contract",
+  "containsProductionData": false,
+  "formName": "WA_BangThueTNCNFrm",
+  "procedure": "API_BangThueTNCN_V2",
+  "primaryKey": "Bac",
+  "parameters": ["@List", "@Keyword", "@SortColumn", "@SortDir", "@Data", "@UserName", "@BranchID"],
+  "requiredLegacyPrefix": ["Bac", "Tu", "Den", "ThueSuat"],
+  "additionalColumnsPolicy": "APPEND_SAFE_MAIN_TABLE_COLUMNS_AFTER_DENY_LIST_GATE",
+  "columns": [
+    { "ordinal": 1, "name": "Bac", "sqlType": "DB_SNAPSHOT_REQUIRED", "nullable": "DB_SNAPSHOT_REQUIRED" },
+    { "ordinal": 2, "name": "Tu", "sqlType": "DB_SNAPSHOT_REQUIRED", "nullable": "DB_SNAPSHOT_REQUIRED" },
+    { "ordinal": 3, "name": "Den", "sqlType": "DB_SNAPSHOT_REQUIRED", "nullable": "DB_SNAPSHOT_REQUIRED" },
+    { "ordinal": 4, "name": "ThueSuat", "sqlType": "DB_SNAPSHOT_REQUIRED", "nullable": "DB_SNAPSHOT_REQUIRED" }
+  ],
+  "sampleRows": [
+    { "Bac": 9001, "Tu": 0, "Den": 1000000, "ThueSuat": 5 }
+  ]
+}
