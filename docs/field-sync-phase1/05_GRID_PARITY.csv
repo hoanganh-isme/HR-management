@@ -1,0 +1,10 @@
+WebFormName,ERPFormID,FieldName,InLegacy,InViewResult,InDictionary,LegacyCaption,ERPCaption,LegacyFormat,ERPFormat,LegacyDataSource,ERPDropdown,Difference,Severity,Decision
+"WA_BangThueTNCNFrm","HR_BangThueTNCNFrm","Bac","YES","EXPECTED","YES","Bậc","Bậc","n","SQL numeric fallback","","NO","Cùng field/caption; cần xác nhận type live.","INFO","SHADOW_ONLY_PENDING_LIVE"
+"WA_BangThueTNCNFrm","HR_BangThueTNCNFrm","Tu","YES","EXPECTED","YES","Từ","Từ","n","SQL numeric fallback","","NO","Cùng field/caption; cần xác nhận type live.","INFO","SHADOW_ONLY_PENDING_LIVE"
+"WA_BangThueTNCNFrm","HR_BangThueTNCNFrm","Den","YES","EXPECTED","YES","Đến","Đến","n","SQL numeric fallback","","NO","Cùng field/caption; cần xác nhận type live.","INFO","SHADOW_ONLY_PENDING_LIVE"
+"WA_BangThueTNCNFrm","HR_BangThueTNCNFrm","ThueSuat","YES","EXPECTED","YES","Thuế suất (%)","Thuế suất","n","SQL numeric fallback","","NO","Khác dấu phần trăm trong caption.","WARNING","REVIEW_CAPTION_BEFORE_PILOT"
+"WA_BangThueTNCNFrm","HR_BangThueTNCNFrm","__PRIMARY_KEY__","YES","YES","N/A","Bac","Bac","N/A","N/A","","N/A","Khóa chính trùng.","MATCH","ALIAS_CONFIRMED_FOR_SHADOW"
+"WA_ChucDanhFrm","HR_ChucDanhFrm","ChucDanhChuyenMon","YES","YES","YES","Chức danh chuyên môn","Chức danh chuyên môn","t","SQL text fallback","","NO","Field/caption tương thích.","MATCH","SHADOW_ONLY"
+"WA_ChucDanhFrm","HR_ChucDanhFrm","MoTa","YES","YES","YES","Mô tả","Mô tả","t","SQL text fallback","","NO","Field/caption tương thích.","MATCH","SHADOW_ONLY"
+"WA_ChucDanhFrm","HR_ChucDanhFrm","__PRIMARY_KEY__","YES","NO","N/A","ChucDanhChuyenMon","ChucDanh","N/A","N/A","","N/A","Khóa chính Web và ERP không trùng.","CRITICAL","DO_NOT_CONFIRM_ALIAS_OR_ENABLE_PILOT"
+

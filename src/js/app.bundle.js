@@ -266,6 +266,47 @@ window.AppSession = (function () {
   });
 })();
 
+/* --- ErpFormAliases.js --- */
+/** Alias Web -> ERP đã được xác nhận bằng TableName, khóa chính và artifact ERP. */
+window.ErpFormAliases = (function () {
+  var aliases = Object.freeze({
+    WA_BangThueTNCNFrm: 'HR_BangThueTNCNFrm'
+  });
+
+  function resolve(formName) {
+    return aliases[formName] || formName;
+  }
+
+  return Object.freeze({ aliases: aliases, resolve: resolve });
+})();
+
+/* --- FieldSyncConfig.js --- */
+/**
+ * Feature flag Phase 1. Mặc định tuyệt đối không thay đổi UI đang chạy.
+ * Cấu hình ưu tiên: ERP_FIELD_SYNC_CONFIG (override toàn bộ) rồi
+ * HRM_RUNTIME_CONFIG.FIELD_SYNC. Không trộn hai nguồn để tránh ghép nhầm các gate bật pilot.
+ */
+(function (global) {
+  function configObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  }
+
+  var runtimeRoot = configObject(global.HRM_RUNTIME_CONFIG);
+  var runtime = configObject(runtimeRoot.FIELD_SYNC);
+  var explicit = configObject(global.ERP_FIELD_SYNC_CONFIG);
+  var supplied = Object.keys(explicit).length ? explicit : runtime;
+  var pilotForms = Array.isArray(supplied.pilotForms) ? supplied.pilotForms.slice() : [];
+  var pollSeconds = Number(supplied.pollSeconds);
+
+  global.ERP_FIELD_SYNC_CONFIG = Object.freeze({
+    enabled: supplied.enabled === true,
+    shadowMode: supplied.shadowMode !== false,
+    pilotForms: Object.freeze(pilotForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
+    pollSeconds: Number.isFinite(pollSeconds) && pollSeconds >= 30 ? Math.floor(pollSeconds) : 120,
+    metadataBaseUrl: typeof supplied.metadataBaseUrl === 'string' ? supplied.metadataBaseUrl.replace(/\/+$/, '') : ''
+  });
+})(window);
+
 /* --- AppTheme.js --- */
 /** Applies the existing font, theme and accent-color preferences. */
 window.AppTheme = (function () {
@@ -1377,6 +1418,298 @@ var PermissionsService = (function () {
     sync: sync
   };
 })();
+
+/* --- FieldSyncService.js --- */
+/** Grid Schema V2 shadow/pilot service. Add, Edit và Filter luôn dùng schema legacy ở Phase 1. */
+window.FieldSyncService = (function (global) {
+  var states = Object.create(null);
+  var timers = Object.create(null);
+
+  function config() {
+    return global.ERP_FIELD_SYNC_CONFIG || { enabled: false, shadowMode: true, pilotForms: [], pollSeconds: 120 };
+  }
+
+  function normalizeName(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function isPilot(formName) {
+    var target = normalizeName(formName);
+    var pilotForms = Array.isArray(config().pilotForms) ? config().pilotForms : [];
+    return pilotForms.some(function (item) { return normalizeName(item) === target; });
+  }
+
+  function metadataBaseUrl() {
+    var configured = config().metadataBaseUrl;
+    if (configured) return configured;
+    var manager = global.API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
+    var serviceBase = manager && manager.SERVICE_BASE ? String(manager.SERVICE_BASE).replace(/\/+$/, '') : '';
+    return serviceBase ? serviceBase + '/api/metadata' : '/api/metadata';
+  }
+
+  function requestHeaders() {
+    return {
+      Username: global.AppSession ? AppSession.getUserName() : '',
+      BranchID: global.AppSession ? AppSession.getBranchId() : ''
+    };
+  }
+
+  function erpFormId(formName) {
+    return global.ErpFormAliases && typeof global.ErpFormAliases.resolve === 'function'
+      ? global.ErpFormAliases.resolve(formName)
+      : formName;
+  }
+
+  function engineRule(renderRule) {
+    var rule = normalizeName(renderRule);
+    if (rule === 'date') return 'd';
+    if (rule === 'datetime') return 'dt';
+    if (rule === 'time') return 'tm';
+    if (rule === 'boolean') return 'sw';
+    if (rule === 'number' || rule === 'money' || rule === 'decimal') return 'n';
+    if (rule === 'lookup') return 'combo';
+    return rule || 'text';
+  }
+
+  function adaptGridFields(v2Fields, legacySchema) {
+    var legacyByName = Object.create(null);
+    (legacySchema || []).forEach(function (field) { legacyByName[normalizeName(field.name)] = field; });
+
+    return (v2Fields || []).map(function (field, index) {
+      var legacy = legacyByName[normalizeName(field.name)] || {};
+      var editable = legacy.showInEdit === true || String(legacy.showInEdit) === '1';
+      var lookup = field.lookup && field.lookup.disabled !== true ? field.lookup : null;
+      return {
+        name: field.name,
+        label: field.label || field.name,
+        orderNo: field.orderNo || index + 1,
+        position: 'grid',
+        renderRule: engineRule(field.renderRule),
+        formatId: field.formatId || '',
+        FormatID: field.formatId || '',
+        formatType: field.formatType || '',
+        metadataSource: 'FIELD_SYNC_V2',
+        showInAdd: legacy.showInAdd,
+        showInEdit: legacy.showInEdit,
+        showInFilter: false,
+        isReadOnlyAdd: legacy.isReadOnlyAdd,
+        isReadOnlyEdit: legacy.isReadOnlyEdit,
+        ShowInEdit: editable ? 1 : 0,
+        IsReadOnlyEdit: legacy.isReadOnlyEdit ? 1 : 0,
+        dataSource: '',
+        lookupKey: lookup && lookup.key ? lookup.key : '',
+        minWidth: field.minWidth,
+        maxWidth: field.maxWidth,
+        maxLength: field.maxLength,
+        minValue: field.minValue,
+        maxValue: field.maxValue,
+        align: field.align,
+        numberDecimal: field.numberDecimal,
+        formatString: field.formatString,
+        maskString: field.maskString,
+        dependsOn: lookup && Array.isArray(lookup.dependsOn) ? lookup.dependsOn.join(',') : ''
+      };
+    });
+  }
+
+  function createRuntimeSchemas(legacySchema, v2Fields, activateGrid) {
+    var legacy = Array.isArray(legacySchema) ? legacySchema.slice() : [];
+    return {
+      grid: activateGrid && Array.isArray(v2Fields) && v2Fields.length ? adaptGridFields(v2Fields, legacy) : legacy.slice(),
+      edit: legacy.slice(),
+      add: legacy.slice(),
+      filters: legacy.slice()
+    };
+  }
+
+  function hasCriticalParity(schema, comparison) {
+    if (schema && Array.isArray(schema.diagnostics) && schema.diagnostics.some(function (item) {
+      var severity = normalizeName(item && item.severity);
+      var code = normalizeName(item && item.code);
+      return severity === 'critical' || severity === 'error' || code === 'resultset_fallback_to_table';
+    })) return true;
+    if (comparison && comparison.primaryKey && normalizeName(comparison.primaryKey.status) === 'critical') return true;
+    return Boolean(comparison && Array.isArray(comparison.items) && comparison.items.some(function (item) {
+      var status = normalizeName(item && (item.severity || item.status));
+      return status === 'critical' || status === 'only_v2' || status === 'only_legacy';
+    }));
+  }
+
+  function safeFieldName(value) {
+    var name = String(value || '');
+    var lower = name.toLowerCase();
+    return /^[A-Za-z_][A-Za-z0-9_@$#]{0,127}$/.test(name)
+      && lower !== '__proto__' && lower !== 'prototype' && lower !== 'constructor';
+  }
+
+  function primaryKeyParts(value) {
+    return String(value || '').split(/[,;+]/).map(function (part) {
+      return part.trim().replace(/^\[|\]$/g, '');
+    }).filter(Boolean);
+  }
+
+  function isActivationContractReady(schema, comparison, formName, expectedErpFormId) {
+    if (!schema || !comparison || schema.schemaVersion !== '2.0' || comparison.schemaVersion !== '2.0') return false;
+    if (normalizeName(schema.formName) !== normalizeName(formName) || normalizeName(comparison.formName) !== normalizeName(formName)) return false;
+    if (normalizeName(schema.erpFormId) !== normalizeName(expectedErpFormId) || normalizeName(comparison.erpFormId) !== normalizeName(expectedErpFormId)) return false;
+    if (normalizeName(schema.sourceKind) !== 'result_set') return false;
+    if (!Array.isArray(schema.gridFields) || !schema.gridFields.length || !Array.isArray(schema.lookups)) return false;
+
+    var fieldNames = Object.create(null);
+    var previousOrder = 0;
+    for (var i = 0; i < schema.gridFields.length; i++) {
+      var field = schema.gridFields[i] || {};
+      var fieldName = String(field.name || '');
+      var fieldKey = normalizeName(fieldName);
+      var orderNo = Number(field.orderNo);
+      if (!safeFieldName(fieldName) || fieldNames[fieldKey] || !Number.isInteger(orderNo) || orderNo <= previousOrder) return false;
+      fieldNames[fieldKey] = true;
+      previousOrder = orderNo;
+    }
+
+    var primaryKeys = primaryKeyParts(schema.primaryKey);
+    if (!primaryKeys.length || primaryKeys.some(function (key) { return !safeFieldName(key) || !fieldNames[normalizeName(key)]; })) return false;
+    var parityKey = comparison.primaryKey || {};
+    if (normalizeName(parityKey.status) !== 'match' || !normalizeName(parityKey.legacy) || !normalizeName(parityKey.v2)) return false;
+    if (normalizeName(parityKey.legacy) !== normalizeName(parityKey.v2) || normalizeName(parityKey.v2) !== normalizeName(schema.primaryKey)) return false;
+
+    if (!Array.isArray(comparison.items)) return false;
+    var allowedStatuses = { match: true, caption_diff: true, format_diff: true, lookup_diff: true, critical: true, only_v2: true, only_legacy: true };
+    var comparedFields = Object.create(null);
+    for (var j = 0; j < comparison.items.length; j++) {
+      var item = comparison.items[j] || {};
+      var comparedName = normalizeName(item.fieldName);
+      var status = normalizeName(item.status);
+      if (!safeFieldName(item.fieldName) || comparedFields[comparedName] || !allowedStatuses[status]) return false;
+      comparedFields[comparedName] = true;
+    }
+    if (Object.keys(fieldNames).some(function (fieldKey) { return !comparedFields[fieldKey]; })) return false;
+
+    var lookupKeys = Object.create(null);
+    for (var k = 0; k < schema.lookups.length; k++) {
+      var lookup = schema.lookups[k] || {};
+      if (lookup.disabled === true) continue;
+      var lookupKey = String(lookup.key || '').toLowerCase();
+      if (!/^[a-f0-9]{64}$/.test(lookupKey) || lookupKeys[lookupKey] || !fieldNames[normalizeName(lookup.fieldName)]) return false;
+      lookupKeys[lookupKey] = true;
+    }
+    return true;
+  }
+
+  function storeParity(formName, comparison) {
+    try {
+      global.sessionStorage.setItem('ERP_FIELD_SYNC_PARITY:' + formName, JSON.stringify(comparison));
+    } catch (ignore) { }
+  }
+
+  function dispatchUpdate(formName, state) {
+    if (!global.document || typeof global.CustomEvent !== 'function') return;
+    global.document.dispatchEvent(new global.CustomEvent('erpFieldSyncUpdated', {
+      detail: { formName: formName, state: state }
+    }));
+  }
+
+  function fetchState(formName, legacySchema, force) {
+    if (!isPilot(formName)) {
+      return Promise.resolve({
+        status: 'not-pilot',
+        active: false,
+        runtimeSchemas: createRuntimeSchemas(legacySchema, [], false)
+      });
+    }
+
+    var current = states[formName];
+    var ttlMs = config().pollSeconds * 1000;
+    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) return Promise.resolve(current);
+    if (!force && current && current.pending) return current.pending;
+
+    var headers = requestHeaders();
+    var encodedForm = encodeURIComponent(formName);
+    var base = metadataBaseUrl() + '/grid-schema/' + encodedForm;
+    var expectedErpFormId = erpFormId(formName);
+    var aliasQuery = '?erpFormId=' + encodeURIComponent(expectedErpFormId);
+    var requestedActive = config().enabled === true && config().shadowMode === false;
+    var pending = Promise.all([
+      ApiClient.get(base + aliasQuery, { headers: headers }),
+      ApiClient.get(base + '/compare' + aliasQuery, { headers: headers })
+    ]).then(function (responses) {
+      var schema = responses[0] && responses[0].schema;
+      var comparison = responses[1] && responses[1].comparison;
+      if (!schema || !Array.isArray(schema.gridFields)) throw new Error('Grid Schema V2 không hợp lệ');
+      var contractReady = isActivationContractReady(schema, comparison, formName, expectedErpFormId);
+      var critical = hasCriticalParity(schema, comparison) || !contractReady;
+      var parityReady = contractReady && comparison && comparison.primaryKey && normalizeName(comparison.primaryKey.status) === 'match';
+      var active = requestedActive && !critical && parityReady;
+      var next = {
+        status: active ? 'pilot-active' : (requestedActive && critical ? 'pilot-blocked-critical' : (requestedActive ? 'pilot-blocked-parity' : 'shadow')),
+        active: active,
+        schema: schema,
+        comparison: comparison || null,
+        runtimeSchemas: createRuntimeSchemas(legacySchema, schema.gridFields, active),
+        loadedAt: Date.now(),
+        error: null
+      };
+      states[formName] = next;
+      if (comparison) storeParity(formName, comparison);
+      dispatchUpdate(formName, next);
+      return next;
+    }).catch(function (error) {
+      var fallback = {
+        status: 'legacy-fallback',
+        active: false,
+        runtimeSchemas: createRuntimeSchemas(legacySchema, [], false),
+        loadedAt: Date.now(),
+        error: error && error.message ? error.message : 'Không tải được Grid Schema V2'
+      };
+      states[formName] = fallback;
+      dispatchUpdate(formName, fallback);
+      return fallback;
+    });
+
+    states[formName] = { status: 'loading', active: false, pending: pending, runtimeSchemas: createRuntimeSchemas(legacySchema, [], false) };
+    return pending;
+  }
+
+  function ensurePolling(formName, legacySchema) {
+    if (!isPilot(formName) || timers[formName] || typeof global.setInterval !== 'function') return;
+    timers[formName] = global.setInterval(function () {
+      fetchState(formName, legacySchema, true);
+    }, config().pollSeconds * 1000);
+  }
+
+  function observeForm(formName, legacySchema) {
+    ensurePolling(formName, legacySchema);
+    return fetchState(formName, legacySchema, false);
+  }
+
+  function searchLookup(formName, lookupKey, keyword, page, pageSize) {
+    if (!isPilot(formName) || !/^[A-Fa-f0-9]{64}$/.test(String(lookupKey || ''))) {
+      return Promise.reject(new Error('Lookup V2 không hợp lệ'));
+    }
+    var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(lookupKey) + '/search';
+    return ApiClient.post(endpoint, {
+      formName: formName,
+      erpFormId: erpFormId(formName),
+      keyword: String(keyword || '').slice(0, 200),
+      page: Math.max(1, Number(page) || 1),
+      pageSize: Math.min(100, Math.max(1, Number(pageSize) || 30))
+    }, { headers: requestHeaders() }).then(function (response) {
+      return response && Array.isArray(response.options) ? response.options : [];
+    });
+  }
+
+  function getState(formName) {
+    return states[formName] || null;
+  }
+
+  return Object.freeze({
+    observeForm: observeForm,
+    searchLookup: searchLookup,
+    getState: getState,
+    isPilot: isPilot,
+    createRuntimeSchemas: createRuntimeSchemas
+  });
+})(window);
 
 /* --- EventBus.js --- */
 /**
@@ -15124,6 +15457,7 @@ window.DynamicFormEngine = (function () {
   var globalDictionary = {};
   var globalFormSchema = [];
   var globalRenderers = {};
+  var runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
 
   var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
 
@@ -15132,6 +15466,47 @@ window.DynamicFormEngine = (function () {
   // ── Helpers ──────────────────────────────────────────────
   function _gateway() {
     return window.AppConfig && AppConfig.apiGateway || (window.API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER) || '';
+  }
+
+  function _setLegacyRuntimeSchemas() {
+    var legacy = globalFormSchema.slice();
+    runtimeSchemas = {
+      grid: legacy.slice(),
+      edit: legacy.slice(),
+      add: legacy.slice(),
+      filters: legacy.slice()
+    };
+  }
+
+  function _schemaFor(kind) {
+    var schema = runtimeSchemas && runtimeSchemas[kind];
+    return Array.isArray(schema) ? schema : globalFormSchema;
+  }
+
+  function _observeFieldSync() {
+    if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') return;
+    var observedForm = currentFormName;
+    FieldSyncService.observeForm(observedForm, globalFormSchema.slice()).then(function (state) {
+      if (currentFormName !== observedForm || !state || !state.runtimeSchemas) return;
+      runtimeSchemas = state.runtimeSchemas;
+      if (state.active && !_isUserEditing() && $container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+    });
+  }
+
+  function _isUserEditing() {
+    if (_inlineEditMode || typeof document === 'undefined') return _inlineEditMode;
+    var active = document.activeElement;
+    if (!active || !/^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName || '')) return false;
+    return Boolean(($container && $container.contains(active)) || active.closest('.modal'));
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('erpFieldSyncUpdated', function (event) {
+      var detail = event && event.detail;
+      if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
+      runtimeSchemas = detail.state.runtimeSchemas;
+      if (detail.state.active && !_isUserEditing() && $container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+    });
   }
 
   function _currentGroup() {
@@ -15360,6 +15735,7 @@ window.DynamicFormEngine = (function () {
     globalDictionary = {};
     globalFormSchema = [];
     globalRenderers = {};
+    runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
 
     // API defaults: FormBuilder dùng API chuyên biệt, các form khác dùng generic No-Code API
     _setDefaults(MODULE_CONFIG, {
@@ -15607,6 +15983,8 @@ window.DynamicFormEngine = (function () {
       } else {
         console.warn('API Dictionary fetch failed or empty', resConfig);
       }
+      _setLegacyRuntimeSchemas();
+      _observeFieldSync();
       // Tự động sinh mã HTML (Không cần file .html rời nữa)
       if (MODULE_CONFIG.UseSplitLayout && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
         var defaultDetailTitle = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
@@ -16466,7 +16844,7 @@ window.DynamicFormEngine = (function () {
         filterContainer.innerHTML = ''; // Xóa placeholder nếu có
 
         // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-        var dynamicFilters = globalFormSchema
+        var dynamicFilters = _schemaFor('filters')
           .filter(function (f) { return f.showInFilter; })
           .map(function (f) {
             // Chuyển đổi định dạng từ FormEngine sang FilterComponent
@@ -16804,9 +17182,10 @@ window.DynamicFormEngine = (function () {
     lastSelectedIdx = -1;
 
     if (typeof Tabulator !== 'undefined') {
+      var gridSchema = _schemaFor('grid').slice();
       var dictionary = {};
-      if (globalFormSchema && globalFormSchema.length > 0) {
-        globalFormSchema.forEach(function (schema) {
+      if (gridSchema && gridSchema.length > 0) {
+        gridSchema.forEach(function (schema) {
           var pos = (schema.position || 'grid').toLowerCase();
           if (pos.indexOf('grid') > -1) {
             dictionary[schema.name] = schema.label;
@@ -16817,7 +17196,7 @@ window.DynamicFormEngine = (function () {
       }
 
       var customRenderers = globalRenderers;
-      globalFormSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
+      gridSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
       var renderers = Object.assign({}, customRenderers);
 
 
@@ -16847,7 +17226,7 @@ window.DynamicFormEngine = (function () {
       var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
       var rowKeys = Object.keys(sampleRow);
 
-      globalFormSchema.forEach(function (f) {
+      gridSchema.forEach(function (f) {
         var pos = (f.position || 'grid').toLowerCase();
         if (pos.indexOf('grid') > -1) {
           var fieldName = f.name;
@@ -16924,11 +17303,12 @@ window.DynamicFormEngine = (function () {
             return input;
           };
 
-          var hasCombo = f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
+          var hasCombo = f.lookupKey || f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
 
           var customComboEditor = function (cell, onRendered, success, cancel) {
             var cellValue = cell.getValue();
             var rowData = cell.getRow().getData();
+            var isFieldSyncLookup = Boolean(f.lookupKey && window.FieldSyncService && typeof FieldSyncService.searchLookup === 'function');
 
             var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
             var maxCols = 4;
@@ -16940,7 +17320,9 @@ window.DynamicFormEngine = (function () {
             }
             var finalUrl;
             var fetchPayload = {};
-            if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
+            if (isFieldSyncLookup) {
+              finalUrl = '';
+            } else if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
               finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + _gateway();
               fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View' };
             } else {
@@ -16956,6 +17338,15 @@ window.DynamicFormEngine = (function () {
             if (!fetchPayload.UserName) fetchPayload.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
 
             var searchApiCall = function (q, page) {
+              if (isFieldSyncLookup) {
+                return FieldSyncService.searchLookup(MODULE_CONFIG.FormName, f.lookupKey, q, page, 30).then(function (options) {
+                  return {
+                    headers: ['Giá trị', 'Hiển thị'],
+                    data: options.map(function (item) { return [item.value, item.label]; }),
+                    colFilterIndex: 1
+                  };
+                });
+              }
               var payload = Object.assign({}, fetchPayload);
               var isGateway = finalUrl.indexOf(_gateway()) > -1;
               var dynamicFilters = {};
@@ -17066,7 +17457,7 @@ window.DynamicFormEngine = (function () {
           }
           if (f.ShowInEdit == 0 || f.IsReadOnlyEdit == 1) isEditable = false;
 
-          var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n';
+          var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n' || f.renderRule === 'n';
 
           var colDef = {
             title: dictionary[fieldName] || fieldName,
@@ -17078,6 +17469,18 @@ window.DynamicFormEngine = (function () {
           };
 
           if (isNumeric) {
+            if (!colDef.formatter) {
+              colDef.formatter = function (cell) {
+                var value = cell.getValue();
+                var number = parseFloat(value);
+                if (isNaN(number)) return value || '';
+                var decimals = Number(f.numberDecimal);
+                var options = Number.isFinite(decimals) && decimals >= 0
+                  ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals }
+                  : undefined;
+                return number.toLocaleString('vi-VN', options);
+              };
+            }
             colDef.bottomCalc = "sum";
             colDef.bottomCalcFormatter = function (cell) {
               var val = cell.getValue();
@@ -17086,6 +17489,15 @@ window.DynamicFormEngine = (function () {
             };
             colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
+
+          if (!colDef.hozAlign && f.align) {
+            var align = String(f.align).toLowerCase();
+            if (align === 'r' || align === 'right') colDef.hozAlign = 'right';
+            if (align === 'c' || align === 'center') colDef.hozAlign = 'center';
+            if (align === 'l' || align === 'left') colDef.hozAlign = 'left';
+          }
+          if (Number(f.minWidth) > 0) colDef.minWidth = Number(f.minWidth);
+          if (Number(f.maxWidth) > 0) colDef.maxWidth = Number(f.maxWidth);
 
           // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {
@@ -17151,7 +17563,7 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          if (renderers[fieldName]) {
+          if (renderers[fieldName] && f.metadataSource !== 'FIELD_SYNC_V2') {
             colDef.formatter = function (cell) {
               return renderers[fieldName](cell.getValue(), cell.getData());
             };
@@ -17269,8 +17681,8 @@ window.DynamicFormEngine = (function () {
         if (!endpoint) return;
 
         var schema = null;
-        if (globalFormSchema) {
-          schema = globalFormSchema.find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
+        if (_schemaFor('edit')) {
+          schema = _schemaFor('edit').find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
         }
 
         var isReport = false;
@@ -17295,8 +17707,8 @@ window.DynamicFormEngine = (function () {
 
         // Validate riêng cho các cột kiểu Date để chống lỗi SQL khi nhập thiếu năm (VD: "20/10")
         var isDateCol = field.toLowerCase().indexOf('ngay') >= 0;
-        if (!isDateCol && globalFormSchema) {
-          var schema = globalFormSchema.find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
+        if (!isDateCol && _schemaFor('edit')) {
+          var schema = _schemaFor('edit').find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
           if (schema && (schema.renderRule === 'dt' || schema.formatId === 'd' || schema.FormatID === 'd')) {
             isDateCol = true;
           }
@@ -18594,7 +19006,7 @@ window.DynamicFormEngine = (function () {
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
         steps: MODULE_CONFIG.WizardSteps,
-        formSchema: globalFormSchema,
+        formSchema: _schemaFor('add'),
         moduleConfig: MODULE_CONFIG,
         currentUser: _currentUser(),
         userBranches: _getUserBranches(),   // Danh sách chi nhánh của user
@@ -18702,7 +19114,7 @@ window.DynamicFormEngine = (function () {
     table.style.width = 'max-content';
     table.style.minWidth = '100%';
 
-    var formSchema = globalFormSchema;
+    var formSchema = _schemaFor(isAdd ? 'add' : 'edit').slice();
     formSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
 
     var editableFields = [];
@@ -19306,7 +19718,7 @@ window.DynamicFormEngine = (function () {
     }
 
     // KHAI BÁO CẤU TRÚC FORM (SCHEMA-DRIVEN UI LẤY TỪ DB)
-    var formSchema = globalFormSchema;
+    var formSchema = _schemaFor(isEdit ? 'edit' : 'add').slice();
 
     // Sắp xếp lại theo OrderNo (Nếu có)
     formSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
@@ -20307,8 +20719,9 @@ window.DynamicFormEngine = (function () {
 
     // 2. Validate Required và ValidateRule
     var isInvalid = false;
-    for (var i = 0; i < globalFormSchema.length; i++) {
-      var field = globalFormSchema[i];
+    var validationSchema = _schemaFor(isEdit ? 'edit' : 'add');
+    for (var i = 0; i < validationSchema.length; i++) {
+      var field = validationSchema[i];
       var val = formInputData[field.name];
 
       // Hỗ trợ Partial Update (ví dụ từ WizardForm truyền fakeBody chỉ chứa các trường thay đổi)
@@ -20645,11 +21058,21 @@ window.DynamicFormEngine = (function () {
     else _loadData();
   }
 
+  function getRuntimeSchemas() {
+    return {
+      grid: _schemaFor('grid').slice(),
+      edit: _schemaFor('edit').slice(),
+      add: _schemaFor('add').slice(),
+      filters: _schemaFor('filters').slice()
+    };
+  }
+
   return {
     render: render,
     reload: reload,
     getSelectedRows: getSelectedRows,
-    reloadDetailTabs: reloadDetailTabs
+    reloadDetailTabs: reloadDetailTabs,
+    getRuntimeSchemas: getRuntimeSchemas
   };
 })();
 

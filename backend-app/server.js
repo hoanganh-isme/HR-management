@@ -12,6 +12,9 @@ import { createContractDocumentStore } from './src/contracts/contract-document.s
 import { createContractDocumentDb } from './src/contracts/contract-document.db.js';
 import { createContractDocumentService } from './src/contracts/contract-document.service.js';
 import { createContractDocumentRouter } from './src/contracts/contract-document.routes.js';
+import { createFieldSyncConfig } from './src/field-sync/field-sync.config.js';
+import { createFieldSyncGateway } from './src/field-sync/field-sync.gateway.js';
+import { createFieldSyncRouter } from './src/field-sync/field-sync.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,7 +56,7 @@ app.use(cors({
         return callback(error);
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Username']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Username', 'BranchID']
 }));
 
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -65,6 +68,9 @@ app.use(express.json({ limit: '2mb' }));
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
         console.error('[EXPRESS] Lỗi parse JSON payload!');
+        if (String(req.path || '').toLowerCase().startsWith('/api/metadata')) {
+            return res.status(400).set('Cache-Control', 'private, no-store').json({ success: false, message: 'Invalid JSON payload' });
+        }
         return res.json({ error: 0, message: 'Invalid JSON payload' });
     }
     next();
@@ -82,6 +88,10 @@ const contractDocumentService = createContractDocumentService(
 );
 
 app.use('/api', createContractDocumentRouter(documentConfig, contractDocumentService));
+
+const fieldSyncConfig = createFieldSyncConfig(documentConfig);
+const fieldSyncGateway = createFieldSyncGateway(fieldSyncConfig);
+app.use('/api/metadata', createFieldSyncRouter({ gateway: fieldSyncGateway, config: fieldSyncConfig }));
 
 function extractUserName(req) {
     const authHeader = req.headers.authorization;
@@ -792,6 +802,7 @@ app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = Number(error.statusCode) || 500;
     if (status >= 500) console.error('[SERVER]', error.message);
+    if (String(req.path || '').toLowerCase().startsWith('/api/metadata')) res.set('Cache-Control', 'private, no-store');
     return res.status(status).json({ success: false, message: error.message || 'Lỗi máy chủ.' });
 });
 

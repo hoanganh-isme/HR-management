@@ -29,6 +29,7 @@ window.DynamicFormEngine = (function () {
   var globalDictionary = {};
   var globalFormSchema = [];
   var globalRenderers = {};
+  var runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
 
   var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
 
@@ -37,6 +38,47 @@ window.DynamicFormEngine = (function () {
   // ── Helpers ──────────────────────────────────────────────
   function _gateway() {
     return window.AppConfig && AppConfig.apiGateway || (window.API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER) || '';
+  }
+
+  function _setLegacyRuntimeSchemas() {
+    var legacy = globalFormSchema.slice();
+    runtimeSchemas = {
+      grid: legacy.slice(),
+      edit: legacy.slice(),
+      add: legacy.slice(),
+      filters: legacy.slice()
+    };
+  }
+
+  function _schemaFor(kind) {
+    var schema = runtimeSchemas && runtimeSchemas[kind];
+    return Array.isArray(schema) ? schema : globalFormSchema;
+  }
+
+  function _observeFieldSync() {
+    if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') return;
+    var observedForm = currentFormName;
+    FieldSyncService.observeForm(observedForm, globalFormSchema.slice()).then(function (state) {
+      if (currentFormName !== observedForm || !state || !state.runtimeSchemas) return;
+      runtimeSchemas = state.runtimeSchemas;
+      if (state.active && !_isUserEditing() && $container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+    });
+  }
+
+  function _isUserEditing() {
+    if (_inlineEditMode || typeof document === 'undefined') return _inlineEditMode;
+    var active = document.activeElement;
+    if (!active || !/^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName || '')) return false;
+    return Boolean(($container && $container.contains(active)) || active.closest('.modal'));
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('erpFieldSyncUpdated', function (event) {
+      var detail = event && event.detail;
+      if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
+      runtimeSchemas = detail.state.runtimeSchemas;
+      if (detail.state.active && !_isUserEditing() && $container && $container.querySelector('#dynamic-grid-container')) _renderTable();
+    });
   }
 
   function _currentGroup() {
@@ -265,6 +307,7 @@ window.DynamicFormEngine = (function () {
     globalDictionary = {};
     globalFormSchema = [];
     globalRenderers = {};
+    runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
 
     // API defaults: FormBuilder dùng API chuyên biệt, các form khác dùng generic No-Code API
     _setDefaults(MODULE_CONFIG, {
@@ -512,6 +555,8 @@ window.DynamicFormEngine = (function () {
       } else {
         console.warn('API Dictionary fetch failed or empty', resConfig);
       }
+      _setLegacyRuntimeSchemas();
+      _observeFieldSync();
       // Tự động sinh mã HTML (Không cần file .html rời nữa)
       if (MODULE_CONFIG.UseSplitLayout && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
         var defaultDetailTitle = MODULE_CONFIG.DetailTabs[0].label || 'Chi tiết';
@@ -1371,7 +1416,7 @@ window.DynamicFormEngine = (function () {
         filterContainer.innerHTML = ''; // Xóa placeholder nếu có
 
         // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-        var dynamicFilters = globalFormSchema
+        var dynamicFilters = _schemaFor('filters')
           .filter(function (f) { return f.showInFilter; })
           .map(function (f) {
             // Chuyển đổi định dạng từ FormEngine sang FilterComponent
@@ -1709,9 +1754,10 @@ window.DynamicFormEngine = (function () {
     lastSelectedIdx = -1;
 
     if (typeof Tabulator !== 'undefined') {
+      var gridSchema = _schemaFor('grid').slice();
       var dictionary = {};
-      if (globalFormSchema && globalFormSchema.length > 0) {
-        globalFormSchema.forEach(function (schema) {
+      if (gridSchema && gridSchema.length > 0) {
+        gridSchema.forEach(function (schema) {
           var pos = (schema.position || 'grid').toLowerCase();
           if (pos.indexOf('grid') > -1) {
             dictionary[schema.name] = schema.label;
@@ -1722,7 +1768,7 @@ window.DynamicFormEngine = (function () {
       }
 
       var customRenderers = globalRenderers;
-      globalFormSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
+      gridSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
       var renderers = Object.assign({}, customRenderers);
 
 
@@ -1752,7 +1798,7 @@ window.DynamicFormEngine = (function () {
       var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
       var rowKeys = Object.keys(sampleRow);
 
-      globalFormSchema.forEach(function (f) {
+      gridSchema.forEach(function (f) {
         var pos = (f.position || 'grid').toLowerCase();
         if (pos.indexOf('grid') > -1) {
           var fieldName = f.name;
@@ -1829,11 +1875,12 @@ window.DynamicFormEngine = (function () {
             return input;
           };
 
-          var hasCombo = f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
+          var hasCombo = f.lookupKey || f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
 
           var customComboEditor = function (cell, onRendered, success, cancel) {
             var cellValue = cell.getValue();
             var rowData = cell.getRow().getData();
+            var isFieldSyncLookup = Boolean(f.lookupKey && window.FieldSyncService && typeof FieldSyncService.searchLookup === 'function');
 
             var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
             var maxCols = 4;
@@ -1845,7 +1892,9 @@ window.DynamicFormEngine = (function () {
             }
             var finalUrl;
             var fetchPayload = {};
-            if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
+            if (isFieldSyncLookup) {
+              finalUrl = '';
+            } else if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
               finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + _gateway();
               fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View' };
             } else {
@@ -1861,6 +1910,15 @@ window.DynamicFormEngine = (function () {
             if (!fetchPayload.UserName) fetchPayload.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
 
             var searchApiCall = function (q, page) {
+              if (isFieldSyncLookup) {
+                return FieldSyncService.searchLookup(MODULE_CONFIG.FormName, f.lookupKey, q, page, 30).then(function (options) {
+                  return {
+                    headers: ['Giá trị', 'Hiển thị'],
+                    data: options.map(function (item) { return [item.value, item.label]; }),
+                    colFilterIndex: 1
+                  };
+                });
+              }
               var payload = Object.assign({}, fetchPayload);
               var isGateway = finalUrl.indexOf(_gateway()) > -1;
               var dynamicFilters = {};
@@ -1971,7 +2029,7 @@ window.DynamicFormEngine = (function () {
           }
           if (f.ShowInEdit == 0 || f.IsReadOnlyEdit == 1) isEditable = false;
 
-          var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n';
+          var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n' || f.renderRule === 'n';
 
           var colDef = {
             title: dictionary[fieldName] || fieldName,
@@ -1983,6 +2041,18 @@ window.DynamicFormEngine = (function () {
           };
 
           if (isNumeric) {
+            if (!colDef.formatter) {
+              colDef.formatter = function (cell) {
+                var value = cell.getValue();
+                var number = parseFloat(value);
+                if (isNaN(number)) return value || '';
+                var decimals = Number(f.numberDecimal);
+                var options = Number.isFinite(decimals) && decimals >= 0
+                  ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals }
+                  : undefined;
+                return number.toLocaleString('vi-VN', options);
+              };
+            }
             colDef.bottomCalc = "sum";
             colDef.bottomCalcFormatter = function (cell) {
               var val = cell.getValue();
@@ -1991,6 +2061,15 @@ window.DynamicFormEngine = (function () {
             };
             colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
+
+          if (!colDef.hozAlign && f.align) {
+            var align = String(f.align).toLowerCase();
+            if (align === 'r' || align === 'right') colDef.hozAlign = 'right';
+            if (align === 'c' || align === 'center') colDef.hozAlign = 'center';
+            if (align === 'l' || align === 'left') colDef.hozAlign = 'left';
+          }
+          if (Number(f.minWidth) > 0) colDef.minWidth = Number(f.minWidth);
+          if (Number(f.maxWidth) > 0) colDef.maxWidth = Number(f.maxWidth);
 
           // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {
@@ -2056,7 +2135,7 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          if (renderers[fieldName]) {
+          if (renderers[fieldName] && f.metadataSource !== 'FIELD_SYNC_V2') {
             colDef.formatter = function (cell) {
               return renderers[fieldName](cell.getValue(), cell.getData());
             };
@@ -2174,8 +2253,8 @@ window.DynamicFormEngine = (function () {
         if (!endpoint) return;
 
         var schema = null;
-        if (globalFormSchema) {
-          schema = globalFormSchema.find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
+        if (_schemaFor('edit')) {
+          schema = _schemaFor('edit').find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
         }
 
         var isReport = false;
@@ -2200,8 +2279,8 @@ window.DynamicFormEngine = (function () {
 
         // Validate riêng cho các cột kiểu Date để chống lỗi SQL khi nhập thiếu năm (VD: "20/10")
         var isDateCol = field.toLowerCase().indexOf('ngay') >= 0;
-        if (!isDateCol && globalFormSchema) {
-          var schema = globalFormSchema.find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
+        if (!isDateCol && _schemaFor('edit')) {
+          var schema = _schemaFor('edit').find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
           if (schema && (schema.renderRule === 'dt' || schema.formatId === 'd' || schema.FormatID === 'd')) {
             isDateCol = true;
           }
@@ -3499,7 +3578,7 @@ window.DynamicFormEngine = (function () {
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
         steps: MODULE_CONFIG.WizardSteps,
-        formSchema: globalFormSchema,
+        formSchema: _schemaFor('add'),
         moduleConfig: MODULE_CONFIG,
         currentUser: _currentUser(),
         userBranches: _getUserBranches(),   // Danh sách chi nhánh của user
@@ -3607,7 +3686,7 @@ window.DynamicFormEngine = (function () {
     table.style.width = 'max-content';
     table.style.minWidth = '100%';
 
-    var formSchema = globalFormSchema;
+    var formSchema = _schemaFor(isAdd ? 'add' : 'edit').slice();
     formSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
 
     var editableFields = [];
@@ -4211,7 +4290,7 @@ window.DynamicFormEngine = (function () {
     }
 
     // KHAI BÁO CẤU TRÚC FORM (SCHEMA-DRIVEN UI LẤY TỪ DB)
-    var formSchema = globalFormSchema;
+    var formSchema = _schemaFor(isEdit ? 'edit' : 'add').slice();
 
     // Sắp xếp lại theo OrderNo (Nếu có)
     formSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
@@ -5212,8 +5291,9 @@ window.DynamicFormEngine = (function () {
 
     // 2. Validate Required và ValidateRule
     var isInvalid = false;
-    for (var i = 0; i < globalFormSchema.length; i++) {
-      var field = globalFormSchema[i];
+    var validationSchema = _schemaFor(isEdit ? 'edit' : 'add');
+    for (var i = 0; i < validationSchema.length; i++) {
+      var field = validationSchema[i];
       var val = formInputData[field.name];
 
       // Hỗ trợ Partial Update (ví dụ từ WizardForm truyền fakeBody chỉ chứa các trường thay đổi)
@@ -5550,10 +5630,20 @@ window.DynamicFormEngine = (function () {
     else _loadData();
   }
 
+  function getRuntimeSchemas() {
+    return {
+      grid: _schemaFor('grid').slice(),
+      edit: _schemaFor('edit').slice(),
+      add: _schemaFor('add').slice(),
+      filters: _schemaFor('filters').slice()
+    };
+  }
+
   return {
     render: render,
     reload: reload,
     getSelectedRows: getSelectedRows,
-    reloadDetailTabs: reloadDetailTabs
+    reloadDetailTabs: reloadDetailTabs,
+    getRuntimeSchemas: getRuntimeSchemas
   };
 })();

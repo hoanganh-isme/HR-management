@@ -1,0 +1,31 @@
+const DEFAULT_CACHE_TTL_MS = 120_000;
+
+function positiveInteger(value, fallback) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export const FIELD_SYNC_CONTRACTS = Object.freeze({
+    gridSchema: 'API_Web_GridFieldSchemaV2',
+    gridCompare: 'API_Web_GridFieldCompareV2',
+    lookupSchema: 'API_Web_LookupSchemaV2'
+});
+
+// Chỉ các cặp đã được audit chắc chắn mới được đưa vào đây.
+export const FIELD_SYNC_FORM_ALIASES = Object.freeze({
+    WA_BangThueTNCNFrm: 'HR_BangThueTNCNFrm'
+});
+
+export function createFieldSyncConfig(documentConfig, env = process.env) {
+    const sqlApiBase = String(documentConfig.sqlApiBase).replace(/\/+$/, '');
+    return Object.freeze({
+        sqlGatewayUrl: `${sqlApiBase}/api/API_Gateway_Router`,
+        authVerifyUrl: `${sqlApiBase}/api/API_UserInfo`,
+        cacheTtlMs: positiveInteger(env.FIELD_SYNC_CACHE_TTL_MS, DEFAULT_CACHE_TTL_MS),
+        cacheMaxEntries: positiveInteger(env.FIELD_SYNC_CACHE_MAX_ENTRIES, 500),
+        authCacheTtlMs: positiveInteger(env.FIELD_SYNC_AUTH_CACHE_TTL_MS, 60_000),
+        authCacheMaxEntries: positiveInteger(env.FIELD_SYNC_AUTH_CACHE_MAX_ENTRIES, 1_000),
+        requestTimeoutMs: positiveInteger(env.FIELD_SYNC_REQUEST_TIMEOUT_MS, 15_000),
+        aliases: FIELD_SYNC_FORM_ALIASES
+    });
+}

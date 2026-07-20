@@ -8,7 +8,9 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test src/field-sync/field-sync.test.js",
+    "verify:field-sync:staging": "node ../scripts/verify-field-sync-staging.mjs"
   },
   "dependencies": {
     "axios": "^1.16.1",
