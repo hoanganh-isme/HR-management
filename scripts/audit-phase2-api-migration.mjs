@@ -209,16 +209,20 @@ for (const definition of definitions) {
   }
 
   const starMatches = [...stripComments(definition.body).matchAll(/\bSELECT\s+(?:TOP\s*\([^)]*\)\s+|TOP\s+\d+\s+|DISTINCT\s+)*((?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?\*)/gi)];
+  const seenStarExpressions = new Set();
   for (const match of starMatches) {
-    const approvedPilot = definition.file === 'sql/Phase2ApiMigration/01_CREATE_VIEW_V2_PILOT.sql'
-      && definition.procedure === 'API_BangThueTNCN_V2'
-      && /T\s*\.\s*\*/i.test(match[1]);
+    const starExpression = compact(match[1], 80);
+    const starKey = starExpression.replace(/\s+/g, '').toLowerCase();
+    if (seenStarExpressions.has(starKey)) continue;
+    seenStarExpressions.add(starKey);
+    const approvedPilot = /MAIN_TABLE_STAR_APPROVED/i.test(definition.body)
+      && /T\s*\.\s*\*/i.test(starExpression);
     starOutput.push({
       File: definition.file,
       Procedure: definition.procedure,
-      StarExpression: compact(match[1], 80),
+      StarExpression: starExpression,
       Classification: approvedPilot ? 'MAIN_TABLE_STAR_APPROVED' : 'UNSAFE_STAR',
-      Reason: approvedPilot ? 'Bảng chính cố định; deny-list, scope và quyền được kiểm tra trước SELECT.' : 'Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.',
+      Reason: approvedPilot ? 'Bảng chính lấy từ registry; deny-list, scope và quyền được kiểm tra trước SELECT.' : 'Mã legacy cần rà soát thủ công contract dữ liệu trước khi chuyển đổi.',
       Decision: approvedPilot ? 'PILOT_ONLY' : 'KEEP_EXPLICIT_OR_BLOCK'
     });
   }

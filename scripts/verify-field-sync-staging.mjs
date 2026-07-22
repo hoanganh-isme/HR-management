@@ -202,8 +202,31 @@ function validateSchema(schema, formName, erpFormId) {
       || code === 'SHADOW_VIEW_NOT_REGISTERED';
   });
   if (blockingDiagnostics.length) fail(`Schema có ${blockingDiagnostics.length} diagnostic chặn pilot.`);
-  if (!['RESULT_SET'].includes(String(schema.sourceKind || '').toUpperCase())) {
-    fail('Schema không đến từ result-set authoritative.');
+  const unified = String(schema.capabilityVersion || '') === '1.0';
+  const allowedSources = unified ? ['RESULT_SET', 'MAIN_TABLE'] : ['RESULT_SET'];
+  if (!allowedSources.includes(String(schema.sourceKind || '').toUpperCase())) {
+    fail(unified
+      ? 'Form Contract V2 không đến từ main table/result-set authoritative.'
+      : 'Schema không đến từ result-set authoritative.');
+  }
+
+  if (unified) {
+    if (!Array.isArray(schema.fields) || schema.fields.length === 0) fail('Form Contract V2 không có fields.');
+    if (!schema.runtimeRoutes || !schema.runtimeRoutes.view || !schema.runtimeRoutes.save || !schema.runtimeRoutes.delete) {
+      fail('Form Contract V2 thiếu runtimeRoutes View/Save/Delete.');
+    }
+    const contractNames = new Set();
+    schema.fields.forEach((field) => {
+      const name = String(field && field.name || '').trim();
+      if (!isSafeFieldName(name) || contractNames.has(name.toLowerCase())) fail('Form Contract V2 có field không an toàn hoặc trùng.');
+      contractNames.add(name.toLowerCase());
+      for (const key of ['showInGrid', 'supportsInsert', 'supportsUpdate', 'supportsFilter', 'supportsSort']) {
+        if (typeof field[key] !== 'boolean') fail(`Field ${name} thiếu capability ${key}.`);
+      }
+    });
+    if (primaryKeyParts(schema.primaryKey).some((key) => !contractNames.has(key.toLowerCase()))) {
+      fail('Primary key không xuất hiện trong Form Contract V2.');
+    }
   }
   return schema;
 }
@@ -285,11 +308,15 @@ if (missing.length) {
     if (schemaResult.body.success !== true) fail('Grid schema trả success khác true.');
     const schema = validateSchema(schemaResult.body.schema, formName, erpFormId);
 
-    const compareUrl = endpoint(`/grid-schema/${encodeURIComponent(formName)}/compare`);
-    compareUrl.searchParams.set('erpFormId', erpFormId);
-    const compareResult = await requestJson('Grid compare', compareUrl, { headers }, [200]);
-    if (compareResult.body.success !== true) fail('Grid compare trả success khác true.');
-    const nonMatchItems = validateComparison(compareResult.body.comparison, schema, formName, erpFormId);
+    const unified = String(schema.capabilityVersion || '') === '1.0';
+    let nonMatchItems = [];
+    if (!unified) {
+      const compareUrl = endpoint(`/grid-schema/${encodeURIComponent(formName)}/compare`);
+      compareUrl.searchParams.set('erpFormId', erpFormId);
+      const compareResult = await requestJson('Grid compare', compareUrl, { headers }, [200]);
+      if (compareResult.body.success !== true) fail('Grid compare trả success khác true.');
+      nonMatchItems = validateComparison(compareResult.body.comparison, schema, formName, erpFormId);
+    }
 
     const unauthenticated = await requestJson('Negative auth check', schemaUrl, {
       headers: { Username: userName, BranchID: branchId }
@@ -349,8 +376,10 @@ if (missing.length) {
     console.log(`- Endpoint: ${baseUrl.origin}${baseUrl.pathname}`);
     console.log(`- Form: ${formName} -> ${erpFormId}`);
     console.log(`- Context: user ${maskedUser(userName)}, branch ${branchId}`);
-    console.log(`- Grid: ${schema.gridFields.length} field, PK ${schema.primaryKey}, parity MATCH`);
-    console.log(`- Khác biệt không chặn: ${nonMatchItems.length}`);
+    console.log(`- Grid: ${schema.gridFields.length} field, PK ${schema.primaryKey}${unified ? ', unified contract 1.0' : ', parity MATCH'}`);
+    console.log(unified
+      ? `- Routes: View=${schema.runtimeRoutes.view.registeredProcedure || 'EMPTY'}, Save=${schema.runtimeRoutes.save.registeredProcedure || 'EMPTY'}, Delete=${schema.runtimeRoutes.delete.registeredProcedure || 'EMPTY'} (${schema.runtimeRoutes.delete.mode || 'NONE'})`
+      : `- Khác biệt không chặn: ${nonMatchItems.length}`);
     console.log(`- Lookup: ${lookupResult}`);
     console.log('- Negative checks: thiếu auth=401, alias sai=409, response không có raw SQL');
   } catch (error) {

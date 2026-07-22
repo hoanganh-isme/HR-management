@@ -3,13 +3,25 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 DECLARE @FormName varchar(100) = 'WA_BangThueTNCNFrm';
-DECLARE @TableObjectID int = OBJECT_ID(N'dbo.HR_BangThueTNCNTbl', N'U');
+DECLARE @RegistryCount int, @TableName sysname, @PrimaryKey sysname;
+SELECT
+    @RegistryCount = COUNT(*),
+    @TableName = MIN(LTRIM(RTRIM(L.TableName))),
+    @PrimaryKey = MIN(LTRIM(RTRIM(L.PrimaryKey)))
+FROM dbo.SY_FrmLstTbl AS L
+WHERE L.FormID = @FormName;
+
+DECLARE @TableObjectID int = COALESCE(
+    OBJECT_ID(@TableName, N'U'),
+    OBJECT_ID(N'dbo.' + @TableName, N'U')
+);
 DECLARE @ViewObjectID int = OBJECT_ID(N'dbo.API_BangThueTNCN_V2', N'P');
 DECLARE @SaveObjectID int = OBJECT_ID(N'dbo.API_LuuDong_V2', N'P');
 DECLARE @DeleteObjectID int = OBJECT_ID(N'dbo.API_XoaDong_V2', N'P');
 DECLARE @GridSchemaObjectID int = OBJECT_ID(N'dbo.API_Web_GridFieldSchemaV2', N'P');
 
-IF @TableObjectID IS NULL THROW 52501, N'Không tìm thấy bảng pilot.', 1;
+IF ISNULL(@RegistryCount, 0) <> 1 OR @TableObjectID IS NULL OR ISNULL(@PrimaryKey, '') = ''
+    THROW 52501, N'Không tìm thấy duy nhất TableName/PrimaryKey vật lý của form.', 1;
 IF @ViewObjectID IS NULL THROW 52502, N'Không tìm thấy View V2 pilot.', 1;
 IF @SaveObjectID IS NULL THROW 52503, N'Không tìm thấy Save V2.', 1;
 IF @DeleteObjectID IS NULL THROW 52504, N'Không tìm thấy Delete V2.', 1;
@@ -44,9 +56,9 @@ IF NOT EXISTS (
     WHERE M.object_id = @ViewObjectID
       AND M.definition LIKE '%PHASE2_BRANCH_FAIL_CLOSED%'
       AND M.definition LIKE '%BranchID trong JsonData%'
-      AND M.definition LIKE '%PHASE2_NEW_FIELDS_DISPLAY_ONLY%'
+      AND M.definition LIKE '%PHASE2_UNIFIED_FIELD_CONTRACT%'
 )
-    THROW 52521, N'View V2 thiếu gate branch fail-closed, đối chiếu branch hoặc policy field mới display-only.', 1;
+    THROW 52521, N'View V2 thiếu gate branch fail-closed, đối chiếu branch hoặc unified field contract.', 1;
 
 IF EXISTS (
     SELECT RequiredObjectID
@@ -57,7 +69,7 @@ IF EXISTS (
         WHERE M.object_id = Required.RequiredObjectID
           AND M.definition LIKE '%PHASE2_BRANCH_FAIL_CLOSED%'
           AND M.definition LIKE '%PHASE2_PERMISSION_RUN_GATE%'
-          AND M.definition LIKE '%UserName trong JsonData không khớp actor%'
+          AND M.definition LIKE N'%UserName trong JsonData không khớp actor%'
     )
 )
     THROW 52522, N'Save/Delete V2 thiếu branch, IsRun hoặc actor-in-JSON gate.', 1;
@@ -65,17 +77,31 @@ IF EXISTS (
 IF NOT EXISTS (
     SELECT 1
     FROM sys.sql_modules AS M
-    WHERE M.object_id = @GridSchemaObjectID
-      AND M.definition LIKE '%PHASE2_SHADOW_VIEW_OVERRIDE%'
-      AND M.definition LIKE '%API_BangThueTNCN_V2%'
-      AND M.definition LIKE '%SHADOW_VIEW_NOT_REGISTERED%'
-      AND M.definition LIKE '%RESULTSET_METADATA_ERROR%'
-      AND M.definition LIKE '%RESULTSET_UNSAFE_FIELD%'
+    WHERE M.object_id = @DeleteObjectID
+      AND M.definition LIKE '%PHASE2_AUTO_DELETE_MODE%'
+      AND M.definition LIKE '%DELETE T%'
+      AND M.definition LIKE '%UPDATE T%'
 )
-    THROW 52524, N'Grid Schema V2 chưa có shadow override hoặc gate result-set an toàn cho pilot.', 1;
+    THROW 52525, N'Delete V2 chưa có đủ nhánh soft-delete và hard-delete tự động.', 1;
 
-IF (SELECT COUNT(*) FROM dbo.SY_FrmLstTbl WHERE FormID = @FormName AND TableName = 'HR_BangThueTNCNTbl' AND PrimaryKey = 'Bac') <> 1
-    THROW 52505, N'Registry pilot không đúng TableName/PrimaryKey.', 1;
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.sql_modules AS M
+    WHERE M.object_id = @GridSchemaObjectID
+      AND M.definition LIKE '%SY_FmtFldTbl%'
+      AND M.definition LIKE '%sys.columns%'
+      AND M.definition LIKE '%@UseMainTableContract%'
+      AND M.definition LIKE '%CaptionVN%'
+      AND M.definition LIKE '%DeleteMode%'
+)
+    THROW 52524, N'Grid Schema V2 chưa đọc field động/caption/delete mode từ metadata hệ thống.', 1;
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns
+    WHERE object_id = @TableObjectID
+      AND LOWER(name) = LOWER(@PrimaryKey)
+)
+    THROW 52505, N'PrimaryKey trong SY_FrmLstTbl không tồn tại ở bảng vật lý.', 1;
 
 IF (SELECT COUNT(*) FROM dbo.WA_API WHERE [list] = @FormName AND [func] = 'View') <> 1
     THROW 52506, N'WA_API View không duy nhất.', 1;
@@ -90,15 +116,31 @@ DECLARE @Contract table (
 );
 
 INSERT INTO @Contract
-SELECT column_ordinal, name, system_type_name, is_nullable, error_number, error_message
-FROM sys.dm_exec_describe_first_result_set_for_object(@ViewObjectID, 0);
+SELECT
+    C.column_id,
+    C.name,
+    TYPE_NAME(C.user_type_id)
+      + CASE
+            WHEN TYPE_NAME(C.user_type_id) IN ('varchar', 'char', 'varbinary', 'binary')
+                THEN '(' + CASE WHEN C.max_length = -1 THEN 'max' ELSE CONVERT(varchar(10), C.max_length) END + ')'
+            WHEN TYPE_NAME(C.user_type_id) IN ('nvarchar', 'nchar')
+                THEN '(' + CASE WHEN C.max_length = -1 THEN 'max' ELSE CONVERT(varchar(10), C.max_length / 2) END + ')'
+            WHEN TYPE_NAME(C.user_type_id) IN ('decimal', 'numeric')
+                THEN '(' + CONVERT(varchar(10), C.[precision]) + ',' + CONVERT(varchar(10), C.scale) + ')'
+            ELSE ''
+        END,
+    C.is_nullable,
+    NULL,
+    NULL
+FROM sys.columns AS C
+WHERE C.object_id = @TableObjectID;
 
 IF EXISTS (SELECT 1 FROM @Contract WHERE ErrorNumber IS NOT NULL)
     THROW 52507, N'Không mô tả được result-set View V2.', 1;
 IF EXISTS (SELECT LOWER(ColumnName) FROM @Contract GROUP BY LOWER(ColumnName) HAVING COUNT(*) > 1)
     THROW 52508, N'View V2 có tên cột trùng.', 1;
-IF NOT EXISTS (SELECT 1 FROM @Contract WHERE LOWER(ColumnName) = 'bac')
-    THROW 52509, N'View V2 thiếu primary key Bac.', 1;
+IF NOT EXISTS (SELECT 1 FROM @Contract WHERE LOWER(ColumnName) = LOWER(@PrimaryKey))
+    THROW 52509, N'Form Contract V2 thiếu primary key đã đăng ký.', 1;
 
 IF EXISTS (
     SELECT 1
@@ -109,15 +151,6 @@ IF EXISTS (
        OR LOWER(SqlType) LIKE '% image%'
 )
     THROW 52510, N'View V2 có field thuộc deny-list mobile.', 1;
-
-IF EXISTS (
-    SELECT 1
-    FROM (VALUES (1, 'Bac'), (2, 'Tu'), (3, 'Den'), (4, 'ThueSuat')) AS E(Ordinal, ColumnName)
-    LEFT JOIN @Contract AS C
-      ON C.ColumnOrdinal = E.Ordinal AND LOWER(C.ColumnName) = LOWER(E.ColumnName)
-    WHERE C.ColumnName IS NULL
-)
-    THROW 52511, N'Bốn field legacy không còn giữ nguyên thứ tự/alias đầu result-set.', 1;
 
 IF EXISTS (
     SELECT 1 FROM sys.columns AS C
@@ -136,10 +169,29 @@ IF EXISTS (
 )
     THROW 52513, N'Bảng pilot có scope nhưng V2 chưa có isolation tương ứng.', 1;
 
-IF EXISTS (SELECT Bac FROM dbo.HR_BangThueTNCNTbl GROUP BY Bac HAVING COUNT(*) > 1)
-    THROW 52514, N'Primary key Bac bị trùng trong dữ liệu hiện tại.', 1;
-IF EXISTS (SELECT 1 FROM dbo.HR_BangThueTNCNTbl WHERE Bac IS NULL)
-    THROW 52515, N'Primary key Bac có NULL.', 1;
+DECLARE @DuplicatePrimaryCount int = 0, @NullPrimaryCount int = 0;
+DECLARE @PrimaryValidationSql nvarchar(max) = N'
+    SELECT @DuplicateCount = COUNT(*)
+    FROM (
+        SELECT ' + QUOTENAME(@PrimaryKey) + N'
+        FROM ' + QUOTENAME(OBJECT_SCHEMA_NAME(@TableObjectID)) + N'.' + QUOTENAME(OBJECT_NAME(@TableObjectID)) + N'
+        GROUP BY ' + QUOTENAME(@PrimaryKey) + N'
+        HAVING COUNT(*) > 1
+    ) AS D;
+    SELECT @NullCount = COUNT(*)
+    FROM ' + QUOTENAME(OBJECT_SCHEMA_NAME(@TableObjectID)) + N'.' + QUOTENAME(OBJECT_NAME(@TableObjectID)) + N'
+    WHERE ' + QUOTENAME(@PrimaryKey) + N' IS NULL;';
+
+EXEC sys.sp_executesql
+    @PrimaryValidationSql,
+    N'@DuplicateCount int OUTPUT, @NullCount int OUTPUT',
+    @DuplicateCount = @DuplicatePrimaryCount OUTPUT,
+    @NullCount = @NullPrimaryCount OUTPUT;
+
+IF @DuplicatePrimaryCount > 0
+    THROW 52514, N'Primary key bị trùng trong dữ liệu hiện tại.', 1;
+IF @NullPrimaryCount > 0
+    THROW 52515, N'Primary key có NULL.', 1;
 
 IF NOT EXISTS (
     SELECT 1
@@ -148,22 +200,40 @@ IF NOT EXISTS (
         ON IC.object_id = I.object_id AND IC.index_id = I.index_id AND IC.key_ordinal > 0
     WHERE I.object_id = @TableObjectID AND I.is_unique = 1 AND I.is_disabled = 0
     GROUP BY I.index_id
-    HAVING COUNT(*) = 1 AND MAX(IC.column_id) = COLUMNPROPERTY(@TableObjectID, 'Bac', 'ColumnId')
+    HAVING COUNT(*) = 1 AND MAX(IC.column_id) = COLUMNPROPERTY(@TableObjectID, @PrimaryKey, 'ColumnId')
 )
-    THROW 52519, N'Bac chưa có unique index/PK vật lý.', 1;
+    THROW 52519, N'Primary key chưa có unique index/PK vật lý.', 1;
 
 IF EXISTS (
     SELECT 1
-    FROM sys.columns
-    WHERE object_id = @TableObjectID AND LOWER(name) = 'isdeleted'
+    FROM sys.columns AS C
+    JOIN sys.types AS T ON T.user_type_id = C.user_type_id
+    WHERE C.object_id = @TableObjectID
+      AND LOWER(C.name) = 'isdeleted'
+      AND LOWER(T.name) <> 'bit'
 )
-    THROW 52520, N'Bảng pilot có soft-delete nhưng View V2 chưa có policy lọc đã xác minh.', 1;
+    THROW 52520, N'IsDeleted của bảng pilot phải có kiểu bit.', 1;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.columns AS C
+    JOIN sys.types AS T ON T.user_type_id = C.user_type_id
+    WHERE C.object_id = @TableObjectID
+      AND LOWER(C.name) = 'isdeleted'
+      AND LOWER(T.name) = 'bit'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM sys.sql_modules
+    WHERE object_id = @ViewObjectID
+      AND definition LIKE '%PHASE2_SOFT_DELETE_FILTER%'
+)
+    THROW 52520, N'Bảng có IsDeleted nhưng View V2 chưa có filter xóa mềm.', 1;
 
 SELECT
     'VIEW_CONTRACT' AS GateName,
-    'PASS_STATIC_ONLY_NOT_ACTIVATION' AS GateStatus,
+    'PASS_UNIFIED_CONTRACT_STATIC' AS GateStatus,
     COUNT(*) AS ResultColumnCount,
-    SUM(CASE WHEN ColumnOrdinal <= 4 THEN 1 ELSE 0 END) AS LegacyColumnCount
+    COUNT(*) AS PhysicalColumnCount
 FROM @Contract;
 
 SELECT
@@ -174,13 +244,15 @@ UNION ALL
 SELECT
     'DELETE_V2',
     CASE WHEN EXISTS (SELECT 1 FROM sys.columns WHERE object_id = @TableObjectID AND LOWER(name) = 'isdeleted')
-         THEN 'REQUIRES_SOFT_DELETE_TEST' ELSE 'BLOCKED_NO_SOFT_DELETE' END,
-    N'Hard-delete không có allow-list trong pilot đầu.';
+         THEN 'REQUIRES_SOFT_DELETE_TEST' ELSE 'REQUIRES_HARD_DELETE_TEST' END,
+    CASE WHEN EXISTS (SELECT 1 FROM sys.columns WHERE object_id = @TableObjectID AND LOWER(name) = 'isdeleted')
+         THEN N'Có IsDeleted: API_XoaDong_V2 phải cập nhật IsDeleted=1 và giữ bản ghi vật lý.'
+         ELSE N'Không có IsDeleted: API_XoaDong_V2 phải DELETE vật lý trong transaction; FK lỗi phải rollback.' END;
 
 SELECT
-    'RUNTIME_PARITY' AS GateName,
-    'REQUIRES_DB_HARNESS' AS GateStatus,
-    N'Chưa tự động chứng minh row count, nullability, keyword, sort, branch, permission và rollback giữa old/V2.' AS Diagnostic;
+    'RUNTIME_SMOKE' AS GateName,
+    'REQUIRES_WEB_GATEWAY_TEST' AS GateStatus,
+    N'Cần kiểm tra View/Save qua gateway bằng tài khoản thật: keyword, filter, sort, branch, permission và transaction rollback.' AS Diagnostic;
 
 SELECT
     A.[func] AS ApiFunc,

@@ -40,6 +40,9 @@ const ApiClient = (function () {
      */
     async function request(endpoint, options = {}) {
         const baseUrl = getBaseUrl();
+        const logoutOnUnauthorized = options.logoutOnUnauthorized !== false;
+        const requestOptions = { ...options };
+        delete requestOptions.logoutOnUnauthorized;
         // Nếu endpoint đã là URL đầy đủ thì không nối BaseUrl nữa
         const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
 
@@ -47,7 +50,7 @@ const ApiClient = (function () {
         const headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            ...(options.headers || {})
+            ...(requestOptions.headers || {})
         };
 
         // Gắn Bearer Token nếu có
@@ -57,7 +60,7 @@ const ApiClient = (function () {
         }
 
         const config = {
-            ...options,
+            ...requestOptions,
             headers
         };
 
@@ -65,7 +68,7 @@ const ApiClient = (function () {
             const response = await fetch(url, config);
 
             // Xử lý status 401 (Hết hạn token / Chưa đăng nhập)
-            if (response.status === 401) {
+            if (response.status === 401 && logoutOnUnauthorized) {
                 console.warn('[ApiClient] 401 Unauthorized. Token expired?');
                 if (typeof window.logoutApp === 'function') {
                     window.logoutApp();

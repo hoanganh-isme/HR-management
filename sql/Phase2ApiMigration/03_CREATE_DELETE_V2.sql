@@ -1,6 +1,7 @@
 /*
-  API_XoaDong_V2 - mặc định chỉ cho xóa mềm.
-  Hard-delete bị chặn cho tới khi có allow-list, kiểm tra FK, audit và DB test riêng.
+  API_XoaDong_V2 - tự chọn chế độ xóa theo schema vật lý.
+  - Có IsDeleted kiểu bit: xóa mềm; các cột audit là tùy chọn và do server ghi.
+  - Không có IsDeleted: xóa cứng trong transaction; FK của DB vẫn được tôn trọng.
 */
 SET ANSI_NULLS ON;
 GO
@@ -29,9 +30,16 @@ BEGIN
     SET @UserName = LTRIM(RTRIM(ISNULL(@UserName, '')));
     SET @BranchID = LTRIM(RTRIM(ISNULL(@BranchID, '')));
 
-    IF LOWER(@List) NOT IN (LOWER('WA_BangThueTNCNFrm'))
+    DECLARE @RouteCount int, @CurrentProcedure sysname = OBJECT_NAME(@@PROCID);
+    SELECT @RouteCount = COUNT(*)
+    FROM dbo.WA_API AS A
+    WHERE A.[list] = @List
+      AND A.[func] = 'Delete'
+      AND LOWER(LTRIM(RTRIM(A.[SQL]))) = LOWER(@CurrentProcedure);
+
+    IF ISNULL(@RouteCount, 0) <> 1
     BEGIN
-        SELECT -1 AS code, N'Form chưa nằm trong allow-list Delete V2.' AS msg, 0 AS rowsAffected;
+        SELECT -1 AS code, N'WA_API Delete V2 chưa được đăng ký duy nhất cho form.' AS msg, 0 AS rowsAffected;
         RETURN;
     END;
 
@@ -84,14 +92,23 @@ BEGIN
     WHERE L.FormID = @List;
 
     IF ISNULL(@RegistryCount, 0) <> 1
-       OR LOWER(ISNULL(@TableName, '')) <> LOWER('HR_BangThueTNCNTbl')
-       OR LOWER(ISNULL(@PrimaryKey, '')) <> LOWER('Bac')
+       OR LTRIM(RTRIM(ISNULL(@TableName, ''))) = ''
+       OR LTRIM(RTRIM(ISNULL(@PrimaryKey, ''))) = ''
     BEGIN
-        SELECT -1 AS code, N'Registry TableName/PrimaryKey không đúng contract Delete V2.' AS msg, 0 AS rowsAffected;
+        SELECT -1 AS code, N'SY_FrmLstTbl chưa có duy nhất TableName/PrimaryKey cho Delete V2.' AS msg, 0 AS rowsAffected;
         RETURN;
     END;
 
-    SET @ObjectID = OBJECT_ID(N'dbo.' + @TableName, N'U');
+    SET @ObjectID = COALESCE(
+        OBJECT_ID(@TableName, N'U'),
+        OBJECT_ID(N'dbo.' + @TableName, N'U')
+    );
+    DECLARE @PhysicalSchema sysname, @PhysicalTable sysname;
+    SELECT @PhysicalSchema = S.name, @PhysicalTable = T.name
+    FROM sys.tables AS T
+    INNER JOIN sys.schemas AS S ON S.schema_id = T.schema_id
+    WHERE T.object_id = @ObjectID;
+
     DECLARE @RegistryPrimaryKey sysname = @PrimaryKey;
     SET @PrimaryKey = NULL;
     SELECT TOP (1) @PrimaryKey = C.name
@@ -99,7 +116,7 @@ BEGIN
     WHERE C.object_id = @ObjectID
       AND LOWER(C.name) = LOWER(@RegistryPrimaryKey);
 
-    IF @ObjectID IS NULL OR @PrimaryKey IS NULL
+    IF @ObjectID IS NULL OR @PhysicalSchema IS NULL OR @PhysicalTable IS NULL OR @PrimaryKey IS NULL
     BEGIN
         SELECT -1 AS code, N'Không tìm thấy bảng hoặc khóa chính vật lý.' AS msg, 0 AS rowsAffected;
         RETURN;
@@ -229,7 +246,7 @@ BEGIN
     BEGIN
         SELECT TOP (1) @Ids = CONVERT(nvarchar(max), J.[value])
         FROM OPENJSON(@Data) AS J
-        WHERE LOWER(J.[key]) = LOWER(@PrimaryKey);
+        WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT = LOWER(@PrimaryKey) COLLATE DATABASE_DEFAULT;
     END;
 
     IF DATALENGTH(@Ids) > 4000
@@ -299,49 +316,73 @@ BEGIN
     WHERE C.object_id = @ObjectID AND LOWER(C.name) IN ('deleteddate', 'deletedat', 'datedelete')
     ORDER BY C.column_id;
 
-    /* Hard-delete allow-list cố ý rỗng trong Phase 2 pilot đầu. */
-    IF @IsDeletedColumn IS NULL OR LOWER(ISNULL(@IsDeletedType, '')) <> 'bit'
+    /* PHASE2_AUTO_DELETE_MODE: chỉ thiếu IsDeleted mới chuyển sang hard-delete. */
+    IF @IsDeletedColumn IS NOT NULL AND LOWER(ISNULL(@IsDeletedType, '')) <> 'bit'
     BEGIN
-        SELECT -1 AS code, N'HARD_DELETE_BLOCKED: bảng chưa có chính sách xóa mềm đã xác minh.' AS msg, 0 AS rowsAffected;
-        RETURN;
-    END;
-
-    IF @DeletedByColumn IS NULL AND @DeletedDateColumn IS NULL
-    BEGIN
-        SELECT -1 AS code, N'HARD_DELETE_BLOCKED: xóa mềm chưa có cột audit server.' AS msg, 0 AS rowsAffected;
+        SELECT -1 AS code, N'IsDeleted phải có kiểu bit để thực hiện xóa mềm.' AS msg, 0 AS rowsAffected;
         RETURN;
     END;
 
     DECLARE @RequestedCount int = (SELECT COUNT(*) FROM #DeleteIds);
+    DECLARE @DeleteMode varchar(10) = CASE WHEN @IsDeletedColumn IS NOT NULL THEN 'SOFT' ELSE 'HARD' END;
+    DECLARE @UpdateSet nvarchar(max) = N'';
 
-    DECLARE @UpdateSet nvarchar(max) = N'T.' + QUOTENAME(@IsDeletedColumn) + N' = 1';
-    IF @DeletedByColumn IS NOT NULL
-        SET @UpdateSet += N', T.' + QUOTENAME(@DeletedByColumn) + N' = @Actor';
-    IF @DeletedDateColumn IS NOT NULL
-        SET @UpdateSet += N', T.' + QUOTENAME(@DeletedDateColumn) + N' = SYSUTCDATETIME()';
+    IF @DeleteMode = 'SOFT'
+    BEGIN
+        SET @UpdateSet = N'T.' + QUOTENAME(@IsDeletedColumn) + N' = 1';
+        IF @DeletedByColumn IS NOT NULL
+            SET @UpdateSet += N', T.' + QUOTENAME(@DeletedByColumn) + N' = @Actor';
+        IF @DeletedDateColumn IS NOT NULL
+            SET @UpdateSet += N', T.' + QUOTENAME(@DeletedDateColumn) + N' = SYSUTCDATETIME()';
+    END;
 
     BEGIN TRY
         BEGIN TRANSACTION;
-        SET @Sql = N'
-            UPDATE T
-            SET ' + @UpdateSet + N'
-            FROM dbo.' + QUOTENAME(@TableName) + N' AS T
-            INNER JOIN #DeleteIds AS I
-              ON T.' + QUOTENAME(@PrimaryKey) + N' = TRY_CONVERT(' + @PrimarySqlType + N', I.IdValue)
-            WHERE ISNULL(T.' + QUOTENAME(@IsDeletedColumn) + N', 0) = 0;
-            SET @OutRows = @@ROWCOUNT;';
+        IF @DeleteMode = 'SOFT'
+        BEGIN
+            SET @Sql = N'
+                UPDATE T
+                SET ' + @UpdateSet + N'
+                FROM ' + QUOTENAME(@PhysicalSchema) + N'.' + QUOTENAME(@PhysicalTable) + N' AS T
+                INNER JOIN #DeleteIds AS I
+                  ON T.' + QUOTENAME(@PrimaryKey) + N' = TRY_CONVERT(' + @PrimarySqlType + N', I.IdValue)
+                WHERE ISNULL(T.' + QUOTENAME(@IsDeletedColumn) + N', 0) = 0;
+                SET @OutRows = @@ROWCOUNT;';
 
-        EXEC sys.sp_executesql
-            @Sql,
-            N'@Actor varchar(100), @OutRows int OUTPUT',
-            @Actor = @UserName,
-            @OutRows = @RowsAffected OUTPUT;
+            EXEC sys.sp_executesql
+                @Sql,
+                N'@Actor varchar(100), @OutRows int OUTPUT',
+                @Actor = @UserName,
+                @OutRows = @RowsAffected OUTPUT;
+        END
+        ELSE
+        BEGIN
+            SET @Sql = N'
+                DELETE T
+                FROM ' + QUOTENAME(@PhysicalSchema) + N'.' + QUOTENAME(@PhysicalTable) + N' AS T
+                INNER JOIN #DeleteIds AS I
+                  ON T.' + QUOTENAME(@PrimaryKey) + N' = TRY_CONVERT(' + @PrimarySqlType + N', I.IdValue);
+                SET @OutRows = @@ROWCOUNT;';
+
+            EXEC sys.sp_executesql
+                @Sql,
+                N'@OutRows int OUTPUT',
+                @OutRows = @RowsAffected OUTPUT;
+        END;
 
         IF @RowsAffected <= 0 OR @RowsAffected <> @RequestedCount
-            THROW 52301, N'Không tìm thấy dòng phù hợp để xóa mềm.', 1;
+        BEGIN
+            IF @DeleteMode = 'SOFT'
+                THROW 52301, N'Không tìm thấy đủ dòng phù hợp để xóa mềm.', 1;
+            THROW 52302, N'Không tìm thấy đủ dòng phù hợp để xóa cứng.', 1;
+        END;
 
         COMMIT TRANSACTION;
-        SELECT 0 AS code, N'Xóa mềm V2 thành công.' AS msg, @RowsAffected AS rowsAffected;
+        SELECT
+            0 AS code,
+            CASE WHEN @DeleteMode = 'SOFT' THEN N'Xóa mềm V2 thành công.' ELSE N'Xóa cứng V2 thành công.' END AS msg,
+            @RowsAffected AS rowsAffected,
+            @DeleteMode AS deleteMode;
     END TRY
     BEGIN CATCH
         IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;

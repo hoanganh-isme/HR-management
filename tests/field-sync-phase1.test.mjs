@@ -485,6 +485,20 @@ test('SQL Phase 1 đủ file, không tham chiếu nguồn layout cấm và khôn
   assert.match(source, /WHEN LOWER\(ISNULL\(X\.FormName, ''\)\) = LOWER\(@ERPFormID\) THEN 1[\s\S]*WHEN LOWER\(ISNULL\(X\.FormName, ''\)\) = LOWER\(@WebFormName\) THEN 2/);
 });
 
+test('registration metadata repair exact Para và trigger không ghi đè route View', () => {
+  const registration = read('sql/FieldSyncPhase1/04_DANG_KY_API_READONLY.sql');
+  const verify = read('sql/FieldSyncPhase1/05_KIEM_TRA_SAU_CAI_DAT.sql');
+  const trigger = read('sql/Triggers/TRG_AutoSync_WA_API.sql');
+  assert.match(registration, /UPDATE\s+A[\s\S]*ParameterTemplate/);
+  assert.match(registration, /5290[123]/);
+  assert.match(registration, /A\.\[func\]\s*=\s*D\.FuncName/);
+  assert.match(verify, /ActualParameterTemplate|A\.\[Para\]/);
+  assert.match(verify, /UNSAFE_REWRITE_ALL_MATCHES_SQL/);
+  assert.match(trigger, /name\s*=\s*'@WebFormName'\s+THEN\s+'FormName'/);
+  assert.match(trigger, /\[func\]\s*=\s*'Execute'/);
+  assert.doesNotMatch(trigger, /WHERE\s+\[SQL\]\s*=\s*@ObjectName\s*;/i);
+});
+
 test('backend công bố đúng ba endpoint metadata', () => {
   const routes = read('backend-app/src/field-sync/field-sync.routes.js');
   assert.match(routes, /get\('\/grid-schema\/:formName'/);

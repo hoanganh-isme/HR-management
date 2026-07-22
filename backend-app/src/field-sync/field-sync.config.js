@@ -20,7 +20,7 @@ export function createFieldSyncConfig(documentConfig, env = process.env) {
     const sqlApiBase = String(documentConfig.sqlApiBase).replace(/\/+$/, '');
     return Object.freeze({
         sqlGatewayUrl: `${sqlApiBase}/api/API_Gateway_Router`,
-        authVerifyUrl: `${sqlApiBase}/api/API_UserInfo`,
+        authVerifyUrl: `${sqlApiBase}/api/userinfo`,
         cacheTtlMs: positiveInteger(env.FIELD_SYNC_CACHE_TTL_MS, DEFAULT_CACHE_TTL_MS),
         cacheMaxEntries: positiveInteger(env.FIELD_SYNC_CACHE_MAX_ENTRIES, 500),
         authCacheTtlMs: positiveInteger(env.FIELD_SYNC_AUTH_CACHE_TTL_MS, 60_000),

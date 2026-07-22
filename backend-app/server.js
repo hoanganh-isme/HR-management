@@ -13,7 +13,7 @@ import { createContractDocumentDb } from './src/contracts/contract-document.db.j
 import { createContractDocumentService } from './src/contracts/contract-document.service.js';
 import { createContractDocumentRouter } from './src/contracts/contract-document.routes.js';
 import { createFieldSyncConfig } from './src/field-sync/field-sync.config.js';
-import { createFieldSyncGateway } from './src/field-sync/field-sync.gateway.js';
+import { createFieldSyncGateway, FieldSyncGatewayError } from './src/field-sync/field-sync.gateway.js';
 import { createFieldSyncRouter } from './src/field-sync/field-sync.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -803,7 +803,17 @@ app.use((error, req, res, next) => {
     const status = Number(error.statusCode) || 500;
     if (status >= 500) console.error('[SERVER]', error.message);
     if (String(req.path || '').toLowerCase().startsWith('/api/metadata')) res.set('Cache-Control', 'private, no-store');
-    return res.status(status).json({ success: false, message: error.message || 'Lỗi máy chủ.' });
+    const body = { success: false, message: error.message || 'Lỗi máy chủ.' };
+    if (error instanceof FieldSyncGatewayError && /^[A-Z0-9_]{3,80}$/.test(String(error.diagnosticCode || ''))) {
+        body.code = error.diagnosticCode;
+        const details = error.details || {};
+        const safeDetails = {};
+        if (Number.isInteger(details.upstreamStatus)) safeDetails.upstreamStatus = details.upstreamStatus;
+        if (Number.isInteger(details.upstreamCode)) safeDetails.upstreamCode = details.upstreamCode;
+        if (Number.isInteger(details.errorNumber)) safeDetails.errorNumber = details.errorNumber;
+        if (Object.keys(safeDetails).length) body.diagnostic = safeDetails;
+    }
+    return res.status(status).json(body);
 });
 
 app.listen(PORT, '0.0.0.0', () => {

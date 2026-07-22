@@ -3,6 +3,7 @@ import test from 'node:test';
 import express from 'express';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
+import { createFieldSyncConfig } from './field-sync.config.js';
 import { createFieldSyncGateway, FieldSyncGatewayError } from './field-sync.gateway.js';
 import { normalizeGridCompare, normalizeGridSchema, normalizeLookupSchema, normalizeRegisteredLookup, resolveRenderType } from './field-sync.resolver.js';
 import { createFieldSyncRouter } from './field-sync.routes.js';
@@ -10,6 +11,11 @@ import { createFieldSyncRouter } from './field-sync.routes.js';
 const HTTP_TEST_CONFIG = Object.freeze({
     cacheTtlMs: 5_000,
     aliases: Object.freeze({ WA_BangThueTNCNFrm: 'HR_BangThueTNCNFrm' })
+});
+
+test('field-sync xác minh token qua endpoint userinfo chuẩn của API gốc', () => {
+    const config = createFieldSyncConfig({ sqlApiBase: 'http://sql.example' }, {});
+    assert.equal(config.authVerifyUrl, 'http://sql.example/api/userinfo');
 });
 
 function gridSchemaRows() {
@@ -141,6 +147,64 @@ test('resolver biến diagnostic result-set không an toàn thành lỗi blockin
     }
 });
 
+test('resolver tạo unified field động, caption tiếng Việt và runtime route từ Form Contract V2', () => {
+    const schema = normalizeGridSchema([{
+        SchemaVersion: '2.0',
+        CapabilityVersion: '1.0',
+        FieldName: 'Bac',
+        Caption: 'Bậc',
+        FieldOrdinal: 1,
+        SqlType: 'int',
+        SourceKind: 'MAIN_TABLE',
+        PrimaryKey: 'Bac',
+        IsPhysicalColumn: 1,
+        IsPrimaryKey: 1,
+        IsRequiredOnInsert: 1,
+        ShowInGrid: 1,
+        ShowInAdd: 1,
+        ShowInEdit: 1,
+        ShowInFilter: 1,
+        SupportsInsert: 1,
+        SupportsUpdate: 0,
+        SupportsFilter: 1,
+        SupportsSort: 1,
+        SupportsKeyword: 1,
+        RegisteredViewProcedure: 'API_BangThueTNCN_V2',
+        RegisteredSaveProcedure: 'API_LuuDong_V2',
+        RegisteredDeleteProcedure: 'API_XoaDong_V2',
+        DeleteMode: 'HARD'
+    }, {
+        SchemaVersion: '2.0',
+        CapabilityVersion: '1.0',
+        FieldName: 'PersonName',
+        Caption: 'Tên nhân sự',
+        FieldOrdinal: 2,
+        SqlType: 'nvarchar(100)',
+        SourceKind: 'MAIN_TABLE',
+        PrimaryKey: 'Bac',
+        ShowInGrid: 1,
+        ShowInAdd: 1,
+        ShowInEdit: 1,
+        ShowInFilter: 1,
+        SupportsInsert: 1,
+        SupportsUpdate: 1,
+        SupportsFilter: 1,
+        SupportsSort: 1,
+        SupportsKeyword: 1
+    }], 'WA_BangThueTNCNFrm', 'HR_BangThueTNCNFrm');
+
+    assert.equal(schema.capabilityVersion, '1.0');
+    assert.equal(schema.sourceKind, 'MAIN_TABLE');
+    assert.equal(schema.fields[0].contexts.add.writable, true);
+    assert.equal(schema.fields[0].contexts.edit.writable, false);
+    assert.equal(schema.fields[0].contexts.grid.sortable, true);
+    assert.deepEqual(schema.addFields.map((field) => field.name), ['Bac', 'PersonName']);
+    assert.deepEqual(schema.filterFields.map((field) => field.name), ['Bac', 'PersonName']);
+    assert.equal(schema.fields[1].label, 'Tên nhân sự');
+    assert.equal(schema.runtimeRoutes.save.registeredProcedure, 'API_LuuDong_V2');
+    assert.equal(schema.runtimeRoutes.delete.mode, 'HARD');
+});
+
 test('resolver chỉ trả dependsOn identifier an toàn', () => {
     const schema = normalizeGridSchema([{
         FieldName: 'BranchID',
@@ -214,7 +278,10 @@ test('gateway che nội dung SQL khi downstream lỗi', async () => {
     const gateway = createFieldSyncGateway({ sqlGatewayUrl: 'http://sql/api/API_Gateway_Router', authVerifyUrl: 'http://sql/api/API_UserInfo', requestTimeoutMs: 100, authCacheTtlMs: 1000, sqlApiUser: '' }, http);
     await assert.rejects(
         gateway.gridSchema({ FormName: 'WA_TestFrm' }, { userName: 'Admin', branchId: '', authorization: 'Bearer opaque' }),
-        (error) => error instanceof FieldSyncGatewayError && !error.message.includes('SELECT')
+        (error) => error instanceof FieldSyncGatewayError
+            && error.diagnosticCode === 'ERP_GATEWAY_HTTP_ERROR'
+            && error.details.upstreamStatus === 500
+            && !error.message.includes('SELECT')
     );
 });
 
@@ -225,6 +292,34 @@ test('gateway ràng buộc username với phiên upstream', async () => {
         gateway.gridSchema({ FormName: 'WA_TestFrm' }, { userName: 'Admin', branchId: '', authorization: 'Bearer opaque' }),
         (error) => error instanceof FieldSyncGatewayError && error.statusCode === 403
     );
+});
+
+test('gateway chỉ gửi wire contract cố định và giữ placeholder metadata trong JsonData', async () => {
+    let sqlPayload;
+    const http = {
+        post: async (url, data) => {
+            if (url.includes('API_UserInfo')) return { data: { UserName: 'Admin' } };
+            sqlPayload = data;
+            return { data: { records: [] } };
+        }
+    };
+    const gateway = createFieldSyncGateway({
+        sqlGatewayUrl: 'http://sql/api/API_Gateway_Router',
+        authVerifyUrl: 'http://sql/api/API_UserInfo',
+        requestTimeoutMs: 100,
+        authCacheTtlMs: 1000
+    }, http);
+    await gateway.gridSchema(
+        { FormName: 'WA_TestFrm', ERPFormID: 'HR_TestFrm' },
+        { userName: 'Admin', branchId: 'CN01', authorization: 'Bearer opaque' }
+    );
+    assert.equal(sqlPayload.Page, 1);
+    assert.equal(sqlPayload.Limit, 50);
+    const jsonData = JSON.parse(sqlPayload.JsonData);
+    assert.equal(jsonData.FormName, 'WA_TestFrm');
+    assert.equal(jsonData.ERPFormID, 'HR_TestFrm');
+    assert.equal(jsonData.BranchID, 'CN01');
+    assert.deepEqual(Object.keys(sqlPayload).sort(), ['Func', 'JsonData', 'Keyword', 'Limit', 'List', 'Page', 'UserName'].sort());
 });
 
 test('gateway không tin UserName trong auth envelope báo thất bại', async () => {
@@ -272,7 +367,27 @@ test('gateway fail-closed với HTTP 200 nhưng envelope báo thất bại', asy
     const gateway = createFieldSyncGateway({ sqlGatewayUrl: 'http://sql/api/API_Gateway_Router', authVerifyUrl: 'http://sql/api/API_UserInfo', requestTimeoutMs: 100, authCacheTtlMs: 1000 }, http);
     await assert.rejects(
         gateway.gridSchema({ FormName: 'WA_TestFrm' }, { userName: 'Admin', branchId: '', authorization: 'Bearer opaque' }),
-        (error) => error instanceof FieldSyncGatewayError && !error.message.includes('SELECT')
+        (error) => error instanceof FieldSyncGatewayError
+            && error.diagnosticCode === 'ERP_GATEWAY_ENVELOPE_REJECTED'
+            && error.details.upstreamCode === undefined
+            && !error.message.includes('SELECT')
+    );
+});
+
+test('gateway giữ mã lỗi SQL an toàn để phân biệt Para thiếu với quyền EXECUTE', async () => {
+    const http = {
+        post: async (url) => url.includes('API_UserInfo')
+            ? { data: { UserName: 'Admin' } }
+            : { data: { records: [{ code: -1, error_number: 201, msg: 'internal SQL text must not escape' }] } }
+    };
+    const gateway = createFieldSyncGateway({ sqlGatewayUrl: 'http://sql/api/API_Gateway_Router', authVerifyUrl: 'http://sql/api/API_UserInfo', requestTimeoutMs: 100, authCacheTtlMs: 1000 }, http);
+    await assert.rejects(
+        gateway.gridSchema({ FormName: 'WA_TestFrm' }, { userName: 'Admin', branchId: '', authorization: 'Bearer opaque' }),
+        (error) => error instanceof FieldSyncGatewayError
+            && error.diagnosticCode === 'ERP_GATEWAY_ENVELOPE_REJECTED'
+            && error.details.upstreamCode === -1
+            && error.details.errorNumber === 201
+            && !error.message.includes('internal SQL')
     );
 });
 
@@ -323,6 +438,29 @@ test('HTTP metadata xác minh phiên trước cache hit', async (t) => {
     assert.equal(forgedBody.schema, undefined);
     assert.equal(verifyCalls, 2);
     assert.equal(schemaCalls, 1);
+});
+
+test('HTTP metadata refresh=1 bỏ qua cache và cập nhật contract mới', async (t) => {
+    let schemaCalls = 0;
+    const gateway = {
+        async verifySession() {},
+        async gridSchema() {
+            schemaCalls += 1;
+            return gridSchemaRows();
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const endpoint = `${baseUrl}/grid-schema/WA_BangThueTNCNFrm`;
+
+    await (await fetch(endpoint, { headers: authHeaders() })).json();
+    await (await fetch(endpoint, { headers: authHeaders() })).json();
+    assert.equal(schemaCalls, 1);
+
+    await (await fetch(`${endpoint}?refresh=1`, { headers: authHeaders() })).json();
+    assert.equal(schemaCalls, 2);
+
+    await (await fetch(endpoint, { headers: authHeaders() })).json();
+    assert.equal(schemaCalls, 2);
 });
 
 test('HTTP metadata chuẩn hóa alias/branch cho cache và cô lập branch khác', async (t) => {

@@ -38,6 +38,10 @@ function cacheKey(kind, context, formName, extra = '') {
     return [kind, context.userName, context.branchId, formName, extra].join('|');
 }
 
+function bypassMetadataCache(req) {
+    return String(req.query?.refresh || '').trim() === '1';
+}
+
 export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCache(config.cacheTtlMs, undefined, config.cacheMaxEntries) }) {
     const router = express.Router();
 
@@ -54,7 +58,7 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
             const formName = names.webFormName;
             const erpFormName = names.erpFormName;
             const key = cacheKey('schema', context, formName, erpFormName);
-            let schema = cache.get(key);
+            let schema = bypassMetadataCache(req) ? undefined : cache.get(key);
             if (!schema) {
                 const rows = await gateway.gridSchema({ FormName: formName, ERPFormID: erpFormName }, context);
                 schema = cache.set(key, normalizeGridSchema(rows, formName, erpFormName));
@@ -73,7 +77,7 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
             const formName = names.webFormName;
             const erpFormName = names.erpFormName;
             const key = cacheKey('compare', context, formName, erpFormName);
-            let comparison = cache.get(key);
+            let comparison = bypassMetadataCache(req) ? undefined : cache.get(key);
             if (!comparison) {
                 const rows = await gateway.gridCompare({ FormName: formName, ERPFormID: erpFormName }, context);
                 comparison = cache.set(key, normalizeGridCompare(rows, formName, erpFormName));

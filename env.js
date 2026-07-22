@@ -17,11 +17,30 @@ var HRM_FRONTEND_ORIGIN = (typeof window !== 'undefined' && window.location && /
     ? window.location.origin
     : '';
 var HRM_LOCAL_DOCUMENT_DEVELOPMENT = isLocalDocumentDevelopment();
+var HRM_DOCUMENT_SERVICE_BASE = HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE ||
+    (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8081' : HRM_FRONTEND_ORIGIN + '/docserver');
+
+/*
+ * Phase 2 pilot: dùng Form Contract V2 cho đúng một form.
+ * Cấu hình được inject từ môi trường vẫn có quyền override các giá trị này,
+ * kể cả enabled:false để rollback khẩn cấp.
+ */
+HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
+    enabled: true,
+    shadowMode: false,
+    pilotForms: ['WA_BangThueTNCNFrm'],
+    pollSeconds: 30,
+    metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
+}, HRM_RUNTIME_CONFIG.FIELD_SYNC || {});
+
+if (typeof window !== 'undefined') {
+    window.HRM_RUNTIME_CONFIG = HRM_RUNTIME_CONFIG;
+}
 
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
     API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
-    DOCUMENT_SERVICE_BASE: HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8081' : HRM_FRONTEND_ORIGIN + '/docserver'),
+    DOCUMENT_SERVICE_BASE: HRM_DOCUMENT_SERVICE_BASE,
     ONLYOFFICE_PUBLIC_URL: HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8001' : HRM_FRONTEND_ORIGIN + '/onlyoffice'),
 
     // Tự động phát hiện HOST chạy (Local dev vs Production)
@@ -70,7 +89,7 @@ window.API_CONFIG = {
         AUTH: {
             LOGIN: '/api/login',
             LOGOUT: '/logout',
-            USER_INFO: '/api/API_UserInfo',
+            USER_INFO: '/api/userinfo',
         },
 
         DOCUMENT_MANAGER: {

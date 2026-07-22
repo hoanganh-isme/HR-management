@@ -23,9 +23,18 @@ BEGIN
     WHERE L.FormID = @WebFormName;
 
     DECLARE @V2 table (
-        SchemaVersion varchar(10), WebFormName varchar(100), ERPFormName varchar(100),
-        TableName varchar(100), PrimaryKey varchar(100), SourceKind varchar(30),
-        FieldOrdinal int, FieldName varchar(128), SqlType nvarchar(256), IsNullable bit,
+        SchemaVersion varchar(10), CapabilityVersion varchar(10),
+        WebFormName varchar(100), ERPFormName varchar(100),
+        TableName varchar(100), PrimaryKey varchar(100),
+        RegisteredViewProcedure varchar(50), RegisteredSaveProcedure varchar(50),
+        RegisteredDeleteProcedure varchar(50), DeleteMode varchar(40),
+        SourceKind varchar(30), FieldOrdinal int, FieldName varchar(128),
+        SqlType nvarchar(256), IsNullable bit,
+        IsPhysicalColumn bit, IsPrimaryKey bit, IsIdentity bit, IsComputed bit, HasDefault bit,
+        DbMaxLength smallint, DbPrecision tinyint, DbScale tinyint, DbIsNullable bit,
+        IsServerManaged bit, IsSensitiveOrDenied bit, IsRequiredOnInsert bit,
+        ShowInGrid bit, ShowInAdd bit, ShowInEdit bit, ShowInFilter bit,
+        SupportsInsert bit, SupportsUpdate bit, SupportsFilter bit, SupportsSort bit, SupportsKeyword bit,
         Caption nvarchar(200), FormatID varchar(2), FormatType char(1), RenderType varchar(20),
         NumberDecimal int, FormatString nvarchar(100), MaskString varchar(50),
         MaxLength smallint, MinValue float, MaxValue float, Align varchar(2), MinWidth int, MaxWidth int,

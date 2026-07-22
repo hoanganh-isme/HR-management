@@ -1,51 +1,42 @@
 # Kết quả kiểm thử Phase 2
 
-## Tóm tắt
+## Tóm tắt ngày 22/07/2026
 
-Kết luận hiện tại: **NOT READY** để bật runtime hoặc đổi `WA_API` trên môi trường thật. Các số liệu dưới đây đã được chạy lại sau các chỉnh sửa cuối ngày 20/07/2026.
+Phần mã nguồn local đã đạt gate tự động cho Form Contract V2 động. Trạng thái triển khai DB/Web vẫn là **NOT READY** cho tới khi chạy lại các file SQL trên database đích, restart backend và smoke test bằng tài khoản thật.
 
 | Hạng mục | Kết quả gần nhất | Ghi chú |
 |---|---:|---|
-| Test Phase 1 + Phase 2 | 39/39 pass | Chạy bằng `node --test tests/field-sync-phase1.test.mjs tests/phase2-api-migration.test.mjs`. |
-| Bộ frontend contract + Phase 1 + Phase 2 | 48 pass / 51 tổng | 3 lỗi contract baseline có sẵn, không do Phase 2: DocumentExportPlugin, attachment business key và detail-tab primary key. |
-| Backend app | 27/27 pass | `backend-app`, chạy `npm.cmd test`. |
-| `node --check` JS đã sửa | Pass | Đã kiểm tra source, script audit/verifier, registry và bundle. |
-| Build frontend bundle | Pass, xác định | 50 CSS + 92 JS; hai lần build cho cùng SHA-256 `CF6B735657B1837FC996DBE97E9304CCBED294E763B2E21D8047DB7BC440E615`. |
-| Audit SQL/API | 176 file SQL; 240 procedure definition/inventory row; 230 JOIN row; 18 star row; 17 unsafe star; 785 reference `SY_FormatFields`; 1 star pilot được duyệt | Số liệu từ `scripts/audit-phase2-api-migration.mjs`. |
-| SQL Server compile/runtime | Chưa chạy | Workspace không có SQL Server/harness DB; các gate runtime vẫn để pending. |
-| Browser/mobile smoke | Chưa chạy | Cần staging có dữ liệu ẩn danh và quyền thật. |
+| Phase 1 + Phase 2 | 47/47 pass | `node --test tests/field-sync-phase1.test.mjs tests/phase2-api-migration.test.mjs` |
+| Backend metadata | 32/32 pass | Gồm auth, resolver, route và cache bypass `refresh=1` |
+| Full frontend + Phase 1/2 | 56/59 pass | 3 lỗi baseline cũ: DocumentExportPlugin, attachment business key, detail-tab primary key |
+| Build bundle | Pass | 50 CSS + 92 JS; SHA-256 `9EA5F0F53D0C8F31D115A17C39433C6D55207EEBD09EFD4693C28A274BE8DB22` |
+| Audit SQL/API | Pass | 176 SQL; 240 procedure/inventory; 231 JOIN; 17 star; 16 unsafe; 789 reference `SY_FormatFields`; 1 approved star |
+| SQL Server compile/runtime | Chưa chạy lại | Cần deploy các procedure mới trên DB đích |
+| Browser/mobile smoke | Chưa chạy lại | Cần hard reload bundle `v=16` và kiểm tra `PersonName` |
 
-## Kiểm tra tĩnh bắt buộc
+## Contract mới đã được kiểm tra tĩnh
 
-- `sql/Phase2ApiMigration` chỉ có `SELECT T.*` của pilot kèm marker `MAIN_TABLE_STAR_APPROVED`; không có `DROP`, `TRUNCATE`, `ALTER TABLE` hay xóa `SY_FormatFields`.
-- 17 `UNSAFE_STAR` còn lại thuộc API legacy/report/attachment/business action và chưa được chuyển Phase 2.
-- Hardening cuối đã đồng nhất deny-list metadata/result-set với các kiểu kỹ thuật `binary/varbinary/image/timestamp/rowversion/xml/text/ntext/sql_variant/geography/geometry/hierarchyid`; lỗi DMF được phát riêng bằng `RESULTSET_METADATA_ERROR`, và fallback vẫn là diagnostic chặn.
-- View/Save/Delete V2 đã fail-closed khi non-admin chưa được gán branch, kiểm tra `BranchID` trong `JsonData` không vượt context, và Save/Delete yêu cầu đồng thời `IsRun` với quyền action.
-- Metadata shadow dùng allow-list `PHASE2_SHADOW_VIEW_OVERRIDE` để compare View V2 nhưng phát `SHADOW_VIEW_NOT_REGISTERED`, được backend/frontend/verifier coi là diagnostic chặn activation.
-- `WA_API` chưa đổi; frontend registry vẫn ở `SHADOW_PREPARED`, không active.
+- View V2 lấy TableName/PrimaryKey từ `SY_FrmLstTbl`, field từ `sys.columns`; không có danh sách field nghiệp vụ hard-code.
+- Metadata lấy caption theo `SY_FmtFldTbl.CaptionVN`, rồi `CaptionEN`, cuối cùng fallback về FieldName.
+- Save V2 nhận field writable từ chính `sys.columns`; không cần sửa procedure khi thêm field mới.
+- Delete V2 tự chọn `SOFT` khi có `IsDeleted bit`, nếu không có thì chọn `HARD`; cả hai chạy trong transaction và kiểm tra đủ số ID.
+- Frontend mở form/poll metadata với `refresh=1`; khi signature schema đổi, Grid tải lại cả schema lẫn data.
+- Harness DB read-only không còn ép đúng bốn field; nó tự lấy table/PK/field và caption từ registry/schema.
 
-## Khoảng trống contract còn chặn Gate View
+## Gate DB/Web còn phải chạy
 
-- Legacy `API_TruyVanDong` cho phép filter/sort mọi cột vật lý; View V2 giữ chắc contract bốn cột `Bac/Tu/Den/ThueSuat`. Field mới có thể xuất hiện trong Grid metadata nhưng được đánh dấu display-only, không cho header sort/filter cho tới khi có contract riêng; API cũng từ chối sort ngoài allow-list thay vì âm thầm đổi thứ tự.
-- Keyword legacy chỉ tìm trên cột text, trong khi V2 đang chuyển bốn cột thuế sang text để tìm; phải đo trên DB thật trước khi đăng ký.
-- Gateway vẫn cần chứng minh token/phiên đăng nhập ràng buộc đúng `UserName`; giá trị actor từ client chưa đủ làm bằng chứng.
+1. Cài lại View V2, Save V2, Delete V2 và Grid Schema V2 theo `11_KICH_HOAT_UNIFIED_FIELD_CONTRACT.md`.
+2. Chạy `05_VERIFY_PILOT_V2.sql` và `01_VIEW_PARITY_READONLY.sql` bằng user test thật.
+3. Xác nhận metadata có `PersonName`, caption tiếng Việt và `DeleteMode=HARD` hoặc `SOFT` đúng schema.
+4. Restart `backend-app`, deploy `index.html` + bundle `v=16`, hard reload trình duyệt.
+5. Test Add/Edit/Delete trong transaction hoặc bằng dữ liệu QA; với hard-delete phải thử cả trường hợp FK chặn để xác nhận rollback.
 
-## Ba lỗi baseline cần tách khỏi Phase 2
-
-Các test frontend cũ đang kỳ vọng literal tương thích trong `DocumentExportPlugin`, upload attachment và detail-tab key. Chúng cần được xử lý trong một task riêng hoặc cập nhật contract có chủ đích; không dùng chúng làm lý do bật V2.
-
-## Lệnh rerun trước khi duyệt
+## Lệnh rerun local
 
 ```powershell
 node --test tests/field-sync-phase1.test.mjs tests/phase2-api-migration.test.mjs
-node --test tests/frontend-contracts.test.mjs tests/field-sync-phase1.test.mjs tests/phase2-api-migration.test.mjs
 Push-Location backend-app; npm.cmd test; Pop-Location
-node --check src/js/services/FieldSyncService.js
-node --check src/js/core/DynamicFormEngine.js
-node --check src/js/utils/FormBuilderPlugin.js
 node scripts/audit-phase2-api-migration.mjs
-node scripts/build-frontend-bundle.mjs
+node scripts/build-frontend-bundle.mjs --check
 git diff --check
 ```
-
-Sau đó chạy riêng các script SQL theo hướng dẫn `08_HUONG_DAN_DB_TEST.md`; chỉ khi mọi gate đạt mới xem xét đổi cờ đăng ký.

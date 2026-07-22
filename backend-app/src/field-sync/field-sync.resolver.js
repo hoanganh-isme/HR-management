@@ -101,6 +101,18 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
         seen.add(key);
 
         const lookup = normalizeLookup(row);
+        const showInGridValue = first(row, 'ShowInGrid', 'showInGrid');
+        const showInGrid = showInGridValue === undefined ? true : bool(showInGridValue);
+        const showInAdd = bool(first(row, 'ShowInAdd', 'showInAdd'));
+        const showInEdit = bool(first(row, 'ShowInEdit', 'showInEdit'));
+        const showInFilter = bool(first(row, 'ShowInFilter', 'showInFilter'));
+        const supportsInsert = bool(first(row, 'SupportsInsert', 'supportsInsert'));
+        const supportsUpdate = bool(first(row, 'SupportsUpdate', 'supportsUpdate'));
+        const supportsFilter = bool(first(row, 'SupportsFilter', 'supportsFilter'));
+        const supportsSort = bool(first(row, 'SupportsSort', 'supportsSort'));
+        const supportsKeyword = bool(first(row, 'SupportsKeyword', 'supportsKeyword'));
+        const isPrimaryKey = bool(first(row, 'IsPrimaryKey', 'isPrimaryKey'));
+        const requiredOnInsert = bool(first(row, 'IsRequiredOnInsert', 'isRequiredOnInsert'));
         fields.push({
             name: fieldName,
             label: cleanDisplayText(first(row, 'Caption', 'caption'), 200) || fieldName,
@@ -125,17 +137,49 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
             formatString: cleanText(first(row, 'FormatString', 'formatString'), 100),
             maskString: cleanText(first(row, 'MaskString', 'maskString'), 50),
             position: 'grid',
-            lookup
+            lookup,
+            isPhysicalColumn: bool(first(row, 'IsPhysicalColumn', 'isPhysicalColumn')),
+            isPrimaryKey,
+            isIdentity: bool(first(row, 'IsIdentity', 'isIdentity')),
+            isComputed: bool(first(row, 'IsComputed', 'isComputed')),
+            hasDefault: bool(first(row, 'HasDefault', 'hasDefault')),
+            dbMaxLength: numberOrNull(first(row, 'DbMaxLength', 'dbMaxLength')),
+            dbPrecision: numberOrNull(first(row, 'DbPrecision', 'dbPrecision')),
+            dbScale: numberOrNull(first(row, 'DbScale', 'dbScale')),
+            dbNullable: bool(first(row, 'DbIsNullable', 'dbIsNullable')),
+            isServerManaged: bool(first(row, 'IsServerManaged', 'isServerManaged')),
+            isSensitiveOrDenied: bool(first(row, 'IsSensitiveOrDenied', 'isSensitiveOrDenied')),
+            requiredOnInsert,
+            showInGrid,
+            showInAdd,
+            showInEdit,
+            showInFilter,
+            supportsInsert,
+            supportsUpdate,
+            supportsFilter,
+            supportsSort,
+            supportsKeyword,
+            contexts: {
+                grid: { visible: showInGrid, sortable: supportsSort, keyword: supportsKeyword },
+                filter: { visible: showInFilter, supported: supportsFilter },
+                add: { visible: showInAdd, writable: supportsInsert, required: requiredOnInsert },
+                edit: { visible: showInEdit, writable: supportsUpdate, required: isPrimaryKey }
+            }
         });
     }
 
     const firstRow = rows && rows[0] ? rows[0] : {};
     const sourceKind = cleanText(first(firstRow, 'SourceKind', 'sourceKind'), 40);
     const primaryKey = cleanText(first(firstRow, 'PrimaryKey', 'primaryKey'), 128);
+    const capabilityVersion = cleanText(first(firstRow, 'CapabilityVersion', 'capabilityVersion'), 20);
+    const deleteModeRaw = cleanText(first(firstRow, 'DeleteMode', 'deleteMode'), 40).toUpperCase();
+    const deleteMode = ['SOFT', 'HARD', 'HARD_APPROVED', 'BLOCKED_NO_SOFT_DELETE', 'INVALID_ISDELETED_TYPE', 'NONE'].includes(deleteModeRaw)
+        ? deleteModeRaw
+        : 'NONE';
     const sourceDiagnostic = cleanText(first(firstRow, 'DiagnosticCode', 'diagnosticCode'), 80).toUpperCase();
     if (!fields.length) diagnostics.push({ severity: 'error', code: 'NO_GRID_FIELDS' });
     if (!primaryKey) diagnostics.push({ severity: 'error', code: 'NO_PRIMARY_KEY' });
-    if (!['RESULT_SET', 'TABLE_FALLBACK'].includes(sourceKind)) diagnostics.push({ severity: 'error', code: 'INVALID_SOURCE_KIND' });
+    if (!['RESULT_SET', 'MAIN_TABLE', 'TABLE_FALLBACK'].includes(sourceKind)) diagnostics.push({ severity: 'error', code: 'INVALID_SOURCE_KIND' });
     if (sourceKind === 'TABLE_FALLBACK') diagnostics.push({ severity: 'warning', code: 'RESULTSET_FALLBACK_TO_TABLE' });
     if (sourceDiagnostic === 'SHADOW_VIEW_NOT_REGISTERED') {
         diagnostics.push({ severity: 'warning', code: 'SHADOW_VIEW_NOT_REGISTERED' });
@@ -146,11 +190,25 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
 
     return {
         schemaVersion: '2.0',
+        capabilityVersion,
         formName: requestedFormName,
         erpFormId: erpFormName,
+        tableName: cleanText(first(firstRow, 'TableName', 'tableName'), 128),
         primaryKey,
         sourceKind,
-        gridFields: fields,
+        fields,
+        gridFields: fields.filter((field) => field.showInGrid),
+        addFields: fields.filter((field) => field.showInAdd),
+        editFields: fields.filter((field) => field.showInEdit),
+        filterFields: fields.filter((field) => field.showInFilter && field.supportsFilter),
+        runtimeRoutes: {
+            view: { registeredProcedure: cleanText(first(firstRow, 'RegisteredViewProcedure', 'registeredViewProcedure'), 128) },
+            save: { registeredProcedure: cleanText(first(firstRow, 'RegisteredSaveProcedure', 'registeredSaveProcedure'), 128) },
+            delete: {
+                registeredProcedure: cleanText(first(firstRow, 'RegisteredDeleteProcedure', 'registeredDeleteProcedure'), 128),
+                mode: deleteMode
+            }
+        },
         lookups: fields.filter((field) => field.lookup).map((field) => ({ fieldName: field.name, ...field.lookup })),
         diagnostics,
         generatedAt: new Date().toISOString()

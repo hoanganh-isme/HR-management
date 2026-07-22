@@ -1,15 +1,15 @@
 /*
-  Đăng ký pilot có chủ đích. Tất cả cờ mặc định 0.
-  Trước khi bật từng cờ, phải chạy 05_VERIFY_PILOT_V2.sql và đặt SESSION_CONTEXT gate
+  Đăng ký pilot có chủ đích. Tất cả cờ mặc định 0 khi SESSION_CONTEXT chưa được đặt.
+  Trước khi bật từng cờ, phải chạy 05_VERIFY_PILOT_V2.sql và đặt cả APPLY + gate
   trong chính session triển khai.
 */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 DECLARE @FormName varchar(100) = 'WA_BangThueTNCNFrm';
-DECLARE @ApplyView bit = 0;
-DECLARE @ApplySave bit = 0;
-DECLARE @ApplyDelete bit = 0;
+DECLARE @ApplyView bit = ISNULL(TRY_CONVERT(bit, SESSION_CONTEXT(N'PHASE2_APPLY_VIEW')), 0);
+DECLARE @ApplySave bit = ISNULL(TRY_CONVERT(bit, SESSION_CONTEXT(N'PHASE2_APPLY_SAVE')), 0);
+DECLARE @ApplyDelete bit = ISNULL(TRY_CONVERT(bit, SESSION_CONTEXT(N'PHASE2_APPLY_DELETE')), 0);
 
 DECLARE @ViewOld sysname = N'API_TruyVanDong';
 DECLARE @ViewV2 sysname = N'API_BangThueTNCN_V2';
@@ -75,30 +75,12 @@ IF @ApplySave = 1 AND @ApplyView = 0 AND NOT EXISTS (
 )
     THROW 52413, N'Không đăng ký Save V2 trước khi View V2 đã ổn định.', 1;
 
-IF @ApplyDelete = 1 AND NOT EXISTS (
-    SELECT 1 FROM sys.columns
-    WHERE object_id = OBJECT_ID(N'dbo.HR_BangThueTNCNTbl') AND LOWER(name) = 'isdeleted'
-)
-    THROW 52414, N'Pilot chưa có chính sách xóa mềm; Delete V2 bị chặn.', 1;
+/*
+  API_XoaDong_V2 tự đọc schema vật lý: có IsDeleted bit thì xóa mềm,
+  không có IsDeleted thì xóa cứng trong transaction. Registration không chứa tên field.
+*/
 
-IF @ApplyDelete = 1 AND NOT EXISTS (
-    SELECT 1
-    FROM sys.columns AS C
-    INNER JOIN sys.types AS T ON T.user_type_id = C.user_type_id
-    WHERE C.object_id = OBJECT_ID(N'dbo.HR_BangThueTNCNTbl')
-      AND LOWER(C.name) = 'isdeleted'
-      AND LOWER(T.name) = 'bit'
-)
-    THROW 52415, N'IsDeleted không phải bit; Delete V2 bị chặn.', 1;
-
-IF @ApplyDelete = 1 AND NOT EXISTS (
-    SELECT 1 FROM sys.columns
-    WHERE object_id = OBJECT_ID(N'dbo.HR_BangThueTNCNTbl')
-      AND LOWER(name) IN ('deletedby', 'userdelete', 'deleteddate', 'deletedat', 'datedelete')
-)
-    THROW 52416, N'Delete V2 thiếu cột audit server; bị chặn.', 1;
-
-IF @ApplyDelete = 1 AND NOT EXISTS (
+IF @ApplyDelete = 1 AND @ApplyView = 0 AND NOT EXISTS (
     SELECT 1 FROM dbo.WA_API WHERE [list] = @FormName AND [func] = 'View' AND [SQL] = @ViewV2
 )
     THROW 52417, N'Không đăng ký Delete V2 trước khi View V2 được duyệt.', 1;

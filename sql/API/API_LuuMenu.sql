@@ -1,5 +1,3 @@
-USE [QLTiec]
-GO
 
 /****** Object:  StoredProcedure [dbo].[API_LuuMenu] ******/
 SET ANSI_NULLS ON
@@ -20,7 +18,11 @@ ALTER PROCEDURE [dbo].[API_LuuMenu]
     @URLPara NVARCHAR(250) = '',
     @Icon NVARCHAR(100) = '',
     @IsDisable BIT = 0,
-    @IsEdit BIT = 0
+    @IsEdit BIT = 0,
+    -- CÁC THAM SỐ MỞ RỘNG CHO TÍNH NĂNG FORM BUILDER ĐỘNG (V2)
+    @TableName NVARCHAR(250) = '',
+    @PrimaryKey NVARCHAR(250) = '',
+    @AllowHardDelete BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -96,6 +98,62 @@ BEGIN
 
         INSERT INTO WA_Menu (MenuID, Parent, VN, EN, SubTitle, FormName, FormKey, URLPara, IconClass, isDisable)
         VALUES (@MenuID, @ParentID, @Label, @EN, @SubTitle, @FormName, @FormKey, @URLPara, @Icon, @IsDisable);
+    END
+
+    -- =========================================================================================
+    -- MAGIC: HỆ SINH THÁI FORM ĐỘNG V2 (METADATA-DRIVEN)
+    -- Tự động hóa các bước tạo form để biến màn hình Menu thành 1 Form Builder hoàn chỉnh.
+    -- =========================================================================================
+    IF (LTRIM(RTRIM(@FormName)) <> '')
+    BEGIN
+        -- 1. Đăng ký/Cập nhật Bảng vật lý vào SY_FrmLstTbl
+        IF (LTRIM(RTRIM(@TableName)) <> '')
+        BEGIN
+            IF EXISTS (SELECT 1 FROM SY_FrmLstTbl WHERE FormID = @FormName)
+            BEGIN
+                UPDATE SY_FrmLstTbl 
+                SET TableName = @TableName, PrimaryKey = @PrimaryKey
+                WHERE FormID = @FormName;
+            END
+            ELSE
+            BEGIN
+                INSERT INTO SY_FrmLstTbl (FormID, TableName, PrimaryKey)
+                VALUES (@FormName, @TableName, @PrimaryKey);
+            END
+
+            -- Đánh dấu cấp phép xóa cứng bằng Extended Properties trên bảng vật lý
+            IF (@AllowHardDelete = 1 AND OBJECT_ID(@TableName) IS NOT NULL)
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM sys.extended_properties 
+                    WHERE major_id = OBJECT_ID(@TableName) AND name = 'AllowHardDelete'
+                )
+                BEGIN
+                    EXEC sys.sp_updateextendedproperty @name = N'AllowHardDelete', @value = N'1', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = @TableName;
+                END
+                ELSE
+                BEGIN
+                    EXEC sys.sp_addextendedproperty @name = N'AllowHardDelete', @value = N'1', @level0type = N'SCHEMA', @level0name = N'dbo', @level1type = N'TABLE', @level1name = @TableName;
+                END
+            END
+        END
+
+        -- 2. Tự động định tuyến (Routing) sang bộ 3 API V2 Dùng Chung
+        IF NOT EXISTS (SELECT 1 FROM WA_API WHERE [list] = @FormName AND [func] = 'View')
+            INSERT INTO WA_API ([list], [func], [SQL]) VALUES (@FormName, 'View', 'API_TruyVanDong_V2');
+            
+        IF NOT EXISTS (SELECT 1 FROM WA_API WHERE [list] = @FormName AND [func] = 'Save')
+            INSERT INTO WA_API ([list], [func], [SQL]) VALUES (@FormName, 'Save', 'API_LuuDong_V2');
+            
+        IF NOT EXISTS (SELECT 1 FROM WA_API WHERE [list] = @FormName AND [func] = 'Delete')
+            INSERT INTO WA_API ([list], [func], [SQL]) VALUES (@FormName, 'Delete', 'API_XoaDong_V2');
+
+        -- 3. Tự động cấp Full Quyền cho Super Admin trên form mới để có thể dùng ngay
+        IF NOT EXISTS (SELECT 1 FROM WA_UserGroupPermisstion WHERE UserGroupID = 'admin' AND MenuID = @MenuID)
+        BEGIN
+            INSERT INTO WA_UserGroupPermisstion (UserGroupID, MenuID, IsRun, IsAdd, IsUpdate, IsDelete)
+            VALUES ('admin', @MenuID, 1, 1, 1, 1);
+        END
     END
 END
 GO

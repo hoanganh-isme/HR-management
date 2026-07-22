@@ -51,48 +51,74 @@ test('Phase 2 có đủ bảy script, không DDL runtime hoặc sửa SY_FrmCfg'
   assert.doesNotMatch(source, /SELECT\s+\*/i);
 });
 
-test('View V2 chỉ dùng MainAlias.* sau deny-list, scope và permission gate', () => {
+test('View V2 tự nhận field bảng chính sau deny-list, scope và permission gate', () => {
   const source = read('sql/Phase2ApiMigration/01_CREATE_VIEW_V2_PILOT.sql');
   assert.match(source, /MAIN_TABLE_STAR_APPROVED/);
   assert.match(source, /SELECT\s+T\.\*/i);
-  const approvedSelect = source.slice(source.indexOf('/* MAIN_TABLE_STAR_APPROVED'));
-  assert.doesNotMatch(approvedSelect, /\bJOIN\b/i);
+  assert.match(source, /SY_FrmLstTbl/);
+  assert.match(source, /sys\.tables/);
+  assert.match(source, /sys\.schemas/);
+  assert.match(source, /OBJECT_NAME\(@@PROCID\)/);
+  assert.match(source, /QUOTENAME\(@PhysicalSchema\)/);
+  assert.match(source, /QUOTENAME\(@PhysicalTable\)/);
   assert.match(source, /WA_UserGroupPermisstion/);
   assert.match(source, /WA_UserPermisstion/);
   assert.match(source, /branchid.*tenantid.*companyid.*donviid/is);
   assert.match(source, /chưa được gán chi nhánh.*fail-closed/is);
   assert.match(source, /'keyword', 'branchid'/i);
   assert.match(source, /BranchID trong JsonData vượt ngữ cảnh request/);
-  assert.match(source, /PHASE2_NEW_FIELDS_DISPLAY_ONLY/);
-  assert.match(source, /Cột sắp xếp chưa nằm trong contract pilot/);
+  assert.match(source, /PHASE2_UNIFIED_FIELD_CONTRACT/);
+  assert.match(source, /PHASE2_SOFT_DELETE_FILTER/);
+  assert.match(source, /Cột sắp xếp không thuộc Form Contract V2/);
+  assert.match(source, /OPENJSON\(R\.RowJson\)/);
+  assert.match(source, /sys\.columns/);
+  assert.match(source, /SELECT \(SELECT T\.\* FOR JSON PATH/);
   assert.match(source, /base64content.*passwordhash.*refreshtoken.*rawsql/is);
-  assert.match(source, /HR_BangThueTNCNTbl/);
-  assert.match(source, /Bac.*Tu.*Den.*ThueSuat/is);
   assert.match(source, /@List\s+varchar\(50\)\s*,/i);
   assert.doesNotMatch(source, /SY_FormatFields/i);
+  assert.doesNotMatch(source, /@FilterBac|@FilterTu|@FilterDen|@FilterThueSuat/);
+  assert.match(source, /sp_executesql/i);
+  assert.doesNotMatch(source, /WA_BangThueTNCNFrm|HR_BangThueTNCNTbl|\bBac\b|\bTu\b|\bDen\b|ThueSuat|PersonName/);
 });
 
-test('metadata shadow mô tả đúng View V2 nhưng chặn active trước khi WA_API đổi', () => {
+test('metadata V2 lấy field/caption động từ registry và vẫn giữ diagnostic tương thích', () => {
   const resolver = read('sql/FieldSyncPhase1/01_API_WEB_GRID_FIELD_SCHEMA_V2.sql');
   const service = read('src/js/services/FieldSyncService.js');
   const verifier = read('scripts/verify-field-sync-staging.mjs');
   const dbVerify = read('sql/Phase2ApiMigration/05_VERIFY_PILOT_V2.sql');
-  assert.match(resolver, /PHASE2_SHADOW_VIEW_OVERRIDE/);
-  assert.match(resolver, /API_BangThueTNCN_V2/);
+  assert.match(resolver, /PHASE2_UNIFIED_FIELD_CONTRACT/);
+  assert.match(resolver, /sys\.sql_modules/);
+  assert.match(resolver, /sys\.columns/);
+  assert.match(resolver, /SY_FmtFldTbl/);
+  assert.match(resolver, /CaptionVN/);
+  assert.match(resolver, /COALESCE\(NULLIF\(M\.CaptionVN/);
+  assert.match(resolver, /AliasForm\.TableName[^\r\n]*LOWER\(@TableName\)/);
   assert.match(resolver, /SHADOW_VIEW_NOT_REGISTERED/);
   assert.match(resolver, /RESULTSET_METADATA_ERROR/);
   assert.match(resolver, /RESULTSET_UNSAFE_FIELD/);
   assert.match(resolver, /timestamp.*rowversion.*sql_variant.*geography.*geometry.*hierarchyid/is);
-  assert.match(dbVerify, /RESULTSET_METADATA_ERROR/);
-  assert.match(dbVerify, /RESULTSET_UNSAFE_FIELD/);
+  assert.match(dbVerify, /PHASE2_UNIFIED_FIELD_CONTRACT/);
+  assert.match(dbVerify, /PHASE2_AUTO_DELETE_MODE/);
+  assert.match(dbVerify, /M\.definition LIKE N'%UserName trong JsonData không khớp actor%'/);
   assert.match(resolver, /WA_UserPermisstion/);
   assert.match(resolver, /PHASE2_BRANCH_FAIL_CLOSED/);
+  assert.match(resolver, /WHERE LOWER\(L\.FormID\) = LOWER\(@WebFormName\)[\s\S]*WHERE LOWER\(L\.FormID\) = LOWER\(@ERPFormID\)/);
+  assert.match(resolver, /CapabilityVersion/);
   assert.match(service, /shadow_view_not_registered/);
   assert.match(verifier, /SHADOW_VIEW_NOT_REGISTERED/);
+  assert.match(service, /refresh=1/);
+  assert.doesNotMatch(resolver, /WA_BangThueTNCNFrm|HR_BangThueTNCNTbl|\bBac\b|\bTu\b|\bDen\b|ThueSuat|PersonName/);
 });
 
 test('Save V2 fail-closed và chỉ nhận cột vật lý an toàn', () => {
   const source = read('sql/Phase2ApiMigration/02_CREATE_SAVE_V2.sql');
+  assert.match(source, /OBJECT_NAME\(@@PROCID\)/);
+  assert.match(source, /WA_API AS A/);
+  assert.match(source, /SY_FrmLstTbl/);
+  assert.match(source, /sys\.tables/);
+  assert.match(source, /sys\.schemas/);
+  assert.match(source, /QUOTENAME\(@PhysicalSchema\)/);
+  assert.match(source, /QUOTENAME\(@PhysicalTable\)/);
   assert.match(source, /ISJSON\(@Data\)/);
   assert.match(source, /sys\.columns/);
   assert.match(source, /is_identity\s*=\s*0/);
@@ -109,17 +135,27 @@ test('Save V2 fail-closed và chỉ nhận cột vật lý an toàn', () => {
   assert.match(source, /JSON chứa field không tồn tại hoặc bị chặn/);
   assert.match(source, /Thiếu khóa chính khi cập nhật/);
   assert.match(source, /IsPrimaryKey\s*=\s*0/);
+  assert.ok((source.match(/LOWER\(J\.\[key\]\)\s+COLLATE\s+DATABASE_DEFAULT/gi) || []).length >= 4);
+  assert.doesNotMatch(source, /LOWER\(J\.\[key\]\)\s*=\s*LOWER\(C\.(?:name|ColumnName)\)/i);
+  assert.doesNotMatch(source, /LOWER\(C\.ColumnName\)\s*=\s*LOWER\(J\.\[key\]\)(?!\s+COLLATE)/i);
   assert.match(source, /sp_executesql/);
-  assert.doesNotMatch(source, /ALTER\s+TABLE|SY_FormatFields/i);
+  assert.doesNotMatch(source, /ALTER\s+TABLE|(?:FROM|JOIN)\s+(?:dbo\.)?SY_FormatFields/i);
   assert.doesNotMatch(source, /N'Lỗi SQL:|@Sql\s*\+/i);
+  assert.doesNotMatch(source, /WA_BangThueTNCNFrm|HR_BangThueTNCNTbl|\bBac\b|\bTu\b|\bDen\b|ThueSuat|PersonName/);
 });
 
-test('Delete V2 chỉ xóa mềm và hard-delete mặc định bị chặn', () => {
+test('Delete V2 tự chọn soft-delete khi có IsDeleted và hard-delete khi không có', () => {
   const source = read('sql/Phase2ApiMigration/03_CREATE_DELETE_V2.sql');
-  assert.match(source, /HARD_DELETE_BLOCKED/);
+  assert.match(source, /PHASE2_AUTO_DELETE_MODE/);
+  assert.match(source, /CASE WHEN @IsDeletedColumn IS NOT NULL THEN 'SOFT' ELSE 'HARD' END/);
+  assert.match(source, /sys\.tables/);
+  assert.match(source, /sys\.schemas/);
+  assert.match(source, /QUOTENAME\(@PhysicalSchema\)/);
+  assert.match(source, /QUOTENAME\(@PhysicalTable\)/);
   assert.match(source, /isdeleted/i);
   assert.match(source, /TRY_CONVERT/);
   assert.match(source, /STRING_SPLIT/);
+  assert.match(source, /LOWER\(J\.\[key\]\)\s+COLLATE\s+DATABASE_DEFAULT\s*=\s*LOWER\(@PrimaryKey\)\s+COLLATE\s+DATABASE_DEFAULT/);
   assert.match(source, /JsonData Delete phải là JSON object hợp lệ/);
   assert.match(source, /BEGIN TRANSACTION/);
   assert.match(source, /WA_UserGroupPermisstion/);
@@ -127,20 +163,39 @@ test('Delete V2 chỉ xóa mềm và hard-delete mặc định bị chặn', () 
   assert.match(source, /@GroupCanRun\s*=\s*P\.IsRun/);
   assert.match(source, /chưa được gán chi nhánh.*fail-closed/is);
   assert.match(source, /UserName trong JsonData không khớp actor/);
-  assert.doesNotMatch(source, /^\s*DELETE\s+FROM\s+(?!#)/im);
+  assert.match(source, /UPDATE T/);
+  assert.match(source, /DELETE T/);
+  assert.match(source, /@RowsAffected\s*<>\s*@RequestedCount/);
+  assert.match(source, /ROLLBACK TRANSACTION/);
   assert.doesNotMatch(source, /ALTER\s+TABLE|SY_FormatFields/i);
+  assert.doesNotMatch(source, /HARD_DELETE_BLOCKED/);
+  assert.doesNotMatch(source, /WA_BangThueTNCNFrm|HR_BangThueTNCNTbl|\bBac\b|\bTu\b|\bDen\b|ThueSuat|PersonName/);
+});
+
+test('View runtime harness chỉ đọc và kiểm tra contract/caption động không hard-code field', () => {
+  const source = read('sql/Phase2RuntimeTests/01_VIEW_PARITY_READONLY.sql');
+  assert.match(source, /REPLACE_WITH_ACTIVE_TEST_USER/);
+  assert.match(source, /API_Web_GridFieldSchemaV2/);
+  assert.match(source, /SY_FrmLstTbl/);
+  assert.match(source, /sys\.columns/);
+  assert.match(source, /SY_FmtFldTbl/);
+  assert.match(source, /PHASE2_UNIFIED_FIELD_CONTRACT/);
+  assert.match(source, /PASS_READ_ONLY_EVIDENCE/);
+  assert.doesNotMatch(source, /HR_BangThueTNCNTbl|\bBac\b|\bTu\b|\bDen\b|ThueSuat|PersonName/);
+  assert.doesNotMatch(source, /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO)\s+dbo\.WA_API/i);
 });
 
 test('registration và rollback mặc định preview-only, không DELETE/INSERT WA_API', () => {
   const registration = read('sql/Phase2ApiMigration/04_REGISTER_PILOT_V2.sql');
   const rollback = read('sql/Phase2ApiMigration/06_ROLLBACK_PILOT_REGISTRATION.sql');
-  assert.match(registration, /@ApplyView\s+bit\s*=\s*0/);
-  assert.match(registration, /@ApplySave\s+bit\s*=\s*0/);
-  assert.match(registration, /@ApplyDelete\s+bit\s*=\s*0/);
+  assert.match(registration, /@ApplyView\s+bit\s*=\s*ISNULL\(TRY_CONVERT\(bit, SESSION_CONTEXT\(N'PHASE2_APPLY_VIEW'\)\), 0\)/);
+  assert.match(registration, /@ApplySave\s+bit\s*=\s*ISNULL\(TRY_CONVERT\(bit, SESSION_CONTEXT\(N'PHASE2_APPLY_SAVE'\)\), 0\)/);
+  assert.match(registration, /@ApplyDelete\s+bit\s*=\s*ISNULL\(TRY_CONVERT\(bit, SESSION_CONTEXT\(N'PHASE2_APPLY_DELETE'\)\), 0\)/);
   assert.match(registration, /SESSION_CONTEXT\(N'PHASE2_VIEW_GATE'\)/);
   assert.match(registration, /SESSION_CONTEXT\(N'PHASE2_SAVE_GATE'\)/);
   assert.match(registration, /SESSION_CONTEXT\(N'PHASE2_DELETE_GATE'\)/);
   assert.match(registration, /SESSION_CONTEXT\(N'PHASE2_ACTOR_VERIFIED'\)/);
+  assert.match(registration, /IF\s+@ApplyDelete\s*=\s*1\s+AND\s+@ApplyView\s*=\s*0\s+AND\s+NOT\s+EXISTS/i);
   assert.doesNotMatch(registration, /(?:DELETE\s+FROM|INSERT\s+INTO)\s+dbo\.WA_API/i);
   assert.match(rollback, /@RollbackView\s+bit\s*=\s*0/);
   assert.match(rollback, /API_TruyVanDong/);
@@ -191,6 +246,7 @@ test('dual schema dùng object độc lập và rollback Grid được re-render
   assert.match(engine, /_gridSchemaSignature/);
   assert.match(engine, /_applyFieldSyncState/);
   assert.match(engine, /previousSignature\s*===\s*nextSignature/);
+  assert.match(engine, /Schema\/caption mới phải đi kèm dữ liệu mới[\s\S]*_loadData\(\)/);
   assert.doesNotMatch(engine, /if\s*\(detail\.state\.active[^)]*\)[^{]*_renderTable/);
 });
 
@@ -206,10 +262,12 @@ test('inline edit chỉ gửi PK và field vừa sửa, không forward toàn b�
   assert.doesNotMatch(engine.slice(cellEditStart, cellEditEnd), /Object\.assign\(\{\},\s*rowData\)/);
 });
 
-test('pilot khong cho Delete legacy va gateway Save nhan actor/branch top-level', () => {
+test('pilot điều khiển Delete theo capability, chỉ gửi PK và Save nhận actor/branch top-level', () => {
   const engine = read('src/js/core/DynamicFormEngine.js');
-  assert.match(engine, /action === 'DELETE' && _isPhase2ManagedForm\(\)\) return false/);
-  assert.match(engine, /Delete pilot Phase 2/);
+  assert.match(engine, /action === 'DELETE' && !_contractDeleteActive\(\)/);
+  assert.match(engine, /Delete V2 đang bị khóa/);
+  assert.match(engine, /Ids: ids\.join\(','\)/);
+  assert.match(engine, /deleteData\[primaryKey\] = ids\.join\(','\)/);
   assert.match(engine, /UserName: _currentUser\(\),\s*BranchID: _currentBranchId\(\)/);
 });
 
@@ -231,6 +289,10 @@ test('registry Phase 2 cố định đúng một pilot và không tự bật run
     AppSession: { getUserName: () => 'Admin', getBranchId: () => 'CN01' }
   });
   assert.deepEqual(Object.keys(window.Phase2MigrationRegistry.forms), ['WA_BangThueTNCNFrm']);
+  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.schemaPolicy, 'UNIFIED_V2');
+  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.saveV2, 'API_LuuDong_V2');
+  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.deleteV2, 'API_XoaDong_V2');
+  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.deletePolicy, 'AUTO_SOFT_OR_HARD');
   assert.equal(window.FieldSyncService.isPilot('WA_BangThueTNCNFrm'), false);
   const state = await window.FieldSyncService.inspectForm('WA_BangThueTNCNFrm');
   assert.equal(state.status, 'compare-only');
@@ -239,22 +301,78 @@ test('registry Phase 2 cố định đúng một pilot và không tự bật run
   await assert.rejects(window.FieldSyncService.inspectForm('WA_PayrollFrm'), /registry Phase 2/);
 });
 
-test('pilot Phase 2 cho phep field moi ONLY_V2 nhung van fail-closed voi ONLY_LEGACY', async () => {
+test('cấu hình deploy bật đúng pilot unified và trỏ metadata backend', () => {
+  const env = read('env.js');
+  const index = read('index.html');
+  assert.match(env, /FIELD_SYNC\s*=\s*Object\.assign\(\{[\s\S]*enabled:\s*true/);
+  assert.match(env, /shadowMode:\s*false/);
+  assert.match(env, /pilotForms:\s*\['WA_BangThueTNCNFrm'\]/);
+  assert.match(env, /metadataBaseUrl:[\s\S]*\/api\/metadata/);
+  assert.match(index, /env\.js\?v=14/);
+  assert.match(index, /app\.bundle\.js\?v=16/);
+});
+
+test('metadata V2 không tự xóa phiên chính khi backend local trả 401', () => {
+  const apiClient = read('src/js/utils/apiClient.js');
+  const fieldSync = read('src/js/services/FieldSyncService.js');
+  assert.match(apiClient, /logoutOnUnauthorized\s*=\s*options\.logoutOnUnauthorized\s*!==\s*false/);
+  assert.match(apiClient, /response\.status\s*===\s*401\s*&&\s*logoutOnUnauthorized/);
+  assert.match(fieldSync, /metadataRequestOptions\s*=\s*\{\s*headers:\s*headers,\s*logoutOnUnauthorized:\s*false\s*\}/);
+  assert.match(fieldSync, /searchLookup[\s\S]*logoutOnUnauthorized:\s*false/);
+});
+
+test('backend xác minh phiên qua endpoint userinfo đúng contract API gốc', () => {
+  const config = read('backend-app/src/field-sync/field-sync.config.js');
+  const env = read('env.js');
+  assert.match(config, /authVerifyUrl:\s*`\$\{sqlApiBase\}\/api\/userinfo`/);
+  assert.match(env, /USER_INFO:\s*'\/api\/userinfo'/);
+  assert.doesNotMatch(config, /API_UserInfo/);
+});
+
+test('backend tuân thủ wire contract Gateway và giữ placeholder trong JsonData', () => {
+  const gateway = read('backend-app/src/field-sync/field-sync.gateway.js');
+  assert.match(gateway, /API_Gateway_Router has a fixed wire contract/);
+  assert.match(gateway, /Limit:\s*pageSize/);
+  assert.doesNotMatch(gateway, /\n\s*FormName:\s*formName/);
+  assert.doesNotMatch(gateway, /\n\s*ERPFormID:\s*erpFormId/);
+  assert.doesNotMatch(gateway, /\n\s*PageSize:\s*pageSize/);
+  assert.match(gateway, /JsonData:\s*JSON\.stringify\(\{\s*\.\.\.jsonData,\s*BranchID:\s*context\.branchId\s*\}\)/);
+});
+
+test('pilot Phase 2 tạo Grid/Add/Edit/Filter từ một Form Contract và không gọi compare legacy', async () => {
   const baseSchema = {
     schemaVersion: '2.0',
+    capabilityVersion: '1.0',
     formName: 'WA_BangThueTNCNFrm',
     erpFormId: 'HR_BangThueTNCNFrm',
-    sourceKind: 'RESULT_SET',
+    sourceKind: 'MAIN_TABLE',
     primaryKey: 'Bac',
     diagnostics: [],
     lookups: [],
+    runtimeRoutes: {
+      view: { registeredProcedure: 'API_BangThueTNCN_V2' },
+      save: { registeredProcedure: 'API_LuuDong_V2' },
+      delete: { registeredProcedure: 'API_XoaDong_V2', mode: 'HARD' }
+    },
+    fields: [
+      {
+        name: 'Bac', label: 'Bậc', orderNo: 1, showInGrid: true, showInAdd: true, showInEdit: true,
+        showInFilter: true, supportsInsert: true, supportsUpdate: false, supportsFilter: true,
+        supportsSort: true, supportsKeyword: true, isPrimaryKey: true, requiredOnInsert: true
+      },
+      {
+        name: 'GhiChuMoi', label: 'Ghi chú mới', orderNo: 2, showInGrid: true, showInAdd: true, showInEdit: true,
+        showInFilter: true, supportsInsert: true, supportsUpdate: true, supportsFilter: true,
+        supportsSort: true, supportsKeyword: true, isPrimaryKey: false, requiredOnInsert: false
+      }
+    ],
     gridFields: [
-      { name: 'Bac', label: 'Bac', orderNo: 1 },
-      { name: 'GhiChuMoi', label: 'Ghi chu moi', orderNo: 2 }
+      { name: 'Bac', label: 'Bậc', orderNo: 1 },
+      { name: 'GhiChuMoi', label: 'Ghi chú mới', orderNo: 2 }
     ]
   };
-  let comparisonStatus = 'ONLY_V2';
   let branchId = 'CN01';
+  let calls = 0;
   const window = runBrowserFiles([
     'src/js/config/Phase2MigrationRegistry.js',
     'src/js/services/FieldSyncService.js'
@@ -262,33 +380,56 @@ test('pilot Phase 2 cho phep field moi ONLY_V2 nhung van fail-closed voi ONLY_LE
     ErpFormAliases: { resolve: () => 'HR_BangThueTNCNFrm' },
     ERP_FIELD_SYNC_CONFIG: { enabled: true, shadowMode: false, pilotForms: ['WA_BangThueTNCNFrm'], pollSeconds: 120, metadataBaseUrl: '/api/metadata' },
     ApiClient: {
-      get: async (url) => url.includes('/compare?')
-        ? { comparison: {
-          schemaVersion: '2.0',
-          formName: 'WA_BangThueTNCNFrm',
-          erpFormId: 'HR_BangThueTNCNFrm',
-          primaryKey: { legacy: 'Bac', v2: 'Bac', status: 'MATCH' },
-          items: [
-            { fieldName: 'Bac', status: 'MATCH' },
-            { fieldName: 'GhiChuMoi', status: comparisonStatus }
-          ]
-        } }
-        : { schema: baseSchema }
+      get: async (url) => {
+        calls += 1;
+        assert.doesNotMatch(url, /\/compare/);
+        assert.match(url, /refresh=1/);
+        return { schema: baseSchema };
+      }
     },
     AppSession: { getUserName: () => 'Admin', getBranchId: () => branchId },
     sessionStorage: { setItem() {} }
   });
 
-  const legacy = [{ name: 'Bac' }];
-  const active = await window.FieldSyncService.observeForm('WA_BangThueTNCNFrm', legacy);
-  assert.equal(active.status, 'pilot-active');
+  const active = await window.FieldSyncService.observeForm('WA_BangThueTNCNFrm', [{ name: 'LegacyMustNotLeak' }]);
+  assert.equal(active.status, 'unified-active');
   assert.deepEqual(Array.from(active.runtimeSchemas.grid, (field) => field.name), ['Bac', 'GhiChuMoi']);
+  assert.deepEqual(Array.from(active.runtimeSchemas.add, (field) => field.name), ['Bac', 'GhiChuMoi']);
+  assert.deepEqual(Array.from(active.runtimeSchemas.edit, (field) => field.name), ['Bac', 'GhiChuMoi']);
+  assert.deepEqual(Array.from(active.runtimeSchemas.filters, (field) => field.name), ['Bac', 'GhiChuMoi']);
+  assert.equal(active.runtimeSchemas.edit[0].isReadOnlyEdit, true);
+  assert.equal(active.runtimeSchemas.edit[1].isReadOnlyEdit, false);
+  assert.equal(active.deleteActive, true);
+  assert.equal(calls, 1);
 
-  comparisonStatus = 'ONLY_LEGACY';
+  baseSchema.runtimeRoutes.view.registeredProcedure = 'API_TruyVanDong';
   branchId = 'CN02';
-  const blocked = await window.FieldSyncService.observeForm('WA_BangThueTNCNFrm', legacy);
-  assert.equal(blocked.status, 'pilot-blocked-critical');
-  assert.deepEqual(Array.from(blocked.runtimeSchemas.grid, (field) => field.name), ['Bac']);
+  const blocked = await window.FieldSyncService.observeForm('WA_BangThueTNCNFrm', []);
+  assert.equal(blocked.status, 'unified-blocked');
+  assert.deepEqual(Array.from(blocked.runtimeSchemas.grid), []);
+});
+
+test('DynamicFormEngine unified bỏ API dictionary legacy và sanitizer không gửi OrderNo/audit', () => {
+  const engine = read('src/js/core/DynamicFormEngine.js');
+  assert.match(engine, /if \(unifiedContract\)[\s\S]*FieldSyncService\.observeForm/);
+  assert.match(engine, /!isUnifiedMetadata && window\.HRMetadataAdapter/);
+  assert.match(engine, /_buildContractWritePayload/);
+  assert.match(engine, /field\.supportsInsert === true/);
+  assert.match(engine, /field\.supportsUpdate === true/);
+  assert.match(engine, /if \(!_usesUnifiedFieldContract\(\)\) singlePayload\.OrderNo/);
+  const contractBuilder = engine.slice(engine.indexOf('function _buildContractWritePayload'), engine.indexOf('function _isPhase2ManagedForm'));
+  assert.doesNotMatch(contractBuilder, /UserName|UserCreate|OrderNo/);
+  const cellEditStart = engine.indexOf('window.tabulatorInstance.on("cellEdited"');
+  const cellEditEnd = engine.indexOf('window.tabulatorInstance.on("headerClick"', cellEditStart);
+  assert.match(engine.slice(cellEditStart, cellEditEnd), /_usesUnifiedFieldContract\(\) \? _gateway\(\)/);
+});
+
+test('verifier staging nhận Form Contract V2 và bỏ compare runtime legacy', () => {
+  const verifier = read('scripts/verify-field-sync-staging.mjs');
+  assert.match(verifier, /schema\.capabilityVersion[\s\S]*=== '1\.0'/);
+  assert.match(verifier, /unified \? \['RESULT_SET', 'MAIN_TABLE'\]/);
+  assert.match(verifier, /if \(!unified\) \{[\s\S]*\/compare/);
+  assert.match(verifier, /runtimeRoutes\.view[\s\S]*runtimeRoutes\.save[\s\S]*runtimeRoutes\.delete/);
 });
 
 test('fixture contract không chứa dữ liệu nhân sự thật', () => {
@@ -329,6 +470,7 @@ test('báo cáo Phase 2 có đủ artifact bắt buộc và ghi rõ trạng thá
     '08_HUONG_DAN_DB_TEST.md',
     '09_HUONG_DAN_ROLLBACK.md',
     '10_DANH_SACH_FILE_TEST_VA_KY_VONG.md',
+    '11_KICH_HOAT_UNIFIED_FIELD_CONTRACT.md',
     'BAO_CAO_TONG_KET.md'
   ];
   required.forEach((file) => assert.ok(fs.existsSync(path.join(directory, file)), `thiếu ${file}`));

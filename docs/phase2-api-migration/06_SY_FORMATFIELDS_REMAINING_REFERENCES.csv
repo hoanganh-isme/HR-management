@@ -158,7 +158,8 @@ sql/Deploy/HRM_Web_Install.sql,910,"OUTPUT 'SY_FormatFields', CONCAT(inserted.Fo
 sql/Deploy/HRM_Web_Install.sql,917,SELECT 1 FROM dbo.SY_FormatFields x,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Deploy/HRM_Web_Install.sql,965,"SELECT 'SY_FormatFields', COUNT_BIG(*), COUNT_BIG(CASE WHEN m.FormName IS NOT NULL THEN 1 END)",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Deploy/HRM_Web_Install.sql,966,FROM dbo.SY_FormatFields x,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
-sql/FieldSyncPhase1/03_API_WEB_GRID_FIELD_COMPARE_V2.sql,54,FROM dbo.SY_FormatFields AS F,PARITY,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/FieldSyncPhase1/01_API_WEB_GRID_FIELD_SCHEMA_V2.sql,7,SY_FormatFields không tham gia contract runtime này.,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/FieldSyncPhase1/03_API_WEB_GRID_FIELD_COMPARE_V2.sql,63,FROM dbo.SY_FormatFields AS F,PARITY,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Insert/Combined_Insert_Temp.sql,14,DELETE FROM dbo.SY_FormatFields WHERE FormName = 'WA_BangPhuCapFrm';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Insert/Combined_Insert_Temp.sql,50,-- 5. CẤU HÌNH CHI TIẾT NHÃN VÀ ĐỊNH DẠNG TRƯỜNG (SY_FormatFields),MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Insert/Combined_Insert_Temp.sql,52,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
@@ -631,6 +632,7 @@ sql/Insert/Register_WA_TitleListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,
 sql/Insert/Register_WA_WorkingGroupListFrm.sql,43,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Insert/Register_WA_WorkingGroupListFrm.sql,47,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Insert/Register_WA_WorkingGroupListFrm.sql,51,UPDATE dbo.SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+sql/Phase2ApiMigration/02_CREATE_SAVE_V2.sql,4,không đọc SY_FormatFields và không nhận tên bảng từ client.,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Query/Query_frmCustomer.sql,15,FROM SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Restore/Restore_frmCustomer_Caption.sql,5,UPDATE SY_FormatFields SET CaptionVN = N'Tên khách hàng' WHERE FormName = 'frmCustomer' AND FieldName = 'Tenkh';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 sql/Restore/Restore_frmCustomer_Caption.sql,6,UPDATE SY_FormatFields SET CaptionVN = N'Số hợp đồng' WHERE FormName = 'frmCustomer' AND FieldName = 'Sohopdong';,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
@@ -769,8 +771,10 @@ src/components/report-filter/ReportFilterDialog.js,9,"* formName: 'frmReportFilt
 src/components/report-filter/ReportFilterDialog.js,267,* VisibleRule syntax (lưu trong SY_FormatFields.VisibleRule):,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 src/components/report-filter/ReportFilterDialog.js,363,* @param {string} opts.formName - FormName trong SY_FormatFields,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 src/components/ui-utils/UIUtils.js,315,* Syntax (lưu trong SY_FormatFields.VisibleRule):,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
-src/js/core/DynamicFormEngine.js,4931,// Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
-src/js/core/DynamicFormEngine.js,4931,// Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/core/DynamicFormEngine.js,456,// 1. Lấy metadata. Form unified V2 không được gọi API legacy/SY_FormatFields.,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/core/DynamicFormEngine.js,456,// 1. Lấy metadata. Form unified V2 không được gọi API legacy/SY_FormatFields.,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/core/DynamicFormEngine.js,5111,// Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule,ADD_EDIT_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
+src/js/core/DynamicFormEngine.js,5111,// Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule,FILTER_RUNTIME,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 src/js/core/router.js,86,"existingConfig = { FormName: 'SY_FormatFields', PageTitle: 'Cấu hình động', UseSplitLayout: false };",MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 src/js/modules/hr/definitions/contract.js,86,// Cấu hình ghi đè lên SY_FormatFields từ Database,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY
 src/js/modules/hr/definitions/leave.js,51,// Fallback cục bộ chỉ dùng khi API metadata không trả SY_FormatFields.,MIGRATION,GLOBAL_OR_OTHER,KEEP_WITH_COMPATIBILITY

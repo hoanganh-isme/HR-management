@@ -9,7 +9,9 @@ Pilot duy nhất:
     Table   : HR_BangThueTNCNTbl
     PK      : Bac
 
-Chỉ chạy trên staging/QA có backup và dữ liệu ẩn danh. Không chạy cờ đăng ký bật trên production. Runtime hiện tại vẫn tắt; WA_API View/Save/Delete vẫn legacy.
+Chỉ chạy trên staging/QA có backup và dữ liệu ẩn danh. Không chạy cờ đăng ký bật trên production. Trước bước kích hoạt, `WA_API` vẫn có thể đang trỏ legacy; form unified sẽ fail-closed chứ không quay về `SY_FormatFields`.
+
+Tài liệu kích hoạt chuẩn của kiến trúc mới: `docs/phase2-api-migration/11_KICH_HOAT_UNIFIED_FIELD_CONTRACT.md`.
 
 Ký hiệu: RUN = được chạy; CHECK = chỉ đọc; GATE = chỉ chạy sau khi tất cả test trước đạt; STOP = dừng khi gặp lỗi.
 
@@ -42,10 +44,10 @@ Các file được chạy:
 
 Kết quả chuẩn hiện tại:
 
-    Phase 1 + Phase 2: 39/39 pass
-    Backend:           27/27 pass
-    Audit:             176 SQL; 240 procedure/inventory; 230 JOIN
-                       18 star; 17 unsafe; 785 SY_FormatFields; 1 approved star
+    Phase 1 + Phase 2: 47/47 pass
+    Backend:           32/32 pass
+    Audit:             176 SQL; 240 procedure/inventory; 231 JOIN
+                       17 star; 16 unsafe; 789 SY_FormatFields; 1 approved star
 
 Full regression tùy chọn:
 
@@ -53,7 +55,7 @@ Full regression tùy chọn:
 cmd.exe /d /c node.exe --test tests/frontend-contracts.test.mjs tests/field-sync-phase1.test.mjs tests/phase2-api-migration.test.mjs
 ~~~
 
-Kỳ vọng hiện tại là 48/51; ba lỗi baseline cũ thuộc DocumentExportPlugin, attachment business key và detail-tab primary key, không dùng để bật Phase 2.
+Kết quả hiện tại là 56/59; ba lỗi baseline cũ thuộc DocumentExportPlugin, attachment business key và detail-tab primary key, không dùng để bật Phase 2.
 
 ## 2. Cài nền Phase 1 trên SQL Server staging
 
@@ -65,8 +67,10 @@ Chạy bằng SSMS hoặc sqlcmd với cờ fail-on-error:
 | 2.2 | sql/FieldSyncPhase1/01_API_WEB_GRID_FIELD_SCHEMA_V2.sql | Tạo/cập nhật Grid Schema V2 |
 | 2.3 | sql/FieldSyncPhase1/02_API_WEB_LOOKUP_SCHEMA_V2.sql | Tạo/cập nhật Lookup Schema V2 |
 | 2.4 | sql/FieldSyncPhase1/03_API_WEB_GRID_FIELD_COMPARE_V2.sql | Tạo/cập nhật Compare V2 |
-| 2.5 | sql/FieldSyncPhase1/04_DANG_KY_API_READONLY.sql | Chỉ thêm ba registration metadata read-only nếu thiếu |
-| 2.6 | sql/FieldSyncPhase1/05_KIEM_TRA_SAU_CAI_DAT.sql | Ba procedure metadata tồn tại, registration không conflict |
+| 2.5 | sql/FieldSyncPhase1/04_DANG_KY_API_READONLY.sql | Idempotent: thêm route View thiếu hoặc repair exact Para của ba metadata procedure; fail-closed khi duplicate/trỏ sai |
+| 2.6 | sql/FieldSyncPhase1/05_KIEM_TRA_SAU_CAI_DAT.sql | Ba procedure và route View có exact Para, RegistrationCount = 1; kiểm tra trigger không ghi đè route curated |
+
+Sau khi sửa registration, chạy thêm `sql/Phase2RuntimeTests/02_GATEWAY_METADATA_SMOKE_READONLY.sql`. Đây là probe qua đúng `API_Gateway_Router` mà web sử dụng; `error_number = 201` là Para thiếu tham số, còn `error_number = 229` là thiếu quyền `EXECUTE` trực tiếp trên procedure đích.
 
 STOP nếu thiếu menu/quyền/branch, procedure fallback hoặc diagnostic error.
 
@@ -76,9 +80,9 @@ STOP nếu thiếu menu/quyền/branch, procedure fallback hoặc diagnostic err
 |---:|---|---|---|
 | 3.1 | sql/Phase2ApiMigration/00_CAPTURE_VIEW_CONTRACT.sql | CHECK | Lưu parameter, result-set, type/nullability, PK/duplicate và row count old/candidate |
 | 3.2 | sql/Phase2ApiMigration/01_CREATE_VIEW_V2_PILOT.sql | RUN | Tạo API_BangThueTNCN_V2; không đổi WA_API |
-| 3.3 | sql/FieldSyncPhase1/01_API_WEB_GRID_FIELD_SCHEMA_V2.sql | RUN lại | Shadow metadata mô tả đúng View V2 |
+| 3.3 | sql/FieldSyncPhase1/01_API_WEB_GRID_FIELD_SCHEMA_V2.sql | RUN lại | Tạo Form Contract V2 từ bảng chính và các bảng SY_* |
 | 3.4 | sql/Phase2ApiMigration/02_CREATE_SAVE_V2.sql | RUN | Tạo API_LuuDong_V2; không DDL runtime, không đọc SY_FormatFields |
-| 3.5 | sql/Phase2ApiMigration/03_CREATE_DELETE_V2.sql | RUN | Tạo API_XoaDong_V2; hard-delete bị khóa mặc định |
+| 3.5 | sql/Phase2ApiMigration/03_CREATE_DELETE_V2.sql | RUN | Tạo API_XoaDong_V2; tự chọn soft-delete nếu có IsDeleted bit, nếu không thì hard-delete |
 | 3.6 | sql/Phase2ApiMigration/05_VERIFY_PILOT_V2.sql | CHECK | Static gate pass; activation vẫn pending |
 
 Khi WA_API.View còn API_TruyVanDong, response metadata phải có:
@@ -97,15 +101,18 @@ Khi WA_API.View còn API_TruyVanDong, response metadata phải có:
 
 ### 4.1 View
 
+`sql/Phase2RuntimeTests/01_VIEW_PARITY_READONLY.sql` là smoke test chỉ đọc của contract động: tự lấy table/PK/field, chạy metadata và View V2, rồi xác nhận row count/WA_API không bị thay đổi. `05_VERIFY_PILOT_V2.sql` kiểm tra contract tĩnh, còn các ca quyền/branch phải smoke test bằng tài khoản web thật.
+
 | Ca kiểm thử | Kỳ vọng |
 |---|---|
-| Old/V2 cùng snapshot | Bốn cột đầu Bac/Tu/Den/ThueSuat giữ nguyên alias/type |
-| PK | Bac không NULL, không duplicate |
-| Keyword/filter | Có evidence parity old/V2; field V2 mới chưa filter |
-| Sort | Bốn cột legacy ASC/DESC đúng; sort field mới bị từ chối |
+| Contract vật lý/Web | Mọi cột an toàn có cùng FieldName/type/nullability; caption ưu tiên SY_FmtFldTbl.CaptionVN |
+| PK | PrimaryKey đăng ký không NULL, không duplicate |
+| Keyword/filter | Mọi field vật lý an toàn trong contract có thể keyword/filter; audit/server-managed bị chặn |
+| Sort | Mọi field vật lý an toàn trong contract có thể ASC/DESC; field ngoài contract bị từ chối |
 | Branch | Non-admin thiếu branch hoặc branch ngoài context bị từ chối |
 | Permission | IsRun/quyền group-user không đạt thì không trả dữ liệu |
 | Safety | Không trả blob/password/token/kiểu kỹ thuật |
+| Cột mới | Thêm cột vật lý an toàn và cấu hình cùng FieldName trong SY_FmtFldTbl; metadata/Web tự có cột, caption Việt, sort/filter/Add/Edit mà không sửa code theo tên field |
 
 ### 4.2 Save V2
 
@@ -132,7 +139,7 @@ Test:
     hard-delete thử nghiệm
     FK dependency và rollback
 
-Kỳ vọng: chỉ soft-delete khi IsDeleted là bit và có audit column; nếu thiếu policy phải trả HARD_DELETE_BLOCKED và không xóa vật lý.
+Kỳ vọng: `DeleteMode=SOFT` khi có `IsDeleted bit`; `DeleteMode=HARD` khi không có `IsDeleted`; nếu `IsDeleted` sai kiểu thì chặn. Soft/hard đều phải đúng permission, đúng toàn bộ số ID và rollback khi có lỗi/FK conflict.
 
 Chi tiết các ca nằm trong docs/phase2-api-migration/08_HUONG_DAN_DB_TEST.md.
 
@@ -166,8 +173,10 @@ Verifier PASS chỉ khi View gate đã đạt. Trước khi đổi WA_API.View, 
 Verifier phải xác nhận:
 
     schemaVersion = 2.0
-    sourceKind = RESULT_SET
+    capabilityVersion = 1.0
+    sourceKind = MAIN_TABLE
     primaryKey = Bac
+    runtimeRoutes phản ánh đúng WA_API View/Save/Delete
     thiếu auth = 401
     alias ERP sai = 409
     không có raw SQL
@@ -187,7 +196,7 @@ Các file liên quan:
     src/js/utils/FormBuilderPlugin.js
     src/js/app.bundle.js (generated)
 
-Shadow config phải được inject trước bundle:
+Trước khi đổi `WA_API`, có thể deploy backend metadata để kiểm tra shadow. Không bật form unified cho người dùng ở trạng thái này vì nó cố ý fail-closed:
 
 ~~~javascript
 window.HRM_RUNTIME_CONFIG = Object.assign({}, window.HRM_RUNTIME_CONFIG, {
@@ -201,13 +210,7 @@ window.HRM_RUNTIME_CONFIG = Object.assign({}, window.HRM_RUNTIME_CONFIG, {
 });
 ~~~
 
-Sau hard reload, kỳ vọng:
-
-    Grid/Add/Edit/Filter vẫn legacy
-    diagnostic shadow được hiển thị/ghi nhận
-    sessionStorage có ERP_FIELD_SYNC_PARITY:<form>|<erp>|<user>|<branch>
-    mobile card không crash
-    field V2 mới không làm Grid active khi diagnostic blocking
+Kỳ vọng: metadata trả `SHADOW_VIEW_NOT_REGISTERED`, form pilot không dựng UI từ legacy và không gọi `API_LayCacTruongGiaoDien`.
 
 Chỉ sau Gate View mới thử pilot active:
 
@@ -225,10 +228,12 @@ window.HRM_RUNTIME_CONFIG = Object.assign({}, window.HRM_RUNTIME_CONFIG, {
 
 Kỳ vọng active:
 
-    membership lấy từ View V2 result-set
-    ONLY_V2 hiển thị read-only, không server sort/filter
-    caption/format/lookup/PK lấy từ metadata đã xác minh
-    Add/Edit vẫn legacy
+    membership/type/nullability lấy trực tiếp từ HR_BangThueTNCNTbl qua sys.columns/sys.types
+    table/PK lấy từ SY_FrmLstTbl
+    caption/format/lookup lấy từ SY_FmtFldTbl, SY_FmatTbl, SY_FrmDrdwTbl
+    Grid/Add/Edit/Filter dùng cùng Form Contract V2
+    Save chỉ gửi field writable của contract; không có OrderNo/UserName/audit trong JsonData
+    Delete chỉ gửi PK và tự bật khi DeleteMode=SOFT hoặc HARD; khóa nếu IsDeleted sai kiểu
 
 ## 7. Gate đăng ký thật
 
@@ -236,20 +241,7 @@ File:
 
     sql/Phase2ApiMigration/04_REGISTER_PILOT_V2.sql
 
-Lần đầu luôn giữ:
-
-~~~sql
-@ApplyView = 0;
-@ApplySave = 0;
-@ApplyDelete = 0;
-~~~
-
-Sau khi có evidence DB/browser:
-
-1. Xác minh actor/session và View gate.
-2. Đăng ký View V2, chạy lại metadata/verifier/browser.
-3. Chạy Save insert/edit/rollback rồi mới đăng ký Save.
-4. Chỉ đăng ký Delete khi IsDeleted/audit/FK/soft-delete đã xác minh.
+Sau khi có evidence DB/browser, đặt `PHASE2_APPLY_VIEW/SAVE/DELETE=1`, các gate tương ứng và `PHASE2_ACTOR_VERIFIED=1` bằng `SESSION_CONTEXT` trong cùng connection, rồi chạy script. Ba route có thể đổi cùng một transaction. Delete V2 lấy chế độ từ schema vật lý, không cần allow-list tên bảng/cột nghiệp vụ.
 
 Không giả lập PHASE2_ACTOR_VERIFIED=1 bằng giá trị client. Không DELETE + INSERT WA_API.
 
@@ -281,15 +273,13 @@ Kỳ vọng sau rollback:
 
 | Hạng mục | Trạng thái |
 |---|---|
-| Local Phase 1 + Phase 2 | PASS 39/39 |
-| Backend metadata | PASS 27/27 |
+| Local Phase 1 + Phase 2 | PASS 47/47 |
+| Backend metadata | PASS 32/32 |
 | Bundle/source/audit | PASS static |
-| SQL Server compile/runtime | PENDING_DB |
-| Old/V2 parity | PENDING_DB |
-| Browser shadow | PENDING_STAGING |
-| Browser pilot active | BLOCKED |
-| Save V2 thật | BLOCKED, chưa đăng ký WA_API |
-| Delete V2 thật | BLOCKED, chờ xác minh soft-delete/audit |
+| SQL Server compile/runtime | REQUIRES_REDEPLOY_AND_DB_TEST |
+| Dynamic field/caption | REQUIRES_PERSONNAME_SMOKE_TEST |
+| Browser pilot active | REQUIRES_HARD_RELOAD_AND_RETEST |
+| Save V2 thật | REQUIRES_TRANSACTION_TEST |
+| Delete V2 thật | REQUIRES_SOFT_OR_HARD_TRANSACTION_TEST |
 
 Tài liệu chi tiết: docs/phase2-api-migration/07_KET_QUA_TEST.md, docs/phase2-api-migration/08_HUONG_DAN_DB_TEST.md, docs/phase2-api-migration/09_HUONG_DAN_ROLLBACK.md và docs/field-sync-phase1/07_HUONG_DAN_KICH_HOAT_STAGING.md
-

@@ -1,6 +1,10 @@
 /*
-  Contract chỉ đọc cho Grid Schema V2.
-  Nguồn: result-set của WA_API View; fallback sys.columns của TableName.
+  Form Contract V2 chỉ đọc.
+  - Membership/thứ tự: result-set của WA_API View V2.
+  - Table/PK: SY_FrmLstTbl.
+  - Caption/format/dropdown: SY_FmtFldTbl + SY_FmatTbl + SY_FrmDrdwTbl.
+  - Khả năng Add/Edit/Filter/Sort: sys.columns/sys.types của bảng chính.
+  SY_FormatFields không tham gia contract runtime này.
 */
 SET ANSI_NULLS ON;
 GO
@@ -98,30 +102,95 @@ BEGIN
     IF ISNULL(@ApiCount, 0) <> 1 OR ISNULL(@ViewProcedure, '') = ''
         THROW 51006, N'WA_API View chưa có duy nhất một đăng ký hợp lệ.', 1;
 
-    /*
-      PHASE2_SHADOW_VIEW_OVERRIDE:
-      Chỉ metadata/compare của đúng pilot được mô tả bằng V2 trước khi đổi WA_API runtime.
-      Diagnostic SHADOW_VIEW_NOT_REGISTERED sẽ chặn frontend active cho tới khi WA_API.View thật sự là V2.
-    */
-    DECLARE @ShadowViewOverride bit = 0;
-    IF LOWER(@WebFormName) = LOWER('WA_BangThueTNCNFrm')
-       AND LOWER(@ERPFormID) = LOWER('HR_BangThueTNCNFrm')
-       AND LOWER(@ViewProcedure) = LOWER('API_TruyVanDong')
-       AND OBJECT_ID(N'dbo.API_BangThueTNCN_V2', N'P') IS NOT NULL
-    BEGIN
-        SET @ViewProcedure = 'API_BangThueTNCN_V2';
-        SET @ShadowViewOverride = 1;
-    END;
+    DECLARE @RegisteredViewProcedure varchar(50) = @ViewProcedure;
+    DECLARE @SaveRegistrationCount int, @DeleteRegistrationCount int;
+    DECLARE @RegisteredSaveProcedure varchar(50), @RegisteredDeleteProcedure varchar(50);
 
-    DECLARE @TableName varchar(100), @PrimaryKey varchar(100);
     SELECT
-        @TableName = L.TableName,
-        @PrimaryKey = L.PrimaryKey
+        @SaveRegistrationCount = COUNT(*),
+        @RegisteredSaveProcedure = MIN(LTRIM(RTRIM(A.[SQL])))
+    FROM dbo.WA_API AS A
+    WHERE A.[list] = @WebFormName
+      AND A.[func] = 'Save';
+
+    SELECT
+        @DeleteRegistrationCount = COUNT(*),
+        @RegisteredDeleteProcedure = MIN(LTRIM(RTRIM(A.[SQL])))
+    FROM dbo.WA_API AS A
+    WHERE A.[list] = @WebFormName
+      AND A.[func] = 'Delete';
+
+    IF ISNULL(@SaveRegistrationCount, 0) <> 1 SET @RegisteredSaveProcedure = NULL;
+    IF ISNULL(@DeleteRegistrationCount, 0) <> 1 SET @RegisteredDeleteProcedure = NULL;
+
+    /* Không suy đoán route bằng FormName: metadata luôn mô tả đúng WA_API View đang đăng ký. */
+    DECLARE @ShadowViewOverride bit = 0;
+
+    DECLARE @TableName varchar(100), @PrimaryKey varchar(100), @RegistryCount int;
+
+    /*
+      SY_FrmLstTbl của web runtime được đăng ký theo WebFormName.
+      ERPFormID là alias để đọc caption/format của ERP; chỉ dùng làm fallback cho
+      các form Phase 1 cũ không có registration web riêng.
+    */
+    SELECT @RegistryCount = COUNT(*)
     FROM dbo.SY_FrmLstTbl AS L
-    WHERE L.FormID = @ERPFormID;
+    WHERE LOWER(L.FormID) = LOWER(@WebFormName);
+
+    IF @RegistryCount > 1
+        THROW 51007, N'Web Form có nhiều registration SY_FrmLstTbl.', 1;
+
+    IF @RegistryCount = 1
+    BEGIN
+        SELECT
+            @TableName = L.TableName,
+            @PrimaryKey = L.PrimaryKey
+        FROM dbo.SY_FrmLstTbl AS L
+        WHERE LOWER(L.FormID) = LOWER(@WebFormName);
+    END
+    ELSE
+    BEGIN
+        SELECT @RegistryCount = COUNT(*)
+        FROM dbo.SY_FrmLstTbl AS L
+        WHERE LOWER(L.FormID) = LOWER(@ERPFormID);
+
+        IF @RegistryCount <> 1
+            THROW 51007, N'Form chưa có duy nhất một registration SY_FrmLstTbl.', 1;
+
+        SELECT
+            @TableName = L.TableName,
+            @PrimaryKey = L.PrimaryKey
+        FROM dbo.SY_FrmLstTbl AS L
+        WHERE LOWER(L.FormID) = LOWER(@ERPFormID);
+    END;
 
     IF ISNULL(@TableName, '') = ''
         THROW 51007, N'ERP Form chưa có TableName hợp lệ.', 1;
+
+    DECLARE @TableObjectID int = COALESCE(
+        OBJECT_ID(@TableName, N'U'),
+        OBJECT_ID(N'dbo.' + @TableName, N'U')
+    );
+
+    IF @TableObjectID IS NULL
+        THROW 51008, N'Không tìm thấy bảng chính đã đăng ký.', 1;
+
+    DECLARE @ProcedureObjectID int = COALESCE(
+        OBJECT_ID(@ViewProcedure, N'P'),
+        OBJECT_ID(N'dbo.' + @ViewProcedure, N'P')
+    );
+
+    /*
+      Không hard-code FormName, TableName hay danh sách field.
+      Procedure View nào công bố unified marker sẽ lấy membership trực tiếp từ sys.columns
+      của bảng đã đăng ký trong SY_FrmLstTbl.
+    */
+    DECLARE @UseMainTableContract bit = CASE WHEN EXISTS (
+        SELECT 1
+        FROM sys.sql_modules AS M
+        WHERE M.object_id = @ProcedureObjectID
+          AND M.definition LIKE '%PHASE2_UNIFIED_FIELD_CONTRACT%'
+    ) THEN 1 ELSE 0 END;
 
     DECLARE @Fields table (
         FieldOrdinal int NOT NULL,
@@ -132,12 +201,30 @@ BEGIN
     );
     DECLARE @ResultSetMetadataError bit = 0;
 
-    DECLARE @ProcedureObjectID int = COALESCE(
-        OBJECT_ID(@ViewProcedure, N'P'),
-        OBJECT_ID(N'dbo.' + @ViewProcedure, N'P')
-    );
+    IF @UseMainTableContract = 1
+    BEGIN
+        INSERT INTO @Fields (FieldOrdinal, FieldName, SqlType, IsNullable, SourceKind)
+        SELECT
+            C.column_id,
+            C.name,
+            TYPE_NAME(C.user_type_id)
+                + CASE
+                    WHEN TYPE_NAME(C.user_type_id) IN ('varchar', 'char', 'varbinary', 'binary')
+                        THEN '(' + CASE WHEN C.max_length = -1 THEN 'max' ELSE CONVERT(varchar(10), C.max_length) END + ')'
+                    WHEN TYPE_NAME(C.user_type_id) IN ('nvarchar', 'nchar')
+                        THEN '(' + CASE WHEN C.max_length = -1 THEN 'max' ELSE CONVERT(varchar(10), C.max_length / 2) END + ')'
+                    WHEN TYPE_NAME(C.user_type_id) IN ('decimal', 'numeric')
+                        THEN '(' + CONVERT(varchar(10), C.[precision]) + ',' + CONVERT(varchar(10), C.scale) + ')'
+                    ELSE ''
+                  END,
+            C.is_nullable,
+            'MAIN_TABLE'
+        FROM sys.columns AS C
+        WHERE C.object_id = @TableObjectID
+        ORDER BY C.column_id;
+    END;
 
-    IF @ProcedureObjectID IS NOT NULL
+    IF @ProcedureObjectID IS NOT NULL AND NOT EXISTS (SELECT 1 FROM @Fields)
     BEGIN
         BEGIN TRY
             IF EXISTS (
@@ -167,14 +254,6 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM @Fields)
     BEGIN
-        DECLARE @TableObjectID int = COALESCE(
-            OBJECT_ID(@TableName),
-            OBJECT_ID(N'dbo.' + @TableName)
-        );
-
-        IF @TableObjectID IS NULL
-            THROW 51008, N'Không mô tả được result-set và không tìm thấy bảng/view fallback.', 1;
-
         INSERT INTO @Fields (FieldOrdinal, FieldName, SqlType, IsNullable, SourceKind)
         SELECT
             C.column_id,
@@ -217,15 +296,74 @@ BEGIN
 
     SELECT
         CAST('2.0' AS varchar(10)) AS SchemaVersion,
+        CAST('1.0' AS varchar(10)) AS CapabilityVersion,
         @WebFormName AS WebFormName,
         @ERPFormID AS ERPFormName,
         @TableName AS TableName,
         @PrimaryKey AS PrimaryKey,
+        @RegisteredViewProcedure AS RegisteredViewProcedure,
+        @RegisteredSaveProcedure AS RegisteredSaveProcedure,
+        @RegisteredDeleteProcedure AS RegisteredDeleteProcedure,
+        CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM sys.columns AS SD
+                JOIN sys.types AS ST ON ST.user_type_id = SD.user_type_id
+                WHERE SD.object_id = @TableObjectID
+                  AND LOWER(SD.name) = 'isdeleted'
+                  AND LOWER(ST.name) = 'bit'
+            ) THEN 'SOFT'
+            WHEN NOT EXISTS (
+                SELECT 1
+                FROM sys.columns AS SD
+                WHERE SD.object_id = @TableObjectID
+                  AND LOWER(SD.name) = 'isdeleted'
+            ) THEN 
+                CASE 
+                    WHEN EXISTS (
+                        SELECT 1 FROM sys.extended_properties 
+                        WHERE major_id = @TableObjectID 
+                          AND name = 'AllowHardDelete' 
+                          AND value = '1'
+                    ) THEN 'HARD_APPROVED' 
+                    ELSE 'HARD' 
+                END
+            ELSE 'INVALID_ISDELETED_TYPE'
+        END AS DeleteMode,
         F.SourceKind,
         F.FieldOrdinal,
         CONVERT(varchar(128), F.FieldName) AS FieldName,
         F.SqlType,
         F.IsNullable,
+        CONVERT(bit, CASE WHEN C.column_id IS NULL THEN 0 ELSE 1 END) AS IsPhysicalColumn,
+        CONVERT(bit, CASE WHEN LOWER(F.FieldName) = LOWER(@PrimaryKey) THEN 1 ELSE 0 END) AS IsPrimaryKey,
+        CONVERT(bit, ISNULL(C.is_identity, 0)) AS IsIdentity,
+        CONVERT(bit, ISNULL(C.is_computed, 0)) AS IsComputed,
+        CONVERT(bit, CASE WHEN ISNULL(C.default_object_id, 0) <> 0 THEN 1 ELSE 0 END) AS HasDefault,
+        C.max_length AS DbMaxLength,
+        C.[precision] AS DbPrecision,
+        C.scale AS DbScale,
+        C.is_nullable AS DbIsNullable,
+        CONVERT(bit, CASE WHEN Flags.IsServerManaged = 1 THEN 1 ELSE 0 END) AS IsServerManaged,
+        CONVERT(bit, CASE WHEN Flags.IsDenied = 1 THEN 1 ELSE 0 END) AS IsSensitiveOrDenied,
+        CONVERT(bit, CASE
+            WHEN Flags.CanWrite = 1
+             AND C.is_nullable = 0
+             AND C.default_object_id = 0
+            THEN 1 ELSE 0 END) AS IsRequiredOnInsert,
+        CONVERT(bit, CASE WHEN Flags.CanQuery = 1 THEN 1 ELSE 0 END) AS ShowInGrid,
+        CONVERT(bit, CASE WHEN Flags.CanWrite = 1 THEN 1 ELSE 0 END) AS ShowInAdd,
+        CONVERT(bit, CASE
+            WHEN Flags.CanWrite = 1 OR LOWER(F.FieldName) = LOWER(@PrimaryKey)
+            THEN 1 ELSE 0 END) AS ShowInEdit,
+        CONVERT(bit, CASE WHEN Flags.CanQuery = 1 THEN 1 ELSE 0 END) AS ShowInFilter,
+        CONVERT(bit, CASE WHEN Flags.CanWrite = 1 THEN 1 ELSE 0 END) AS SupportsInsert,
+        CONVERT(bit, CASE
+            WHEN Flags.CanWrite = 1 AND LOWER(F.FieldName) <> LOWER(@PrimaryKey)
+            THEN 1 ELSE 0 END) AS SupportsUpdate,
+        CONVERT(bit, CASE WHEN Flags.CanQuery = 1 THEN 1 ELSE 0 END) AS SupportsFilter,
+        CONVERT(bit, CASE WHEN Flags.CanQuery = 1 THEN 1 ELSE 0 END) AS SupportsSort,
+        CONVERT(bit, CASE WHEN Flags.CanQuery = 1 THEN 1 ELSE 0 END) AS SupportsKeyword,
         COALESCE(NULLIF(M.CaptionVN, ''), NULLIF(M.CaptionEN, ''), CONVERT(nvarchar(200), F.FieldName)) AS Caption,
         M.FormatID,
         R.[Type] AS FormatType,
@@ -245,7 +383,14 @@ BEGIN
         R.NumberDecimal,
         R.FormatString,
         R.MaskString,
-        R.MaxLength,
+        COALESCE(
+            R.MaxLength,
+            CASE
+                WHEN TYPE_NAME(C.user_type_id) IN ('nvarchar', 'nchar') AND C.max_length > 0 THEN C.max_length / 2
+                WHEN TYPE_NAME(C.user_type_id) IN ('varchar', 'char') AND C.max_length > 0 THEN C.max_length
+                ELSE NULL
+            END
+        ) AS MaxLength,
         R.MinValue,
         R.MaxValue,
         COALESCE(NULLIF(M.AlignX, ''), R.Align) AS Align,
@@ -271,6 +416,44 @@ BEGIN
             ELSE 'OK'
         END AS DiagnosticCode
     FROM @Fields AS F
+    LEFT JOIN sys.columns AS C
+      ON C.object_id = @TableObjectID
+     AND LOWER(C.name) COLLATE DATABASE_DEFAULT = LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
+    LEFT JOIN sys.types AS CT
+      ON CT.user_type_id = C.user_type_id
+    OUTER APPLY (
+        SELECT
+            CONVERT(bit, CASE
+                WHEN C.column_id IS NOT NULL
+                 AND LOWER(C.name) IN ('usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
+                                       'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat',
+                                       'isdeleted', 'userdelete', 'deletedby', 'deleteby', 'datedelete', 'deleteddate', 'deletedat')
+                THEN 1 ELSE 0 END) AS IsServerManaged,
+            CONVERT(bit, CASE
+                WHEN C.column_id IS NULL
+                  OR LOWER(ISNULL(CT.name, '')) IN ('binary', 'varbinary', 'image', 'timestamp', 'rowversion', 'xml', 'text', 'ntext',
+                                                    'sql_variant', 'geography', 'geometry', 'hierarchyid')
+                  OR LOWER(C.name) IN ('content', 'base64content', 'filecontent', 'binarydata', 'password', 'passwordhash',
+                                      'token', 'refreshtoken', 'secret', 'rawsql', 'commandtext')
+                THEN 1 ELSE 0 END) AS IsDenied
+    ) AS BaseFlags
+    OUTER APPLY (
+        SELECT
+            BaseFlags.IsServerManaged,
+            BaseFlags.IsDenied,
+            CONVERT(bit, CASE
+                WHEN C.column_id IS NOT NULL
+                 AND ISNULL(C.is_identity, 0) = 0
+                 AND ISNULL(C.is_computed, 0) = 0
+                 AND BaseFlags.IsServerManaged = 0
+                 AND BaseFlags.IsDenied = 0
+                THEN 1 ELSE 0 END) AS CanWrite,
+            CONVERT(bit, CASE
+                WHEN C.column_id IS NOT NULL
+                 AND BaseFlags.IsServerManaged = 0
+                 AND BaseFlags.IsDenied = 0
+                THEN 1 ELSE 0 END) AS CanQuery
+    ) AS Flags
     OUTER APPLY (
         SELECT TOP (1)
             X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
@@ -279,6 +462,13 @@ BEGIN
           AND (
                 LOWER(ISNULL(X.FormName, '')) = LOWER(@ERPFormID)
              OR LOWER(ISNULL(X.FormName, '')) = LOWER(@WebFormName)
+             OR EXISTS (
+                    SELECT 1
+                    FROM dbo.SY_FrmLstTbl AS AliasForm
+                    WHERE LOWER(AliasForm.FormID) = LOWER(ISNULL(X.FormName, ''))
+                      AND LOWER(ISNULL(AliasForm.TableName, '')) = LOWER(@TableName)
+                      AND LOWER(ISNULL(AliasForm.PrimaryKey, '')) = LOWER(@PrimaryKey)
+                )
              OR X.FormName IS NULL
              OR LTRIM(RTRIM(X.FormName)) = ''
           )
@@ -286,8 +476,15 @@ BEGIN
             CASE
                 WHEN LOWER(ISNULL(X.FormName, '')) = LOWER(@ERPFormID) THEN 1
                 WHEN LOWER(ISNULL(X.FormName, '')) = LOWER(@WebFormName) THEN 2
-                WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
-                ELSE 4
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM dbo.SY_FrmLstTbl AS AliasForm
+                    WHERE LOWER(AliasForm.FormID) = LOWER(ISNULL(X.FormName, ''))
+                      AND LOWER(ISNULL(AliasForm.TableName, '')) = LOWER(@TableName)
+                      AND LOWER(ISNULL(AliasForm.PrimaryKey, '')) = LOWER(@PrimaryKey)
+                ) THEN 3
+                WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 4
+                ELSE 5
             END,
             X.AutoID
     ) AS M

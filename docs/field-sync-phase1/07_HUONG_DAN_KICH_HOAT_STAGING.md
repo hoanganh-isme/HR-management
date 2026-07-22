@@ -22,15 +22,16 @@ Thư mục script: `sql/FieldSyncPhase1`.
 
 1. Chụp backup DB staging và xác minh có thể restore.
 2. Chạy `00_KIEM_TRA_NGUON.sql`. Dừng nếu object/table/SP nguồn bị thiếu hoặc kết quả cần review.
-3. Chạy lần lượt:
+3. Nếu database có `TRG_AutoSync_WA_API`, chạy bản đã sửa `sql/Triggers/TRG_AutoSync_WA_API.sql` trước khi ALTER procedure metadata. Điều này ngăn trigger ghi đè route `View` curated.
+4. Chạy lần lượt:
    - `01_API_WEB_GRID_FIELD_SCHEMA_V2.sql`
    - `02_API_WEB_LOOKUP_SCHEMA_V2.sql`
    - `03_API_WEB_GRID_FIELD_COMPARE_V2.sql`
    - `04_DANG_KY_API_READONLY.sql`
-4. Với script `04`, cả ba dòng phải có `RegistrationStatus = OK`. Nếu có `CONFLICT_REVIEW_REQUIRED` hoặc `MISSING`, dừng; không tự UPDATE/DELETE đăng ký cũ.
-5. Chạy `05_KIEM_TRA_SAU_CAI_DAT.sql`. Ba procedure và ba registration phải `OK`, `RegistrationCount = 1`.
-6. Chạy lại nguyên bộ `00` đến `05` lần thứ hai. Kết quả phải tương đương lần đầu và không tạo registration trùng.
-7. Lưu transcript đã làm sạch secret cùng checksum của sáu file SQL.
+5. Với script `04`, cả ba dòng `View` phải có `RegistrationStatus = OK`. Script này idempotent: chỉ repair `Para` của đúng procedure V2 đã audit; nếu có duplicate hoặc route trỏ procedure khác, script sẽ `THROW`.
+6. Chạy `05_KIEM_TRA_SAU_CAI_DAT.sql`. Ba procedure và ba route `View` phải `OK`, `RegistrationCount = 1`, đồng thời `Para` phải khớp exact template. Nếu `TriggerSafety = UNSAFE_REWRITE_ALL_MATCHES_SQL`, chạy lại `sql/Triggers/TRG_AutoSync_WA_API.sql` trước khi ALTER các procedure V2.
+7. Chạy lại nguyên bộ `00` đến `05` lần thứ hai. Kết quả phải tương đương lần đầu và không tạo registration trùng.
+8. Lưu transcript đã làm sạch secret cùng checksum của các file SQL.
 
 `05_KIEM_TRA_SAU_CAI_DAT.sql` chỉ xác minh object/registration. Nó không thay thế test token, quyền, branch hoặc parity live.
 

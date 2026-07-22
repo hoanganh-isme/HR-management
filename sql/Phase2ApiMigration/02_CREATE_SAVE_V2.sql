@@ -1,6 +1,7 @@
 /*
-  API_LuuDong_V2 - CRUD V2 allow-list cho pilot đơn giản.
-  Không đọc metadata layout cũ, không runtime DDL và không nhận tên bảng từ client.
+  API_LuuDong_V2 - CRUD V2 metadata-driven cho route đã đăng ký.
+  TableName/PrimaryKey/field lấy từ SY_FrmLstTbl + sys.columns; không runtime DDL,
+  không đọc SY_FormatFields và không nhận tên bảng từ client.
 */
 SET ANSI_NULLS ON;
 GO
@@ -32,9 +33,16 @@ BEGIN
     SET @UserName = LTRIM(RTRIM(ISNULL(@UserName, '')));
     SET @BranchID = LTRIM(RTRIM(ISNULL(@BranchID, '')));
 
-    IF LOWER(@List) NOT IN (LOWER('WA_BangThueTNCNFrm'))
+    DECLARE @RouteCount int, @CurrentProcedure sysname = OBJECT_NAME(@@PROCID);
+    SELECT @RouteCount = COUNT(*)
+    FROM dbo.WA_API AS A
+    WHERE A.[list] = @List
+      AND A.[func] = 'Save'
+      AND LOWER(LTRIM(RTRIM(A.[SQL]))) = LOWER(@CurrentProcedure);
+
+    IF ISNULL(@RouteCount, 0) <> 1
     BEGIN
-        SELECT -1 AS code, N'Form chưa nằm trong allow-list Save V2.' AS msg,
+        SELECT -1 AS code, N'WA_API Save V2 chưa được đăng ký duy nhất cho form.' AS msg,
                CAST(NULL AS sysname) AS primaryKey, CAST(NULL AS nvarchar(4000)) AS primaryValue, 0 AS rowsAffected;
         RETURN;
     END;
@@ -82,18 +90,27 @@ BEGIN
     WHERE L.FormID = @List;
 
     IF ISNULL(@RegistryCount, 0) <> 1
-       OR LOWER(ISNULL(@TableName, '')) <> LOWER('HR_BangThueTNCNTbl')
-       OR LOWER(ISNULL(@PrimaryKey, '')) <> LOWER('Bac')
+       OR LTRIM(RTRIM(ISNULL(@TableName, ''))) = ''
+       OR LTRIM(RTRIM(ISNULL(@PrimaryKey, ''))) = ''
     BEGIN
-        SELECT -1 AS code, N'Registry TableName/PrimaryKey không đúng contract Save V2.' AS msg,
+        SELECT -1 AS code, N'SY_FrmLstTbl chưa có duy nhất TableName/PrimaryKey cho Save V2.' AS msg,
                @PrimaryKey AS primaryKey, CAST(NULL AS nvarchar(4000)) AS primaryValue, 0 AS rowsAffected;
         RETURN;
     END;
 
-    SET @ObjectID = OBJECT_ID(N'dbo.' + @TableName, N'U');
-    IF @ObjectID IS NULL
+    SET @ObjectID = COALESCE(
+        OBJECT_ID(@TableName, N'U'),
+        OBJECT_ID(N'dbo.' + @TableName, N'U')
+    );
+    DECLARE @PhysicalSchema sysname, @PhysicalTable sysname;
+    SELECT @PhysicalSchema = S.name, @PhysicalTable = T.name
+    FROM sys.tables AS T
+    INNER JOIN sys.schemas AS S ON S.schema_id = T.schema_id
+    WHERE T.object_id = @ObjectID;
+
+    IF @ObjectID IS NULL OR @PhysicalSchema IS NULL OR @PhysicalTable IS NULL
     BEGIN
-        SELECT -1 AS code, N'Không tìm thấy bảng nghiệp vụ của pilot.' AS msg,
+        SELECT -1 AS code, N'Không tìm thấy bảng nghiệp vụ đã đăng ký.' AS msg,
                @PrimaryKey AS primaryKey, CAST(NULL AS nvarchar(4000)) AS primaryValue, 0 AS rowsAffected;
         RETURN;
     END;
@@ -279,14 +296,16 @@ BEGIN
              AND C.is_computed = 0
              AND C.default_object_id = 0
              AND LOWER(C.name) NOT IN ('usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
-                                       'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat')
+                                       'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat',
+                                       'isdeleted', 'userdelete', 'deletedby', 'deleteby', 'datedelete', 'deleteddate', 'deletedat')
             THEN 1 ELSE 0 END),
         CONVERT(bit, CASE WHEN LOWER(C.name) = LOWER(@PrimaryKey) THEN 1 ELSE 0 END),
         CONVERT(bit, CASE WHEN EXISTS (
-            SELECT 1 FROM OPENJSON(@Data) AS J WHERE LOWER(J.[key]) = LOWER(C.name)
+            SELECT 1 FROM OPENJSON(@Data) AS J WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT = LOWER(C.name)
         ) THEN 1 ELSE 0 END),
         CONVERT(bit, CASE WHEN LOWER(C.name) IN ('usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
-                                                       'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat')
+                                                       'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat',
+                                                       'isdeleted', 'userdelete', 'deletedby', 'deleteby', 'datedelete', 'deleteddate', 'deletedat')
                           THEN 1 ELSE 0 END)
     FROM sys.columns AS C
     JOIN sys.types AS T ON T.user_type_id = C.user_type_id
@@ -303,7 +322,7 @@ BEGIN
         FROM OPENJSON(@Data) AS J
         WHERE LOWER(J.[key]) NOT IN ('isedit', 'id', 'username', 'branchid', 'usercreate', 'userupdate', 'datecreate', 'dateupdate',
                                       'createdby', 'updatedby', 'createddate', 'updateddate', 'createdat', 'updatedat')
-          AND NOT EXISTS (SELECT 1 FROM @Columns AS C WHERE LOWER(C.ColumnName) = LOWER(J.[key]))
+          AND NOT EXISTS (SELECT 1 FROM @Columns AS C WHERE LOWER(C.ColumnName) = LOWER(J.[key]) COLLATE DATABASE_DEFAULT)
     )
     BEGIN
         SELECT -1 AS code, N'JSON chứa field không tồn tại hoặc bị chặn.' AS msg,
@@ -319,7 +338,7 @@ BEGIN
                 C.JsonPresent = 0
              OR EXISTS (
                     SELECT 1 FROM OPENJSON(@Data) AS J
-                    WHERE LOWER(J.[key]) = LOWER(C.ColumnName)
+                    WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT = LOWER(C.ColumnName)
                       AND (J.[type] = 0 OR LTRIM(RTRIM(CONVERT(nvarchar(max), J.[value]))) = N'')
                 )
           )
@@ -332,7 +351,7 @@ BEGIN
 
     IF @IsEdit = 1 AND NOT EXISTS (
         SELECT 1 FROM OPENJSON(@Data) AS J
-        WHERE LOWER(J.[key]) = LOWER(@PrimaryKey)
+        WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT = LOWER(@PrimaryKey) COLLATE DATABASE_DEFAULT
           AND J.[type] <> 0
           AND LTRIM(RTRIM(CONVERT(nvarchar(max), J.[value]))) <> N''
     )
@@ -434,7 +453,7 @@ BEGIN
             IF ISNULL(@WithClause, N'') = N''
                 SET @Sql = N'
                     DECLARE @Inserted table (PrimaryValue nvarchar(4000));
-                    INSERT INTO dbo.' + QUOTENAME(@TableName) + N' (' + @ColumnList + N')
+                    INSERT INTO ' + QUOTENAME(@PhysicalSchema) + N'.' + QUOTENAME(@PhysicalTable) + N' (' + @ColumnList + N')
                     OUTPUT CONVERT(nvarchar(4000), INSERTED.' + QUOTENAME(@PrimaryKey) + N') INTO @Inserted(PrimaryValue)
                     SELECT ' + @SelectList + N';
                     SET @OutRows = @@ROWCOUNT;
@@ -442,7 +461,7 @@ BEGIN
             ELSE
                 SET @Sql = N'
                     DECLARE @Inserted table (PrimaryValue nvarchar(4000));
-                    INSERT INTO dbo.' + QUOTENAME(@TableName) + N' (' + @ColumnList + N')
+                    INSERT INTO ' + QUOTENAME(@PhysicalSchema) + N'.' + QUOTENAME(@PhysicalTable) + N' (' + @ColumnList + N')
                     OUTPUT CONVERT(nvarchar(4000), INSERTED.' + QUOTENAME(@PrimaryKey) + N') INTO @Inserted(PrimaryValue)
                     SELECT ' + @SelectList + N'
                     FROM OPENJSON(@JsonData) WITH (' + @WithClause + N') AS J;
@@ -457,7 +476,7 @@ BEGIN
             SET @Sql = N'
                 UPDATE T
                 SET ' + @UpdateSet + N'
-                FROM dbo.' + QUOTENAME(@TableName) + N' AS T
+                FROM ' + QUOTENAME(@PhysicalSchema) + N'.' + QUOTENAME(@PhysicalTable) + N' AS T
                 CROSS JOIN OPENJSON(@JsonData) WITH (' + @WithClause + N') AS J
                 WHERE T.' + QUOTENAME(@PrimaryKey) + N' = J.' + QUOTENAME(@PrimaryKey) + N';
                 SET @OutRows = @@ROWCOUNT;
