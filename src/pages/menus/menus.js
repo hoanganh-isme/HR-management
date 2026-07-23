@@ -1035,6 +1035,10 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = menu.icon || '';
       $container.querySelector('#menu-icon-preview').textContent = menu.icon || 'label';
       $container.querySelector('#menu-is-disable').checked = (menu.isDisable == 1 || menu.isDisable === '1' || menu.isDisable === true);
+      // V2 Config
+      var tabEl = $container.querySelector('#menu-tablename'); if(tabEl) tabEl.value = menu.tableName || '';
+      var pkEl = $container.querySelector('#menu-primarykey'); if(pkEl) pkEl.value = menu.primaryKey || '';
+      var delEl = $container.querySelector('#menu-allow-hard-delete'); if(delEl) delEl.checked = (menu.allowHardDelete == 1 || menu.allowHardDelete === true);
     } else {
       title.textContent = 'Thêm mới Menu';
       isEditInp.value = '0';
@@ -1050,6 +1054,10 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = '';
       $container.querySelector('#menu-icon-preview').textContent = 'label';
       $container.querySelector('#menu-is-disable').checked = false;
+      // V2 Config
+      var tabEl = $container.querySelector('#menu-tablename'); if(tabEl) tabEl.value = '';
+      var pkEl = $container.querySelector('#menu-primarykey'); if(pkEl) pkEl.value = '';
+      var delEl = $container.querySelector('#menu-allow-hard-delete'); if(delEl) delEl.checked = false;
     }
 
     modal.style.display = 'flex';
@@ -1077,6 +1085,14 @@ var MenusPage = (function () {
     var isEdit = $container.querySelector('#menu-is-edit').value === '1';
     var oldId = $container.querySelector('#menu-old-id').value;
 
+    // V2 Config
+    var tabEl = $container.querySelector('#menu-tablename');
+    var pkEl = $container.querySelector('#menu-primarykey');
+    var delEl = $container.querySelector('#menu-allow-hard-delete');
+    var tableName = tabEl ? tabEl.value.trim() : '';
+    var primaryKey = pkEl ? pkEl.value.trim() : '';
+    var allowHardDelete = (delEl && delEl.checked) ? 1 : 0;
+
     if (!id || !label || !formName) {
       Alert.error('Thiếu thông tin', 'Vui lòng nhập Menu ID, Tên Menu (VN) và Tên Form hệ thống');
       return;
@@ -1095,7 +1111,11 @@ var MenusPage = (function () {
       URLPara: urlPara,
       Icon: icon,
       IsDisable: isDisable,
-      IsEdit: isEdit ? 1 : 0
+      IsEdit: isEdit ? 1 : 0,
+      // Pass V2 parameters to Backend
+      TableName: tableName,
+      PrimaryKey: primaryKey,
+      AllowHardDelete: allowHardDelete
     };
 
     var btn = $container.querySelector('#btn-save-menu');

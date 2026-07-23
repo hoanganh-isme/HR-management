@@ -36,6 +36,30 @@ const ApiClient = (function () {
     }
 
     /**
+     * Một số SQL API response có thể chứa U+0000 trong giá trị chuỗi.
+     * NUL thô làm JSON.parse thất bại; NUL đã escape vẫn gây lỗi cho Grid/export.
+     * Chỉ loại đúng NUL, không trim khoảng trắng hoặc tab/newline hợp lệ.
+     */
+    function parseJsonResponse(text) {
+        let nulCount = 0;
+        const withoutRawNul = String(text || '').replace(/\u0000/g, function () {
+            nulCount += 1;
+            return '';
+        });
+        const parsed = JSON.parse(withoutRawNul, function (_key, value) {
+            if (typeof value !== 'string' || value.indexOf('\u0000') === -1) return value;
+            return value.replace(/\u0000/g, function () {
+                nulCount += 1;
+                return '';
+            });
+        });
+        if (nulCount > 0) {
+            console.warn('[ApiClient] Đã loại ' + nulCount + ' ký tự NUL khỏi JSON response.');
+        }
+        return parsed;
+    }
+
+    /**
      * Hàm gọi API cốt lõi
      */
     async function request(endpoint, options = {}) {
@@ -83,7 +107,8 @@ const ApiClient = (function () {
             if (!response.ok) {
                 let errorData;
                 try {
-                    errorData = await response.json();
+                    const errorText = await response.text();
+                    errorData = errorText ? parseJsonResponse(errorText) : {};
                 } catch (e) {
                     errorData = { message: response.statusText || 'Lỗi kết nối Server' };
                 }
@@ -97,10 +122,19 @@ const ApiClient = (function () {
             const textResponse = await response.text();
             try {
                 // Trả về Object nếu JSON hợp lệ
-                return textResponse ? JSON.parse(textResponse) : {};
+                return textResponse ? parseJsonResponse(textResponse) : {};
             } catch (err) {
+                const contentType = response.headers && typeof response.headers.get === 'function'
+                    ? String(response.headers.get('content-type') || '').toLowerCase()
+                    : '';
+                if (contentType.indexOf('json') !== -1) {
+                    const parseError = new Error('Phản hồi JSON từ Server không hợp lệ.');
+                    parseError.code = 'INVALID_JSON_RESPONSE';
+                    parseError.cause = err;
+                    throw parseError;
+                }
                 // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
-                return textResponse;
+                return textResponse.replace(/\u0000/g, '');
             }
 
         } catch (error) {

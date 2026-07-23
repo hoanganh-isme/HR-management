@@ -7,7 +7,7 @@
 var FormBuilderPlugin = (function () {
 
   function _phase2Entry(formName) {
-    var registry = window.Phase2MigrationRegistry;
+    var registry = window.FieldContractMigrationRegistry || window.Phase2MigrationRegistry;
     return registry && typeof registry.get === 'function' ? registry.get(formName) : null;
   }
 
@@ -73,7 +73,7 @@ var FormBuilderPlugin = (function () {
         <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
       </div>
       <div id="syncPhase2Notice" class="alert alert-warning py-2 mb-0" style="display:none;">
-        Form này thuộc Phase 2: không được ghi SY_FormatFields. Nút chạy sẽ chỉ mở màn hình đối chiếu V2.
+        Form này dùng Unified Field Contract: không được ghi SY_FormatFields. Nút chạy chỉ mở diagnostics/đối chiếu V2.
       </div>
     `;
 
@@ -91,7 +91,7 @@ var FormBuilderPlugin = (function () {
     function refreshPhase2Mode() {
       var managed = _isPhase2Managed(formInput && formInput.value);
       if (phase2Notice) phase2Notice.style.display = managed ? '' : 'none';
-      if (btnRun) btnRun.textContent = managed ? 'Xem đối chiếu V2' : 'Chạy Đồng Bộ';
+      if (btnRun) btnRun.textContent = managed ? 'Xem Unified Contract' : 'Chạy Đồng Bộ';
     }
     if (formInput) formInput.addEventListener('input', refreshPhase2Mode);
 
@@ -143,7 +143,7 @@ var FormBuilderPlugin = (function () {
 
   function _openPhase2Compare(formName) {
     if (!window.FieldSyncService || typeof FieldSyncService.inspectForm !== 'function') {
-      return Alert.error('Chưa sẵn sàng', 'FieldSyncService chưa hỗ trợ màn hình đối chiếu Phase 2.');
+      return Alert.error('Chưa sẵn sàng', 'FieldSyncService chưa hỗ trợ màn hình diagnostics Unified Field Contract.');
     }
 
     var loading = UIModal.show({
@@ -164,7 +164,7 @@ var FormBuilderPlugin = (function () {
 
       var warning = document.createElement('div');
       warning.className = 'alert alert-warning py-2';
-      warning.textContent = 'Compatibility mode: Grid được đối chiếu theo View result-set V2; Add/Edit/Filter vẫn dùng legacy. Form Builder không được ghi schema của form này.';
+      warning.textContent = 'Field Contract Migration: màn hình này chỉ đọc result-set, physical columns, caption/format, lookup, capabilities, mobile class, runtime routes và diagnostics. Form Builder không ghi SY_FormatFields hoặc layout legacy cho form này.';
       body.appendChild(warning);
 
       var summary = document.createElement('div');
@@ -174,6 +174,46 @@ var FormBuilderPlugin = (function () {
         + ' | Khác biệt: ' + ((comparison.summary && comparison.summary.different) || 0)
         + ' | Diagnostic: ' + (diagnosticCodes.length ? diagnosticCodes.join(', ') : 'OK');
       body.appendChild(summary);
+
+      var routes = schema.runtimeRoutes || {};
+      var routeSummary = document.createElement('div');
+      routeSummary.className = 'mb-3 small';
+      routeSummary.textContent = 'Runtime routes — View: ' + ((routes.view && routes.view.registeredProcedure) || '—')
+        + ' | Save: ' + ((routes.save && routes.save.registeredProcedure) || '—')
+        + ' | Delete: ' + ((routes.delete && routes.delete.registeredProcedure) || '—')
+        + ' (' + ((routes.delete && routes.delete.mode) || 'NONE') + ')';
+      body.appendChild(routeSummary);
+
+      var contractWrapper = document.createElement('div');
+      contractWrapper.className = 'table-responsive mb-3';
+      var contractTable = document.createElement('table');
+      contractTable.className = 'table table-sm table-bordered align-middle';
+      var contractHead = document.createElement('thead');
+      var contractHeadRow = document.createElement('tr');
+      ['Field', 'Caption / format', 'Lookup', 'Grid', 'Add', 'Edit', 'Filter', 'Mobile', 'Reason codes'].forEach(function (title) {
+        var th = document.createElement('th');
+        th.textContent = title;
+        contractHeadRow.appendChild(th);
+      });
+      contractHead.appendChild(contractHeadRow);
+      contractTable.appendChild(contractHead);
+      var contractBody = document.createElement('tbody');
+      (schema.fields || []).forEach(function (field) {
+        var row = document.createElement('tr');
+        _appendCompareCell(row, field.name);
+        _appendCompareCell(row, (field.label || field.name) + ' / ' + (field.formatId || field.renderRule || 'text'));
+        _appendCompareCell(row, field.lookup && field.lookup.disabled !== true ? 'Có' : 'Không');
+        _appendCompareCell(row, field.showInGrid === true ? 'Có' : 'Không');
+        _appendCompareCell(row, field.showInAdd === true ? (field.supportsInsert === true ? 'Ghi' : 'Chỉ đọc') : 'Không');
+        _appendCompareCell(row, field.showInEdit === true ? (field.supportsUpdate === true ? 'Ghi' : 'Chỉ đọc') : 'Không');
+        _appendCompareCell(row, field.showInFilter === true && field.supportsFilter === true ? 'Có' : 'Không');
+        _appendCompareCell(row, field.mobileClass || 'OPTIONAL');
+        _appendCompareCell(row, Array.isArray(field.reasonCodes) ? field.reasonCodes.join(', ') : '—');
+        contractBody.appendChild(row);
+      });
+      contractTable.appendChild(contractBody);
+      contractWrapper.appendChild(contractTable);
+      body.appendChild(contractWrapper);
 
       var wrapper = document.createElement('div');
       wrapper.className = 'table-responsive';
@@ -207,7 +247,7 @@ var FormBuilderPlugin = (function () {
       body.appendChild(wrapper);
 
       UIModal.show({
-        title: 'Đối chiếu Phase 2: ' + formName,
+        title: 'Diagnostics Unified Field Contract: ' + formName,
         width: '1000px',
         content: body,
         footer: UIButton.createHTML({ text: 'Đóng', className: 'btn-outline', onclick: 'this.closest(\'.modal-overlay\').remove()' })
@@ -273,6 +313,7 @@ var FormBuilderPlugin = (function () {
 
   function _openVisualLayoutBuilder(targetFormName, moduleConfig, onReloadFormEngine) {
     var phase2Managed = _isPhase2Managed(targetFormName);
+    if (phase2Managed) return _openPhase2Compare(targetFormName);
     var loadingModal = UIModal.show({ title: 'Đang tải layout...', content: '<div class="text-center p-4">Đang tải cấu hình form...</div>', buttons: [] });
 
     var payload = {
@@ -304,7 +345,7 @@ var FormBuilderPlugin = (function () {
         var help = document.createElement('div');
         help.className = 'alert ' + (phase2Managed ? 'alert-warning' : 'alert-info') + ' py-2 mb-0 d-flex align-items-center gap-2';
         help.innerHTML = phase2Managed
-          ? '<span class="material-symbols-outlined">lock</span> Compatibility mode Phase 2: layout Add/Edit legacy chỉ được xem; mọi thao tác ghi đã bị khóa.'
+          ? '<span class="material-symbols-outlined">lock</span> Unified Field Contract (Compatibility mode): layout legacy chỉ được xem; mọi thao tác ghi đã bị khóa.'
           : '<span class="material-symbols-outlined">info</span> Kéo thả các khối để sắp xếp thứ tự. Bấm các nút phần trăm để chỉnh độ rộng. Layout hiển thị đúng tỷ lệ khung màn hình.';
         body.appendChild(help);
 
@@ -454,10 +495,10 @@ var FormBuilderPlugin = (function () {
         var saveLayoutButton = footerNode.querySelector('.btn-save-layout');
         if (phase2Managed) {
           saveLayoutButton.disabled = true;
-          saveLayoutButton.textContent = 'Chỉ xem (Phase 2)';
+          saveLayoutButton.textContent = 'Chỉ xem (Unified Contract)';
         }
         saveLayoutButton.onclick = function () {
-          if (phase2Managed) return Alert.warning('Chế độ tương thích', 'Không được ghi SY_FormatFields cho form pilot Phase 2.');
+          if (phase2Managed) return Alert.warning('Chế độ tương thích', 'Không được ghi SY_FormatFields cho form thuộc Unified Field Contract.');
           var cards = dropZone.querySelectorAll('.layout-card');
           var payloads = [];
 

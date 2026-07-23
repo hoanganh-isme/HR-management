@@ -21,15 +21,15 @@ var HRM_DOCUMENT_SERVICE_BASE = HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE ||
     (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8081' : HRM_FRONTEND_ORIGIN + '/docserver');
 
 /*
- * Phase 2 pilot: dùng Form Contract V2 cho đúng một form.
+ * Phase 3: registry quản lý nhóm form CRUD một bảng. Focus/visibility/manual refresh
+ * làm mới metadata ngay; polling chỉ là safety net khi tab được mở lâu.
  * Cấu hình được inject từ môi trường vẫn có quyền override các giá trị này,
  * kể cả enabled:false để rollback khẩn cấp.
  */
 HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     enabled: true,
     shadowMode: false,
-    pilotForms: ['WA_BangThueTNCNFrm'],
-    pollSeconds: 30,
+    pilotForms: ['WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm'],
     metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
 }, HRM_RUNTIME_CONFIG.FIELD_SYNC || {});
 

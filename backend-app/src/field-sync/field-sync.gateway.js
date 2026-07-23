@@ -166,7 +166,7 @@ export function createFieldSyncGateway(config, httpClient = axios) {
             Keyword: keyword,
             Page: page,
             Limit: pageSize,
-            JsonData: JSON.stringify({ ...jsonData, BranchID: context.branchId })
+            JsonData: JSON.stringify({ ...jsonData, BranchID: context.branchId, UserName: context.userName })
         };
 
         try {

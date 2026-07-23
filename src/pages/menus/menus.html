@@ -4,35 +4,43 @@
 
 <!-- ══ BODY: 2 cột ══════════════════════════════════════════ -->
 <style>
-/* Tùy chỉnh CSS để làm mềm giao diện sidebar, giống với ảnh 2 */
-.ui-nested-tabs__sidebar {
-  padding: 12px 0 !important;
-  background: transparent !important;
-}
-.ui-nested-tab-parent-btn--v, .ui-nested-tab-child-btn--v {
-  border-radius: 8px !important;
-  margin: 4px 12px !important;
-  padding: 10px 14px !important;
-  transition: all 0.2s ease !important;
-}
-.ui-nested-tab-parent-btn--v.active, .ui-nested-tab-child-btn--v.active {
-  background: rgba(60, 80, 224, 0.1) !important;
-  color: var(--color-primary) !important;
-  font-weight: 600 !important;
-  border: none !important;
-  border-left: 4px solid var(--color-primary) !important;
-  border-radius: 4px 8px 8px 4px !important;
-}
-.ui-nested-tab-parent-btn--v.active::before,
-.ui-nested-tab-child-btn--v.active::before {
-  display: none !important;
-}
-.ui-nested-tab-parent-btn--v:hover:not(.active), .ui-nested-tab-child-btn--v:hover:not(.active) {
-  background: rgba(0, 0, 0, 0.04) !important;
-}
-.ui-nested-tabs__vertical-content {
-  padding: 24px !important;
-}
+  /* Tùy chỉnh CSS để làm mềm giao diện sidebar, giống với ảnh 2 */
+  .ui-nested-tabs__sidebar {
+    padding: 12px 0 !important;
+    background: transparent !important;
+  }
+
+  .ui-nested-tab-parent-btn--v,
+  .ui-nested-tab-child-btn--v {
+    border-radius: 8px !important;
+    margin: 4px 12px !important;
+    padding: 10px 14px !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .ui-nested-tab-parent-btn--v.active,
+  .ui-nested-tab-child-btn--v.active {
+    background: rgba(60, 80, 224, 0.1) !important;
+    color: var(--color-primary) !important;
+    font-weight: 600 !important;
+    border: none !important;
+    border-left: 4px solid var(--color-primary) !important;
+    border-radius: 4px 8px 8px 4px !important;
+  }
+
+  .ui-nested-tab-parent-btn--v.active::before,
+  .ui-nested-tab-child-btn--v.active::before {
+    display: none !important;
+  }
+
+  .ui-nested-tab-parent-btn--v:hover:not(.active),
+  .ui-nested-tab-child-btn--v:hover:not(.active) {
+    background: rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .ui-nested-tabs__vertical-content {
+    padding: 24px !important;
+  }
 </style>
 <div class="row g-4" style="animation: slideUp 0.3s ease forwards; align-items: flex-start;">
 
@@ -62,7 +70,8 @@
 
 <!-- ══ MODAL Thêm / Sửa Menu ══════════════════════════════════ -->
 <div id="modal-menu-form" class="modal-overlay" style="display:none;">
-  <div class="modal-content" style="width: 520px; max-width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+  <div class="modal-content"
+    style="width: 520px; max-width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
     <div class="modal-header">
       <h3 id="modal-menu-title">Thêm mới Menu</h3>
       <button class="btn-close-modal" id="btn-close-modal">
@@ -132,6 +141,39 @@
           </div>
         </div>
 
+        <!-- 🔴 HỆ SINH THÁI ĐỘNG V2 (METADATA-DRIVEN) 🔴 -->
+        <div
+          style="background:rgba(60,80,224,0.05); border:1px solid rgba(60,80,224,0.15); border-radius:8px; padding:16px; margin-bottom:16px;">
+          <div
+            style="font-weight:700; color:var(--color-primary); margin-bottom:12px; font-size:12px; text-transform:uppercase; display:flex; align-items:center; gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span> Cấu hình Form Động (V2)
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-8">
+              <div class="form-group">
+                <label class="form-label">Bảng Dữ Liệu (TableName)</label>
+                <input type="text" id="menu-tablename" class="ui-input" placeholder="VD: HR_NhanVienTbl"
+                  style="background:#fff;">
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="form-group">
+                <label class="form-label">Khóa Chính</label>
+                <input type="text" id="menu-primarykey" class="ui-input" placeholder="VD: ID" style="background:#fff;">
+              </div>
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="menu-allow-hard-delete" class="modern-checkbox"
+                style="width:16px;height:16px;margin:0;">
+              <span style="font-weight:500; font-size:13px; color:var(--color-text-secondary);">
+                Cho phép Xóa cứng (Nếu bảng không có cột IsDeleted)
+              </span>
+            </label>
+          </div>
+        </div>
+
         <!-- URL / Tham số -->
         <div class="form-group mb-3">
           <label class="form-label">URL / Tham số</label>
@@ -188,190 +230,210 @@
 </div>
 
 <style>
-/* ══ FORCE LAYOUT CHO NESTED TABS VERTICAL ══════════════════
+  /* ══ FORCE LAYOUT CHO NESTED TABS VERTICAL ══════════════════
    Override đảm bảo layout sidebar + content luôn đúng
    ═══════════════════════════════════════════════════════════ */
-#menus-nested-tabs-container .ui-nested-tabs--vertical {
-  display: flex !important;
-  flex-direction: row !important;
-  width: 100% !important;
-  min-height: 400px !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tabs__sidebar {
-  width: 220px !important;
-  min-width: 160px !important;
-  flex-shrink: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  border-right: 1px solid var(--color-border) !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  position: relative !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tabs__sidebar-parent {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tabs__child-list {
-  display: none !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tabs__child-list.open {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tabs__vertical-content {
-  flex: 1 !important;
-  min-width: 0 !important;
-  padding: 0 0 0 20px !important;
-  overflow: visible !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tab-parent-btn--v {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 10px 16px !important;
-  border: none !important;
-  background: transparent !important;
-  cursor: pointer !important;
-  text-align: left !important;
-  width: 100% !important;
-  white-space: nowrap !important;
-  font-family: inherit !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tab-panel--v {
-  display: none !important;
-}
-
-#menus-nested-tabs-container .ui-nested-tab-panel--v.active {
-  display: block !important;
-}
-
-/* Tối ưu Responsive cho trang Menu trên Mobile (Màn 320px - 768px) */
-@media (max-width: 767.98px) {
-  /* Loại bỏ khoảng cách 2 bên thừa thãi */
-  .page-title-bar {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-  }
-  .row.g-4 {
-    margin-left: -8px !important;
-    margin-right: -8px !important;
-    --bs-gutter-x: 16px;
-  }
-  .card-body.p-4 {
-    padding: 12px 8px !important;
-  }
-  
-  /* Giảm font-size tiêu đề */
-  .page-title-bar span {
-    font-size: 16px !important;
-    font-weight: 700;
-  }
-  
-  /* Nút bấm trên title bar dàn đều, không bị to/dài */
-  .page-title-bar .d-flex.gap-2 {
-    width: 100%;
-    justify-content: flex-start;
-  }
-  .page-title-bar .btn {
-    flex: 1; /* Chia đều 2 nút */
-    padding: 8px 4px !important;
-    font-size: 12px !important;
-    white-space: nowrap;
-    text-align: center;
-    justify-content: center;
-  }
-
-  /* UINestedTabs bên trái (Cấu trúc Menu) - Bản siêu gọn */
-  /* Bóp phẳng (flatten) cây dọc thành 1 thanh cuộn ngang mượt mà */
-  .ui-nested-tabs__sidebar {
+  #menus-nested-tabs-container .ui-nested-tabs--vertical {
+    display: flex !important;
+    flex-direction: row !important;
     width: 100% !important;
-    max-width: 100% !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    border-right: none !important;
-    border-bottom: 2px solid var(--color-border) !important;
-    padding: 0 0 8px 0 !important;
-    scrollbar-width: none;
+    min-height: 400px !important;
   }
-  .ui-nested-tabs__sidebar::-webkit-scrollbar { display: none; }
-  
-  /* Wrapper giữ cấu trúc nhưng xếp ngang trên mobile */
-  .ui-nested-tabs__sidebar-parent {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
+
+  #menus-nested-tabs-container .ui-nested-tabs__sidebar {
+    width: 220px !important;
+    min-width: 160px !important;
     flex-shrink: 0 !important;
-  }
-  .ui-nested-tabs__child-list.open {
     display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
+    flex-direction: column !important;
+    border-right: 1px solid var(--color-border) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    position: relative !important;
   }
-  
-  /* Định dạng lại nút để trông giống Tab ngang thay vì Sidebar */
-  .ui-nested-tab-parent-btn--v, .ui-nested-tab-child-btn--v {
-    flex: 0 0 auto !important;
-    margin-right: 8px !important;
-    border-radius: 6px !important;
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    border: 1px solid var(--color-border) !important;
-    margin-bottom: 0 !important;
+
+  #menus-nested-tabs-container .ui-nested-tabs__sidebar-parent {
+    display: flex !important;
+    flex-direction: column !important;
   }
-  .ui-nested-tab-child-btn--v {
-    padding-left: 10px !important; /* Bỏ padding lùi lề của menu con */
-  }
-  
-  /* Bỏ dải viền bên trái, đổi sang kiểu highlight chuẩn */
-  .ui-nested-tab-parent-btn--v.active, .ui-nested-tab-child-btn--v.active {
-    background: var(--color-primary) !important;
-    color: #fff !important;
-    border-color: var(--color-primary) !important;
-  }
-  .ui-nested-tab-parent-btn--v.active .material-symbols-outlined, 
-  .ui-nested-tab-child-btn--v.active .material-symbols-outlined {
-    color: #fff !important;
-  }
-  .ui-nested-tab-parent-btn--v.active::before,
-  .ui-nested-tab-child-btn--v.active::before {
+
+  #menus-nested-tabs-container .ui-nested-tabs__child-list {
     display: none !important;
   }
-  
-  /* Ẩn dấu mũi tên (chevron) trên mobile vì đã nằm ngang */
-  .ui-nested-parent-chevron { display: none !important; }
 
-  .ui-nested-tabs__vertical-content {
-    padding: 12px 0 0 0 !important; /* bỏ padding trái */
+  #menus-nested-tabs-container .ui-nested-tabs__child-list.open {
+    display: flex !important;
+    flex-direction: column !important;
   }
 
-  /* Định dạng lại các tiêu đề bảng cho siêu gọn */
-  div[style*="font-weight:700; color:var(--color-text-primary); margin-bottom:8px; font-size:13px; text-transform:uppercase;"],
-  div[style*="font-size:14px; text-transform:uppercase;"] {
-    font-size: 11px !important;
-    line-height: 1.3 !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-    margin-bottom: 8px !important;
+  #menus-nested-tabs-container .ui-nested-tabs__vertical-content {
+    flex: 1 !important;
+    min-width: 0 !important;
+    padding: 0 0 0 20px !important;
+    overflow: visible !important;
   }
-  
-  /* Thu nhỏ chữ và lề trong bảng */
-  .data-table th, .data-table td {
-    padding: 6px 4px !important;
-    font-size: 11px !important;
+
+  #menus-nested-tabs-container .ui-nested-tab-parent-btn--v {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 16px !important;
+    border: none !important;
+    background: transparent !important;
+    cursor: pointer !important;
+    text-align: left !important;
+    width: 100% !important;
+    white-space: nowrap !important;
+    font-family: inherit !important;
   }
-  .data-table th {
-    padding: 4px 2px !important;
+
+  #menus-nested-tabs-container .ui-nested-tab-panel--v {
+    display: none !important;
   }
-}
+
+  #menus-nested-tabs-container .ui-nested-tab-panel--v.active {
+    display: block !important;
+  }
+
+  /* Tối ưu Responsive cho trang Menu trên Mobile (Màn 320px - 768px) */
+  @media (max-width: 767.98px) {
+
+    /* Loại bỏ khoảng cách 2 bên thừa thãi */
+    .page-title-bar {
+      padding-left: 12px !important;
+      padding-right: 12px !important;
+    }
+
+    .row.g-4 {
+      margin-left: -8px !important;
+      margin-right: -8px !important;
+      --bs-gutter-x: 16px;
+    }
+
+    .card-body.p-4 {
+      padding: 12px 8px !important;
+    }
+
+    /* Giảm font-size tiêu đề */
+    .page-title-bar span {
+      font-size: 16px !important;
+      font-weight: 700;
+    }
+
+    /* Nút bấm trên title bar dàn đều, không bị to/dài */
+    .page-title-bar .d-flex.gap-2 {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .page-title-bar .btn {
+      flex: 1;
+      /* Chia đều 2 nút */
+      padding: 8px 4px !important;
+      font-size: 12px !important;
+      white-space: nowrap;
+      text-align: center;
+      justify-content: center;
+    }
+
+    /* UINestedTabs bên trái (Cấu trúc Menu) - Bản siêu gọn */
+    /* Bóp phẳng (flatten) cây dọc thành 1 thanh cuộn ngang mượt mà */
+    .ui-nested-tabs__sidebar {
+      width: 100% !important;
+      max-width: 100% !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      border-right: none !important;
+      border-bottom: 2px solid var(--color-border) !important;
+      padding: 0 0 8px 0 !important;
+      scrollbar-width: none;
+    }
+
+    .ui-nested-tabs__sidebar::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Wrapper giữ cấu trúc nhưng xếp ngang trên mobile */
+    .ui-nested-tabs__sidebar-parent {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+      flex-shrink: 0 !important;
+    }
+
+    .ui-nested-tabs__child-list.open {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: nowrap !important;
+    }
+
+    /* Định dạng lại nút để trông giống Tab ngang thay vì Sidebar */
+    .ui-nested-tab-parent-btn--v,
+    .ui-nested-tab-child-btn--v {
+      flex: 0 0 auto !important;
+      margin-right: 8px !important;
+      border-radius: 6px !important;
+      padding: 6px 10px !important;
+      font-size: 12px !important;
+      border: 1px solid var(--color-border) !important;
+      margin-bottom: 0 !important;
+    }
+
+    .ui-nested-tab-child-btn--v {
+      padding-left: 10px !important;
+      /* Bỏ padding lùi lề của menu con */
+    }
+
+    /* Bỏ dải viền bên trái, đổi sang kiểu highlight chuẩn */
+    .ui-nested-tab-parent-btn--v.active,
+    .ui-nested-tab-child-btn--v.active {
+      background: var(--color-primary) !important;
+      color: #fff !important;
+      border-color: var(--color-primary) !important;
+    }
+
+    .ui-nested-tab-parent-btn--v.active .material-symbols-outlined,
+    .ui-nested-tab-child-btn--v.active .material-symbols-outlined {
+      color: #fff !important;
+    }
+
+    .ui-nested-tab-parent-btn--v.active::before,
+    .ui-nested-tab-child-btn--v.active::before {
+      display: none !important;
+    }
+
+    /* Ẩn dấu mũi tên (chevron) trên mobile vì đã nằm ngang */
+    .ui-nested-parent-chevron {
+      display: none !important;
+    }
+
+    .ui-nested-tabs__vertical-content {
+      padding: 12px 0 0 0 !important;
+      /* bỏ padding trái */
+    }
+
+    /* Định dạng lại các tiêu đề bảng cho siêu gọn */
+    div[style*="font-weight:700; color:var(--color-text-primary); margin-bottom:8px; font-size:13px; text-transform:uppercase;"],
+    div[style*="font-size:14px; text-transform:uppercase;"] {
+      font-size: 11px !important;
+      line-height: 1.3 !important;
+      white-space: normal !important;
+      word-break: break-word !important;
+      margin-bottom: 8px !important;
+    }
+
+    /* Thu nhỏ chữ và lề trong bảng */
+    .data-table th,
+    .data-table td {
+      padding: 6px 4px !important;
+      font-size: 11px !important;
+    }
+
+    .data-table th {
+      padding: 4px 2px !important;
+    }
+  }
 </style>

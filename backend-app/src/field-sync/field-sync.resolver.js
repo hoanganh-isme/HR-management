@@ -37,6 +37,79 @@ function safeLookupColumn(value) {
     return safeFieldName(column) && !SENSITIVE_LOOKUP_FIELD.test(column) ? column : '';
 }
 
+const MOBILE_CLASS_ORDER = Object.freeze({ CORE: 0, OPTIONAL: 1, ADVANCED: 2, HIDDEN: 3 });
+const MOBILE_AUDIT_FIELD = /(?:created|createby|createuser|modified|updated|updateby|deleted|deleteby|audit|rowversion|timestamp|nguoi(?:tao|sua)|ngay(?:tao|sua))/i;
+const MOBILE_BUSINESS_ID = /(?:^|_)(?:id|code|number|no|ma)$|(?:id|code|number|no)$/i;
+const MOBILE_NAME_FIELD = /(?:name|title|caption|fullname|displayname|ten|hoten)/i;
+const MOBILE_STATUS_FIELD = /(?:status|state|active|enabled|trangthai|tinhtrang)/i;
+const MOBILE_EFFECTIVE_DATE = /(?:effective|validfrom|validto|startdate|enddate|fromdate|todate|ngayhieuluc|tungay|denngay)/i;
+const MOBILE_BINARY_TYPE = /(?:^|\W)(?:binary|varbinary|image|rowversion|timestamp)(?:\W|$)/i;
+const MOBILE_LONG_TEXT_TYPE = /(?:^|\W)(?:text|ntext|xml)(?:\W|$)|\(\s*max\s*\)/i;
+
+function searchableMobileText(field) {
+    return `${field.name || ''} ${field.label || ''}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Za-z0-9_]+/g, '')
+        .toLowerCase();
+}
+
+function classifyMobileField(field, lookupDependencyParents) {
+    const reasons = [];
+    const sqlType = String(field.sqlType || '').toLowerCase();
+    const fieldName = String(field.name || '').toLowerCase();
+    const searchable = searchableMobileText(field);
+
+    if (field.isSensitiveOrDenied) reasons.push('SECURITY_DENIED');
+    if (MOBILE_BINARY_TYPE.test(sqlType)) reasons.push('BINARY_TYPE');
+    if (field.isComputed) reasons.push('COMPUTED_COLUMN');
+    if (field.isServerManaged && !field.isPrimaryKey) reasons.push('SERVER_MANAGED');
+    if (field.isIdentity && !field.isPrimaryKey) reasons.push('IDENTITY_NON_KEY');
+    if (reasons.length) {
+        return { mobileClass: 'HIDDEN', reasonCodes: reasons };
+    }
+
+    if (field.requiredOnInsert) reasons.push('REQUIRED_ON_INSERT');
+    if (field.isPrimaryKey) reasons.push('PRIMARY_KEY');
+    if (lookupDependencyParents.has(fieldName)) reasons.push('LOOKUP_DEPENDENCY_PARENT');
+    if (MOBILE_BUSINESS_ID.test(field.name || '')) reasons.push('BUSINESS_IDENTIFIER');
+    if (MOBILE_NAME_FIELD.test(searchable)) reasons.push('NAME_OR_CAPTION');
+    if (MOBILE_STATUS_FIELD.test(searchable)) reasons.push('STATUS_FIELD');
+    if (MOBILE_EFFECTIVE_DATE.test(searchable)) reasons.push('EFFECTIVE_DATE');
+    if (reasons.length) {
+        return { mobileClass: 'CORE', reasonCodes: reasons };
+    }
+
+    if (MOBILE_AUDIT_FIELD.test(searchable)) reasons.push('AUDIT_OR_SYSTEM');
+    if (MOBILE_LONG_TEXT_TYPE.test(sqlType) || field.dbMaxLength === -1 || Number(field.dbMaxLength) > 2000) {
+        reasons.push('LONG_TEXT');
+    }
+    if (reasons.length) {
+        return { mobileClass: 'ADVANCED', reasonCodes: reasons };
+    }
+
+    return { mobileClass: 'OPTIONAL', reasonCodes: ['DEFAULT_OPTIONAL'] };
+}
+
+export function classifyMobileFields(fields) {
+    const source = Array.isArray(fields) ? fields : [];
+    const lookupDependencyParents = new Set();
+    for (const field of source) {
+        for (const parent of field?.lookup?.dependsOn || []) {
+            lookupDependencyParents.add(String(parent).toLowerCase());
+        }
+    }
+    return source.map((field) => {
+        const classification = classifyMobileField(field, lookupDependencyParents);
+        return {
+            ...field,
+            mobileClass: classification.mobileClass,
+            mobileOrder: (MOBILE_CLASS_ORDER[classification.mobileClass] * 10_000) + (Number(field.orderNo) || 0),
+            reasonCodes: classification.reasonCodes
+        };
+    });
+}
+
 export function resolveRenderType(formatId, sqlType, hasLookup = false, formatType = '') {
     if (hasLookup) return 'lookup';
     const formatIdCode = cleanText(formatId, 20).toUpperCase();
@@ -121,12 +194,12 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
             nullable: bool(first(row, 'IsNullable', 'isNullable')),
             formatId: cleanText(first(row, 'FormatID', 'formatId'), 20),
             formatType: cleanText(first(row, 'FormatType', 'formatType'), 5),
-        renderRule: resolveRenderType(
-            first(row, 'FormatID', 'formatId'),
-            first(row, 'SqlType', 'sqlType'),
-            Boolean(lookup && !lookup.disabled),
-            first(row, 'FormatType', 'formatType')
-        ),
+            renderRule: resolveRenderType(
+                first(row, 'FormatID', 'formatId'),
+                first(row, 'SqlType', 'sqlType'),
+                Boolean(lookup && !lookup.disabled),
+                first(row, 'FormatType', 'formatType')
+            ),
             align: cleanText(first(row, 'Align', 'align'), 10),
             minWidth: numberOrNull(first(row, 'MinWidth', 'minWidth')),
             maxWidth: numberOrNull(first(row, 'MaxWidth', 'maxWidth')),
@@ -168,6 +241,36 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
         });
     }
 
+    const canonicalFieldNames = new Map(fields.map((field) => [field.name.toLowerCase(), field.name]));
+    for (const field of fields) {
+        if (!field.lookup || field.lookup.disabled === true || !field.lookup.dependsOn.length) continue;
+        const canonicalParents = [];
+        const unresolvedParents = [];
+        for (const parent of field.lookup.dependsOn) {
+            const canonical = canonicalFieldNames.get(String(parent).toLowerCase());
+            if (!canonical || canonical.toLowerCase() === field.name.toLowerCase()) {
+                unresolvedParents.push(parent);
+                continue;
+            }
+            if (!canonicalParents.some((name) => name.toLowerCase() === canonical.toLowerCase())) {
+                canonicalParents.push(canonical);
+            }
+        }
+        if (unresolvedParents.length) {
+            field.lookup = { ...field.lookup, dependsOn: [], disabled: true };
+            field.renderRule = resolveRenderType(field.formatId, field.sqlType, false, field.formatType);
+            diagnostics.push({
+                severity: 'error',
+                code: 'LOOKUP_DEPENDENCY_FIELD_NOT_FOUND',
+                fieldName: field.name,
+                dependencies: unresolvedParents.slice(0, 20)
+            });
+            continue;
+        }
+        field.lookup = { ...field.lookup, dependsOn: canonicalParents };
+    }
+
+    const classifiedFields = classifyMobileFields(fields);
     const firstRow = rows && rows[0] ? rows[0] : {};
     const sourceKind = cleanText(first(firstRow, 'SourceKind', 'sourceKind'), 40);
     const primaryKey = cleanText(first(firstRow, 'PrimaryKey', 'primaryKey'), 128);
@@ -196,11 +299,11 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
         tableName: cleanText(first(firstRow, 'TableName', 'tableName'), 128),
         primaryKey,
         sourceKind,
-        fields,
-        gridFields: fields.filter((field) => field.showInGrid),
-        addFields: fields.filter((field) => field.showInAdd),
-        editFields: fields.filter((field) => field.showInEdit),
-        filterFields: fields.filter((field) => field.showInFilter && field.supportsFilter),
+        fields: classifiedFields,
+        gridFields: classifiedFields.filter((field) => field.showInGrid),
+        addFields: classifiedFields.filter((field) => field.showInAdd),
+        editFields: classifiedFields.filter((field) => field.showInEdit),
+        filterFields: classifiedFields.filter((field) => field.showInFilter && field.supportsFilter),
         runtimeRoutes: {
             view: { registeredProcedure: cleanText(first(firstRow, 'RegisteredViewProcedure', 'registeredViewProcedure'), 128) },
             save: { registeredProcedure: cleanText(first(firstRow, 'RegisteredSaveProcedure', 'registeredSaveProcedure'), 128) },
@@ -209,7 +312,14 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
                 mode: deleteMode
             }
         },
-        lookups: fields.filter((field) => field.lookup).map((field) => ({ fieldName: field.name, ...field.lookup })),
+        lookups: classifiedFields.filter((field) => field.lookup).map((field) => ({ fieldName: field.name, ...field.lookup })),
+        mobile: {
+            policyVersion: '1.0',
+            coreFields: classifiedFields.filter((field) => field.mobileClass === 'CORE').map((field) => field.name),
+            optionalFields: classifiedFields.filter((field) => field.mobileClass === 'OPTIONAL').map((field) => field.name),
+            advancedFields: classifiedFields.filter((field) => field.mobileClass === 'ADVANCED').map((field) => field.name),
+            hiddenFields: classifiedFields.filter((field) => field.mobileClass === 'HIDDEN').map((field) => field.name)
+        },
         diagnostics,
         generatedAt: new Date().toISOString()
     };

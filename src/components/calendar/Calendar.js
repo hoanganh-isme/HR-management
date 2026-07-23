@@ -1,6 +1,6 @@
 /**
  * Calendar Component
- * Sinh Lịch Tiệc cơ bản bằng JS. Không dùng thư viện nặng.
+ * Sinh Lịch cơ bản bằng JS. Không dùng thư viện nặng.
  */
 var UICalendar = (function () {
 

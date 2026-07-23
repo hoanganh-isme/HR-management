@@ -36,7 +36,7 @@ test('Phase 2 có đủ bảy script, không DDL runtime hoặc sửa SY_FrmCfg'
   const directory = path.join(root, 'sql', 'Phase2ApiMigration');
   const expected = [
     '00_CAPTURE_VIEW_CONTRACT.sql',
-    '01_CREATE_VIEW_V2_PILOT.sql',
+    '01_CREATE_VIEW_V2.sql',
     '02_CREATE_SAVE_V2.sql',
     '03_CREATE_DELETE_V2.sql',
     '04_REGISTER_PILOT_V2.sql',
@@ -52,7 +52,7 @@ test('Phase 2 có đủ bảy script, không DDL runtime hoặc sửa SY_FrmCfg'
 });
 
 test('View V2 tự nhận field bảng chính sau deny-list, scope và permission gate', () => {
-  const source = read('sql/Phase2ApiMigration/01_CREATE_VIEW_V2_PILOT.sql');
+  const source = read('sql/Phase2ApiMigration/01_CREATE_VIEW_V2.sql');
   assert.match(source, /MAIN_TABLE_STAR_APPROVED/);
   assert.match(source, /SELECT\s+T\.\*/i);
   assert.match(source, /SY_FrmLstTbl/);
@@ -274,6 +274,7 @@ test('pilot điều khiển Delete theo capability, chỉ gửi PK và Save nh�
 test('registry Phase 2 cố định đúng một pilot và không tự bật runtime', async () => {
   let calls = 0;
   const window = runBrowserFiles([
+    'src/js/config/FieldContractMigrationRegistry.js',
     'src/js/config/Phase2MigrationRegistry.js',
     'src/js/services/FieldSyncService.js'
   ], {
@@ -288,17 +289,18 @@ test('registry Phase 2 cố định đúng một pilot và không tự bật run
     },
     AppSession: { getUserName: () => 'Admin', getBranchId: () => 'CN01' }
   });
-  assert.deepEqual(Object.keys(window.Phase2MigrationRegistry.forms), ['WA_BangThueTNCNFrm']);
-  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.schemaPolicy, 'UNIFIED_V2');
-  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.saveV2, 'API_LuuDong_V2');
-  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.deleteV2, 'API_XoaDong_V2');
-  assert.equal(window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm.deletePolicy, 'AUTO_SOFT_OR_HARD');
+  assert.equal(Object.keys(window.Phase2MigrationRegistry.forms).includes('WA_BangThueTNCNFrm'), true);
+  const pilotForm = window.Phase2MigrationRegistry.forms.WA_BangThueTNCNFrm;
+  assert.equal(pilotForm.enableGrid, true);
+  assert.equal(pilotForm.saveV2, 'API_LuuDong_V2');
+  assert.equal(pilotForm.deleteV2, 'API_XoaDong_V2');
+  assert.equal(pilotForm.deletePolicy, 'BLOCKED_NO_SOFT_DELETE');
   assert.equal(window.FieldSyncService.isPilot('WA_BangThueTNCNFrm'), false);
   const state = await window.FieldSyncService.inspectForm('WA_BangThueTNCNFrm');
   assert.equal(state.status, 'compare-only');
   assert.equal(state.active, false);
   assert.equal(calls, 2);
-  await assert.rejects(window.FieldSyncService.inspectForm('WA_PayrollFrm'), /registry Phase 2/);
+  await assert.rejects(window.FieldSyncService.inspectForm('WA_PayrollFrm'), /Unified Field Contract registry/);
 });
 
 test('cấu hình deploy bật đúng pilot unified và trỏ metadata backend', () => {
@@ -306,10 +308,10 @@ test('cấu hình deploy bật đúng pilot unified và trỏ metadata backend',
   const index = read('index.html');
   assert.match(env, /FIELD_SYNC\s*=\s*Object\.assign\(\{[\s\S]*enabled:\s*true/);
   assert.match(env, /shadowMode:\s*false/);
-  assert.match(env, /pilotForms:\s*\['WA_BangThueTNCNFrm'\]/);
+  assert.match(env, /pilotForms:\s*\['WA_BangThueTNCNFrm',\s*'WA_ChucDanhFrm',\s*'WA_TitleListFrm',\s*'WA_ShiftListFrm'\]/);
   assert.match(env, /metadataBaseUrl:[\s\S]*\/api\/metadata/);
-  assert.match(index, /env\.js\?v=14/);
-  assert.match(index, /app\.bundle\.js\?v=16/);
+  assert.match(index, /env\.js\?v=15/);
+  assert.match(index, /app\.bundle\.js\?v=17/);
 });
 
 test('metadata V2 không tự xóa phiên chính khi backend local trả 401', () => {
@@ -345,12 +347,13 @@ test('pilot Phase 2 tạo Grid/Add/Edit/Filter từ một Form Contract và khô
     capabilityVersion: '1.0',
     formName: 'WA_BangThueTNCNFrm',
     erpFormId: 'HR_BangThueTNCNFrm',
+    tableName: 'HR_BangThueTNCNTbl',
     sourceKind: 'MAIN_TABLE',
     primaryKey: 'Bac',
     diagnostics: [],
     lookups: [],
     runtimeRoutes: {
-      view: { registeredProcedure: 'API_BangThueTNCN_V2' },
+      view: { registeredProcedure: 'API_TruyVanDong_V2' },
       save: { registeredProcedure: 'API_LuuDong_V2' },
       delete: { registeredProcedure: 'API_XoaDong_V2', mode: 'HARD' }
     },
@@ -369,11 +372,18 @@ test('pilot Phase 2 tạo Grid/Add/Edit/Filter từ một Form Contract và khô
     gridFields: [
       { name: 'Bac', label: 'Bậc', orderNo: 1 },
       { name: 'GhiChuMoi', label: 'Ghi chú mới', orderNo: 2 }
-    ]
+    ],
+    addFields: [],
+    editFields: [],
+    filterFields: []
   };
+  baseSchema.addFields = baseSchema.fields.filter((field) => field.showInAdd);
+  baseSchema.editFields = baseSchema.fields.filter((field) => field.showInEdit);
+  baseSchema.filterFields = baseSchema.fields.filter((field) => field.showInFilter && field.supportsFilter);
   let branchId = 'CN01';
   let calls = 0;
   const window = runBrowserFiles([
+    'src/js/config/FieldContractMigrationRegistry.js',
     'src/js/config/Phase2MigrationRegistry.js',
     'src/js/services/FieldSyncService.js'
   ], {
@@ -399,19 +409,20 @@ test('pilot Phase 2 tạo Grid/Add/Edit/Filter từ một Form Contract và khô
   assert.deepEqual(Array.from(active.runtimeSchemas.filters, (field) => field.name), ['Bac', 'GhiChuMoi']);
   assert.equal(active.runtimeSchemas.edit[0].isReadOnlyEdit, true);
   assert.equal(active.runtimeSchemas.edit[1].isReadOnlyEdit, false);
-  assert.equal(active.deleteActive, true);
+  assert.equal(active.deleteActive, false);
   assert.equal(calls, 1);
 
   baseSchema.runtimeRoutes.view.registeredProcedure = 'API_TruyVanDong';
   branchId = 'CN02';
   const blocked = await window.FieldSyncService.observeForm('WA_BangThueTNCNFrm', []);
-  assert.equal(blocked.status, 'unified-blocked');
+  assert.equal(blocked.status, 'legacy-view-not-cutover');
+  assert.equal(blocked.runtimeMode, 'LEGACY_FULL');
   assert.deepEqual(Array.from(blocked.runtimeSchemas.grid), []);
 });
 
 test('DynamicFormEngine unified bỏ API dictionary legacy và sanitizer không gửi OrderNo/audit', () => {
   const engine = read('src/js/core/DynamicFormEngine.js');
-  assert.match(engine, /if \(unifiedContract\)[\s\S]*FieldSyncService\.observeForm/);
+  assert.match(engine, /if \(managedContract\)[\s\S]*FieldSyncService\.observeForm/);
   assert.match(engine, /!isUnifiedMetadata && window\.HRMetadataAdapter/);
   assert.match(engine, /_buildContractWritePayload/);
   assert.match(engine, /field\.supportsInsert === true/);

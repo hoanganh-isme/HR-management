@@ -147,7 +147,7 @@ test('Grid V2 không bật lookup đã bị ERP disable', () => {
   assert.equal(schemas.grid[0].renderRule, 'text');
 });
 
-test('lookup V2 phu thuoc duoc giu legacy de khong goi endpoint thieu context cha', () => {
+test('lookup V2 phụ thuộc giữ LookupKey và khai báo trường cha', () => {
   const window = runBrowserFiles(['src/js/services/FieldSyncService.js']);
   const schemas = window.FieldSyncService.createRuntimeSchemas([
     { name: 'CompanyID', lookupKey: 'legacy-company', dataSource: 'CF_CompanyListFrm' },
@@ -158,9 +158,9 @@ test('lookup V2 phu thuoc duoc giu legacy de khong goi endpoint thieu context ch
     orderNo: 1,
     lookup: { key: 'B'.repeat(64), disabled: false, dependsOn: ['CompanyID'] }
   }], true);
-  assert.equal(schemas.grid[0].lookupKey, 'legacy-employee');
+  assert.equal(schemas.grid[0].lookupKey, 'B'.repeat(64));
   assert.equal(schemas.grid[0].dataSource, 'HR_EmployeeListFrm');
-  assert.equal(schemas.grid[0].dependsOn, '');
+  assert.equal(schemas.grid[0].dependsOn, 'CompanyID');
 });
 
 test('shadow mode giữ nguyên cả bốn runtime schema', () => {
@@ -334,11 +334,16 @@ test('pilot bị chặn active khi metadata đang dùng shadow View chưa đăng
 });
 
 test('alias chỉ chứa mapping đã xác nhận', () => {
-  const window = runBrowserFiles(['src/js/config/ErpFormAliases.js']);
+  const window = runBrowserFiles([
+    'src/js/config/FieldContractMigrationRegistry.js',
+    'src/js/config/ErpFormAliases.js'
+  ]);
   assert.equal(window.ErpFormAliases.resolve('WA_BangThueTNCNFrm'), 'HR_BangThueTNCNFrm');
   assert.equal(window.ErpFormAliases.resolve('WA_ChucDanhFrm'), 'WA_ChucDanhFrm');
   const backendConfig = read('backend-app/src/field-sync/field-sync.config.js');
-  assert.match(backendConfig, /WA_BangThueTNCNFrm:\s*'HR_BangThueTNCNFrm'/);
+  const backendRegistry = read('backend-app/src/field-sync/field-contract.registry.js');
+  assert.match(backendConfig, /FIELD_CONTRACT_MIGRATION_REGISTRY/);
+  assert.match(backendRegistry, /webFormName:\s*'WA_BangThueTNCNFrm'[\s\S]*erpFormId:\s*'HR_BangThueTNCNFrm'/);
   assert.doesNotMatch(backendConfig, /WA_ChucDanhFrm:\s*'HR_ChucDanhFrm'/);
 });
 

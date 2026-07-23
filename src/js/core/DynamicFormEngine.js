@@ -19,6 +19,7 @@ window.DynamicFormEngine = (function () {
   var totalRecords = 0;
   var totalPagesFromApi = 0;
   var lastTimestamp = '';
+  var dataLoadSequence = 0;
 
   var currentFormName = '';
   var formState = null;
@@ -40,6 +41,17 @@ window.DynamicFormEngine = (function () {
   // ── Helpers ──────────────────────────────────────────────
   function _gateway() {
     return window.AppConfig && AppConfig.apiGateway || (window.API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER) || '';
+  }
+
+  function _destroyTabulatorInstance() {
+    var instance = window.tabulatorInstance;
+    if (!instance) return;
+    window.tabulatorInstance = null;
+    try {
+      instance.destroy();
+    } catch (err) {
+      console.warn('[DynamicFormEngine] Không thể hủy grid cũ:', err);
+    }
   }
 
   function _cloneSchemaValue(value) {
@@ -368,8 +380,9 @@ window.DynamicFormEngine = (function () {
     return Boolean(registry && typeof registry.isManagedForm === 'function' && registry.isManagedForm(MODULE_CONFIG.FormName));
   }
 
-  function _hasPermission(action) {
-    if (_usesUnifiedFieldContract()) {
+  function _hasPermission(action, options) {
+    var userOnly = Boolean(options && options.userOnly === true);
+    if (!userOnly && _usesUnifiedFieldContract()) {
       if ((action === 'ADD' || action === 'EDIT') && !_contractWriteActive()) return false;
       if (action === 'DELETE' && !_contractDeleteActive()) return false;
     }
@@ -399,6 +412,7 @@ window.DynamicFormEngine = (function () {
     }
 
     _persistFormState();
+    dataLoadSequence += 1;
 
     $container = container;
     // Keep DynamicFormEngine as the single CRUD path while allowing small,
@@ -1406,7 +1420,7 @@ window.DynamicFormEngine = (function () {
               _openEditForm(selectedRows[0]);
             }
           } : 'DISABLED') : false,
-          onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
+          onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE', { userOnly: true }) ? function () {
             if (_usesUnifiedFieldContract() && !_contractDeleteActive()) return Alert.info(MODULE_CONFIG.AlertTitleInfo, 'Delete V2 đang bị khóa cho tới khi policy xóa được DB xác minh.');
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
 
@@ -1433,11 +1447,13 @@ window.DynamicFormEngine = (function () {
                   return Alert.error(MODULE_CONFIG.AlertTitleError, 'Dữ liệu xóa thiếu khóa chính hợp lệ.');
                 }
                 var deleteData = {};
-                deleteData[primaryKey] = ids.join(',');
+                deleteData[primaryKey] = ids.slice();
+                /* API_Gateway_Router resolves {Ids} from JsonData, not from a top-level parameter. */
+                deleteData.Ids = ids.slice();
                 return ApiClient.post(_gateway(), {
                   List: MODULE_CONFIG.FormName,
                   Func: 'Delete',
-                  Ids: ids.join(','),
+                  Ids: JSON.stringify(ids),
                   JsonData: JSON.stringify(deleteData),
                   UserName: _currentUser(),
                   BranchID: _currentBranchId()
@@ -1494,7 +1510,7 @@ window.DynamicFormEngine = (function () {
               if (typeof ConfirmModal !== 'undefined') {
                 ConfirmModal.show({
                   title: MODULE_CONFIG.AlertTitleConfirm,
-                  message: `Bạn có chắc muốn xóa ${selectedRows.length} dòng đã chọn?`,
+                  message: 'Bạn có chắc muốn xóa ' + selectedRows.length + ' dòng đã chọn?',
                   onConfirm: performDelete
                 });
               }
@@ -1508,7 +1524,7 @@ window.DynamicFormEngine = (function () {
                 });
               }
             }
-          } : false) : false,
+          } : 'DISABLED') : false,
           onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
             var filterContainer = $container.querySelector('#dynamic-filter-container');
             if (filterContainer) {
@@ -1781,6 +1797,15 @@ window.DynamicFormEngine = (function () {
   var savedScrollY = 0; // Lưu vị trí scroll
 
   function _loadData() {
+    var loadRequestId = ++dataLoadSequence;
+    var requestedFormName = currentFormName;
+    var requestedContainer = $container;
+    var isLatestRequest = function () {
+      return loadRequestId === dataLoadSequence
+        && requestedFormName === currentFormName
+        && requestedContainer === $container;
+    };
+
     _persistFormState();
 
     if (MODULE_CONFIG.IsFullPageDetail && MODULE_CONFIG.DetailRowData) {
@@ -1789,11 +1814,14 @@ window.DynamicFormEngine = (function () {
     }
 
     var gridContainer = $container ? $container.querySelector('#dynamic-grid-container') : null;
-    var existingTable = gridContainer ? gridContainer.querySelector('.table-wrapper') : null;
+    var existingTable = gridContainer ? gridContainer.querySelector('.tabulator-wrapper') : null;
 
-    if (existingTable && typeof existingTable.showLoading === 'function') {
+    if (existingTable) {
       savedScrollY = window.scrollY;
-      existingTable.showLoading(MODULE_CONFIG.TextLoading);
+      // Hủy Tabulator khi element vẫn còn trong DOM; nếu xóa DOM trước,
+      // lần refresh sau Save có thể ném lỗi và làm mất state vừa tải.
+      _destroyTabulatorInstance();
+      gridContainer.innerHTML = '<div class="p-4 text-center" style="color:var(--color-text-secondary);">' + MODULE_CONFIG.TextLoading + '</div>';
     } else if (gridContainer) {
       gridContainer.innerHTML = '<div class="p-4 text-center" style="color:var(--color-text-secondary);">' + MODULE_CONFIG.TextLoading + '</div>';
     }
@@ -1896,32 +1924,56 @@ window.DynamicFormEngine = (function () {
 
       console.log('[DynamicFormEngine] Sending query to ApiSearch:', query);
       ApiClient.post(searchEndpoint, query).then(function (result) {
+        if (!isLatestRequest()) return;
+        var resultCode = result && result.code;
+        if (resultCode !== undefined && resultCode !== null && String(resultCode) !== '0') {
+          var gatewayError = new Error(result.msg || 'Không thể tải dữ liệu từ API.');
+          gatewayError.code = resultCode;
+          gatewayError.response = result;
+          throw gatewayError;
+        }
+
         // Trả lại quyền sinh sát (tính phân trang) cho C# Backend
         totalRecords = result._recordtotal || 0;
         totalPagesFromApi = result._pagetotal || 0;
 
         lastTimestamp = result._timestamp || '';
-        var dataList = result.list || result.records || [];
+        var dataList = Array.isArray(result.list)
+          ? result.list
+          : (Array.isArray(result.records) ? result.records : []);
         gridData = dataList.map(function (item) {
+          var row = Object.assign({}, item);
           // Lấy khóa chính từ cấu hình, nếu không có thì tự động lấy cột đầu tiên của dữ liệu
-          var firstKey = Object.keys(item).length > 0 ? Object.keys(item)[0] : null;
-          var primaryValue = item[MODULE_CONFIG.PrimaryKey];
-          var firstValue = firstKey ? item[firstKey] : null;
-          item.id = _hasContractValue(primaryValue) ? primaryValue : (_hasContractValue(firstValue) ? firstValue : Math.random());
-          return item;
+          var firstKey = Object.keys(row).length > 0 ? Object.keys(row)[0] : null;
+          var primaryValue = row[MODULE_CONFIG.PrimaryKey];
+          var firstValue = firstKey ? row[firstKey] : null;
+          row.id = _hasContractValue(primaryValue) ? primaryValue : (_hasContractValue(firstValue) ? firstValue : Math.random());
+          return row;
         });
 
         // Bỏ đồng bộ Kỳ (PeriodID) tự động để tránh tự động lọc ngoài ý muốn khi lưu/cập nhật dữ liệu
 
-        if (MODULE_CONFIG.IsFullPageDetail) {
-          var row = gridData.length > 0 ? gridData[0] : {};
-          _openModal(true, row, true);
-        } else {
-          _renderTable();
+        try {
+          if (MODULE_CONFIG.IsFullPageDetail) {
+            var row = gridData.length > 0 ? gridData[0] : {};
+            _openModal(true, row, true);
+          } else {
+            _renderTable();
+          }
+        } catch (renderError) {
+          // Response hợp lệ không được phép bị xóa chỉ vì lỗi lifecycle/render của grid.
+          console.error('Dữ liệu đã tải nhưng không thể dựng danh sách:', renderError);
+          if (typeof Alert !== 'undefined') {
+            Alert.error(MODULE_CONFIG.AlertTitleError, 'Dữ liệu đã tải nhưng không thể hiển thị bảng. Vui lòng thử tải lại.');
+          }
         }
       }).catch(function (err) {
+        if (!isLatestRequest()) return;
         console.error('Lỗi tải danh sách:', err);
-        if (typeof Alert !== 'undefined') Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
+        var loadErrorMessage = err && err.response
+          ? 'Không thể tải dữ liệu từ API (mã ' + String(err.code) + '). Xem Console/Network để biết chi tiết.'
+          : MODULE_CONFIG.AlertNetworkError;
+        if (typeof Alert !== 'undefined') Alert.error(MODULE_CONFIG.AlertTitleError, loadErrorMessage);
         gridData = [];
         totalRecords = 0;
         totalPagesFromApi = 0;
@@ -2260,12 +2312,13 @@ window.DynamicFormEngine = (function () {
                 return number.toLocaleString('vi-VN', options);
               };
             }
-            colDef.bottomCalc = "sum";
-            colDef.bottomCalcFormatter = function (cell) {
-              var val = cell.getValue();
-              var n = parseFloat(val);
-              return isNaN(n) ? (val || '') : n.toLocaleString('vi-VN');
-            };
+            // Removed bottomCalc to hide the footer row with zeros
+            // colDef.bottomCalc = "sum";
+            // colDef.bottomCalcFormatter = function (cell) {
+            //   var val = cell.getValue();
+            //   var n = parseFloat(val);
+            //   return isNaN(n) ? (val || '') : n.toLocaleString('vi-VN');
+            // };
             colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
 
@@ -2394,9 +2447,7 @@ window.DynamicFormEngine = (function () {
         });
       }
 
-      if (window.tabulatorInstance) {
-        window.tabulatorInstance.destroy();
-      }
+      _destroyTabulatorInstance();
 
       var tabulatorConfig = {
         data: gridData,

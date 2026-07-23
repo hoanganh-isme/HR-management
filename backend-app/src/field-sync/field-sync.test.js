@@ -4,8 +4,9 @@ import express from 'express';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
 import { createFieldSyncConfig } from './field-sync.config.js';
+import { FIELD_CONTRACT_MIGRATION_REGISTRY, getFieldContractMigration } from './field-contract.registry.js';
 import { createFieldSyncGateway, FieldSyncGatewayError } from './field-sync.gateway.js';
-import { normalizeGridCompare, normalizeGridSchema, normalizeLookupSchema, normalizeRegisteredLookup, resolveRenderType } from './field-sync.resolver.js';
+import { classifyMobileFields, normalizeGridCompare, normalizeGridSchema, normalizeLookupSchema, normalizeRegisteredLookup, resolveRenderType } from './field-sync.resolver.js';
 import { createFieldSyncRouter } from './field-sync.routes.js';
 
 const HTTP_TEST_CONFIG = Object.freeze({
@@ -18,15 +19,29 @@ test('field-sync xác minh token qua endpoint userinfo chuẩn của API gốc',
     assert.equal(config.authVerifyUrl, 'http://sql.example/api/userinfo');
 });
 
-function gridSchemaRows() {
-    return [{
+function gridSchemaRows(lookupKey = '', lookupDependsOn = '') {
+    const rows = [{
         FieldName: 'Bac',
         Caption: 'Bậc',
         FieldOrdinal: 1,
         SqlType: 'int',
         SourceKind: 'RESULT_SET',
-        PrimaryKey: 'Bac'
+        TableName: 'HR_BangThueTNCNTbl',
+        PrimaryKey: 'Bac',
+        ...(lookupKey ? { LookupKey: lookupKey, LookupDependsOn: lookupDependsOn } : {})
     }];
+    if (lookupDependsOn) {
+        rows.push({
+            FieldName: 'CompanyID',
+            Caption: 'Công ty',
+            FieldOrdinal: 2,
+            SqlType: 'varchar(20)',
+            SourceKind: 'RESULT_SET',
+            TableName: 'HR_BangThueTNCNTbl',
+            PrimaryKey: 'Bac'
+        });
+    }
+    return rows;
 }
 
 async function startFieldSyncTestServer(t, gateway, config = HTTP_TEST_CONFIG) {
@@ -35,7 +50,9 @@ async function startFieldSyncTestServer(t, gateway, config = HTTP_TEST_CONFIG) {
     app.use('/api/metadata', createFieldSyncRouter({ gateway, config }));
     app.use((error, req, res, next) => {
         if (res.headersSent) return next(error);
-        return res.status(Number(error.statusCode) || 500).json({ success: false, message: error.message });
+        const body = { success: false, message: error.message };
+        if (/^[A-Z0-9_]{3,80}$/.test(String(error.diagnosticCode || ''))) body.code = error.diagnosticCode;
+        return res.status(Number(error.statusCode) || 500).json(body);
     });
 
     const server = await new Promise((resolve, reject) => {
@@ -206,16 +223,48 @@ test('resolver tạo unified field động, caption tiếng Việt và runtime r
 });
 
 test('resolver chỉ trả dependsOn identifier an toàn', () => {
+    const schema = normalizeGridSchema([
+        {
+            FieldName: 'CompanyID',
+            FieldOrdinal: 1,
+            SqlType: 'varchar(20)'
+        },
+        {
+            FieldName: 'CostID',
+            FieldOrdinal: 2,
+            SqlType: 'varchar(20)'
+        },
+        {
+            FieldName: 'BranchID',
+            FieldOrdinal: 3,
+            SqlType: 'varchar(20)',
+            LookupKey: 'B'.repeat(64),
+            LookupDependsOn: '@companyid;COSTID;Bad value;X--;constructor',
+            LookupMultiSelect: 1,
+            LookupReloadMode: 'OnParent'
+        }
+    ], 'WA_TestFrm', 'HR_TestFrm');
+    const branch = schema.gridFields.find((field) => field.name === 'BranchID');
+    assert.deepEqual(branch.lookup.dependsOn, ['CompanyID', 'CostID']);
+    assert.equal(branch.lookup.multiSelect, true);
+});
+
+test('resolver khóa lookup khi dependsOn không tồn tại trong contract', () => {
     const schema = normalizeGridSchema([{
         FieldName: 'BranchID',
         SqlType: 'varchar(20)',
         LookupKey: 'B'.repeat(64),
-        LookupDependsOn: '@CompanyID;CostID;Bad value;X--;constructor',
-        LookupMultiSelect: 1,
-        LookupReloadMode: 'OnParent'
+        LookupDependsOn: 'MissingParent'
     }], 'WA_TestFrm', 'HR_TestFrm');
-    assert.deepEqual(schema.gridFields[0].lookup.dependsOn, ['CompanyID', 'CostID']);
-    assert.equal(schema.gridFields[0].lookup.multiSelect, true);
+    assert.equal(schema.gridFields[0].lookup.disabled, true);
+    assert.equal(schema.gridFields[0].renderRule, 'text');
+    assert.equal(
+        schema.diagnostics.some((item) =>
+            item.severity === 'error'
+            && item.code === 'LOOKUP_DEPENDENCY_FIELD_NOT_FOUND'
+        ),
+        true
+    );
 });
 
 test('resolver không bật lookup đã bị disable', () => {
@@ -530,8 +579,10 @@ test('HTTP metadata từ chối alias ERP không đúng trước khi gọi gatew
 
 test('HTTP lookup raw SQL bị chặn và không rò nội dung nguồn', async (t) => {
     let verifyCalls = 0;
+    const lookupKey = 'A'.repeat(64);
     const gateway = {
         async verifySession() { verifyCalls += 1; },
+        async gridSchema() { return gridSchemaRows(lookupKey); },
         async lookupSchema() {
             return [{
                 LookupMode: 'RAW_SQL',
@@ -541,7 +592,6 @@ test('HTTP lookup raw SQL bị chặn và không rò nội dung nguồn', async 
         }
     };
     const baseUrl = await startFieldSyncTestServer(t, gateway);
-    const lookupKey = 'A'.repeat(64);
     const response = await fetch(`${baseUrl}/lookups/${lookupKey}/search`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -558,8 +608,10 @@ test('HTTP lookup raw SQL bị chặn và không rò nội dung nguồn', async 
 });
 
 test('HTTP registered lookup chỉ trả hai cột đã đăng ký và fail-closed khi mismatch', async (t) => {
+    const lookupKey = 'D'.repeat(64);
     const gateway = {
         async verifySession() {},
+        async gridSchema() { return gridSchemaRows(lookupKey); },
         async lookupSchema() {
             return [{
                 LookupMode: 'REGISTERED_API',
@@ -576,7 +628,7 @@ test('HTTP registered lookup chỉ trả hai cột đã đăng ký và fail-clos
         }
     };
     const baseUrl = await startFieldSyncTestServer(t, gateway);
-    const endpoint = `${baseUrl}/lookups/${'D'.repeat(64)}/search`;
+    const endpoint = `${baseUrl}/lookups/${lookupKey}/search`;
     const request = (keyword) => fetch(endpoint, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -594,4 +646,194 @@ test('HTTP registered lookup chỉ trả hai cột đã đăng ký và fail-clos
     assert.equal(mismatchResponse.status, 409);
     assert.equal(mismatchBody.code, 'LOOKUP_COLUMNS_MISMATCH');
     assert.doesNotMatch(JSON.stringify(mismatchBody), /PasswordHash|secret/i);
+});
+
+test('HTTP lookup chỉ forward dependency đã khai báo trong Unified Field Contract', async (t) => {
+    const lookupKey = 'E'.repeat(64);
+    let receivedParams;
+    const gateway = {
+        async verifySession() {},
+        async gridSchema() { return gridSchemaRows(lookupKey, 'CompanyID'); },
+        async lookupSchema(params) {
+            receivedParams = params;
+            return [{ LookupMode: 'VALUE_LIST', Value: 'NV01', Display: 'Nhân viên 01' }];
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const endpoint = `${baseUrl}/lookups/${lookupKey}/search`;
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            formName: 'WA_BangThueTNCNFrm',
+            keyword: '',
+            page: 1,
+            pageSize: 30,
+            dependencies: { CompanyID: 'CT01' }
+        })
+    });
+    assert.equal(response.status, 200);
+    assert.equal(receivedParams.CompanyID, 'CT01');
+    assert.equal(receivedParams.FormName, 'WA_BangThueTNCNFrm');
+
+    const rejected = await fetch(endpoint, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            formName: 'WA_BangThueTNCNFrm',
+            dependencies: { UnexpectedField: 'x' }
+        })
+    });
+    assert.equal(rejected.status, 400);
+});
+
+test('Phase 3 registry là allow-list duy nhất và alias backend được sinh từ registry', () => {
+    const expected = [
+        ['WA_BangThueTNCNFrm', 'HR_BangThueTNCNFrm', 'HR_BangThueTNCNTbl', 'Bac'],
+        ['WA_ChucDanhFrm', 'WA_ChucDanhFrm', 'HR_ChucDanhTbl', 'ChucDanhChuyenMon'],
+        ['WA_TitleListFrm', 'WA_TitleListFrm', 'HR_TitleListTbl', 'TitleName'],
+        ['WA_ShiftListFrm', 'WA_ShiftListFrm', 'HR_ShiftListTbl', 'ShiftID']
+    ];
+    assert.deepEqual(FIELD_CONTRACT_MIGRATION_REGISTRY.map((contract) => [
+        contract.webFormName,
+        contract.erpFormId,
+        contract.expectedTableName,
+        contract.expectedPrimaryKey
+    ]), expected);
+    assert.equal(getFieldContractMigration('wa_chucdanhfrm')?.expectedPrimaryKey, 'ChucDanhChuyenMon');
+
+    const config = createFieldSyncConfig({ sqlApiBase: 'http://sql.example' }, {});
+    assert.deepEqual(Object.entries(config.aliases), expected.map(([webFormName, erpFormId]) => [webFormName, erpFormId]));
+    assert.equal(config.migrationRegistry, FIELD_CONTRACT_MIGRATION_REGISTRY);
+});
+
+test('mobile classifier trả CORE/OPTIONAL/ADVANCED/HIDDEN và reasonCodes ổn định', () => {
+    const fields = classifyMobileFields([
+        { name: 'EmployeeCode', label: 'Mã nhân viên', orderNo: 1, requiredOnInsert: true, sqlType: 'varchar(20)' },
+        { name: 'DepartmentID', label: 'Phòng ban', orderNo: 2, sqlType: 'int' },
+        { name: 'PositionNote', label: 'Ghi chú', orderNo: 3, sqlType: 'nvarchar(max)', dbMaxLength: -1 },
+        { name: 'CreatedBy', label: 'Người tạo', orderNo: 4, sqlType: 'varchar(50)' },
+        { name: 'Payload', label: 'Dữ liệu', orderNo: 5, sqlType: 'varbinary(max)' },
+        { name: 'DepartmentName', label: 'Tên phòng', orderNo: 6, sqlType: 'nvarchar(100)', lookup: { dependsOn: ['DepartmentID'] } },
+        { name: 'Color', label: 'Màu', orderNo: 7, sqlType: 'varchar(20)' }
+    ]);
+    const byName = Object.fromEntries(fields.map((field) => [field.name, field]));
+    assert.equal(byName.EmployeeCode.mobileClass, 'CORE');
+    assert.ok(byName.EmployeeCode.reasonCodes.includes('REQUIRED_ON_INSERT'));
+    assert.equal(byName.DepartmentID.mobileClass, 'CORE');
+    assert.ok(byName.DepartmentID.reasonCodes.includes('LOOKUP_DEPENDENCY_PARENT'));
+    assert.equal(byName.PositionNote.mobileClass, 'ADVANCED');
+    assert.ok(byName.PositionNote.reasonCodes.includes('LONG_TEXT'));
+    assert.equal(byName.CreatedBy.mobileClass, 'ADVANCED');
+    assert.ok(byName.CreatedBy.reasonCodes.includes('AUDIT_OR_SYSTEM'));
+    assert.equal(byName.Payload.mobileClass, 'HIDDEN');
+    assert.ok(byName.Payload.reasonCodes.includes('BINARY_TYPE'));
+    assert.equal(byName.Color.mobileClass, 'OPTIONAL');
+    assert.deepEqual(byName.Color.reasonCodes, ['DEFAULT_OPTIONAL']);
+});
+
+test('normalized contract công bố các nhóm mobile mà không lưu metadata mirror', () => {
+    const schema = normalizeGridSchema([
+        {
+            FieldName: 'ShiftID', Caption: 'Mã ca', FieldOrdinal: 1, SqlType: 'int',
+            SourceKind: 'RESULT_SET', TableName: 'HR_ShiftListTbl', PrimaryKey: 'ShiftID',
+            IsPrimaryKey: 1, ShowInGrid: 1
+        },
+        {
+            FieldName: 'Notes', Caption: 'Ghi chú', FieldOrdinal: 2, SqlType: 'nvarchar(max)',
+            SourceKind: 'RESULT_SET', TableName: 'HR_ShiftListTbl', PrimaryKey: 'ShiftID',
+            DbMaxLength: -1, ShowInGrid: 1
+        }
+    ], 'WA_ShiftListFrm', 'WA_ShiftListFrm');
+    assert.deepEqual(schema.mobile.coreFields, ['ShiftID']);
+    assert.deepEqual(schema.mobile.advancedFields, ['Notes']);
+    assert.equal(schema.fields[0].mobileClass, 'CORE');
+    assert.ok(schema.fields[0].reasonCodes.includes('PRIMARY_KEY'));
+});
+
+test('HTTP metadata chặn form ngoài allow-list trước khi gọi metadata gateway', async (t) => {
+    let schemaCalls = 0;
+    const gateway = {
+        async verifySession() {},
+        async gridSchema() { schemaCalls += 1; return []; }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const response = await fetch(`${baseUrl}/grid-schema/WA_NotAuditedFrm`, { headers: authHeaders() });
+    const body = await response.json();
+    assert.equal(response.status, 404);
+    assert.equal(body.code, 'FIELD_CONTRACT_FORM_NOT_ALLOWLISTED');
+    assert.equal(schemaCalls, 0);
+});
+
+test('HTTP metadata fail-closed khi TableName hoặc PrimaryKey lệch registry', async (t) => {
+    let mode = 'table';
+    const gateway = {
+        async verifySession() {},
+        async gridSchema() {
+            return [{
+                ...gridSchemaRows()[0],
+                TableName: mode === 'table' ? 'HR_AnotherTbl' : 'HR_BangThueTNCNTbl',
+                PrimaryKey: mode === 'pk' ? 'WrongID' : 'Bac'
+            }];
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const endpoint = `${baseUrl}/grid-schema/WA_BangThueTNCNFrm?refresh=1`;
+
+    const tableResponse = await fetch(endpoint, { headers: authHeaders() });
+    const tableBody = await tableResponse.json();
+    assert.equal(tableResponse.status, 409);
+    assert.equal(tableBody.code, 'FIELD_CONTRACT_TABLE_MISMATCH');
+
+    mode = 'pk';
+    const pkResponse = await fetch(endpoint, { headers: authHeaders() });
+    const pkBody = await pkResponse.json();
+    assert.equal(pkResponse.status, 409);
+    assert.equal(pkBody.code, 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
+});
+
+test('HTTP metadata Phase 3 truyền đúng ERP form từ registry và chấp nhận table/PK đã audit', async (t) => {
+    let received;
+    const gateway = {
+        async verifySession() {},
+        async gridSchema(params) {
+            received = params;
+            return [{
+                FieldName: 'TitleName', Caption: 'Chức danh', FieldOrdinal: 1, SqlType: 'nvarchar(100)',
+                SourceKind: 'RESULT_SET', TableName: 'HR_TitleListTbl', PrimaryKey: 'TitleName', IsPrimaryKey: 1
+            }];
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const response = await fetch(`${baseUrl}/grid-schema/wa_titlelistfrm`, { headers: authHeaders() });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.deepEqual(received, { FormName: 'WA_TitleListFrm', ERPFormID: 'WA_TitleListFrm' });
+    assert.equal(body.schema.tableName, 'HR_TitleListTbl');
+    assert.equal(body.schema.primaryKey, 'TitleName');
+});
+
+test('HTTP metadata giữ nguyên 403/502 để frontend không hiểu nhầm là hết phiên', async (t) => {
+    const permissionGateway = {
+        async verifySession() {
+            throw new FieldSyncGatewayError('Không có quyền form.', 403, 'FIELD_SYNC_FORM_FORBIDDEN');
+        }
+    };
+    const permissionBaseUrl = await startFieldSyncTestServer(t, permissionGateway);
+    const forbidden = await fetch(`${permissionBaseUrl}/grid-schema/WA_BangThueTNCNFrm`, { headers: authHeaders() });
+    const forbiddenBody = await forbidden.json();
+    assert.equal(forbidden.status, 403);
+    assert.equal(forbiddenBody.code, 'FIELD_SYNC_FORM_FORBIDDEN');
+
+    const unavailableGateway = {
+        async verifySession() {},
+        async gridSchema() {
+            throw new FieldSyncGatewayError('Không thể đọc metadata ERP.', 502, 'ERP_GATEWAY_NETWORK');
+        }
+    };
+    const unavailableBaseUrl = await startFieldSyncTestServer(t, unavailableGateway);
+    const unavailable = await fetch(`${unavailableBaseUrl}/grid-schema/WA_BangThueTNCNFrm`, { headers: authHeaders() });
+    const unavailableBody = await unavailable.json();
+    assert.equal(unavailable.status, 502);
+    assert.equal(unavailableBody.code, 'ERP_GATEWAY_NETWORK');
 });
