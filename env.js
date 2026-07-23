@@ -30,6 +30,7 @@ HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     enabled: true,
     shadowMode: false,
     pilotForms: ['WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm'],
+    pollSeconds: 360,
     metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
 }, HRM_RUNTIME_CONFIG.FIELD_SYNC || {});
 

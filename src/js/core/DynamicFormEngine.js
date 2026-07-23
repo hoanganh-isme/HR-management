@@ -81,6 +81,18 @@ window.DynamicFormEngine = (function () {
     var schema = runtimeSchemas && runtimeSchemas[kind];
     return Array.isArray(schema) ? schema : globalFormSchema;
   }
+  function _configuredFilterSchema() { return _schemaFor('filters').filter(function (field) { return field && field.showInFilter === true && field.supportsFilter !== false; }); }
+
+  function _hasConfiguredFilters() {
+    if (MODULE_CONFIG.HideFilterBtn) return false;
+
+    if (_usesUnifiedFieldContract()) {
+      return _configuredFilterSchema().length > 0;
+    }
+
+    return _configuredFilterSchema().length > 0
+      || (Array.isArray(MODULE_CONFIG.Filters) && MODULE_CONFIG.Filters.length > 0);
+  }
 
   function _gridSchemaSignature(schemas) {
     var grid = schemas && Array.isArray(schemas.grid) ? schemas.grid : [];
@@ -1525,7 +1537,7 @@ window.DynamicFormEngine = (function () {
               }
             }
           } : 'DISABLED') : false,
-          onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
+          onFilter: !_hasConfiguredFilters() ? false : function () {
             var filterContainer = $container.querySelector('#dynamic-filter-container');
             if (filterContainer) {
               if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
@@ -1595,8 +1607,6 @@ window.DynamicFormEngine = (function () {
           clearTimeout(_searchTimer);
           _searchTimer = setTimeout(function () {
             currentKeyword = quickSearchInput.value;
-            window.currentFilters = window.currentFilters || {};
-            window.currentFilters.keyword = currentKeyword;
             currentPage = 1;
             selectedRows = [];
             _updateSelectionCounter();
@@ -1622,28 +1632,36 @@ window.DynamicFormEngine = (function () {
         filterContainer.innerHTML = ''; // Xóa placeholder nếu có
 
         // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-        var dynamicFilters = _schemaFor('filters')
-          .filter(function (f) { return f.showInFilter; })
+        var dynamicFilters = _configuredFilterSchema()
           .map(function (f) {
             // Chuyển đổi định dạng từ FormEngine sang FilterComponent
             var filterType = 'text';
-            if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
-            if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
+            var erpFilterType = Number(f.filterControlType);
+            if (erpFilterType === 3) filterType = 'select';
+            else if (erpFilterType === 6) filterType = 'select';
+            else if (erpFilterType === 9) filterType = 'date';
+            else if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
+            else if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
 
+            var filterLabel = f.label || f.name;
             var filterObj = {
               id: f.name,
-              label: f.label,
+              label: filterLabel,
               type: filterType,
-              placeholder: f.label
+              placeholder: filterLabel
             };
 
             // Parse DataSource cho trường Select/Dropdown
-            if (f.renderRule === 'sl' || f.renderRule === 'sw') {
+            if (erpFilterType === 6 || f.renderRule === 'sw') {
+              filterObj.type = 'select';
+              filterObj.options = [
+                { value: 1, label: 'Có' },
+                { value: 0, label: 'Không' }
+              ];
+            } else if (erpFilterType === 3 || f.renderRule === 'sl') {
               filterObj.type = 'select';
               filterObj.options = [];
-              if (f.renderRule === 'sw') {
-                filterObj.options = [{ value: 1, label: 'Có' }, { value: 0, label: 'Không' }];
-              } else if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
+              if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
                 var parts = f.dataSource.replace('STATIC:', '').split(',');
                 parts.forEach(function (p) {
                   var kv = p.split('|');
@@ -1752,29 +1770,28 @@ window.DynamicFormEngine = (function () {
 
         if (dynamicFilters.length > 0) {
           filters = filters.concat(dynamicFilters);
-        } else if (MODULE_CONFIG.Filters && MODULE_CONFIG.Filters.length > 0) {
+        } else if (!_usesUnifiedFieldContract()
+          && MODULE_CONFIG.Filters
+          && MODULE_CONFIG.Filters.length > 0) {
           filters = filters.concat(MODULE_CONFIG.Filters);
         }
 
-        var filterNode = FilterComponent.create(filters, function (values) {
-          console.log('[DynamicFormEngine] Filter values callback received:', values);
-
-          // Lấy giá trị keyword từ ô Quick Search Bar để tránh bị đè mất
-          var quickSearch = document.getElementById('toolbar-quick-search');
-          if (quickSearch) {
-            values.keyword = quickSearch.value;
-          }
-
-          // Lưu lại toàn bộ các giá trị filter
-          window.currentFilters = values;
-          currentKeyword = values.keyword || '';
-          currentPage = 1; // Reset về trang 1 khi lọc mới
-          selectedRows = [];
-          _updateSelectionCounter();
-          _loadData();
-        });
-        filterContainer.appendChild(filterNode);
-        filterContainer.style.display = 'none'; // Ẩn mặc định, ấn Lọc mới hiện
+        if (filters.length > 0) {
+          var filterNode = FilterComponent.create(filters, function (values) {
+            var quickSearch = document.getElementById('toolbar-quick-search');
+            window.currentFilters = values || {};
+            currentKeyword = quickSearch ? quickSearch.value : currentKeyword;
+            currentPage = 1;
+            selectedRows = [];
+            _updateSelectionCounter();
+            _loadData();
+          });
+          filterContainer.appendChild(filterNode);
+          filterContainer.style.display = 'none';
+        } else {
+          filterContainer.innerHTML = '';
+          filterContainer.style.display = 'none';
+        }
       }
 
       if (!MODULE_CONFIG.NoAutoLoad) {
@@ -1835,17 +1852,18 @@ window.DynamicFormEngine = (function () {
         if (_usesUnifiedFieldContract()) {
           allowedContractFilters = Object.create(null);
           _schemaFor('filters').forEach(function (field) { allowedContractFilters[String(field.name).toLowerCase()] = true; });
-          allowedContractFilters.keyword = true;
         }
         for (var k in window.currentFilters) {
-          if (allowedContractFilters && !allowedContractFilters[String(k).toLowerCase()]) continue;
-          if (window.currentFilters[k] !== '' && window.currentFilters[k] !== null) {
+          var normalizedFilterKey = String(k).toLowerCase();
+          if (normalizedFilterKey === 'keyword') continue;
+          if (allowedContractFilters && !allowedContractFilters[normalizedFilterKey]) continue;
+          if (window.currentFilters[k] !== ''
+            && window.currentFilters[k] !== null
+            && window.currentFilters[k] !== undefined) {
             activeFilters[k] = window.currentFilters[k];
           }
         }
       }
-      // Thêm Keyword vào filter JSON
-      if (currentKeyword) activeFilters['Keyword'] = currentKeyword;
 
       // Đổi màu nút Lọc nếu có dữ liệu lọc
       var actionsContainer = document.getElementById('global-page-actions') || $container;
@@ -4430,12 +4448,12 @@ window.DynamicFormEngine = (function () {
           var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
             ? 'API_CandidateAttach' : 'API_PersonAttach';
 
-            var fetchData = {};
-            (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) fetchData[key] = imgIdVal; });
-            var fetchPayload = {
-              List: attachApi,
-              Func: 'View',
-              JsonData: JSON.stringify(fetchData),
+          var fetchData = {};
+          (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) fetchData[key] = imgIdVal; });
+          var fetchPayload = {
+            List: attachApi,
+            Func: 'View',
+            JsonData: JSON.stringify(fetchData),
             UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
           };
 
@@ -5827,22 +5845,22 @@ window.DynamicFormEngine = (function () {
             : Promise.resolve([]);
 
           detailSave.then(function (detailResults) {
-              var allOk = detailResults.every(function (dr) { return dr && (dr.code === 0 || dr.code === '0'); });
-              if (allOk) {
-                _finalizeSave(isEdit, modal);
-              } else {
-                var firstErr = detailResults.find(function (dr) { return dr && dr.code !== 0 && dr.code !== '0'; });
-                var dMsg = firstErr && firstErr.msg ? firstErr.msg : 'Lưu chi tiết thất bại';
-                if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
-                  dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';
-                }
-                Alert.error(MODULE_CONFIG.AlertTitleError, dMsg);
-                _restoreSaveBtn();
+            var allOk = detailResults.every(function (dr) { return dr && (dr.code === 0 || dr.code === '0'); });
+            if (allOk) {
+              _finalizeSave(isEdit, modal);
+            } else {
+              var firstErr = detailResults.find(function (dr) { return dr && dr.code !== 0 && dr.code !== '0'; });
+              var dMsg = firstErr && firstErr.msg ? firstErr.msg : 'Lưu chi tiết thất bại';
+              if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
+                dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';
               }
-            }).catch(function (err) {
-              Alert.error(MODULE_CONFIG.AlertTitleError, 'Lỗi lưu thông tin chi tiết: ' + err.message);
+              Alert.error(MODULE_CONFIG.AlertTitleError, dMsg);
               _restoreSaveBtn();
-            });
+            }
+          }).catch(function (err) {
+            Alert.error(MODULE_CONFIG.AlertTitleError, 'Lỗi lưu thông tin chi tiết: ' + err.message);
+            _restoreSaveBtn();
+          });
         } else {
           var mMsg = res && res.msg ? res.msg : MODULE_CONFIG.AlertSaveFailed;
           if (mMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || mMsg.indexOf('Cannot insert duplicate key') !== -1) {
