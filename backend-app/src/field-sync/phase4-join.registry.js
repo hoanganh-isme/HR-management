@@ -1,46 +1,103 @@
 /**
- * Registry quản lý Phase 4A - Unified Field Contract cho câu lệnh JOIN (Read-Only)
- * Đóng vai trò allow-list bảo mật và hợp đồng ánh xạ giữa WebForm, DetailKey và Procedure/Table trong DB.
+ * Phase 4 JOIN Contract Registry.
+ *
+ * View được giữ là API nghiệp vụ riêng.
+ * Generic mutation dùng chung API_LuuDong_V2/API_XoaDong_V2.
  */
 function normalizeKey(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+function freezeContract(contract) {
+  return Object.freeze({
+    ...contract
+  });
 }
 
 const RAW_CONTRACTS = [
-  Object.freeze({
+  freezeContract({
     webFormName: 'WA_CaLamViecFrm',
     detailKey: 'SHIFT_DETAIL',
+
     apiList: 'API_CaLamViec_ChiTiet',
-    expectedProcedure: 'API_CaLamViec_ChiTiet',
-    expectedTableName: 'HR_SapCaChiTietTbl',
-    expectedPrimaryKey: 'UserAutoID',
+
+    expectedProcedure:
+      'API_CaLamViec_ChiTiet',
+
+    expectedSaveProcedure: '',
+    expectedDeleteProcedure: '',
+
+    expectedTableName:
+      'HR_SapCaChiTietTbl',
+
+    expectedPrimaryKey:
+      'UserAutoID',
+
     readOnly: true
+  }),
+
+  freezeContract({
+    webFormName: 'WA_CaLamViecFrm',
+    detailKey: 'SHIFT_EMPLOYEES',
+
+    apiList:
+      'API_CaLamViec_NhanVien',
+
+    expectedProcedure:
+      'API_CaLamViec_NhanVien',
+
+    expectedSaveProcedure:
+      'API_LuuDong_V2',
+
+    expectedDeleteProcedure:
+      'API_XoaDong_V2',
+
+    expectedTableName:
+      'HR_SapCaNhanVienTbl',
+
+    expectedPrimaryKey:
+      'UserAutoID',
+
+    readOnly: false
   })
 ];
 
-export const PHASE4_JOIN_CONTRACTS = Object.freeze(RAW_CONTRACTS);
+export const PHASE4_JOIN_CONTRACTS =
+  Object.freeze(
+    RAW_CONTRACTS.slice()
+  );
 
-/**
- * Tra cứu Phase 4 JOIN Contract theo webFormName và detailKey
- */
-export function getPhase4JoinContract(webFormName, detailKey) {
-  const normForm = normalizeKey(webFormName);
-  const normDetail = normalizeKey(detailKey);
+export function getPhase4JoinContract(
+  webFormName,
+  detailKey
+) {
+  const normalizedForm =
+    normalizeKey(webFormName);
 
-  if (!normForm || !normDetail) {
+  const normalizedDetail =
+    normalizeKey(detailKey);
+
+  if (!normalizedForm || !normalizedDetail) {
     return null;
   }
 
-  const found = PHASE4_JOIN_CONTRACTS.find(
-    (item) => normalizeKey(item.webFormName) === normForm && normalizeKey(item.detailKey) === normDetail
-  );
+  return PHASE4_JOIN_CONTRACTS.find(
+    function (contract) {
+      return (
+        normalizeKey(
+          contract.webFormName
+        ) === normalizedForm
 
-  return found || null;
+        && normalizeKey(
+          contract.detailKey
+        ) === normalizedDetail
+      );
+    }
+  ) || null;
 }
 
-/**
- * Danh sách toàn bộ Phase 4 JOIN contracts
- */
 export function listPhase4JoinContracts() {
-  return PHASE4_JOIN_CONTRACTS;
+  return PHASE4_JOIN_CONTRACTS.slice();
 }

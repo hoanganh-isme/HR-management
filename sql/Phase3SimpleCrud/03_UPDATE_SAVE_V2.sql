@@ -34,17 +34,62 @@ BEGIN
     DECLARE
         @ExpectedTable sysname,
         @PrimaryKey sysname,
+
+        @ExpectedView sysname,
         @ExpectedSave sysname,
+
+        @PermissionFormName varchar(100),
+        @WritePolicy varchar(40),
+
         @GlobalReferenceOnly bit;
 
     SELECT
-        @ExpectedTable = R.ExpectedTableName,
-        @PrimaryKey = R.ExpectedPrimaryKey,
-        @ExpectedSave = R.SaveV2,
-        @GlobalReferenceOnly = R.GlobalReferenceOnly
+        @ExpectedTable =
+            R.ExpectedTableName,
+
+        @PrimaryKey =
+            R.ExpectedPrimaryKey,
+
+        @ExpectedView =
+            R.ViewV2,
+
+        @ExpectedSave =
+            R.SaveV2,
+
+        @PermissionFormName =
+            R.PermissionFormName,
+
+        @WritePolicy =
+            R.WritePolicy,
+
+        @GlobalReferenceOnly =
+            R.GlobalReferenceOnly
+
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
       AND R.EnableSave = 1;
+
+    SET @PermissionFormName =
+        LTRIM(
+            RTRIM(
+                ISNULL(
+                    @PermissionFormName,
+                    @List
+                )
+            )
+        );
+
+    SET @WritePolicy =
+        UPPER(
+            LTRIM(
+                RTRIM(
+                    ISNULL(
+                        @WritePolicy,
+                        'SAFE_TABLE_COLUMNS'
+                    )
+                )
+            )
+        );
 
     IF @ExpectedTable IS NULL OR @ExpectedSave COLLATE DATABASE_DEFAULT <> OBJECT_NAME(@@PROCID) COLLATE DATABASE_DEFAULT
     BEGIN
@@ -143,6 +188,151 @@ BEGIN
         RETURN;
     END;
 
+/*
+  Quy tắc ghi dữ liệu:
+
+  SAFE_TABLE_COLUMNS:
+  Cho các form CRUD một bảng đã kiểm thử ở Phase 3.
+
+  VIEW_PHYSICAL_COLUMNS:
+  Chỉ nhận field:
+  - có trong result-set của View API;
+  - có source lineage thuộc main table;
+  - giữ nguyên tên field vật lý.
+*/
+IF @WritePolicy NOT IN
+(
+    'SAFE_TABLE_COLUMNS',
+    'VIEW_PHYSICAL_COLUMNS'
+)
+BEGIN
+    SELECT
+        -1 AS code,
+        N'PHASE3_WRITE_POLICY_INVALID' AS msg,
+        @PrimaryKey AS primaryKey,
+        @PrimaryValue AS primaryValue,
+        0 AS rowsAffected;
+
+    RETURN;
+END;
+
+DECLARE @ViewPhysicalColumns table
+(
+    ColumnName sysname NOT NULL PRIMARY KEY
+);
+
+IF @WritePolicy = 'VIEW_PHYSICAL_COLUMNS'
+BEGIN
+    DECLARE @ViewObjectID int =
+        COALESCE
+        (
+            OBJECT_ID(
+                @ExpectedView,
+                N'P'
+            ),
+
+            OBJECT_ID(
+                N'dbo.' + @ExpectedView,
+                N'P'
+            )
+        );
+
+    IF @ViewObjectID IS NULL
+    BEGIN
+        SELECT
+            -1 AS code,
+            N'PHASE3_WRITE_VIEW_NOT_FOUND' AS msg,
+            @PrimaryKey AS primaryKey,
+            @PrimaryValue AS primaryValue,
+            0 AS rowsAffected;
+
+        RETURN;
+    END;
+
+    IF EXISTS
+    (
+        SELECT 1
+
+        FROM sys.dm_exec_describe_first_result_set_for_object
+        (
+            @ViewObjectID,
+            1
+        ) AS D
+
+        WHERE D.error_number IS NOT NULL
+    )
+    BEGIN
+        SELECT
+            -1 AS code,
+            N'PHASE3_WRITE_VIEW_METADATA_ERROR' AS msg,
+            @PrimaryKey AS primaryKey,
+            @PrimaryValue AS primaryValue,
+            0 AS rowsAffected;
+
+        RETURN;
+    END;
+
+    INSERT INTO @ViewPhysicalColumns
+    (
+        ColumnName
+    )
+    SELECT DISTINCT
+        D.source_column
+
+    FROM sys.dm_exec_describe_first_result_set_for_object
+    (
+        @ViewObjectID,
+        1
+    ) AS D
+
+    WHERE
+        D.error_number IS NULL
+
+        AND ISNULL(D.is_hidden, 0) = 0
+
+        AND D.name IS NOT NULL
+        AND D.source_column IS NOT NULL
+        AND D.source_table IS NOT NULL
+
+        AND D.source_table
+            COLLATE DATABASE_DEFAULT
+            =
+            @ExpectedTable
+            COLLATE DATABASE_DEFAULT
+
+        /*
+          Generic Save chỉ ghi an toàn khi tên result field
+          giữ nguyên tên physical column.
+        */
+        AND D.name
+            COLLATE DATABASE_DEFAULT
+            =
+            D.source_column
+            COLLATE DATABASE_DEFAULT;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM @ViewPhysicalColumns AS V
+        WHERE
+            V.ColumnName
+                COLLATE DATABASE_DEFAULT
+                =
+                @PrimaryKey
+                COLLATE DATABASE_DEFAULT
+    )
+    BEGIN
+        SELECT
+            -1 AS code,
+            N'PHASE3_WRITE_VIEW_PRIMARY_KEY_MISSING' AS msg,
+            @PrimaryKey AS primaryKey,
+            @PrimaryValue AS primaryValue,
+            0 AS rowsAffected;
+
+        RETURN;
+    END;
+END;
+
     IF @GlobalReferenceOnly = 1 AND EXISTS (
         SELECT 1 FROM sys.columns AS C
         WHERE C.object_id = @ObjectID
@@ -222,16 +412,13 @@ BEGIN
         END;
     END;
 
-    IF @DataBranch IS NOT NULL AND (
-        (@BranchID = '' AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT)
-        OR (@BranchID <> '' AND EXISTS (
-            SELECT 1 FROM STRING_SPLIT(@DataBranch, ',') AS Requested
-            WHERE LTRIM(RTRIM(Requested.[value])) <> ''
-              AND NOT EXISTS (
-                  SELECT 1 FROM STRING_SPLIT(@BranchID, ',') AS ContextBranch
-                  WHERE LTRIM(RTRIM(ContextBranch.[value])) COLLATE DATABASE_DEFAULT = LTRIM(RTRIM(Requested.[value])) COLLATE DATABASE_DEFAULT
-              )
-        ))
+    IF @DataBranch IS NOT NULL AND @BranchID <> '' AND EXISTS (
+        SELECT 1 FROM STRING_SPLIT(@DataBranch, ',') AS Requested
+        WHERE LTRIM(RTRIM(Requested.[value])) <> ''
+          AND NOT EXISTS (
+              SELECT 1 FROM STRING_SPLIT(@BranchID, ',') AS ContextBranch
+              WHERE LTRIM(RTRIM(ContextBranch.[value])) COLLATE DATABASE_DEFAULT = LTRIM(RTRIM(Requested.[value])) COLLATE DATABASE_DEFAULT
+          )
     )
     BEGIN
         SELECT -1 AS code, N'PHASE3_JSON_BRANCH_CONTEXT_DENIED' AS msg,
@@ -247,7 +434,8 @@ BEGIN
     DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
     SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
     FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
+    WHERE M.FormName COLLATE DATABASE_DEFAULT =
+      @PermissionFormName COLLATE DATABASE_DEFAULT
       AND ISNULL(M.isDisable, 0) = 0
     ORDER BY M.MenuID;
 
@@ -269,272 +457,242 @@ BEGIN
         FROM dbo.WA_UserPermisstion AS P
         WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
           AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
-           OR ISNULL(@UserAllowed, ISNULL(@GroupAllowed, 0)) <> 1
+
+        IF COALESCE(@UserCanRun, @GroupCanRun, 0) <> 1 OR COALESCE(@UserAllowed, @GroupAllowed, 0) <> 1
         BEGIN
-            SELECT -1 AS code, N'PHASE3_SAVE_PERMISSION_DENIED' AS msg,
+            SELECT -1 AS code, N'PHASE3_MUTATION_PERMISSION_DENIED' AS msg,
                    @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
             RETURN;
         END;
     END;
 
-    DECLARE @Columns table
-    (
-        ColumnID int NOT NULL,
-        ColumnName sysname NOT NULL PRIMARY KEY,
-        SqlType nvarchar(256) NOT NULL,
-        IsPrimaryKey bit NOT NULL,
-        IsIdentity bit NOT NULL,
-        IsComputed bit NOT NULL,
-        HasDefault bit NOT NULL,
-        IsNullable bit NOT NULL,
-        IsServerManaged bit NOT NULL,
-        IsDenied bit NOT NULL,
-        JsonPresent bit NOT NULL
+    DECLARE @Columns TABLE (
+        ColumnName sysname PRIMARY KEY,
+        SqlTypeName sysname,
+        MaxLength int,
+        IsNullable bit,
+        IsIdentity bit,
+        IsPrimaryKey bit,
+        IsComputed bit,
+        IsServerManaged bit,
+        IsDenied bit,
+        JsonValue nvarchar(max),
+        HasJsonKey bit
     );
 
-    INSERT INTO @Columns
-        (ColumnID, ColumnName, SqlType, IsPrimaryKey, IsIdentity, IsComputed,
-         HasDefault, IsNullable, IsServerManaged, IsDenied, JsonPresent)
+    INSERT INTO @Columns (
+        ColumnName, SqlTypeName, MaxLength, IsNullable, IsIdentity,
+        IsPrimaryKey, IsComputed, IsServerManaged, IsDenied, JsonValue, HasJsonKey
+    )
     SELECT
-        C.column_id,
-        C.name,
-        T.name + CASE
-            WHEN T.name IN ('varchar', 'char', 'binary', 'varbinary')
-                THEN '(' + CASE WHEN C.max_length = -1 THEN 'max' ELSE CONVERT(varchar(10), C.max_length) END + ')'
-            WHEN T.name IN ('nvarchar', 'nchar')
-                THEN '(' + CASE WHEN C.max_length = -1 THEN 'max' ELSE CONVERT(varchar(10), C.max_length / 2) END + ')'
-            WHEN T.name IN ('decimal', 'numeric')
-                THEN '(' + CONVERT(varchar(10), C.[precision]) + ',' + CONVERT(varchar(10), C.scale) + ')'
-            WHEN T.name IN ('datetime2', 'datetimeoffset', 'time')
-                THEN '(' + CONVERT(varchar(10), C.scale) + ')'
-            ELSE '' END,
-        CONVERT(bit, CASE WHEN C.name COLLATE DATABASE_DEFAULT = @PrimaryKey COLLATE DATABASE_DEFAULT THEN 1 ELSE 0 END),
-        CONVERT(bit, C.is_identity),
-        CONVERT(bit, C.is_computed),
-        CONVERT(bit, CASE WHEN C.default_object_id <> 0 THEN 1 ELSE 0 END),
-        CONVERT(bit, C.is_nullable),
-        CONVERT(bit, CASE WHEN LOWER(C.name) COLLATE DATABASE_DEFAULT IN
-            ('usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
-             'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat',
-             'isdeleted', 'userdelete', 'deletedby', 'deleteby', 'datedelete', 'deleteddate', 'deletedat')
-            THEN 1 ELSE 0 END),
+        C.name AS ColumnName,
+        T.name AS SqlTypeName,
+        C.max_length,
+        C.is_nullable,
+        C.is_identity,
+        CONVERT(bit, CASE WHEN C.name COLLATE DATABASE_DEFAULT = @PrimaryKey COLLATE DATABASE_DEFAULT THEN 1 ELSE 0 END) AS IsPrimaryKey,
+        C.is_computed,
         CONVERT(bit, CASE
-            WHEN T.is_user_defined = 1
-              OR T.is_assembly_type = 1
-              OR LOWER(T.name) COLLATE DATABASE_DEFAULT IN
-                ('binary', 'varbinary', 'image', 'timestamp', 'rowversion', 'xml', 'text', 'ntext',
-                 'sql_variant', 'geography', 'geometry', 'hierarchyid')
-              OR LOWER(C.name) COLLATE DATABASE_DEFAULT IN
-                ('content', 'base64content', 'filecontent', 'binarydata', 'password', 'passwordhash',
-                 'token', 'refreshtoken', 'secret', 'rawsql', 'commandtext')
-            THEN 1 ELSE 0 END),
-        CONVERT(bit, CASE WHEN EXISTS (
-            SELECT 1 FROM OPENJSON(@Data) AS J
-            WHERE J.[key] COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
-        ) THEN 1 ELSE 0 END)
+            WHEN C.name COLLATE DATABASE_DEFAULT = @PrimaryKey COLLATE DATABASE_DEFAULT THEN 0
+            WHEN LOWER(C.name) COLLATE DATABASE_DEFAULT IN (
+                'usercreate', 'userdate', 'useredit', 'usereditdate',
+                'userdelete', 'userdeletedate', 'sysdate', 'datecreated', 'datemodified'
+            ) THEN 1
+            ELSE 0
+        END) AS IsServerManaged,
+        CONVERT(bit, CASE
+            WHEN LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('password', 'pass', 'token', 'secret', 'hash', 'salt') THEN 1
+            ELSE 0
+        END) AS IsDenied,
+        J.[value] AS JsonValue,
+        CONVERT(bit, CASE WHEN J.[key] IS NOT NULL THEN 1 ELSE 0 END) AS HasJsonKey
     FROM sys.columns AS C
     INNER JOIN sys.types AS T ON T.user_type_id = C.user_type_id
+    LEFT JOIN OPENJSON(@Data) AS J
+      ON LOWER(J.[key]) COLLATE DATABASE_DEFAULT = LOWER(C.name) COLLATE DATABASE_DEFAULT
     WHERE C.object_id = @ObjectID;
 
-    /* Unknown, denied và audit spoof đều bị từ chối thay vì bỏ qua im lặng. */
     IF EXISTS (
         SELECT 1
         FROM OPENJSON(@Data) AS J
         WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT NOT IN ('isedit', 'id', 'username', 'branchid')
           AND NOT EXISTS (
               SELECT 1 FROM @Columns AS C
-              WHERE C.ColumnName COLLATE DATABASE_DEFAULT = J.[key] COLLATE DATABASE_DEFAULT
+              WHERE LOWER(C.ColumnName) COLLATE DATABASE_DEFAULT = LOWER(J.[key]) COLLATE DATABASE_DEFAULT
                 AND (C.IsIdentity = 0 OR (@IsEdit = 1 AND C.IsPrimaryKey = 1))
                 AND C.IsComputed = 0
                 AND C.IsServerManaged = 0 AND C.IsDenied = 0
+                AND
+                (
+                    @WritePolicy =
+                        'SAFE_TABLE_COLUMNS'
+
+                    OR EXISTS
+                    (
+                        SELECT 1
+                        FROM @ViewPhysicalColumns AS V
+
+                        WHERE
+                            V.ColumnName
+                                COLLATE DATABASE_DEFAULT
+                                =
+                                C.ColumnName
+                                COLLATE DATABASE_DEFAULT
+                    )
+                )
           )
     )
     BEGIN
-        SELECT -1 AS code, N'PHASE3_UNKNOWN_DENIED_OR_SERVER_FIELD' AS msg,
+        SELECT -1 AS code, N'PHASE3_UNSAFE_PAYLOAD_FIELD_REJECTED' AS msg,
                @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
         RETURN;
     END;
 
-    IF @IsEdit = 0 AND EXISTS (
-        SELECT 1 FROM @Columns AS C
-        WHERE C.IsIdentity = 0 AND C.IsComputed = 0 AND C.IsServerManaged = 0 AND C.IsDenied = 0
-          AND C.IsNullable = 0 AND C.HasDefault = 0
-          AND (C.JsonPresent = 0 OR EXISTS (
-              SELECT 1 FROM OPENJSON(@Data) AS J
-              WHERE J.[key] COLLATE DATABASE_DEFAULT = C.ColumnName COLLATE DATABASE_DEFAULT
-                AND (J.[type] = 0 OR (J.[type] = 1 AND LTRIM(RTRIM(CONVERT(nvarchar(max), J.[value]))) = N''))
-          ))
-    )
+    DECLARE @PkColumnName sysname, @PkJsonValue nvarchar(max), @PkHasKey bit;
+    SELECT @PkColumnName = C.ColumnName, @PkJsonValue = C.JsonValue, @PkHasKey = C.HasJsonKey
+    FROM @Columns AS C
+    WHERE C.IsPrimaryKey = 1;
+
+    IF @IsEdit = 1
     BEGIN
-        SELECT -1 AS code, N'PHASE3_REQUIRED_FIELD_MISSING' AS msg,
-               @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
-        RETURN;
-    END;
-
-    IF @IsEdit = 1 AND NOT EXISTS (
-        SELECT 1 FROM OPENJSON(@Data) AS J
-        WHERE J.[key] COLLATE DATABASE_DEFAULT = @PrimaryKey COLLATE DATABASE_DEFAULT
-          AND J.[type] <> 0
-          AND LTRIM(RTRIM(CONVERT(nvarchar(max), J.[value]))) <> N''
-    )
-    BEGIN
-        SELECT -1 AS code, N'PHASE3_PRIMARY_KEY_REQUIRED_FOR_UPDATE' AS msg,
-               @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
-        RETURN;
-    END;
-
-    DECLARE
-        @ColumnList nvarchar(max) = N'',
-        @WithClause nvarchar(max) = N'',
-        @SelectList nvarchar(max) = N'',
-        @UpdateSet nvarchar(max) = N'',
-        @InsertAuditColumns nvarchar(max) = N'',
-        @InsertAuditValues nvarchar(max) = N'',
-        @UpdateAuditSet nvarchar(max) = N'',
-        @Sql nvarchar(max);
-
-    SELECT
-        @ColumnList = STUFF((
-            SELECT N', ' + QUOTENAME(C.ColumnName)
-            FROM @Columns AS C
-            WHERE C.JsonPresent = 1 AND C.IsIdentity = 0 AND C.IsComputed = 0
-              AND C.IsServerManaged = 0 AND C.IsDenied = 0
-            ORDER BY C.ColumnID FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N''),
-        @WithClause = STUFF((
-            SELECT N', ' + QUOTENAME(C.ColumnName) + N' ' + C.SqlType
-                 + N' ''$."' + STRING_ESCAPE(C.ColumnName, 'json') + N'"'''
-            FROM @Columns AS C
-            WHERE C.JsonPresent = 1 AND (C.IsIdentity = 0 OR (@IsEdit = 1 AND C.IsPrimaryKey = 1)) AND C.IsComputed = 0
-              AND C.IsServerManaged = 0 AND C.IsDenied = 0
-            ORDER BY C.ColumnID FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N''),
-        @SelectList = STUFF((
-            SELECT N', J.' + QUOTENAME(C.ColumnName)
-            FROM @Columns AS C
-            WHERE C.JsonPresent = 1 AND C.IsIdentity = 0 AND C.IsComputed = 0
-              AND C.IsServerManaged = 0 AND C.IsDenied = 0
-            ORDER BY C.ColumnID FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N''),
-        @UpdateSet = STUFF((
-            SELECT N', T.' + QUOTENAME(C.ColumnName) + N' = J.' + QUOTENAME(C.ColumnName)
-            FROM @Columns AS C
-            WHERE C.JsonPresent = 1 AND C.IsPrimaryKey = 0 AND C.IsIdentity = 0 AND C.IsComputed = 0
-              AND C.IsServerManaged = 0 AND C.IsDenied = 0
-            ORDER BY C.ColumnID FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N'');
-
-    SELECT
-        @InsertAuditColumns = STUFF((
-            SELECT N', ' + QUOTENAME(C.ColumnName)
-            FROM @Columns AS C
-            WHERE C.IsServerManaged = 1 AND C.IsIdentity = 0 AND C.IsComputed = 0 AND C.HasDefault = 0
-              AND LOWER(C.ColumnName) COLLATE DATABASE_DEFAULT IN
-                  ('usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
-                   'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat', 'isdeleted')
-            ORDER BY C.ColumnID FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N''),
-        @InsertAuditValues = STUFF((
-            SELECT N', ' + CASE
-                WHEN LOWER(C.ColumnName) COLLATE DATABASE_DEFAULT IN
-                    ('usercreate', 'createdby', 'createby', 'userupdate', 'updatedby', 'updateby') THEN N'@Actor'
-                WHEN LOWER(C.ColumnName) COLLATE DATABASE_DEFAULT = 'isdeleted' COLLATE DATABASE_DEFAULT THEN N'0'
-                ELSE N'SYSUTCDATETIME()' END
-            FROM @Columns AS C
-            WHERE C.IsServerManaged = 1 AND C.IsIdentity = 0 AND C.IsComputed = 0 AND C.HasDefault = 0
-              AND LOWER(C.ColumnName) COLLATE DATABASE_DEFAULT IN
-                  ('usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
-                   'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat', 'isdeleted')
-            ORDER BY C.ColumnID FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N''),
-        @UpdateAuditSet = STUFF((
-            SELECT N', T.' + QUOTENAME(C.ColumnName) + N' = ' + CASE
-                WHEN LOWER(C.ColumnName) COLLATE DATABASE_DEFAULT IN ('userupdate', 'updatedby', 'updateby') THEN N'@Actor'
-                ELSE N'SYSUTCDATETIME()' END
-            FROM @Columns AS C
-            WHERE C.IsServerManaged = 1 AND C.IsIdentity = 0 AND C.IsComputed = 0
-              AND LOWER(C.ColumnName) COLLATE DATABASE_DEFAULT IN
-                  ('userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat')
-            ORDER BY C.ColumnID FOR XML PATH(''), TYPE).value('.', 'nvarchar(max)'), 1, 2, N'');
-
-    /*
-      STUFF(FOR XML PATH) trả NULL khi bảng không có cột audit phù hợp.
-      Chuẩn hóa về chuỗi rỗng trước khi ghép để không sinh dấu phẩy thừa:
-      INSERT (..., ) / SELECT ..., FROM hoặc UPDATE SET ..., FROM.
-    */
-    SET @ColumnList = ISNULL(@ColumnList, N'');
-    SET @WithClause = ISNULL(@WithClause, N'');
-    SET @SelectList = ISNULL(@SelectList, N'');
-    SET @UpdateSet = ISNULL(@UpdateSet, N'');
-    SET @InsertAuditColumns = ISNULL(@InsertAuditColumns, N'');
-    SET @InsertAuditValues = ISNULL(@InsertAuditValues, N'');
-    SET @UpdateAuditSet = ISNULL(@UpdateAuditSet, N'');
-
-    IF @IsEdit = 0
-    BEGIN
-        SET @ColumnList = CONCAT(@ColumnList, CASE WHEN @ColumnList = N'' OR @InsertAuditColumns = N'' THEN N'' ELSE N', ' END, @InsertAuditColumns);
-        SET @SelectList = CONCAT(@SelectList, CASE WHEN @SelectList = N'' OR @InsertAuditValues = N'' THEN N'' ELSE N', ' END, @InsertAuditValues);
-        IF @ColumnList = N'' OR @SelectList = N''
+        IF @PkHasKey = 0 OR LTRIM(RTRIM(ISNULL(@PkJsonValue, ''))) = ''
         BEGIN
-            SELECT -1 AS code, N'PHASE3_NO_INSERTABLE_FIELD' AS msg,
+            SELECT -1 AS code, N'PHASE3_UPDATE_PRIMARY_KEY_REQUIRED' AS msg,
                    @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
             RETURN;
         END;
+
+        SET @PrimaryValue = LTRIM(RTRIM(@PkJsonValue));
+        DECLARE @ExistsSql nvarchar(max);
+        SET @ExistsSql = N'SELECT @RowExists = COUNT(*) FROM dbo.' + QUOTENAME(@ExpectedTable)
+                       + N' WHERE ' + QUOTENAME(@PrimaryKey)
+                       + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
+                       + N' = @PkVal;';
+        DECLARE @RowExists int = 0;
+        EXEC sp_executesql @ExistsSql, N'@PkVal nvarchar(4000), @RowExists int OUTPUT',
+             @PkVal = @PrimaryValue, @RowExists = @RowExists OUTPUT;
+
+        IF @RowExists <> 1
+        BEGIN
+            SELECT -1 AS code, N'PHASE3_UPDATE_TARGET_NOT_FOUND' AS msg,
+                   @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
+            RETURN;
+        END;
+
+        DECLARE @UpdateAssignments nvarchar(max) = N'';
+        SELECT @UpdateAssignments = @UpdateAssignments + CASE WHEN @UpdateAssignments = N'' THEN N'' ELSE N', ' END
+             + QUOTENAME(C.ColumnName) + N' = '
+             + CASE
+                 WHEN C.HasJsonKey = 0 OR C.JsonValue IS NULL THEN N'NULL'
+                 ELSE N'N''' + REPLACE(C.JsonValue, N'''', N'''''') + N''''
+               END
+        FROM @Columns AS C
+        WHERE C.IsPrimaryKey = 0
+          AND C.IsIdentity = 0
+          AND C.IsComputed = 0
+          AND C.IsServerManaged = 0
+          AND C.IsDenied = 0
+          AND C.HasJsonKey = 1;
+
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = @ObjectID AND LOWER(name) = 'useredit')
+            SET @UpdateAssignments = @UpdateAssignments + CASE WHEN @UpdateAssignments = N'' THEN N'' ELSE N', ' END + N'[UserEdit] = N''' + REPLACE(@UserName, N'''', N'''''') + N'''';
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = @ObjectID AND LOWER(name) = 'usereditdate')
+            SET @UpdateAssignments = @UpdateAssignments + CASE WHEN @UpdateAssignments = N'' THEN N'' ELSE N', ' END + N'[UserEditDate] = GETDATE()';
+
+        IF @UpdateAssignments = N''
+        BEGIN
+            SELECT -1 AS code, N'PHASE3_UPDATE_NO_WRITABLE_FIELDS' AS msg,
+                   @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
+            RETURN;
+        END;
+
+        DECLARE @UpdateSql nvarchar(max);
+        SET @UpdateSql = N'UPDATE dbo.' + QUOTENAME(@ExpectedTable)
+                       + N' SET ' + @UpdateAssignments
+                       + N' WHERE ' + QUOTENAME(@PrimaryKey)
+                       + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
+                       + N' = @PkVal;';
+
+        EXEC sp_executesql @UpdateSql, N'@PkVal nvarchar(4000)', @PkVal = @PrimaryValue;
+        SET @RowsAffected = @@ROWCOUNT;
     END
     ELSE
     BEGIN
-        SET @UpdateSet = CONCAT(@UpdateSet, CASE WHEN @UpdateSet = N'' OR @UpdateAuditSet = N'' THEN N'' ELSE N', ' END, @UpdateAuditSet);
-        IF @UpdateSet = N''
+        IF @PkHasKey = 1 AND LTRIM(RTRIM(ISNULL(@PkJsonValue, ''))) <> ''
         BEGIN
-            SELECT -1 AS code, N'PHASE3_NO_UPDATABLE_FIELD' AS msg,
+            SET @PrimaryValue = LTRIM(RTRIM(@PkJsonValue));
+            DECLARE @DuplicateCheckSql nvarchar(max);
+            SET @DuplicateCheckSql = N'SELECT @DupCount = COUNT(*) FROM dbo.' + QUOTENAME(@ExpectedTable)
+                                   + N' WHERE ' + QUOTENAME(@PrimaryKey)
+                                   + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
+                                   + N' = @PkVal;';
+            DECLARE @DupCount int = 0;
+            EXEC sp_executesql @DuplicateCheckSql, N'@PkVal nvarchar(4000), @DupCount int OUTPUT',
+                 @PkVal = @PrimaryValue, @DupCount = @DupCount OUTPUT;
+
+            IF @DupCount > 0
+            BEGIN
+                SELECT -1 AS code, N'PHASE3_INSERT_PRIMARY_KEY_DUPLICATE' AS msg,
+                       @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
+                RETURN;
+            END;
+        END;
+
+        DECLARE @InsertCols nvarchar(max) = N'', @InsertVals nvarchar(max) = N'';
+        SELECT
+            @InsertCols = @InsertCols + CASE WHEN @InsertCols = N'' THEN N'' ELSE N', ' END + QUOTENAME(C.ColumnName),
+            @InsertVals = @InsertVals + CASE WHEN @InsertVals = N'' THEN N'' ELSE N', ' END
+                        + CASE
+                            WHEN C.HasJsonKey = 0 OR C.JsonValue IS NULL THEN N'NULL'
+                            ELSE N'N''' + REPLACE(C.JsonValue, N'''', N'''''') + N''''
+                          END
+        FROM @Columns AS C
+        WHERE C.IsIdentity = 0
+          AND C.IsComputed = 0
+          AND C.IsServerManaged = 0
+          AND C.IsDenied = 0
+          AND C.HasJsonKey = 1;
+
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = @ObjectID AND LOWER(name) = 'usercreate')
+        BEGIN
+            SET @InsertCols = @InsertCols + CASE WHEN @InsertCols = N'' THEN N'' ELSE N', ' END + N'[UserCreate]';
+            SET @InsertVals = @InsertVals + CASE WHEN @InsertVals = N'' THEN N'' ELSE N', ' END + N'N''' + REPLACE(@UserName, N'''', N'''''') + N'''';
+        END;
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = @ObjectID AND LOWER(name) = 'userdate')
+        BEGIN
+            SET @InsertCols = @InsertCols + CASE WHEN @InsertCols = N'' THEN N'' ELSE N', ' END + N'[UserDate]';
+            SET @InsertVals = @InsertVals + CASE WHEN @InsertVals = N'' THEN N'' ELSE N', ' END + N'GETDATE()';
+        END;
+
+        IF @InsertCols = N''
+        BEGIN
+            SELECT -1 AS code, N'PHASE3_INSERT_NO_WRITABLE_FIELDS' AS msg,
                    @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
             RETURN;
         END;
+
+        DECLARE @InsertSql nvarchar(max);
+        SET @InsertSql = N'INSERT INTO dbo.' + QUOTENAME(@ExpectedTable)
+                       + N' (' + @InsertCols + N') VALUES (' + @InsertVals + N');';
+
+        EXEC sp_executesql @InsertSql;
+        SET @RowsAffected = @@ROWCOUNT;
+
+        IF @PrimaryValue IS NULL
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM sys.columns AS C
+                WHERE C.object_id = @ObjectID
+                  AND C.name COLLATE DATABASE_DEFAULT = @PrimaryKey COLLATE DATABASE_DEFAULT
+                  AND C.is_identity = 1
+            )
+            BEGIN
+                SET @PrimaryValue = CONVERT(nvarchar(4000), SCOPE_IDENTITY());
+            END;
+        END;
     END;
 
-    BEGIN TRY
-        BEGIN TRANSACTION;
-
-        IF @IsEdit = 0
-        BEGIN
-            SET @Sql = N'
-                DECLARE @Inserted table (PrimaryValue nvarchar(4000));
-                INSERT INTO dbo.' + QUOTENAME(@ExpectedTable) + N' (' + @ColumnList + N')
-                OUTPUT CONVERT(nvarchar(4000), INSERTED.' + QUOTENAME(@PrimaryKey) + N') INTO @Inserted(PrimaryValue)
-                SELECT ' + @SelectList
-                + CASE WHEN @WithClause = N'' THEN N'' ELSE N' FROM OPENJSON(@JsonData) WITH (' + @WithClause + N') AS J' END + N';
-                SET @OutRows = @@ROWCOUNT;
-                SELECT TOP (1) @OutPrimary = PrimaryValue FROM @Inserted;';
-        END
-        ELSE
-        BEGIN
-            SET @Sql = N'
-                UPDATE T SET ' + @UpdateSet + N'
-                FROM dbo.' + QUOTENAME(@ExpectedTable) + N' AS T
-                CROSS JOIN OPENJSON(@JsonData) WITH (' + @WithClause + N') AS J
-                WHERE T.' + QUOTENAME(@PrimaryKey)
-                + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
-                + N' = J.' + QUOTENAME(@PrimaryKey)
-                + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END + N';
-                SET @OutRows = @@ROWCOUNT;
-                SET @OutPrimary = CONVERT(nvarchar(4000), JSON_VALUE(@JsonData, ''$."' + STRING_ESCAPE(@PrimaryKey, 'json') + N'"''));';
-        END;
-
-        EXEC sys.sp_executesql
-            @Sql,
-            N'@JsonData nvarchar(max), @Actor varchar(100), @OutRows int OUTPUT, @OutPrimary nvarchar(4000) OUTPUT',
-            @JsonData = @Data,
-            @Actor = @UserName,
-            @OutRows = @RowsAffected OUTPUT,
-            @OutPrimary = @PrimaryValue OUTPUT;
-
-        IF @RowsAffected <> 1
-            THROW 53320, N'PHASE3_SAVE_MUST_AFFECT_EXACTLY_ONE_ROW', 1;
-
-        COMMIT TRANSACTION;
-        SELECT 0 AS code, N'Lưu V2 thành công.' AS msg, @PrimaryKey AS primaryKey,
-               @PrimaryValue AS primaryValue, @RowsAffected AS rowsAffected;
-    END TRY
-    BEGIN CATCH
-        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
-        SELECT -1 AS code,
-               N'PHASE3_SAVE_FAILED_' + CONVERT(nvarchar(20), ERROR_NUMBER()) AS msg,
-               @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
-    END CATCH;
+    SELECT 1 AS code, N'SUCCESS' AS msg,
+           @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, @RowsAffected AS rowsAffected;
 END;
 GO

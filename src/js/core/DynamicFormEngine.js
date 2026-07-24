@@ -5950,11 +5950,17 @@ window.DynamicFormEngine = (function () {
             : Promise.resolve([]);
 
           detailSave.then(function (detailResults) {
-            var allOk = detailResults.every(function (dr) { return dr && (dr.code === 0 || dr.code === '0'); });
+            var isOkResult = function (dr) {
+              if (!dr) return false;
+              var c = dr.code;
+              var m = String(dr.msg || '').toUpperCase();
+              return c === 0 || c === '0' || c === 1 || c === '1' || m === 'SUCCESS' || m === 'LƯU THÀNH CÔNG!';
+            };
+            var allOk = detailResults.every(isOkResult);
             if (allOk) {
               _finalizeSave(isEdit, modal);
             } else {
-              var firstErr = detailResults.find(function (dr) { return dr && dr.code !== 0 && dr.code !== '0'; });
+              var firstErr = detailResults.find(function (dr) { return !isOkResult(dr); });
               var dMsg = firstErr && firstErr.msg ? firstErr.msg : 'Lưu chi tiết thất bại';
               if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
                 dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';

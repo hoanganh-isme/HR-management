@@ -40,6 +40,9 @@ BEGIN
         @ExpectedDelete sysname,
         @DeletePolicy varchar(40),
         @EnableDelete bit,
+
+        @PermissionFormName varchar(100),
+
         @GlobalReferenceOnly bit;
 
     SELECT
@@ -48,9 +51,15 @@ BEGIN
         @ExpectedDelete = R.DeleteV2,
         @DeletePolicy = R.DeletePolicy,
         @EnableDelete = R.EnableDelete,
+
+        @PermissionFormName = R.PermissionFormName,
+
         @GlobalReferenceOnly = R.GlobalReferenceOnly
+
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT;
+
+    SET @PermissionFormName = LTRIM(RTRIM(ISNULL(@PermissionFormName, @List)));
 
     IF @ExpectedTable IS NULL
     BEGIN
@@ -275,7 +284,7 @@ BEGIN
     DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
     SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
     FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
+    WHERE M.FormName COLLATE DATABASE_DEFAULT = @PermissionFormName COLLATE DATABASE_DEFAULT
       AND ISNULL(M.isDisable, 0) = 0
     ORDER BY M.MenuID;
 

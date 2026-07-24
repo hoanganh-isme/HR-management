@@ -14173,11 +14173,22 @@ window.DynamicDetailManager = (function () {
     var api = options.apiClient || window.ApiClient;
     var gateway = moduleConfig.apiGateway || AppConfig.apiGateway;
     var currentUser = options.currentUser || function () { return window.AppSession ? AppSession.getUserName() : ''; };
+    var currentBranch =
+      options.currentBranch
+      || function () {
+        return (
+          window.AppSession
+          && typeof AppSession.getBranchId
+            === 'function'
+        )
+          ? AppSession.getBranchId()
+          : '';
+      };
     var getDictionary = options.getDictionary || function () { return {}; };
     function loadJoinSchema(tabDef) {
       if (
         !tabDef
-        || tabDef.metadataMode !== 'JOIN_RESULT_SET_READONLY'
+        || (tabDef.metadataMode !== 'JOIN_RESULT_SET_READONLY' && tabDef.metadataMode !== 'JOIN_RESULT_SET_EDITABLE')
         || !tabDef.joinContractKey
       ) {
         return Promise.resolve(null);
@@ -14370,6 +14381,9 @@ window.DynamicDetailManager = (function () {
               if (currentRow[detailPrimaryKey]) panel._deletedRows.push(currentRow);
               panel._currentRows.splice(rowIndex, 1);
               renderEditableGrid(tabDef, panel, row, isViewMode);
+              if (window.UIToast && typeof UIToast.show === 'function') {
+                UIToast.show('Đã xóa dòng chi tiết thành công!', 'success');
+              }
             };
             if (window.ConfirmModal && typeof ConfirmModal.show === 'function') ConfirmModal.show({ title: 'Xác nhận xóa', message: 'Bạn có chắc muốn xóa dòng này không?', onConfirm: removeRow });
             else removeRow();
@@ -14576,36 +14590,266 @@ window.DynamicDetailManager = (function () {
           return [];
         });
       }
-      return load(tabDef, row).then(function (response) {
+      return Promise.all([
+        load(tabDef, row),
+        loadJoinSchema(tabDef)
+      ]).then(function (results) {
+        var response = results[0];
+        var joinSchema = results[1];
+        panel._joinSchema = joinSchema || null;
         panel._initialRows = JSON.parse(JSON.stringify(recordsOf(response)));
         panel._currentRows = JSON.parse(JSON.stringify(recordsOf(response)));
         renderEditableGrid(tabDef, panel, row, isViewMode);
         return panel._currentRows;
-      }).catch(function () {
+      }).catch(function (error) {
+        console.error('[DynamicDetailManager] Lỗi tải editable detail tab:', error);
         panel.innerHTML = '<div style="color:var(--color-danger);padding:12px;">Lỗi tải dữ liệu chi tiết</div>';
         return [];
       });
     }
 
-    function savePanels(panels, masterKeyValue) {
-      var calls = [];
-      (panels || []).forEach(function (panel) {
-        if (!panel || !panel._tabDef || !panel._tabDef.editable) return;
-        var tabDef = panel._tabDef;
-        var detailPrimaryKey = tabDef.primaryKey || 'UserAutoID';
-        var apiEndpoint = moduleConfig.ApiSave || gateway;
-        (panel._deletedRows || []).forEach(function (deleted) {
-          var id = deleted[detailPrimaryKey];
-          if (!id) return;
-          calls.push(function () { return api.post(apiEndpoint, { List: tabDef.api, Func: 'Delete', Ids: id, JsonData: JSON.stringify({ Ids: id }), UserName: currentUser() }); });
-        });
-        (panel._currentRows || []).forEach(function (currentRow) {
-          currentRow[tabDef.filterField || moduleConfig.PrimaryKey] = masterKeyValue;
-          var payload = Object.assign({}, currentRow, { UserName: currentUser(), UserCreate: currentUser(), IsEdit: currentRow[detailPrimaryKey] ? 1 : 0 });
-          calls.push(function () { return api.post(apiEndpoint, { List: tabDef.api, Func: 'Save', JsonData: JSON.stringify(payload), UserName: currentUser() }); });
-        });
+    function createWritablePayload(
+      panel,
+      tabDef,
+      currentRow,
+      masterKeyValue
+    ) {
+      var detailPrimaryKey =
+        tabDef.primaryKey || 'UserAutoID';
+
+      var masterField =
+        tabDef.filterField
+        || moduleConfig.PrimaryKey;
+
+      /*
+       * Tab legacy chưa migrate giữ nguyên cơ chế cũ.
+       */
+      if (
+        tabDef.metadataMode !==
+          'JOIN_RESULT_SET_EDITABLE'
+      ) {
+        var legacyPayload =
+          Object.assign({}, currentRow);
+
+        legacyPayload[masterField] =
+          masterKeyValue;
+
+        return legacyPayload;
+      }
+
+      var schema =
+        panel && panel._joinSchema;
+
+      /*
+       * Editable JOIN phải fail-closed.
+       * Không fallback sang payload chứa field JOIN.
+       */
+      if (
+        !schema
+        || schema.readOnly === true
+        || !Array.isArray(schema.fields)
+      ) {
+        throw new Error(
+          'Metadata editable của detail tab '
+          + 'chưa sẵn sàng.'
+        );
+      }
+
+      var isEdit =
+        Boolean(
+          currentRow[detailPrimaryKey]
+        );
+
+      var payload = {};
+
+      schema.fields.forEach(function (field) {
+        if (
+          !field
+          || !field.name
+          || field.isPhysicalColumn !== true
+          || field.isReadOnly === true
+          || field.isServerManaged === true
+        ) {
+          return;
+        }
+
+        /*
+         * PK chỉ gửi khi update.
+         * Insert để DB default tự sinh UserAutoID.
+         */
+        if (field.isPrimaryKey === true) {
+          if (
+            isEdit
+            && currentRow[field.name]
+          ) {
+            payload[field.name] =
+              currentRow[field.name];
+          }
+
+          return;
+        }
+
+        var allowed =
+          isEdit
+            ? field.supportsUpdate === true
+            : field.supportsInsert === true;
+
+        if (!allowed) return;
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            currentRow,
+            field.name
+          )
+        ) {
+          payload[field.name] =
+            currentRow[field.name];
+        }
       });
-      return calls.reduce(function (promise, call) { return promise.then(function (results) { return call().then(function (result) { results.push(result); return results; }); }); }, Promise.resolve([]));
+
+      /*
+       * FK master lấy từ master hiện tại,
+       * không tin dữ liệu cũ từ browser.
+       */
+      payload[masterField] =
+        masterKeyValue;
+
+      payload.IsEdit =
+        isEdit ? 1 : 0;
+
+      return payload;
+    }
+
+    function savePanels(
+      panels,
+      masterKeyValue
+    ) {
+      var calls = [];
+
+      (panels || []).forEach(
+        function (panel) {
+          if (
+            !panel
+            || !panel._tabDef
+            || !panel._tabDef.editable
+          ) {
+            return;
+          }
+
+          var tabDef =
+            panel._tabDef;
+
+          var detailPrimaryKey =
+            tabDef.primaryKey
+            || 'UserAutoID';
+
+          var apiEndpoint =
+            moduleConfig.ApiSave
+            || gateway;
+
+          /*
+           * API_XoaDong_V2 bắt buộc Ids là JSON array.
+           */
+          (panel._deletedRows || [])
+            .forEach(function (deleted) {
+              var id =
+                deleted[detailPrimaryKey];
+
+              if (!id) return;
+
+              var ids =
+                [String(id)];
+
+              calls.push(function () {
+                return api.post(
+                  apiEndpoint,
+                  {
+                    List:
+                      tabDef.api,
+
+                    Func:
+                      'Delete',
+
+                    /*
+                     * Wire parameter @Ids.
+                     */
+                    Ids:
+                      JSON.stringify(ids),
+
+                    /*
+                     * V2 chỉ chấp nhận JSON object.
+                     */
+                    JsonData:
+                      JSON.stringify({
+                        Ids: ids
+                      }),
+
+                    UserName:
+                      currentUser(),
+
+                    BranchID:
+                      currentBranch()
+                  }
+                );
+              });
+            });
+
+          (panel._currentRows || [])
+            .forEach(function (currentRow) {
+              var writablePayload =
+                createWritablePayload(
+                  panel,
+                  tabDef,
+                  currentRow,
+                  masterKeyValue
+                );
+
+              calls.push(function () {
+                return api.post(
+                  apiEndpoint,
+                  {
+                    List:
+                      tabDef.api,
+
+                    Func:
+                      'Save',
+
+                    /*
+                     * Không gửi PersonName/PhongBan/BranchID.
+                     * Không gửi UserCreate vì V2 tự quản lý audit.
+                     */
+                    JsonData:
+                      JSON.stringify(
+                        writablePayload
+                      ),
+
+                    UserName:
+                      currentUser(),
+
+                    BranchID:
+                      currentBranch()
+                  }
+                );
+              });
+            });
+        }
+      );
+
+      return calls.reduce(
+        function (promise, call) {
+          return promise.then(
+            function (results) {
+              return call().then(
+                function (result) {
+                  results.push(result);
+                  return results;
+                }
+              );
+            }
+          );
+        },
+        Promise.resolve([])
+      );
     }
 
     function validatePanels(panels) {
@@ -15314,6 +15558,10 @@ window.DynamicAttachmentManager = (function () {
       {
         label: 'Nhân viên',
         api: 'API_CaLamViec_NhanVien',
+        metadataMode: 'JOIN_RESULT_SET_EDITABLE',
+        joinContractKey: 'SHIFT_EMPLOYEES',
+        primaryKey: 'UserAutoID',
+        hiddenFields: ['UserAutoID', 'SapCaID', 'BranchID'],
         filterField: 'SapCaID',
         editable: true,
         duplicateField: 'PersonID',
@@ -22966,11 +23214,17 @@ window.DynamicFormEngine = (function () {
             : Promise.resolve([]);
 
           detailSave.then(function (detailResults) {
-            var allOk = detailResults.every(function (dr) { return dr && (dr.code === 0 || dr.code === '0'); });
+            var isOkResult = function (dr) {
+              if (!dr) return false;
+              var c = dr.code;
+              var m = String(dr.msg || '').toUpperCase();
+              return c === 0 || c === '0' || c === 1 || c === '1' || m === 'SUCCESS' || m === 'LƯU THÀNH CÔNG!';
+            };
+            var allOk = detailResults.every(isOkResult);
             if (allOk) {
               _finalizeSave(isEdit, modal);
             } else {
-              var firstErr = detailResults.find(function (dr) { return dr && dr.code !== 0 && dr.code !== '0'; });
+              var firstErr = detailResults.find(function (dr) { return !isOkResult(dr); });
               var dMsg = firstErr && firstErr.msg ? firstErr.msg : 'Lưu chi tiết thất bại';
               if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
                 dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';

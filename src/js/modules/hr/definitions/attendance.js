@@ -95,6 +95,10 @@
       {
         label: 'Nhân viên',
         api: 'API_CaLamViec_NhanVien',
+        metadataMode: 'JOIN_RESULT_SET_EDITABLE',
+        joinContractKey: 'SHIFT_EMPLOYEES',
+        primaryKey: 'UserAutoID',
+        hiddenFields: ['UserAutoID', 'SapCaID', 'BranchID'],
         filterField: 'SapCaID',
         editable: true,
         duplicateField: 'PersonID',

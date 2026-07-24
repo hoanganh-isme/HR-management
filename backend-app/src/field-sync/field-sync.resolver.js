@@ -1244,6 +1244,16 @@ export function normalizeJoinSchema(
                 ? true
                 : bool(isReadOnlyValue);
 
+        const isNullable = bool(
+            first(
+                row,
+                'IsNullable',
+                'isNullable',
+                'Nullable',
+                'nullable'
+            )
+        );
+
         fields.push({
             name: fieldName,
 
@@ -1272,15 +1282,7 @@ export function normalizeJoinSchema(
 
             sqlType,
 
-            nullable: bool(
-                first(
-                    row,
-                    'IsNullable',
-                    'isNullable',
-                    'Nullable',
-                    'nullable'
-                )
-            ),
+            nullable: isNullable,
 
             formatId,
             formatType,
@@ -1394,8 +1396,12 @@ export function normalizeJoinSchema(
             showInEdit: false,
             showInFilter: false,
 
-            supportsInsert: false,
-            supportsUpdate: false,
+            supportsInsert:
+                !isReadOnly && isPhysicalColumn,
+
+            supportsUpdate:
+                !isReadOnly && isPhysicalColumn && !isPrimaryKey,
+
             supportsFilter: false,
             supportsSort: false,
             supportsKeyword: false,
@@ -1417,15 +1423,15 @@ export function normalizeJoinSchema(
                 },
 
                 add: {
-                    visible: false,
-                    writable: false,
-                    required: false
+                    visible: !isReadOnly && isPhysicalColumn,
+                    writable: !isReadOnly && isPhysicalColumn,
+                    required: isPhysicalColumn && !isNullable
                 },
 
                 edit: {
-                    visible: false,
-                    writable: false,
-                    required: false
+                    visible: !isReadOnly && isPhysicalColumn && !isPrimaryKey,
+                    writable: !isReadOnly && isPhysicalColumn && !isPrimaryKey,
+                    required: isPhysicalColumn && !isPrimaryKey && !isNullable
                 }
             }
         });
