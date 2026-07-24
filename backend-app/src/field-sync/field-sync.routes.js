@@ -1,11 +1,13 @@
 import express from 'express';
 import { FIELD_CONTRACT_MIGRATION_REGISTRY } from './field-contract.registry.js';
+import { getPhase4JoinContract } from './phase4-join.registry.js';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
 import { FieldSyncGatewayError } from './field-sync.gateway.js';
-import { normalizeGridCompare, normalizeGridSchema, normalizeLookupSchema, normalizeRegisteredLookup } from './field-sync.resolver.js';
+import { normalizeGridCompare, normalizeGridSchema, normalizeJoinSchema, normalizeLookupSchema, normalizeRegisteredLookup } from './field-sync.resolver.js';
 
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
+const SAFE_DETAIL_KEY = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
 const SAFE_LOOKUP_KEY = /^[A-Fa-f0-9]{64}$/;
 const SAFE_DEPENDENCY = /^[A-Za-z_][A-Za-z0-9_@$#]{0,127}$/;
 const BLOCKED_DEPENDENCY_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
@@ -87,7 +89,54 @@ function assertComparisonMatchesContract(comparison, contract) {
         throw contractError('Compare metadata không trả V2 PrimaryKey.', 'FIELD_CONTRACT_PRIMARY_KEY_MISSING');
     }
     if (!sameIdentifier(v2PrimaryKey, contract.expectedPrimaryKey)) {
-        throw contractError('V2 PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
+        throw contractError('Compare V2 PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
+    }
+}
+
+function resolveJoinContract(formName, detailKey) {
+    const contract = getPhase4JoinContract(formName, detailKey);
+    if (!contract) {
+        throw contractError(
+            'JOIN detail key chưa được đăng ký trong Phase 4 allow-list.',
+            'PHASE4_JOIN_CONTRACT_NOT_ALLOWLISTED',
+            404
+        );
+    }
+    return contract;
+}
+
+function assertJoinSchemaMatchesContract(schema, contract) {
+    if (!schema || typeof schema !== 'object') {
+        throw contractError('Metadata JOIN không hợp lệ.', 'PHASE4_JOIN_SCHEMA_INVALID');
+    }
+    if (!sameIdentifier(schema.formName, contract.webFormName)) {
+        throw contractError('FormName không khớp Phase 4 registry.', 'PHASE4_JOIN_FORM_MISMATCH');
+    }
+    if (!sameIdentifier(schema.detailKey, contract.detailKey)) {
+        throw contractError('DetailKey không khớp Phase 4 registry.', 'PHASE4_JOIN_DETAIL_KEY_MISMATCH');
+    }
+    if (!sameIdentifier(schema.apiList, contract.apiList)) {
+        throw contractError('ApiList không khớp Phase 4 registry.', 'PHASE4_JOIN_API_LIST_MISMATCH');
+    }
+    if (!sameIdentifier(schema.tableName, contract.expectedTableName)) {
+        throw contractError('Main TableName không khớp Phase 4 registry.', 'PHASE4_JOIN_TABLE_MISMATCH');
+    }
+    if (!sameIdentifier(schema.primaryKey, contract.expectedPrimaryKey)) {
+        throw contractError('PrimaryKey không khớp Phase 4 registry.', 'PHASE4_JOIN_PRIMARY_KEY_MISMATCH');
+    }
+    if (!sameIdentifier(schema.registeredViewProcedure, contract.expectedProcedure)) {
+        throw contractError('View Procedure không khớp Phase 4 registry.', 'PHASE4_JOIN_PROCEDURE_MISMATCH');
+    }
+    if (schema.sourceKind !== 'JOIN_RESULT_SET') {
+        throw contractError('Nguồn metadata không phải JOIN_RESULT_SET.', 'PHASE4_JOIN_SOURCE_INVALID');
+    }
+    if (schema.readOnly !== contract.readOnly) {
+        throw contractError('Chính sách ReadOnly không khớp Phase 4 registry.', 'PHASE4_JOIN_READONLY_MISMATCH');
+    }
+    const hasErrorDiagnostic = Array.isArray(schema.diagnostics) && schema.diagnostics.some((d) => d.severity === 'ERROR');
+    if (hasErrorDiagnostic) {
+        const errDiag = schema.diagnostics.find((d) => d.severity === 'ERROR');
+        throw contractError(errDiag?.message || 'Lỗi metadata JOIN.', errDiag?.code || 'PHASE4_JOIN_SCHEMA_INVALID');
     }
 }
 
@@ -257,6 +306,69 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
             return next(error);
         }
     });
+
+    router.get(
+        '/join-schema/:formName/:detailKey',
+        async (req, res, next) => {
+            try {
+                const context = resolveFieldSyncContext(req);
+
+                await gateway.verifySession(context);
+
+                const formName = validateFormName(
+                    req.params.formName
+                );
+
+                const contract = resolveJoinContract(
+                    formName,
+                    req.params.detailKey
+                );
+
+                const detailKey = contract.detailKey;
+
+                const key = cacheKey(
+                    'join-schema',
+                    context,
+                    formName,
+                    detailKey + '|' + contract.apiList
+                );
+
+                let schema = bypassMetadataCache(req)
+                    ? undefined
+                    : cache.get(key);
+
+                if (!schema) {
+                    const rows = await gateway.joinSchema(
+                        {
+                            FormName: formName,
+                            DetailKey: detailKey
+                        },
+                        context
+                    );
+
+                    schema = normalizeJoinSchema(
+                        rows,
+                        formName,
+                        detailKey
+                    );
+
+                    assertJoinSchemaMatchesContract(
+                        schema,
+                        contract
+                    );
+
+                    schema = cache.set(key, schema);
+                }
+
+                return res.json({
+                    success: true,
+                    schema
+                });
+            } catch (error) {
+                return next(error);
+            }
+        }
+    );
 
     router.get('/formats', async (req, res, next) => {
         try {

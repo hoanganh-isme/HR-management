@@ -11,6 +11,7 @@ export const FIELD_SYNC_CONTRACTS = Object.freeze({
     gridSchema: 'API_Web_GridFieldSchemaV2',
     gridCompare: 'API_Web_GridFieldCompareV2',
     lookupSchema: 'API_Web_LookupSchemaV2',
+    joinSchema: 'API_Web_JoinFieldSchemaV2',
     updateFieldFormat: 'API_Web_UpdateFieldFormat',
     formatList: 'SY_FmatTbl'
 });

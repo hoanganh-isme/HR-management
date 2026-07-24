@@ -216,6 +216,9 @@ export function createFieldSyncGateway(config, httpClient = axios) {
                 limit: params.PageSize
             });
         },
+        joinSchema(params, context) {
+            return postGateway(FIELD_SYNC_CONTRACTS.joinSchema, context, params);
+        },
         registeredLookup(list, params, context) {
             if (!SAFE_REGISTERED_LIST.test(String(list || ''))) throw new FieldSyncGatewayError('Lookup chưa được đăng ký.', 409);
             return postGateway(list, context, params, {

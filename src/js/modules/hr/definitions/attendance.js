@@ -191,6 +191,8 @@
         label: 'Bảng ca chi tiết',
         api: 'API_CaLamViec_ChiTiet',
         filterField: 'SapCaID',
+        metadataMode: 'JOIN_RESULT_SET_READONLY',
+        joinContractKey: 'SHIFT_DETAIL',
         fields: ['PersonID', 'PersonName', 'NgayLamViec', 'ShiftID', 'ShiftName', 'TrangThaiThucTe'],
         headers: {
           PersonID: 'Mã NV',

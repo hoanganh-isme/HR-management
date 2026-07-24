@@ -918,6 +918,24 @@ window.FieldSyncService = (function (global) {
       });
   }
 
+  function getJoinSchema(formName, detailKey, forceRefresh) {
+    if (!formName) return Promise.reject(new Error('FormName là bắt buộc.'));
+    if (!detailKey) return Promise.reject(new Error('DetailKey là bắt buộc.'));
+
+    var endpoint = metadataBaseUrl() + '/join-schema/' + encodeURIComponent(formName) + '/' + encodeURIComponent(detailKey);
+    if (forceRefresh === true) {
+      endpoint += '?refresh=1';
+    }
+
+    return global.ApiClient.get(endpoint, { headers: requestHeaders(), logoutOnUnauthorized: false })
+      .then(function (res) {
+        if (res && res.success === true && res.schema && Array.isArray(res.schema.fields)) {
+          return res.schema;
+        }
+        throw new Error((res && res.message) || 'Schema JOIN không hợp lệ.');
+      });
+  }
+
   function clearCache(formName) {
     if (formName) {
       delete states[stateKey(formName)];
@@ -940,6 +958,7 @@ window.FieldSyncService = (function (global) {
     usesUnifiedSchema: usesUnifiedSchema,
     updateFieldConfig: updateFieldConfig,
     getFormats: getFormats,
+    getJoinSchema: getJoinSchema,
     clearCache: clearCache
   });
 })(window);

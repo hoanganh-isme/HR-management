@@ -2640,6 +2640,24 @@ window.FieldSyncService = (function (global) {
       });
   }
 
+  function getJoinSchema(formName, detailKey, forceRefresh) {
+    if (!formName) return Promise.reject(new Error('FormName là bắt buộc.'));
+    if (!detailKey) return Promise.reject(new Error('DetailKey là bắt buộc.'));
+
+    var endpoint = metadataBaseUrl() + '/join-schema/' + encodeURIComponent(formName) + '/' + encodeURIComponent(detailKey);
+    if (forceRefresh === true) {
+      endpoint += '?refresh=1';
+    }
+
+    return global.ApiClient.get(endpoint, { headers: requestHeaders(), logoutOnUnauthorized: false })
+      .then(function (res) {
+        if (res && res.success === true && res.schema && Array.isArray(res.schema.fields)) {
+          return res.schema;
+        }
+        throw new Error((res && res.message) || 'Schema JOIN không hợp lệ.');
+      });
+  }
+
   function clearCache(formName) {
     if (formName) {
       delete states[stateKey(formName)];
@@ -2662,6 +2680,7 @@ window.FieldSyncService = (function (global) {
     usesUnifiedSchema: usesUnifiedSchema,
     updateFieldConfig: updateFieldConfig,
     getFormats: getFormats,
+    getJoinSchema: getJoinSchema,
     clearCache: clearCache
   });
 })(window);
@@ -14270,39 +14289,99 @@ window.DynamicDetailManager = (function () {
       panel._deletedRows = [];
       if (!tabDef.editable) {
         panel.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Đang tải chi tiết...</div>';
-        return load(tabDef, row).then(function (response) {
+
+        var detailPromise = load(tabDef, row);
+
+        var schemaPromise = Promise.resolve(null);
+        if (tabDef.metadataMode === 'JOIN_RESULT_SET_READONLY' && tabDef.joinContractKey) {
+          if (!tabDef._joinSchemaPromise) {
+            tabDef._joinSchemaPromise = window.FieldSyncService.getJoinSchema(
+              moduleConfig.FormName,
+              tabDef.joinContractKey,
+              false
+            ).catch(function (err) {
+              console.warn('[DynamicDetailManager] Không thể tải JOIN schema cho tab:', tabDef.joinContractKey);
+              tabDef._joinSchemaPromise = null;
+              return null;
+            });
+          }
+          schemaPromise = tabDef._joinSchemaPromise;
+        }
+
+        return Promise.all([detailPromise, schemaPromise]).then(function (results) {
+          var response = results[0];
+          var schema = results[1];
+
           var rows = recordsOf(response);
           panel.innerHTML = '';
           if (!rows.length) {
             panel.innerHTML = '<div style="color:var(--color-text-secondary);padding:12px;text-align:center;">Không có dữ liệu</div>';
             return rows;
           }
-          var keys = tabDef.fields || Object.keys(rows[0]).filter(function (key) { return key.charAt(0) !== '_'; });
+
+          var schemaFieldMap = {};
+          if (schema && Array.isArray(schema.fields)) {
+            schema.fields.forEach(function (f) {
+              if (f && f.name) schemaFieldMap[f.name.toLowerCase()] = f;
+            });
+          }
+
+          var keys = [];
+          if (schema && Array.isArray(schema.fields) && schema.fields.length > 0) {
+            keys = schema.fields
+              .filter(function (f) { return f.showInGrid !== false; })
+              .map(function (f) { return f.name; });
+          } else if (tabDef.fields && tabDef.fields.length > 0) {
+            keys = tabDef.fields;
+          } else {
+            keys = Object.keys(rows[0]).filter(function (key) { return key.charAt(0) !== '_'; });
+          }
+
           var wrap = document.createElement('div');
-          wrap.style.cssText = 'overflow-x:auto;border:1px solid var(--color-border);border-radius:6px;';
+          wrap.style.cssText = 'overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;border:1px solid var(--color-border);border-radius:6px;';
           var table = document.createElement('table');
           table.style.cssText = 'width:100%;border-collapse:collapse;font-size:12px;';
           var header = document.createElement('tr');
+
           keys.forEach(function (key) {
             var th = document.createElement('th');
-            th.textContent = (tabDef.headers && tabDef.headers[key]) || getDictionary()[key] || key;
+            var fieldMeta = schemaFieldMap[key.toLowerCase()];
+            var caption = (fieldMeta && fieldMeta.label) || (tabDef.headers && tabDef.headers[key]) || getDictionary()[key] || key;
+            th.textContent = caption;
             th.style.cssText = 'padding:8px 10px;border-bottom:2px solid var(--color-border);background:var(--color-surface-elevated);text-align:left;white-space:nowrap;';
             header.appendChild(th);
           });
+
           var thead = document.createElement('thead');
           thead.appendChild(header);
           table.appendChild(thead);
+
           var tbody = document.createElement('tbody');
           rows.forEach(function (record) {
             var tr = document.createElement('tr');
             keys.forEach(function (key) {
               var td = document.createElement('td');
-              td.textContent = record[key] == null ? '' : record[key];
+              var fieldMeta = schemaFieldMap[key.toLowerCase()];
+              var val = record[key];
+              var displayVal = '';
+
+              if (val === null || val === undefined) {
+                displayVal = '';
+              } else if (typeof val === 'boolean') {
+                displayVal = val ? 'Có' : 'Không';
+              } else {
+                displayVal = String(val);
+              }
+
+              td.textContent = displayVal;
+              td.title = displayVal;
+              td.setAttribute('data-label', (fieldMeta && fieldMeta.label) || (tabDef.headers && tabDef.headers[key]) || key);
               td.style.cssText = 'padding:7px 10px;border-bottom:1px solid var(--color-border);white-space:nowrap;';
               tr.appendChild(td);
             });
             tbody.appendChild(tr);
           });
+
           table.appendChild(tbody);
           wrap.appendChild(table);
           panel.appendChild(wrap);
@@ -15146,6 +15225,8 @@ window.DynamicAttachmentManager = (function () {
         label: 'Bảng ca chi tiết',
         api: 'API_CaLamViec_ChiTiet',
         filterField: 'SapCaID',
+        metadataMode: 'JOIN_RESULT_SET_READONLY',
+        joinContractKey: 'SHIFT_DETAIL',
         fields: ['PersonID', 'PersonName', 'NgayLamViec', 'ShiftID', 'ShiftName', 'TrangThaiThucTe'],
         headers: {
           PersonID: 'Mã NV',
