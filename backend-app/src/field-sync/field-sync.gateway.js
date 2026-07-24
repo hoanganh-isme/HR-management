@@ -161,7 +161,7 @@ export function createFieldSyncGateway(config, httpClient = axios) {
          */
         const payload = {
             List: list,
-            Func: 'View',
+            Func: String(extra.func || 'View'),
             UserName: context.userName,
             Keyword: keyword,
             Page: page,
@@ -223,6 +223,12 @@ export function createFieldSyncGateway(config, httpClient = axios) {
                 page: params.Page,
                 limit: params.PageSize
             });
+        },
+        async updateFieldFormat(params, context) {
+            return await postGateway(FIELD_SYNC_CONTRACTS.updateFieldFormat, context, params, { func: 'View' });
+        },
+        formatList(context) {
+            return postGateway(FIELD_SYNC_CONTRACTS.formatList, context, {});
         }
     });
 }

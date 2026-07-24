@@ -837,3 +837,54 @@ test('HTTP metadata giữ nguyên 403/502 để frontend không hiểu nhầm l�
     assert.equal(unavailable.status, 502);
     assert.equal(unavailableBody.code, 'ERP_GATEWAY_NETWORK');
 });
+
+test('HTTP GET /formats trả về danh sách định dạng cột', async (t) => {
+    const gateway = {
+        async verifySession() {},
+        async formatList() {
+            return [
+                { FormatID: 'D', Type: 'Date', Description: 'Ngày (dd/MM/yyyy)', Align: 'Center' },
+                { FormatID: 'B', Type: 'Money', Description: 'Tiền tệ', Align: 'Right' }
+            ];
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const response = await fetch(`${baseUrl}/formats`, { headers: authHeaders() });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.formats.length, 2);
+    assert.equal(body.formats[0].formatId, 'D');
+});
+
+test('HTTP POST /field-config cập nhật tiêu đề & định dạng cột thành công', async (t) => {
+    let received = null;
+    const gateway = {
+        async verifySession() {},
+        async updateFieldFormat(params) {
+            received = params;
+            return [{ Success: true, Message: 'OK' }];
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const response = await fetch(`${baseUrl}/field-config`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            fieldName: 'BranchID',
+            captionVN: 'Chi nhánh mới',
+            captionEN: 'New Branch',
+            formatId: 'D',
+            alignX: 'Center',
+            minWidth: 100,
+            maxWidth: 300
+        })
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(received.FieldName, 'BranchID');
+    assert.equal(received.CaptionVN, 'Chi nhánh mới');
+    assert.equal(received.FormatID, 'D');
+});
+

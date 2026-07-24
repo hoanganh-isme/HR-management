@@ -884,6 +884,48 @@ window.FieldSyncService = (function (global) {
     });
   }
 
+  function updateFieldConfig(params) {
+    var endpoint = metadataBaseUrl() + '/field-config';
+    return global.ApiClient.post(endpoint, params, { headers: requestHeaders(), logoutOnUnauthorized: false })
+      .then(function (res) {
+        clearCache(params && params.formName);
+        if (global._uiConfigCache) {
+          global._uiConfigCache = Object.create(null);
+        }
+        if (typeof global.EventBus !== 'undefined' && typeof global.EventBus.emit === 'function') {
+          global.EventBus.emit('fieldCaptionUpdated', params);
+        }
+        return res;
+      });
+  }
+
+  function getFormats() {
+    var endpoint = metadataBaseUrl() + '/formats';
+    return global.ApiClient.get(endpoint, { headers: requestHeaders(), logoutOnUnauthorized: false })
+      .then(function (res) {
+        return res && Array.isArray(res.formats) ? res.formats : [];
+      }).catch(function () {
+        return [
+          { formatId: '', type: 'Text', description: 'Văn bản mặc định (Text)' },
+          { formatId: 'D', type: 'Date', description: 'Ngày (dd/MM/yyyy)' },
+          { formatId: 'DT', type: 'DateTime', description: 'Ngày giờ (dd/MM/yyyy HH:mm)' },
+          { formatId: 'H', type: 'Time', description: 'Giờ (HH:mm)' },
+          { formatId: 'B', type: 'Money', description: 'Tiền tệ (Money)' },
+          { formatId: 'N', type: 'Number', description: 'Số nguyên (Number)' },
+          { formatId: 'Q', type: 'Decimal', description: 'Số thập phân (Decimal)' },
+          { formatId: 'C', type: 'Checkbox', description: 'Hộp chọn (Checkbox)' }
+        ];
+      });
+  }
+
+  function clearCache(formName) {
+    if (formName) {
+      delete states[stateKey(formName)];
+    } else {
+      states = Object.create(null);
+    }
+  }
+
   return Object.freeze({
     observeForm: observeForm,
     refreshForm: refreshForm,
@@ -895,6 +937,9 @@ window.FieldSyncService = (function (global) {
     isManagedForm: isManagedForm,
     createRuntimeSchemas: createRuntimeSchemas,
     createUnifiedRuntimeSchemas: createUnifiedRuntimeSchemas,
-    usesUnifiedSchema: usesUnifiedSchema
+    usesUnifiedSchema: usesUnifiedSchema,
+    updateFieldConfig: updateFieldConfig,
+    getFormats: getFormats,
+    clearCache: clearCache
   });
 })(window);

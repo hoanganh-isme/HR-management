@@ -54,6 +54,7 @@
     "src/components/side-panel/side-panel.css",
     "src/components/screen-capture/screen-capture.css",
     "src/components/responsive-data-renderer/responsive-data-renderer.css",
+    "src/components/column-caption-editor/column-caption-editor.css",
     "src/css/modules/contract-document.css"
   ],
   "js": [
@@ -93,6 +94,7 @@
     "src/components/loading-spinner/LoadingSpinner.js",
     "src/components/alert/Alert.js",
     "src/components/confirm-modal/ConfirmModal.js",
+    "src/components/column-caption-editor/ColumnCaptionEditorModal.js",
     "src/components/modal/Modal.js",
     "src/components/pagination/Pagination.js",
     "src/components/filter/FilterComponent.js",

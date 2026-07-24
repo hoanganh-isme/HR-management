@@ -7626,6 +7626,261 @@ body.dark-theme .data-table tbody tr:hover {
   .responsive-data-renderer__table tbody td::before { content: attr(data-label); }
 }
 
+/* --- column-caption-editor.css --- */
+/* Styling cho Column Caption Editor Modal - Minimal ERP Desktop Style */
+.modal-overlay#column-caption-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 10050 !important; /* Đảm bảo nổi hẳn lên trên Popup Ẩn/Hiện Cột */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.column-caption-modal.minimal-erp-modal {
+  width: 480px;
+  max-width: 95vw;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2), 0 0 0 1px #cbd5e1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.column-caption-modal .modal-header {
+  padding: 12px 16px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #cbd5e1;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.column-caption-modal .modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.column-caption-modal .btn-close-modal {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.column-caption-modal .btn-close-modal:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.column-caption-modal .modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.column-caption-modal .field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.column-caption-modal .field-row label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.column-caption-modal .field-row input,
+.column-caption-modal .field-row select {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.column-caption-modal .field-row input.input-readonly {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  border-color: #e2e8f0;
+  cursor: default;
+}
+
+.column-caption-modal .field-row input:focus:not(.input-readonly),
+.column-caption-modal .field-row select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.column-caption-modal .field-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.column-caption-modal .modal-footer {
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.column-caption-modal .modal-footer .tip-note {
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.column-caption-modal .action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.column-caption-modal .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  white-space: nowrap;
+}
+
+.column-caption-modal .btn-secondary {
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.column-caption-modal .btn-secondary:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.column-caption-modal .btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.column-caption-modal .btn-primary:hover {
+  background: #1d4ed8;
+}
+
+/* RESPONSIVE DESIGN FOR MOBILE (< 640px) */
+@media (max-width: 640px) {
+  .column-caption-modal.minimal-erp-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .column-caption-modal .field-grid-2 {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .column-caption-modal .modal-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .column-caption-modal .action-buttons {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .column-caption-modal .btn {
+    height: 38px !important;
+    font-size: 13px !important;
+    width: 100% !important;
+  }
+}
+
+/* Dark mode overrides */
+body.dark-theme .column-caption-modal.minimal-erp-modal {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark-theme .column-caption-modal .modal-header {
+  background: #0f172a;
+  border-bottom-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark-theme .column-caption-modal .modal-header h3 {
+  color: #f8fafc;
+}
+
+body.dark-theme .column-caption-modal .field-row label {
+  color: #cbd5e1;
+}
+
+body.dark-theme .column-caption-modal .field-row input,
+body.dark-theme .column-caption-modal .field-row select {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark-theme .column-caption-modal .field-row input.input-readonly {
+  background: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+
+body.dark-theme .column-caption-modal .modal-footer {
+  background: #0f172a;
+  border-top-color: #334155;
+}
+
+body.dark-theme .column-caption-modal .btn-secondary {
+  background: #1e293b;
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
 /* --- contract-document.css --- */
 .contract-doc-overlay,
 .contract-doc-editor-overlay {

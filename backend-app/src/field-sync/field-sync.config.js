@@ -10,7 +10,9 @@ function positiveInteger(value, fallback) {
 export const FIELD_SYNC_CONTRACTS = Object.freeze({
     gridSchema: 'API_Web_GridFieldSchemaV2',
     gridCompare: 'API_Web_GridFieldCompareV2',
-    lookupSchema: 'API_Web_LookupSchemaV2'
+    lookupSchema: 'API_Web_LookupSchemaV2',
+    updateFieldFormat: 'API_Web_UpdateFieldFormat',
+    formatList: 'SY_FmatTbl'
 });
 
 // Chỉ các cặp đã được audit chắc chắn mới được đưa vào đây.

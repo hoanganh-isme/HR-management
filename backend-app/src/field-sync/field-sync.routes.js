@@ -258,5 +258,89 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
         }
     });
 
+    router.get('/formats', async (req, res, next) => {
+        try {
+            const context = resolveFieldSyncContext(req);
+            await gateway.verifySession(context);
+            let formats = [];
+            try {
+                const rows = await gateway.formatList(context);
+                formats = (Array.isArray(rows) ? rows : []).map((row) => ({
+                    formatId: String(row.FormatID || row.formatId || '').trim(),
+                    type: String(row.Type || row.type || '').trim(),
+                    description: String(row.Description || row.FormatString || row.formatId || '').trim(),
+                    align: String(row.Align || row.align || '').trim(),
+                    numberDecimal: row.NumberDecimal !== undefined ? row.NumberDecimal : null
+                })).filter((item) => item.formatId);
+            } catch (err) {
+                // Fallback nếu chưa tạo SY_FmatTbl trên DB
+            }
+
+            if (!formats.length) {
+                formats = [
+                    { formatId: '', type: 'Text', description: 'Văn bản mặc định (Text)' },
+                    { formatId: 'D', type: 'Date', description: 'Ngày (dd/MM/yyyy)' },
+                    { formatId: 'DT', type: 'DateTime', description: 'Ngày giờ (dd/MM/yyyy HH:mm)' },
+                    { formatId: 'H', type: 'Time', description: 'Giờ (HH:mm)' },
+                    { formatId: 'B', type: 'Money', description: 'Tiền tệ (Money)' },
+                    { formatId: 'N', type: 'Number', description: 'Số nguyên (Number)' },
+                    { formatId: 'Q', type: 'Decimal', description: 'Số thập phân (Decimal)' },
+                    { formatId: 'C', type: 'Checkbox', description: 'Hộp chọn (Checkbox)' }
+                ];
+            }
+
+            return res.json({ success: true, formats });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
+    router.post('/field-config', async (req, res, next) => {
+        try {
+            const context = resolveFieldSyncContext(req);
+            await gateway.verifySession(context);
+
+            const fieldName = String(req.body?.fieldName || '').trim();
+            if (!fieldName) throw badRequest('FieldName không được để trống.');
+
+            const formName = req.body?.formName ? validateFormName(req.body.formName) : '';
+            const captionVN = String(req.body?.captionVN || '').trim().slice(0, 250);
+            const captionEN = String(req.body?.captionEN || '').trim().slice(0, 250);
+            const captionCH = String(req.body?.captionCH || '').trim().slice(0, 250);
+            const formatId = String(req.body?.formatId || '').trim().slice(0, 50);
+            const alignX = String(req.body?.alignX || '').trim().slice(0, 10);
+            const minWidth = Math.max(0, Math.trunc(Number(req.body?.minWidth) || 0));
+            const maxWidth = Math.max(0, Math.trunc(Number(req.body?.maxWidth) || 0));
+
+            const params = {
+                WebFormName: formName,
+                FieldName: fieldName,
+                CaptionVN: captionVN,
+                CaptionEN: captionEN,
+                CaptionCH: captionCH,
+                FormatID: formatId,
+                AlignX: alignX,
+                MinWidth: minWidth,
+                MaxWidth: maxWidth
+            };
+
+            const result = await gateway.updateFieldFormat(params, context);
+            cache.clear();
+
+            const firstRecord = Array.isArray(result) && result.length ? result[0] : (result || params);
+            if (firstRecord && (firstRecord.Success === false || firstRecord.Success === 0 || String(firstRecord.Success) === '0')) {
+                throw contractError(firstRecord.Message || 'Lỗi cập nhật tiêu đề cột.', 'FIELD_CONFIG_UPDATE_FAILED', 400);
+            }
+
+            return res.json({
+                success: true,
+                message: 'Cập nhật tiêu đề & định dạng cột thành công.',
+                result: firstRecord
+            });
+        } catch (error) {
+            return next(error);
+        }
+    });
+
     return router;
 }

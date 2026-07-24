@@ -1194,6 +1194,59 @@ window.DynamicFormEngine = (function () {
                 spanText.title = def.title || field; // tooltip for long names
                 label.appendChild(spanText);
 
+                // Nút icon ✏️ chỉnh sửa tiêu đề/định dạng cột trên Mobile/Touch
+                var btnEditCol = document.createElement('span');
+                btnEditCol.className = 'material-symbols-outlined btn-edit-col-caption';
+                btnEditCol.style.cssText = 'font-size: 16px; color: var(--color-primary, #4361ee); margin-left: auto; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: background 0.2s;';
+                btnEditCol.innerText = 'edit_note';
+                btnEditCol.title = 'Sửa tiêu đề & định dạng cột lưu SY_FmtFldTbl';
+                btnEditCol.onclick = function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (typeof ColumnCaptionEditorModal !== 'undefined') {
+                    ColumnCaptionEditorModal.show({
+                      formName: MODULE_CONFIG.FormName || '',
+                      fieldName: field,
+                      captionVN: def.title || def.captionVN || field,
+                      captionEN: def.captionEN || '',
+                      captionCH: def.captionCH || '',
+                      alignX: def.alignX || def.align || def.hozAlign || '',
+                      formatId: def.formatId || def.FormatID || '',
+                      minWidth: def.minWidth || 0,
+                      maxWidth: def.maxWidth || 0,
+                      onSuccess: function (updated) {
+                        if (!updated) return;
+                        if (updated.captionVN) spanText.textContent = updated.captionVN;
+
+                        // Cập nhật đối tượng def trong bộ nhớ
+                        if (def) {
+                          if (updated.captionVN) def.title = def.captionVN = updated.captionVN;
+                          if (updated.captionEN !== undefined) def.captionEN = updated.captionEN;
+                          if (updated.captionCH !== undefined) def.captionCH = updated.captionCH;
+                          if (updated.alignX !== undefined) def.alignX = def.align = def.hozAlign = updated.alignX;
+                          if (updated.formatId !== undefined) def.formatId = def.FormatID = updated.formatId;
+                          if (updated.minWidth !== undefined) def.minWidth = updated.minWidth;
+                          if (updated.maxWidth !== undefined) def.maxWidth = updated.maxWidth;
+                        }
+
+                        // Cập nhật cột trên Tabulator live table
+                        if (col && typeof col.updateDefinition === 'function') {
+                          var patch = {};
+                          if (updated.captionVN) patch.title = updated.captionVN;
+                          if (updated.alignX) {
+                            var alg = String(updated.alignX).toLowerCase();
+                            patch.hozAlign = (alg === 'right' || alg === 'r') ? 'right' : ((alg === 'center' || alg === 'c') ? 'center' : 'left');
+                          }
+                          if (updated.minWidth) patch.minWidth = updated.minWidth;
+                          if (updated.maxWidth) patch.maxWidth = updated.maxWidth;
+                          col.updateDefinition(patch);
+                        }
+                      }
+                    });
+                  }
+                };
+                label.appendChild(btnEditCol);
+
                 content.appendChild(label);
               }
             });
