@@ -968,143 +968,554 @@ export function normalizeRegisteredLookup(rows, descriptor) {
     return options;
 }
 
-export function normalizeJoinSchema(rows, requestedFormName, requestedDetailKey) {
-    const safeRows = Array.isArray(rows) ? rows : [];
-    const diagnostics = [];
+export function normalizeJoinSchema(
+    rows,
+    requestedFormName,
+    requestedDetailKey
+) {
+    const safeRows = Array.isArray(rows)
+        ? rows
+        : [];
 
-    if (safeRows.length === 0) {
-        diagnostics.push({ severity: 'ERROR', code: 'JOIN_NO_FIELDS', message: 'Không tìm thấy thông tin result-set.' });
-        return {
-            schemaVersion: '2.0',
-            contractVersion: '1.0',
-            formName: requestedFormName,
-            detailKey: requestedDetailKey,
-            apiList: '',
-            tableName: '',
-            primaryKey: '',
-            registeredViewProcedure: '',
-            readOnly: true,
-            sourceKind: 'JOIN_RESULT_SET',
-            fields: [],
-            gridFields: [],
-            lookups: {},
-            diagnostics,
-            generatedAt: new Date().toISOString()
-        };
-    }
+    const diagnostics = [];
+    const diagnosticCodes = new Set();
+    const fields = [];
+    const seenNames = new Set();
 
     const firstRow = safeRows[0] || {};
-    const apiList = cleanText(first(firstRow, 'ApiList', 'apiList'), 100);
-    const tableName = cleanText(first(firstRow, 'TableName', 'tableName'), 128);
-    const primaryKey = cleanText(first(firstRow, 'PrimaryKey', 'primaryKey'), 128);
-    const registeredViewProcedure = cleanText(first(firstRow, 'RegisteredViewProcedure', 'registeredViewProcedure'), 128);
-    const sourceKind = cleanText(first(firstRow, 'SourceKind', 'sourceKind'), 50);
+
+    const apiList = cleanText(
+        first(firstRow, 'ApiList', 'apiList'),
+        100
+    );
+
+    const tableName = cleanText(
+        first(firstRow, 'TableName', 'tableName'),
+        128
+    );
+
+    const primaryKey = cleanText(
+        first(firstRow, 'PrimaryKey', 'primaryKey'),
+        128
+    );
+
+    const registeredViewProcedure = cleanText(
+        first(
+            firstRow,
+            'RegisteredViewProcedure',
+            'registeredViewProcedure'
+        ),
+        128
+    );
+
+    const sourceKind = cleanText(
+        first(firstRow, 'SourceKind', 'sourceKind'),
+        50
+    ).toUpperCase();
+
+    const readOnlyValue = first(
+        firstRow,
+        'ReadOnly',
+        'readOnly'
+    );
+
+    const readOnly =
+        readOnlyValue === undefined
+            ? true
+            : bool(readOnlyValue);
+
+    if (!safeRows.length) {
+        diagnostics.push({
+            severity: 'ERROR',
+            code: 'JOIN_NO_FIELDS',
+            message: 'Không tìm thấy metadata result-set.'
+        });
+    }
 
     if (sourceKind !== 'JOIN_RESULT_SET') {
-        diagnostics.push({ severity: 'ERROR', code: 'JOIN_SOURCE_KIND_INVALID', message: 'Nguồn metadata không phải JOIN_RESULT_SET.' });
+        diagnostics.push({
+            severity: 'ERROR',
+            code: 'JOIN_SOURCE_KIND_INVALID',
+            message: 'Nguồn metadata không phải JOIN_RESULT_SET.'
+        });
     }
 
     if (!primaryKey) {
-        diagnostics.push({ severity: 'ERROR', code: 'JOIN_PRIMARY_KEY_MISSING', message: 'Thiếu cấu hình khóa chính cho bảng JOIN.' });
+        diagnostics.push({
+            severity: 'ERROR',
+            code: 'JOIN_PRIMARY_KEY_MISSING',
+            message: 'Thiếu khóa chính của JOIN contract.'
+        });
     }
 
-    const fields = [];
-    const seenNames = new Set();
-    let pkFound = false;
+    safeRows.forEach(function (row, index) {
+        const diagnosticCode = cleanText(
+            first(
+                row,
+                'DiagnosticCode',
+                'diagnosticCode'
+            ),
+            80
+        ).toUpperCase();
 
-    safeRows.forEach((row, index) => {
-        const diagCode = cleanText(first(row, 'DiagnosticCode', 'diagnosticCode'), 80);
-        if (diagCode) {
-            diagnostics.push({ severity: 'ERROR', code: diagCode, message: cleanText(first(row, 'Message', 'message'), 250) || 'Lỗi SQL metadata.' });
+        if (
+            diagnosticCode &&
+            diagnosticCode !== 'OK' &&
+            !diagnosticCodes.has(diagnosticCode)
+        ) {
+            diagnosticCodes.add(diagnosticCode);
+
+            diagnostics.push({
+                severity: 'ERROR',
+                code: diagnosticCode,
+                message:
+                    cleanDisplayText(
+                        first(row, 'Message', 'message'),
+                        250
+                    ) ||
+                    'Metadata SQL trả về lỗi.'
+            });
+
             return;
         }
 
-        const rawName = cleanText(first(row, 'FieldName', 'fieldName', 'Name', 'name'), 128);
-        if (!rawName || !safeFieldName(rawName)) {
-            diagnostics.push({ severity: 'ERROR', code: 'JOIN_INVALID_FIELD_NAME', message: `Tên cột '${rawName}' không hợp lệ.` });
+        const fieldName = cleanText(
+            first(
+                row,
+                'FieldName',
+                'fieldName',
+                'Name',
+                'name'
+            ),
+            128
+        );
+
+        if (!fieldName || !safeFieldName(fieldName)) {
+            diagnostics.push({
+                severity: 'ERROR',
+                code: 'JOIN_INVALID_FIELD_NAME',
+                fieldName,
+                message: 'Tên field JOIN không hợp lệ.'
+            });
+
             return;
         }
 
-        const lowerName = rawName.toLowerCase();
-        if (seenNames.has(lowerName)) {
-            diagnostics.push({ severity: 'ERROR', code: 'JOIN_DUPLICATE_FIELD', message: `Cột '${rawName}' bị lặp lại trong result-set.` });
+        const normalizedName =
+            fieldName.toLowerCase();
+
+        if (seenNames.has(normalizedName)) {
+            diagnostics.push({
+                severity: 'ERROR',
+                code: 'JOIN_DUPLICATE_FIELD',
+                fieldName,
+                message: 'Field JOIN bị trùng tên.'
+            });
+
             return;
         }
-        seenNames.add(lowerName);
 
-        const isPrimaryKey = bool(first(row, 'IsPrimaryKey', 'isPrimaryKey')) || (primaryKey && lowerName === primaryKey.toLowerCase());
-        if (isPrimaryKey) pkFound = true;
+        seenNames.add(normalizedName);
 
-        const isPhysicalColumn = bool(first(row, 'IsPhysicalColumn', 'isPhysicalColumn'));
-        const label = cleanDisplayText(first(row, 'Caption', 'caption', 'Label', 'label')) || rawName;
-        const orderNo = numberOrNull(first(row, 'FieldOrdinal', 'fieldOrdinal', 'OrderNo', 'orderNo')) || index + 1;
-        const sqlType = cleanText(first(row, 'SqlType', 'sqlType'), 100);
-        const nullable = bool(first(row, 'IsNullable', 'isNullable', 'Nullable', 'nullable'));
-        const formatId = cleanText(first(row, 'FormatID', 'formatID', 'FormatId', 'formatId'), 50);
-        const formatType = cleanText(first(row, 'FormatType', 'formatType'), 50);
-        const renderRule = cleanText(first(row, 'RenderType', 'renderType', 'RenderRule', 'renderRule'), 50);
-        const align = cleanText(first(row, 'Align', 'align'), 10);
-        const minWidth = numberOrNull(first(row, 'MinWidth', 'minWidth')) || 0;
-        const maxWidth = numberOrNull(first(row, 'MaxWidth', 'maxWidth')) || 0;
-        const maxLength = numberOrNull(first(row, 'MaxLength', 'maxLength')) || 0;
-        const numberDecimal = numberOrNull(first(row, 'NumberDecimal', 'numberDecimal'));
-        const formatString = cleanText(first(row, 'FormatString', 'formatString'), 100);
-        const maskString = cleanText(first(row, 'MaskString', 'maskString'), 100);
+        const lookup = normalizeLookup(row);
+
+        const formatId = cleanText(
+            first(
+                row,
+                'FormatID',
+                'formatID',
+                'FormatId',
+                'formatId'
+            ),
+            50
+        );
+
+        const formatType = cleanText(
+            first(
+                row,
+                'FormatType',
+                'formatType'
+            ),
+            50
+        );
+
+        const sqlType = cleanText(
+            first(
+                row,
+                'SqlType',
+                'sqlType'
+            ),
+            100
+        );
+
+        const isPrimaryKey =
+            bool(
+                first(
+                    row,
+                    'IsPrimaryKey',
+                    'isPrimaryKey'
+                )
+            )
+            ||
+            (
+                primaryKey &&
+                normalizedName ===
+                primaryKey.toLowerCase()
+            );
+
+        const isPhysicalColumn = bool(
+            first(
+                row,
+                'IsPhysicalColumn',
+                'isPhysicalColumn'
+            )
+        );
+
+        const isReadOnlyValue = first(
+            row,
+            'IsReadOnly',
+            'isReadOnly'
+        );
+
+        const isReadOnly =
+            isReadOnlyValue === undefined
+                ? true
+                : bool(isReadOnlyValue);
 
         fields.push({
-            name: rawName,
-            label,
-            orderNo,
+            name: fieldName,
+
+            label:
+                cleanDisplayText(
+                    first(
+                        row,
+                        'Caption',
+                        'caption',
+                        'Label',
+                        'label'
+                    ),
+                    200
+                ) || fieldName,
+
+            orderNo:
+                numberOrNull(
+                    first(
+                        row,
+                        'FieldOrdinal',
+                        'fieldOrdinal',
+                        'OrderNo',
+                        'orderNo'
+                    )
+                ) ?? index + 1,
+
             sqlType,
-            nullable,
+
+            nullable: bool(
+                first(
+                    row,
+                    'IsNullable',
+                    'isNullable',
+                    'Nullable',
+                    'nullable'
+                )
+            ),
+
             formatId,
             formatType,
-            renderRule,
-            align,
-            minWidth,
-            maxWidth,
-            maxLength,
-            numberDecimal,
-            formatString,
-            maskString,
-            lookup: null,
+
+            renderRule: resolveRenderType(
+                formatId,
+                sqlType,
+                Boolean(
+                    lookup &&
+                    lookup.disabled !== true
+                ),
+                formatType
+            ),
+
+            align: cleanText(
+                first(row, 'Align', 'align'),
+                10
+            ),
+
+            minWidth: numberOrNull(
+                first(
+                    row,
+                    'MinWidth',
+                    'minWidth'
+                )
+            ),
+
+            maxWidth: numberOrNull(
+                first(
+                    row,
+                    'MaxWidth',
+                    'maxWidth'
+                )
+            ),
+
+            maxLength: numberOrNull(
+                first(
+                    row,
+                    'MaxLength',
+                    'maxLength'
+                )
+            ),
+
+            numberDecimal: numberOrNull(
+                first(
+                    row,
+                    'NumberDecimal',
+                    'numberDecimal'
+                )
+            ),
+
+            formatString: cleanText(
+                first(
+                    row,
+                    'FormatString',
+                    'formatString'
+                ),
+                100
+            ),
+
+            maskString: cleanText(
+                first(
+                    row,
+                    'MaskString',
+                    'maskString'
+                ),
+                100
+            ),
+
+            lookup,
+
             isPhysicalColumn,
             isPrimaryKey,
-            isReadOnly: true,
+            isReadOnly,
+
             showInGrid: true,
             showInAdd: false,
             showInEdit: false,
             showInFilter: false,
+
             supportsInsert: false,
             supportsUpdate: false,
             supportsFilter: false,
             supportsSort: false,
             supportsKeyword: false,
-            metadataSource: 'PHASE4_JOIN_RESULT_SET',
-            contexts: ['GRID']
+
+            metadataSource:
+                'PHASE4_JOIN_RESULT_SET',
+
+            contexts: {
+                grid: {
+                    visible: true,
+                    sortable: false,
+                    keyword: false
+                },
+
+                filter: {
+                    visible: false,
+                    supported: false
+                },
+
+                add: {
+                    visible: false,
+                    writable: false,
+                    required: false
+                },
+
+                edit: {
+                    visible: false,
+                    writable: false,
+                    required: false
+                }
+            }
         });
     });
 
-    if (primaryKey && !pkFound && fields.length > 0) {
-        diagnostics.push({ severity: 'ERROR', code: 'JOIN_PRIMARY_KEY_NOT_IN_RESULT', message: `Khóa chính '${primaryKey}' không nằm trong result-set.` });
+    if (
+        primaryKey &&
+        fields.length &&
+        !fields.some(function (field) {
+            return (
+                field.name.toLowerCase() ===
+                primaryKey.toLowerCase()
+            );
+        })
+    ) {
+        diagnostics.push({
+            severity: 'ERROR',
+            code: 'JOIN_PRIMARY_KEY_NOT_IN_RESULT',
+            message:
+                'Khóa chính không nằm trong result-set.'
+        });
     }
 
     return {
-        schemaVersion: '2.0',
-        contractVersion: '1.0',
+        schemaVersion: cleanText(
+            first(
+                firstRow,
+                'SchemaVersion',
+                'schemaVersion'
+            ),
+            20
+        ) || '2.0',
+
+        contractVersion: cleanText(
+            first(
+                firstRow,
+                'ContractVersion',
+                'contractVersion'
+            ),
+            20
+        ) || '1.0',
+
         formName: requestedFormName,
         detailKey: requestedDetailKey,
+
         apiList,
         tableName,
         primaryKey,
         registeredViewProcedure,
-        readOnly: true,
-        sourceKind: 'JOIN_RESULT_SET',
+        readOnly,
+        sourceKind,
+
         fields,
-        gridFields: fields,
-        lookups: {},
+
+        gridFields: fields.slice(),
+
+        lookups: fields
+            .filter(function (field) {
+                return Boolean(field.lookup);
+            })
+            .map(function (field) {
+                return {
+                    fieldName: field.name,
+                    ...field.lookup
+                };
+            }),
+
         diagnostics,
-        generatedAt: new Date().toISOString()
+
+        generatedAt:
+            new Date().toISOString()
     };
+}
+
+const firstRow = safeRows[0] || {};
+const apiList = cleanText(first(firstRow, 'ApiList', 'apiList'), 100);
+const tableName = cleanText(first(firstRow, 'TableName', 'tableName'), 128);
+const primaryKey = cleanText(first(firstRow, 'PrimaryKey', 'primaryKey'), 128);
+const registeredViewProcedure = cleanText(first(firstRow, 'RegisteredViewProcedure', 'registeredViewProcedure'), 128);
+const sourceKind = cleanText(first(firstRow, 'SourceKind', 'sourceKind'), 50);
+
+if (sourceKind !== 'JOIN_RESULT_SET') {
+    diagnostics.push({ severity: 'ERROR', code: 'JOIN_SOURCE_KIND_INVALID', message: 'Nguồn metadata không phải JOIN_RESULT_SET.' });
+}
+
+if (!primaryKey) {
+    diagnostics.push({ severity: 'ERROR', code: 'JOIN_PRIMARY_KEY_MISSING', message: 'Thiếu cấu hình khóa chính cho bảng JOIN.' });
+}
+
+const fields = [];
+const seenNames = new Set();
+let pkFound = false;
+
+safeRows.forEach((row, index) => {
+    const diagCode = cleanText(first(row, 'DiagnosticCode', 'diagnosticCode'), 80);
+    if (diagCode) {
+        diagnostics.push({ severity: 'ERROR', code: diagCode, message: cleanText(first(row, 'Message', 'message'), 250) || 'Lỗi SQL metadata.' });
+        return;
+    }
+
+    const rawName = cleanText(first(row, 'FieldName', 'fieldName', 'Name', 'name'), 128);
+    if (!rawName || !safeFieldName(rawName)) {
+        diagnostics.push({ severity: 'ERROR', code: 'JOIN_INVALID_FIELD_NAME', message: `Tên cột '${rawName}' không hợp lệ.` });
+        return;
+    }
+
+    const lowerName = rawName.toLowerCase();
+    if (seenNames.has(lowerName)) {
+        diagnostics.push({ severity: 'ERROR', code: 'JOIN_DUPLICATE_FIELD', message: `Cột '${rawName}' bị lặp lại trong result-set.` });
+        return;
+    }
+    seenNames.add(lowerName);
+
+    const isPrimaryKey = bool(first(row, 'IsPrimaryKey', 'isPrimaryKey')) || (primaryKey && lowerName === primaryKey.toLowerCase());
+    if (isPrimaryKey) pkFound = true;
+
+    const isPhysicalColumn = bool(first(row, 'IsPhysicalColumn', 'isPhysicalColumn'));
+    const label = cleanDisplayText(first(row, 'Caption', 'caption', 'Label', 'label')) || rawName;
+    const orderNo = numberOrNull(first(row, 'FieldOrdinal', 'fieldOrdinal', 'OrderNo', 'orderNo')) || index + 1;
+    const sqlType = cleanText(first(row, 'SqlType', 'sqlType'), 100);
+    const nullable = bool(first(row, 'IsNullable', 'isNullable', 'Nullable', 'nullable'));
+    const formatId = cleanText(first(row, 'FormatID', 'formatID', 'FormatId', 'formatId'), 50);
+    const formatType = cleanText(first(row, 'FormatType', 'formatType'), 50);
+    const renderRule = cleanText(first(row, 'RenderType', 'renderType', 'RenderRule', 'renderRule'), 50);
+    const align = cleanText(first(row, 'Align', 'align'), 10);
+    const minWidth = numberOrNull(first(row, 'MinWidth', 'minWidth')) || 0;
+    const maxWidth = numberOrNull(first(row, 'MaxWidth', 'maxWidth')) || 0;
+    const maxLength = numberOrNull(first(row, 'MaxLength', 'maxLength')) || 0;
+    const numberDecimal = numberOrNull(first(row, 'NumberDecimal', 'numberDecimal'));
+    const formatString = cleanText(first(row, 'FormatString', 'formatString'), 100);
+    const maskString = cleanText(first(row, 'MaskString', 'maskString'), 100);
+
+    fields.push({
+        name: rawName,
+        label,
+        orderNo,
+        sqlType,
+        nullable,
+        formatId,
+        formatType,
+        renderRule,
+        align,
+        minWidth,
+        maxWidth,
+        maxLength,
+        numberDecimal,
+        formatString,
+        maskString,
+        lookup: null,
+        isPhysicalColumn,
+        isPrimaryKey,
+        isReadOnly: true,
+        showInGrid: true,
+        showInAdd: false,
+        showInEdit: false,
+        showInFilter: false,
+        supportsInsert: false,
+        supportsUpdate: false,
+        supportsFilter: false,
+        supportsSort: false,
+        supportsKeyword: false,
+        metadataSource: 'PHASE4_JOIN_RESULT_SET',
+        contexts: ['GRID']
+    });
+});
+
+if (primaryKey && !pkFound && fields.length > 0) {
+    diagnostics.push({ severity: 'ERROR', code: 'JOIN_PRIMARY_KEY_NOT_IN_RESULT', message: `Khóa chính '${primaryKey}' không nằm trong result-set.` });
+}
+
+return {
+    schemaVersion: '2.0',
+    contractVersion: '1.0',
+    formName: requestedFormName,
+    detailKey: requestedDetailKey,
+    apiList,
+    tableName,
+    primaryKey,
+    registeredViewProcedure,
+    readOnly: true,
+    sourceKind: 'JOIN_RESULT_SET',
+    fields,
+    gridFields: fields,
+    lookups: {},
+    diagnostics,
+    generatedAt: new Date().toISOString()
+};
 }
 

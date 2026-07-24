@@ -1,67 +1,148 @@
 /*
-  Phase 4A SQL Script: Đăng ký API_Web_JoinFieldSchemaV2 vào bảng WA_API
-  Đăng ký an toàn, idempotent với Transaction + XACT_ABORT.
+  Đăng ký metadata API Phase 4A.
+
+  Script fail-closed:
+  - Không chấp nhận route trùng.
+  - Không ghi đè route đang trỏ procedure khác.
+  - Chỉ cập nhật Para khi route hợp lệ.
 */
-SET ANSI_NULLS ON;
-GO
-SET QUOTED_IDENTIFIER ON;
-GO
 
+SET NOCOUNT ON;
 SET XACT_ABORT ON;
-BEGIN TRANSACTION;
 
-DECLARE @TargetList varchar(100) = 'API_Web_JoinFieldSchemaV2';
-DECLARE @TargetFunc varchar(50) = 'View';
-DECLARE @TargetSQL nvarchar(128) = N'API_Web_JoinFieldSchemaV2';
-DECLARE @TargetPara nvarchar(max) = N'@WebFormName=N''{FormName}'', @DetailKey=N''{DetailKey}'', @UserName=N''{User}'', @BranchID=N''{BranchID}''';
+DECLARE
+    @ListName varchar(100) =
+        'API_Web_JoinFieldSchemaV2',
 
--- 1. Kiểm tra route trùng lặp hoặc trỏ sai procedure
-IF EXISTS (
-    SELECT 1 
-    FROM dbo.WA_API 
-    WHERE LOWER(list) = LOWER(@TargetList) 
-      AND LOWER(func) = LOWER(@TargetFunc)
-      AND LOWER([SQL]) <> LOWER(@TargetSQL)
-)
-BEGIN
-    RAISERROR(N'Route WA_API đã tồn tại nhưng trỏ đến procedure khác! Hủy đăng ký.', 16, 1);
-    ROLLBACK TRANSACTION;
-    RETURN;
-END;
+    @FuncName varchar(50) =
+        'View',
 
--- 2. Đăng ký mới nếu chưa tồn tại
-IF NOT EXISTS (
-    SELECT 1 
-    FROM dbo.WA_API 
-    WHERE LOWER(list) = LOWER(@TargetList) 
-      AND LOWER(func) = LOWER(@TargetFunc)
-)
-BEGIN
-    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-    VALUES (@TargetList, @TargetFunc, @TargetSQL, @TargetPara);
-    PRINT N'Đã thêm bản ghi đăng ký mới cho API_Web_JoinFieldSchemaV2 vào WA_API.';
-END
--- 3. Cập nhật lại Para nếu trỏ đúng procedure
-ELSE
-BEGIN
-    UPDATE dbo.WA_API
-    SET [SQL] = @TargetSQL,
-        Para = @TargetPara
-    WHERE LOWER(list) = LOWER(@TargetList) 
-      AND LOWER(func) = LOWER(@TargetFunc);
-    PRINT N'Đã cập nhật cấu hình Para cho API_Web_JoinFieldSchemaV2 trong WA_API.';
-END;
+    @ProcedureName sysname =
+        N'API_Web_JoinFieldSchemaV2',
 
-COMMIT TRANSACTION;
-GO
+    @ParameterTemplate nvarchar(max) =
+        N'@WebFormName=N''{FormName}'', '
+        + N'@DetailKey=N''{DetailKey}'', '
+        + N'@UserName=N''{User}'', '
+        + N'@BranchID=N''{BranchID}''',
 
--- 4. Trả về trạng thái đăng ký của Route trong WA_API
-SELECT 
-    list, 
-    func, 
-    [SQL], 
-    Para,
-    N'Đã đăng ký thành công cho Phase 4A' AS Status
+    @RouteCount int,
+
+    @RegisteredProcedure sysname;
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    SELECT
+        @RouteCount = COUNT(*),
+
+        @RegisteredProcedure =
+            MIN
+            (
+                CONVERT
+                (
+                    sysname,
+                    PARSENAME(
+                        LTRIM(RTRIM(A.[SQL])),
+                        1
+                    )
+                )
+            )
+    FROM dbo.WA_API AS A
+        WITH (UPDLOCK, HOLDLOCK)
+    WHERE
+        A.[list] COLLATE DATABASE_DEFAULT =
+            @ListName COLLATE DATABASE_DEFAULT
+
+        AND A.[func] COLLATE DATABASE_DEFAULT =
+            @FuncName COLLATE DATABASE_DEFAULT;
+
+    IF ISNULL(@RouteCount, 0) > 1
+    BEGIN
+        THROW 53420,
+            N'PHASE4_JOIN_METADATA_ROUTE_DUPLICATE',
+            1;
+    END;
+
+    IF ISNULL(@RouteCount, 0) = 1
+       AND
+       (
+           @RegisteredProcedure IS NULL
+
+           OR @RegisteredProcedure
+                COLLATE DATABASE_DEFAULT
+              <>
+              @ProcedureName
+                COLLATE DATABASE_DEFAULT
+       )
+    BEGIN
+        THROW 53421,
+            N'PHASE4_JOIN_METADATA_ROUTE_CONFLICT',
+            1;
+    END;
+
+    IF ISNULL(@RouteCount, 0) = 0
+    BEGIN
+        INSERT INTO dbo.WA_API
+        (
+            [list],
+            [func],
+            [SQL],
+            [Para]
+        )
+        VALUES
+        (
+            @ListName,
+            @FuncName,
+            @ProcedureName,
+            @ParameterTemplate
+        );
+    END
+    ELSE
+    BEGIN
+        UPDATE dbo.WA_API
+        SET
+            [Para] = @ParameterTemplate
+        WHERE
+            [list] COLLATE DATABASE_DEFAULT =
+                @ListName COLLATE DATABASE_DEFAULT
+
+            AND [func] COLLATE DATABASE_DEFAULT =
+                @FuncName COLLATE DATABASE_DEFAULT
+
+            AND PARSENAME(
+                    LTRIM(RTRIM([SQL])),
+                    1
+                ) COLLATE DATABASE_DEFAULT
+                =
+                @ProcedureName COLLATE DATABASE_DEFAULT
+
+            AND ISNULL(
+                CONVERT(nvarchar(max), [Para]),
+                N''
+            ) <> @ParameterTemplate;
+    END;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0
+    BEGIN
+        ROLLBACK TRANSACTION;
+    END;
+
+    THROW;
+END CATCH;
+
+SELECT
+    [list],
+    [func],
+    [SQL],
+    [Para]
 FROM dbo.WA_API
-WHERE LOWER(list) = 'api_web_joinfieldschemav2' AND LOWER(func) = 'view';
-GO
+WHERE
+    [list] COLLATE DATABASE_DEFAULT =
+        @ListName COLLATE DATABASE_DEFAULT
+
+    AND [func] COLLATE DATABASE_DEFAULT =
+        @FuncName COLLATE DATABASE_DEFAULT;

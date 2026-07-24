@@ -1,16 +1,24 @@
-/*
-  Phase 4A SQL Registry: Inline Table-Valued Function dbo.API_Phase4JoinRegistry()
-  Bảo mật allow-list và khai báo hợp đồng metadata cho các bảng detail chứa câu lệnh JOIN.
-  Mỗi entry định nghĩa mối quan hệ giữa WebFormName + DetailKey và Stored Procedure/Bảng chính/Primary Key.
-*/
 SET ANSI_NULLS ON;
 GO
 SET QUOTED_IDENTIFIER ON;
 GO
 
-IF OBJECT_ID(N'dbo.API_Phase4JoinRegistry', N'IF') IS NULL
+IF OBJECT_ID(
+    N'dbo.API_Phase4JoinRegistry',
+    N'IF'
+) IS NULL
 BEGIN
-    EXEC(N'CREATE FUNCTION dbo.API_Phase4JoinRegistry() RETURNS TABLE AS RETURN (SELECT CAST(1 AS int) AS Stub)');
+    EXEC(
+        N'CREATE FUNCTION dbo.API_Phase4JoinRegistry()
+          RETURNS TABLE
+          AS
+          RETURN
+          (
+              SELECT
+                  CAST(NULL AS varchar(100)) AS WebFormName
+              WHERE 1 = 0
+          );'
+    );
 END;
 GO
 
@@ -19,17 +27,38 @@ RETURNS TABLE
 AS
 RETURN
 (
-    SELECT 
-        CAST('WA_CaLamViecFrm' AS varchar(100)) AS WebFormName,
-        CAST('SHIFT_DETAIL' AS varchar(80)) AS DetailKey,
-        CAST('API_CaLamViec_ChiTiet' AS varchar(100)) AS ApiList,
-        CAST('API_CaLamViec_ChiTiet' AS varchar(128)) AS ExpectedProcedure,
-        CAST('HR_SapCaChiTietTbl' AS varchar(128)) AS ExpectedTableName,
-        CAST('UserAutoID' AS varchar(128)) AS ExpectedPrimaryKey,
-        CAST(1 AS bit) AS IsReadOnly,
-        CAST(1 AS bit) AS EnableMetadata
+    SELECT
+        V.WebFormName,
+        V.DetailKey,
+        V.ApiList,
+        V.ExpectedProcedure,
+        V.ExpectedTableName,
+        V.ExpectedPrimaryKey,
+        CONVERT(bit, V.IsReadOnly) AS IsReadOnly,
+        CONVERT(bit, V.EnableMetadata) AS EnableMetadata
+    FROM
+    (
+        VALUES
+        (
+            CONVERT(varchar(100), 'WA_CaLamViecFrm'),
+            CONVERT(varchar(80),  'SHIFT_DETAIL'),
+            CONVERT(varchar(100), 'API_CaLamViec_ChiTiet'),
+            CONVERT(sysname,      N'API_CaLamViec_ChiTiet'),
+            CONVERT(sysname,      N'HR_SapCaChiTietTbl'),
+            CONVERT(sysname,      N'UserAutoID'),
+            CONVERT(bit, 1),
+            CONVERT(bit, 1)
+        )
+    ) AS V
+    (
+        WebFormName,
+        DetailKey,
+        ApiList,
+        ExpectedProcedure,
+        ExpectedTableName,
+        ExpectedPrimaryKey,
+        IsReadOnly,
+        EnableMetadata
+    )
 );
-GO
-
-PRINT N'✅ Đã khởi tạo thành công TVF dbo.API_Phase4JoinRegistry cho Phase 4A!';
 GO

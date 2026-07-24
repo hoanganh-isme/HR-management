@@ -918,22 +918,74 @@ window.FieldSyncService = (function (global) {
       });
   }
 
-  function getJoinSchema(formName, detailKey, forceRefresh) {
-    if (!formName) return Promise.reject(new Error('FormName là bắt buộc.'));
-    if (!detailKey) return Promise.reject(new Error('DetailKey là bắt buộc.'));
+  function getJoinSchema(
+    formName,
+    detailKey,
+    forceRefresh
+  ) {
+    var safeFormName =
+      String(formName || '').trim();
 
-    var endpoint = metadataBaseUrl() + '/join-schema/' + encodeURIComponent(formName) + '/' + encodeURIComponent(detailKey);
+    var safeDetailKey =
+      String(detailKey || '').trim();
+
+    if (
+      !/^[A-Za-z0-9_.-]{1,100}$/.test(
+        safeFormName
+      )
+    ) {
+      return Promise.reject(
+        new Error(
+          'FormName của JOIN contract không hợp lệ.'
+        )
+      );
+    }
+
+    if (
+      !/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(
+        safeDetailKey
+      )
+    ) {
+      return Promise.reject(
+        new Error(
+          'DetailKey của JOIN contract không hợp lệ.'
+        )
+      );
+    }
+
+    var endpoint =
+      metadataBaseUrl()
+      + '/join-schema/'
+      + encodeURIComponent(safeFormName)
+      + '/'
+      + encodeURIComponent(safeDetailKey);
+
     if (forceRefresh === true) {
       endpoint += '?refresh=1';
     }
 
-    return global.ApiClient.get(endpoint, { headers: requestHeaders(), logoutOnUnauthorized: false })
-      .then(function (res) {
-        if (res && res.success === true && res.schema && Array.isArray(res.schema.fields)) {
-          return res.schema;
-        }
-        throw new Error((res && res.message) || 'Schema JOIN không hợp lệ.');
-      });
+    return global.ApiClient.get(
+      endpoint,
+      {
+        headers: requestHeaders(),
+        logoutOnUnauthorized: false
+      }
+    ).then(function (response) {
+      if (
+        response
+        && response.success === true
+        && response.schema
+        && Array.isArray(response.schema.fields)
+      ) {
+        return response.schema;
+      }
+
+      throw new Error(
+        response && response.message
+          ? response.message
+          : 'JOIN Field Contract không hợp lệ.'
+      );
+    });
   }
 
   function clearCache(formName) {

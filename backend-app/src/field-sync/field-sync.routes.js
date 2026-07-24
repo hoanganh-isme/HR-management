@@ -93,8 +93,21 @@ function assertComparisonMatchesContract(comparison, contract) {
     }
 }
 
-function resolveJoinContract(formName, detailKey) {
-    const contract = getPhase4JoinContract(formName, detailKey);
+function resolveJoinContract(formName, detailKeyValue) {
+    const detailKey =
+        String(detailKeyValue || '').trim();
+
+    if (!SAFE_DETAIL_KEY.test(detailKey)) {
+        throw badRequest(
+            'DetailKey không hợp lệ.'
+        );
+    }
+
+    const contract = getPhase4JoinContract(
+        formName,
+        detailKey
+    );
+
     if (!contract) {
         throw contractError(
             'JOIN detail key chưa được đăng ký trong Phase 4 allow-list.',
@@ -102,6 +115,7 @@ function resolveJoinContract(formName, detailKey) {
             404
         );
     }
+
     return contract;
 }
 
@@ -133,10 +147,27 @@ function assertJoinSchemaMatchesContract(schema, contract) {
     if (schema.readOnly !== contract.readOnly) {
         throw contractError('Chính sách ReadOnly không khớp Phase 4 registry.', 'PHASE4_JOIN_READONLY_MISMATCH');
     }
-    const hasErrorDiagnostic = Array.isArray(schema.diagnostics) && schema.diagnostics.some((d) => d.severity === 'ERROR');
-    if (hasErrorDiagnostic) {
-        const errDiag = schema.diagnostics.find((d) => d.severity === 'ERROR');
-        throw contractError(errDiag?.message || 'Lỗi metadata JOIN.', errDiag?.code || 'PHASE4_JOIN_SCHEMA_INVALID');
+    const hasErrorDiagnostic = Array.isArray(schema.diagnostics) &&
+        schema.diagnostics.some(function (item) {
+            return (
+                String(
+                    item && item.severity || ''
+                ).toUpperCase() === 'ERROR'
+            );
+        });
+    const errDiag =
+        schema.diagnostics.find(function (item) {
+            return (
+                String(
+                    item && item.severity || ''
+                ).toUpperCase() === 'ERROR'
+            );
+        });
+    if (hasErrorDiagnostic && errDiag) {
+        throw contractError(
+            errDiag.message || 'Lỗi metadata JOIN.',
+            errDiag.code || 'PHASE4_JOIN_SCHEMA_INVALID'
+        );
     }
 }
 
