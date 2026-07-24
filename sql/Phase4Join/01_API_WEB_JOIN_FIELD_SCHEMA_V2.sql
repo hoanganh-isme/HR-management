@@ -367,13 +367,21 @@ BEGIN
       Không fallback sang sys.columns khi describe lỗi.
     */
     DECLARE @Fields TABLE
-    (
-        FieldOrdinal int NOT NULL,
-        FieldName sysname NOT NULL,
-        SqlType nvarchar(256) NULL,
-        IsNullable bit NULL,
-        MaxLength int NULL
-    );
+(
+    FieldOrdinal int NOT NULL,
+    FieldName sysname NOT NULL,
+    SqlType nvarchar(256) NULL,
+    IsNullable bit NULL,
+    MaxLength int NULL,
+
+    /*
+      Lineage của field trong result-set.
+      Dùng để phân biệt cột bảng chính và cột JOIN.
+    */
+    SourceSchema sysname NULL,
+    SourceTable sysname NULL,
+    SourceColumn sysname NULL
+);
 
     BEGIN TRY
         IF EXISTS
@@ -382,7 +390,7 @@ BEGIN
             FROM sys.dm_exec_describe_first_result_set_for_object
             (
                 @ProcedureObjectID,
-                0
+                1
             ) AS D
             WHERE
                 D.error_number IS NOT NULL
@@ -394,23 +402,29 @@ BEGIN
         END;
 
         INSERT INTO @Fields
-        (
-            FieldOrdinal,
-            FieldName,
-            SqlType,
-            IsNullable,
-            MaxLength
-        )
-        SELECT
-            D.column_ordinal,
-            D.name,
-            D.system_type_name,
-            D.is_nullable,
-            D.max_length
+(
+    FieldOrdinal,
+    FieldName,
+    SqlType,
+    IsNullable,
+    MaxLength,
+    SourceSchema,
+    SourceTable,
+    SourceColumn
+)
+SELECT
+    D.column_ordinal,
+    D.name,
+    D.system_type_name,
+    D.is_nullable,
+    D.max_length,
+    D.source_schema,
+    D.source_table,
+    D.source_column
         FROM sys.dm_exec_describe_first_result_set_for_object
         (
             @ProcedureObjectID,
-            0
+            1
         ) AS D
         WHERE
             ISNULL(D.is_hidden, 0) = 0
@@ -583,7 +597,9 @@ BEGIN
 
         RF.SqlType,
         RF.IsNullable,
-
+        RF.SourceSchema,
+        RF.SourceTable,
+        RF.SourceColumn,
         CONVERT
         (
             bit,
@@ -776,10 +792,26 @@ BEGIN
     FROM @Fields AS RF
 
     LEFT JOIN sys.columns AS C
-      ON C.object_id = @TableObjectID
+  ON C.object_id = @TableObjectID
 
-     AND C.name COLLATE DATABASE_DEFAULT =
-         RF.FieldName COLLATE DATABASE_DEFAULT
+ AND C.name COLLATE DATABASE_DEFAULT =
+     COALESCE(
+         NULLIF(RF.SourceColumn, ''),
+         RF.FieldName
+     ) COLLATE DATABASE_DEFAULT
+
+ /*
+   Field chỉ được coi là physical của main table khi:
+   - SQL Server xác định nó đến từ main table;
+   - hoặc source lineage không có nhưng tên field khớp main table.
+ */
+ AND
+ (
+     RF.SourceTable IS NULL
+
+     OR RF.SourceTable COLLATE DATABASE_DEFAULT =
+        @ExpectedTable COLLATE DATABASE_DEFAULT
+ )
 
     /*
       TOP 1 tránh nhân bản field khi metadata có nhiều dòng.

@@ -351,7 +351,20 @@ window.DynamicFormEngine = (function () {
     var registry = window.Phase2MigrationRegistry;
     return registry && typeof registry.get === 'function' ? registry.get(MODULE_CONFIG.FormName) : null;
   }
+  function _isHiddenTechnicalPrimaryKey(
+    fieldName,
+    primaryKey
+  ) {
+    return (
+      String(fieldName || '')
+        .trim()
+        .toLowerCase() === 'userautoid'
 
+      && String(primaryKey || '')
+        .trim()
+        .toLowerCase() === 'userautoid'
+    );
+  }
   function _usesUnifiedFieldContract() {
     var registry = window.Phase2MigrationRegistry;
     if (registry && typeof registry.usesUnifiedSchema === 'function') return registry.usesUnifiedSchema(MODULE_CONFIG.FormName);
@@ -575,11 +588,33 @@ window.DynamicFormEngine = (function () {
         }
 
         dataList.forEach(function (item) {
-          var fieldName = item.name || item.FieldName;
+          var fieldName =
+            item.name || item.FieldName;
+
           if (!fieldName) return;
 
-          // Xây Dictionary cho Table
-          globalDictionary[fieldName] = item.label || item.CaptionVN || fieldName;
+          var metadataPrimaryKey =
+            item.primaryKey
+            || item.PrimaryKey
+            || MODULE_CONFIG.PrimaryKey
+            || '';
+
+          var hideTechnicalPrimaryKey =
+            _isHiddenTechnicalPrimaryKey(
+              fieldName,
+              metadataPrimaryKey
+            );
+
+          /*
+           * Không đưa khóa kỹ thuật vào dictionary Grid.
+           * Field vẫn được giữ trong globalFormSchema để xử lý PK.
+           */
+          if (!hideTechnicalPrimaryKey) {
+            globalDictionary[fieldName] =
+              item.label
+              || item.CaptionVN
+              || fieldName;
+          }
 
 
           // Xây dựng Custom Renderers Động từ cấu hình DB (FormatID hoặc renderRule)
@@ -677,9 +712,26 @@ window.DynamicFormEngine = (function () {
             name: fieldName,
             label: finalLabel,
             required: _bool(item.required, item.IsRequired),
-            showInAdd: _bool(item.showInAdd, item.ShowInAdd),
-            showInEdit: _bool(item.showInEdit, item.ShowInEdit),
-            showInFilter: _bool(item.showInFilter, item.ShowInFilter),
+            showInAdd:
+              !hideTechnicalPrimaryKey
+              && _bool(
+                item.showInAdd,
+                item.ShowInAdd
+              ),
+
+            showInEdit:
+              !hideTechnicalPrimaryKey
+              && _bool(
+                item.showInEdit,
+                item.ShowInEdit
+              ),
+
+            showInFilter:
+              !hideTechnicalPrimaryKey
+              && _bool(
+                item.showInFilter,
+                item.ShowInFilter
+              ),
             isReadOnlyEdit: isReadOnlyEditVal,
             isReadOnlyAdd: isReadOnlyAddVal,
             position: finalPosition,

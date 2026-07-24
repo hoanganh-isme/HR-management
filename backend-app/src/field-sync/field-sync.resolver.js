@@ -31,7 +31,19 @@ function cleanDisplayText(value, maxLength = 250) {
 function safeFieldName(value) {
     return SAFE_FIELD.test(value) && !RESERVED_FIELD_NAMES.has(String(value).toLowerCase());
 }
-
+/**
+ * UserAutoID là khóa kỹ thuật nội bộ.
+ * Field vẫn nằm trong contract và dữ liệu để định danh bản ghi,
+ * nhưng không hiển thị trong UI.
+ */
+function isHiddenTechnicalPrimaryKey(fieldName, isPrimaryKey) {
+    return (
+        isPrimaryKey === true
+        && String(fieldName || '')
+            .trim()
+            .toLowerCase() === 'userautoid'
+    );
+}
 function safeLookupColumn(value) {
     const column = cleanText(value, 128);
     return safeFieldName(column) && !SENSITIVE_LOOKUP_FIELD.test(column) ? column : '';
@@ -237,6 +249,12 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
         const isPrimaryKey = bool(
             first(row, 'IsPrimaryKey', 'isPrimaryKey')
         );
+
+        const hideTechnicalPrimaryKey =
+            isHiddenTechnicalPrimaryKey(
+                fieldName,
+                isPrimaryKey
+            );
 
         const requiredOnInsert = bool(
             first(
@@ -536,10 +554,17 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
 
             requiredOnInsert,
 
-            showInGrid,
-            showInAdd,
-            showInEdit,
-            showInFilter,
+            showInGrid:
+                showInGrid && !hideTechnicalPrimaryKey,
+
+            showInAdd:
+                showInAdd && !hideTechnicalPrimaryKey,
+
+            showInEdit:
+                showInEdit && !hideTechnicalPrimaryKey,
+
+            showInFilter:
+                showInFilter && !hideTechnicalPrimaryKey,
 
             supportsInsert,
             supportsUpdate,
@@ -551,26 +576,59 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
 
             contexts: {
                 grid: {
-                    visible: showInGrid,
-                    sortable: supportsSort,
-                    keyword: supportsKeyword
+                    visible:
+                        showInGrid
+                        && !hideTechnicalPrimaryKey,
+
+                    sortable:
+                        supportsSort
+                        && !hideTechnicalPrimaryKey,
+
+                    keyword:
+                        supportsKeyword
+                        && !hideTechnicalPrimaryKey
                 },
 
                 filter: {
-                    visible: showInFilter,
-                    supported: supportsFilter
+                    visible:
+                        showInFilter
+                        && !hideTechnicalPrimaryKey,
+
+                    supported:
+                        supportsFilter
+                        && !hideTechnicalPrimaryKey
                 },
 
                 add: {
-                    visible: showInAdd,
-                    writable: supportsInsert,
-                    required: requiredOnInsert
+                    visible:
+                        showInAdd
+                        && !hideTechnicalPrimaryKey,
+
+                    writable:
+                        supportsInsert
+                        && !hideTechnicalPrimaryKey,
+
+                    required:
+                        requiredOnInsert
+                        && !hideTechnicalPrimaryKey
                 },
 
                 edit: {
-                    visible: showInEdit,
-                    writable: supportsUpdate,
-                    required: isPrimaryKey
+                    visible:
+                        showInEdit
+                        && !hideTechnicalPrimaryKey,
+
+                    /*
+                     * PK vẫn được DynamicFormEngine tự chèn vào payload edit.
+                     * Không cần tạo input UserAutoID cho người dùng.
+                     */
+                    writable:
+                        supportsUpdate
+                        && !hideTechnicalPrimaryKey,
+
+                    required:
+                        isPrimaryKey
+                        && !hideTechnicalPrimaryKey
                 }
             }
         });
@@ -1162,7 +1220,11 @@ export function normalizeJoinSchema(
                 normalizedName ===
                 primaryKey.toLowerCase()
             );
-
+        const hideTechnicalPrimaryKey =
+            isHiddenTechnicalPrimaryKey(
+                fieldName,
+                isPrimaryKey
+            );
         const isPhysicalColumn = bool(
             first(
                 row,
@@ -1293,8 +1355,41 @@ export function normalizeJoinSchema(
             isPhysicalColumn,
             isPrimaryKey,
             isReadOnly,
+            isPhysicalColumn,
+            isPrimaryKey,
+            isReadOnly,
 
-            showInGrid: true,
+            source: {
+                schema: cleanText(
+                    first(
+                        row,
+                        'SourceSchema',
+                        'sourceSchema'
+                    ),
+                    128
+                ),
+
+                table: cleanText(
+                    first(
+                        row,
+                        'SourceTable',
+                        'sourceTable'
+                    ),
+                    128
+                ),
+
+                column: cleanText(
+                    first(
+                        row,
+                        'SourceColumn',
+                        'sourceColumn'
+                    ),
+                    128
+                )
+            },
+            showInGrid:
+                !hideTechnicalPrimaryKey,
+
             showInAdd: false,
             showInEdit: false,
             showInFilter: false,
@@ -1310,7 +1405,8 @@ export function normalizeJoinSchema(
 
             contexts: {
                 grid: {
-                    visible: true,
+                    visible:
+                        !hideTechnicalPrimaryKey,
                     sortable: false,
                     keyword: false
                 },
@@ -1404,118 +1500,4 @@ export function normalizeJoinSchema(
     };
 }
 
-const firstRow = safeRows[0] || {};
-const apiList = cleanText(first(firstRow, 'ApiList', 'apiList'), 100);
-const tableName = cleanText(first(firstRow, 'TableName', 'tableName'), 128);
-const primaryKey = cleanText(first(firstRow, 'PrimaryKey', 'primaryKey'), 128);
-const registeredViewProcedure = cleanText(first(firstRow, 'RegisteredViewProcedure', 'registeredViewProcedure'), 128);
-const sourceKind = cleanText(first(firstRow, 'SourceKind', 'sourceKind'), 50);
-
-if (sourceKind !== 'JOIN_RESULT_SET') {
-    diagnostics.push({ severity: 'ERROR', code: 'JOIN_SOURCE_KIND_INVALID', message: 'Nguồn metadata không phải JOIN_RESULT_SET.' });
-}
-
-if (!primaryKey) {
-    diagnostics.push({ severity: 'ERROR', code: 'JOIN_PRIMARY_KEY_MISSING', message: 'Thiếu cấu hình khóa chính cho bảng JOIN.' });
-}
-
-const fields = [];
-const seenNames = new Set();
-let pkFound = false;
-
-safeRows.forEach((row, index) => {
-    const diagCode = cleanText(first(row, 'DiagnosticCode', 'diagnosticCode'), 80);
-    if (diagCode) {
-        diagnostics.push({ severity: 'ERROR', code: diagCode, message: cleanText(first(row, 'Message', 'message'), 250) || 'Lỗi SQL metadata.' });
-        return;
-    }
-
-    const rawName = cleanText(first(row, 'FieldName', 'fieldName', 'Name', 'name'), 128);
-    if (!rawName || !safeFieldName(rawName)) {
-        diagnostics.push({ severity: 'ERROR', code: 'JOIN_INVALID_FIELD_NAME', message: `Tên cột '${rawName}' không hợp lệ.` });
-        return;
-    }
-
-    const lowerName = rawName.toLowerCase();
-    if (seenNames.has(lowerName)) {
-        diagnostics.push({ severity: 'ERROR', code: 'JOIN_DUPLICATE_FIELD', message: `Cột '${rawName}' bị lặp lại trong result-set.` });
-        return;
-    }
-    seenNames.add(lowerName);
-
-    const isPrimaryKey = bool(first(row, 'IsPrimaryKey', 'isPrimaryKey')) || (primaryKey && lowerName === primaryKey.toLowerCase());
-    if (isPrimaryKey) pkFound = true;
-
-    const isPhysicalColumn = bool(first(row, 'IsPhysicalColumn', 'isPhysicalColumn'));
-    const label = cleanDisplayText(first(row, 'Caption', 'caption', 'Label', 'label')) || rawName;
-    const orderNo = numberOrNull(first(row, 'FieldOrdinal', 'fieldOrdinal', 'OrderNo', 'orderNo')) || index + 1;
-    const sqlType = cleanText(first(row, 'SqlType', 'sqlType'), 100);
-    const nullable = bool(first(row, 'IsNullable', 'isNullable', 'Nullable', 'nullable'));
-    const formatId = cleanText(first(row, 'FormatID', 'formatID', 'FormatId', 'formatId'), 50);
-    const formatType = cleanText(first(row, 'FormatType', 'formatType'), 50);
-    const renderRule = cleanText(first(row, 'RenderType', 'renderType', 'RenderRule', 'renderRule'), 50);
-    const align = cleanText(first(row, 'Align', 'align'), 10);
-    const minWidth = numberOrNull(first(row, 'MinWidth', 'minWidth')) || 0;
-    const maxWidth = numberOrNull(first(row, 'MaxWidth', 'maxWidth')) || 0;
-    const maxLength = numberOrNull(first(row, 'MaxLength', 'maxLength')) || 0;
-    const numberDecimal = numberOrNull(first(row, 'NumberDecimal', 'numberDecimal'));
-    const formatString = cleanText(first(row, 'FormatString', 'formatString'), 100);
-    const maskString = cleanText(first(row, 'MaskString', 'maskString'), 100);
-
-    fields.push({
-        name: rawName,
-        label,
-        orderNo,
-        sqlType,
-        nullable,
-        formatId,
-        formatType,
-        renderRule,
-        align,
-        minWidth,
-        maxWidth,
-        maxLength,
-        numberDecimal,
-        formatString,
-        maskString,
-        lookup: null,
-        isPhysicalColumn,
-        isPrimaryKey,
-        isReadOnly: true,
-        showInGrid: true,
-        showInAdd: false,
-        showInEdit: false,
-        showInFilter: false,
-        supportsInsert: false,
-        supportsUpdate: false,
-        supportsFilter: false,
-        supportsSort: false,
-        supportsKeyword: false,
-        metadataSource: 'PHASE4_JOIN_RESULT_SET',
-        contexts: ['GRID']
-    });
-});
-
-if (primaryKey && !pkFound && fields.length > 0) {
-    diagnostics.push({ severity: 'ERROR', code: 'JOIN_PRIMARY_KEY_NOT_IN_RESULT', message: `Khóa chính '${primaryKey}' không nằm trong result-set.` });
-}
-
-return {
-    schemaVersion: '2.0',
-    contractVersion: '1.0',
-    formName: requestedFormName,
-    detailKey: requestedDetailKey,
-    apiList,
-    tableName,
-    primaryKey,
-    registeredViewProcedure,
-    readOnly: true,
-    sourceKind: 'JOIN_RESULT_SET',
-    fields,
-    gridFields: fields,
-    lookups: {},
-    diagnostics,
-    generatedAt: new Date().toISOString()
-};
-}
 
