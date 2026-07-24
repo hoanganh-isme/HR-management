@@ -160,166 +160,735 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
     const diagnostics = [];
 
     for (const row of Array.isArray(rows) ? rows : []) {
-        const fieldName = cleanText(first(row, 'FieldName', 'fieldName'), 128);
+        const fieldName = cleanText(
+            first(row, 'FieldName', 'fieldName'),
+            128
+        );
+
         if (!fieldName) continue;
+
         if (!safeFieldName(fieldName)) {
-            diagnostics.push({ severity: 'error', code: 'INVALID_FIELD_NAME', fieldName });
+            diagnostics.push({
+                severity: 'error',
+                code: 'INVALID_FIELD_NAME',
+                fieldName
+            });
             continue;
         }
+
         const key = fieldName.toLowerCase();
+
         if (seen.has(key)) {
-            diagnostics.push({ severity: 'error', code: 'DUPLICATE_FIELD', fieldName });
+            diagnostics.push({
+                severity: 'error',
+                code: 'DUPLICATE_FIELD',
+                fieldName
+            });
             continue;
         }
+
         seen.add(key);
 
         const lookup = normalizeLookup(row);
-        const showInGridValue = first(row, 'ShowInGrid', 'showInGrid');
-        const showInGrid = showInGridValue === undefined ? true : bool(showInGridValue);
-        const showInAdd = bool(first(row, 'ShowInAdd', 'showInAdd'));
-        const showInEdit = bool(first(row, 'ShowInEdit', 'showInEdit'));
-        const showInFilter = bool(first(row, 'ShowInFilter', 'showInFilter'));
-        const supportsInsert = bool(first(row, 'SupportsInsert', 'supportsInsert'));
-        const supportsUpdate = bool(first(row, 'SupportsUpdate', 'supportsUpdate'));
-        const supportsFilter = bool(first(row, 'SupportsFilter', 'supportsFilter'));
-        const supportsSort = bool(first(row, 'SupportsSort', 'supportsSort'));
-        const supportsKeyword = bool(first(row, 'SupportsKeyword', 'supportsKeyword'));
-        const isPrimaryKey = bool(first(row, 'IsPrimaryKey', 'isPrimaryKey'));
-        const requiredOnInsert = bool(first(row, 'IsRequiredOnInsert', 'isRequiredOnInsert'));
+
+        const showInGridValue = first(
+            row,
+            'ShowInGrid',
+            'showInGrid'
+        );
+
+        const showInGrid =
+            showInGridValue === undefined
+                ? true
+                : bool(showInGridValue);
+
+        const showInAdd = bool(
+            first(row, 'ShowInAdd', 'showInAdd')
+        );
+
+        const showInEdit = bool(
+            first(row, 'ShowInEdit', 'showInEdit')
+        );
+
+        const showInFilter = bool(
+            first(row, 'ShowInFilter', 'showInFilter')
+        );
+
+        const supportsInsert = bool(
+            first(row, 'SupportsInsert', 'supportsInsert')
+        );
+
+        const supportsUpdate = bool(
+            first(row, 'SupportsUpdate', 'supportsUpdate')
+        );
+
+        const supportsFilter = bool(
+            first(row, 'SupportsFilter', 'supportsFilter')
+        );
+
+        const supportsSort = bool(
+            first(row, 'SupportsSort', 'supportsSort')
+        );
+
+        const supportsKeyword = bool(
+            first(row, 'SupportsKeyword', 'supportsKeyword')
+        );
+
+        const isPrimaryKey = bool(
+            first(row, 'IsPrimaryKey', 'isPrimaryKey')
+        );
+
+        const requiredOnInsert = bool(
+            first(
+                row,
+                'IsRequiredOnInsert',
+                'isRequiredOnInsert'
+            )
+        );
+
+        /*
+         * Metadata riêng cho popup Lọc.
+         * Chỉ tạo khi field vừa được cấu hình hiển thị,
+         * vừa được backend cho phép lọc.
+         */
+        const filterMetadata =
+            showInFilter && supportsFilter
+                ? {
+                    sourceFormId: cleanText(
+                        first(
+                            row,
+                            'FilterSourceFormID',
+                            'filterSourceFormId'
+                        ),
+                        250
+                    ),
+
+                    keyId: cleanText(
+                        first(
+                            row,
+                            'FilterKeyID',
+                            'filterKeyId'
+                        ),
+                        50
+                    ),
+
+                    label:
+                        cleanDisplayText(
+                            first(
+                                row,
+                                'FilterCaption',
+                                'filterCaption'
+                            ),
+                            200
+                        ) ||
+                        cleanDisplayText(
+                            first(row, 'Caption', 'caption'),
+                            200
+                        ) ||
+                        fieldName,
+
+                    controlType: numberOrNull(
+                        first(
+                            row,
+                            'FilterControlType',
+                            'filterControlType'
+                        )
+                    ),
+
+                    operator: numberOrNull(
+                        first(
+                            row,
+                            'FilterOperator',
+                            'filterOperator'
+                        )
+                    ),
+
+                    useLikeOperator: bool(
+                        first(
+                            row,
+                            'FilterUseLikeOperator',
+                            'filterUseLikeOperator'
+                        )
+                    ),
+
+                    controlWidth: numberOrNull(
+                        first(
+                            row,
+                            'FilterControlWidth',
+                            'filterControlWidth'
+                        )
+                    ),
+
+                    valueField: safeLookupColumn(
+                        first(
+                            row,
+                            'FilterValueColumn',
+                            'filterValueColumn'
+                        )
+                    ),
+
+                    displayField: safeLookupColumn(
+                        first(
+                            row,
+                            'FilterDisplayColumn',
+                            'filterDisplayColumn'
+                        )
+                    ),
+
+                    displayColumns: safeIdentifierList(
+                        first(
+                            row,
+                            'FilterColumns',
+                            'filterColumns'
+                        )
+                    ).slice(0, 12),
+
+                    rememberLastValue: bool(
+                        first(
+                            row,
+                            'FilterRememberLastValue',
+                            'filterRememberLastValue'
+                        )
+                    ),
+
+                    defaultValue: cleanText(
+                        first(
+                            row,
+                            'FilterDefaultValue',
+                            'filterDefaultValue'
+                        ),
+                        100
+                    ),
+
+                    reload: bool(
+                        first(
+                            row,
+                            'FilterReload',
+                            'filterReload'
+                        )
+                    )
+                }
+                : null;
+
         fields.push({
             name: fieldName,
-            label: cleanDisplayText(first(row, 'Caption', 'caption'), 200) || fieldName,
-            orderNo: numberOrNull(first(row, 'FieldOrdinal', 'fieldOrdinal')) ?? fields.length + 1,
-            sqlType: cleanText(first(row, 'SqlType', 'sqlType'), 100),
-            nullable: bool(first(row, 'IsNullable', 'isNullable')),
-            formatId: cleanText(first(row, 'FormatID', 'formatId'), 20),
-            formatType: cleanText(first(row, 'FormatType', 'formatType'), 5),
+
+            label:
+                cleanDisplayText(
+                    first(row, 'Caption', 'caption'),
+                    200
+                ) || fieldName,
+
+            orderNo:
+                numberOrNull(
+                    first(
+                        row,
+                        'FieldOrdinal',
+                        'fieldOrdinal'
+                    )
+                ) ?? fields.length + 1,
+
+            sqlType: cleanText(
+                first(row, 'SqlType', 'sqlType'),
+                100
+            ),
+
+            nullable: bool(
+                first(row, 'IsNullable', 'isNullable')
+            ),
+
+            formatId: cleanText(
+                first(row, 'FormatID', 'formatId'),
+                20
+            ),
+
+            formatType: cleanText(
+                first(row, 'FormatType', 'formatType'),
+                5
+            ),
+
             renderRule: resolveRenderType(
                 first(row, 'FormatID', 'formatId'),
                 first(row, 'SqlType', 'sqlType'),
                 Boolean(lookup && !lookup.disabled),
                 first(row, 'FormatType', 'formatType')
             ),
-            align: cleanText(first(row, 'Align', 'align'), 10),
-            minWidth: numberOrNull(first(row, 'MinWidth', 'minWidth')),
-            maxWidth: numberOrNull(first(row, 'MaxWidth', 'maxWidth')),
-            maxLength: numberOrNull(first(row, 'MaxLength', 'maxLength')),
-            minValue: numberOrNull(first(row, 'MinValue', 'minValue')),
-            maxValue: numberOrNull(first(row, 'MaxValue', 'maxValue')),
-            numberDecimal: numberOrNull(first(row, 'NumberDecimal', 'numberDecimal')),
-            formatString: cleanText(first(row, 'FormatString', 'formatString'), 100),
-            maskString: cleanText(first(row, 'MaskString', 'maskString'), 50),
+
+            align: cleanText(
+                first(row, 'Align', 'align'),
+                10
+            ),
+
+            minWidth: numberOrNull(
+                first(row, 'MinWidth', 'minWidth')
+            ),
+
+            maxWidth: numberOrNull(
+                first(row, 'MaxWidth', 'maxWidth')
+            ),
+
+            maxLength: numberOrNull(
+                first(row, 'MaxLength', 'maxLength')
+            ),
+
+            minValue: numberOrNull(
+                first(row, 'MinValue', 'minValue')
+            ),
+
+            maxValue: numberOrNull(
+                first(row, 'MaxValue', 'maxValue')
+            ),
+
+            numberDecimal: numberOrNull(
+                first(
+                    row,
+                    'NumberDecimal',
+                    'numberDecimal'
+                )
+            ),
+
+            formatString: cleanText(
+                first(
+                    row,
+                    'FormatString',
+                    'formatString'
+                ),
+                100
+            ),
+
+            maskString: cleanText(
+                first(
+                    row,
+                    'MaskString',
+                    'maskString'
+                ),
+                50
+            ),
+
             position: 'grid',
             lookup,
-            isPhysicalColumn: bool(first(row, 'IsPhysicalColumn', 'isPhysicalColumn')),
+
+            isPhysicalColumn: bool(
+                first(
+                    row,
+                    'IsPhysicalColumn',
+                    'isPhysicalColumn'
+                )
+            ),
+
             isPrimaryKey,
-            isIdentity: bool(first(row, 'IsIdentity', 'isIdentity')),
-            isComputed: bool(first(row, 'IsComputed', 'isComputed')),
-            hasDefault: bool(first(row, 'HasDefault', 'hasDefault')),
-            dbMaxLength: numberOrNull(first(row, 'DbMaxLength', 'dbMaxLength')),
-            dbPrecision: numberOrNull(first(row, 'DbPrecision', 'dbPrecision')),
-            dbScale: numberOrNull(first(row, 'DbScale', 'dbScale')),
-            dbNullable: bool(first(row, 'DbIsNullable', 'dbIsNullable')),
-            isServerManaged: bool(first(row, 'IsServerManaged', 'isServerManaged')),
-            isSensitiveOrDenied: bool(first(row, 'IsSensitiveOrDenied', 'isSensitiveOrDenied')),
+
+            isIdentity: bool(
+                first(row, 'IsIdentity', 'isIdentity')
+            ),
+
+            isComputed: bool(
+                first(row, 'IsComputed', 'isComputed')
+            ),
+
+            hasDefault: bool(
+                first(row, 'HasDefault', 'hasDefault')
+            ),
+
+            dbMaxLength: numberOrNull(
+                first(
+                    row,
+                    'DbMaxLength',
+                    'dbMaxLength'
+                )
+            ),
+
+            dbPrecision: numberOrNull(
+                first(
+                    row,
+                    'DbPrecision',
+                    'dbPrecision'
+                )
+            ),
+
+            dbScale: numberOrNull(
+                first(row, 'DbScale', 'dbScale')
+            ),
+
+            dbNullable: bool(
+                first(
+                    row,
+                    'DbIsNullable',
+                    'dbIsNullable'
+                )
+            ),
+
+            isServerManaged: bool(
+                first(
+                    row,
+                    'IsServerManaged',
+                    'isServerManaged'
+                )
+            ),
+
+            isSensitiveOrDenied: bool(
+                first(
+                    row,
+                    'IsSensitiveOrDenied',
+                    'isSensitiveOrDenied'
+                )
+            ),
+
             requiredOnInsert,
+
             showInGrid,
             showInAdd,
             showInEdit,
             showInFilter,
+
             supportsInsert,
             supportsUpdate,
             supportsFilter,
             supportsSort,
             supportsKeyword,
+
+            filter: filterMetadata,
+
             contexts: {
-                grid: { visible: showInGrid, sortable: supportsSort, keyword: supportsKeyword },
-                filter: { visible: showInFilter, supported: supportsFilter },
-                add: { visible: showInAdd, writable: supportsInsert, required: requiredOnInsert },
-                edit: { visible: showInEdit, writable: supportsUpdate, required: isPrimaryKey }
+                grid: {
+                    visible: showInGrid,
+                    sortable: supportsSort,
+                    keyword: supportsKeyword
+                },
+
+                filter: {
+                    visible: showInFilter,
+                    supported: supportsFilter
+                },
+
+                add: {
+                    visible: showInAdd,
+                    writable: supportsInsert,
+                    required: requiredOnInsert
+                },
+
+                edit: {
+                    visible: showInEdit,
+                    writable: supportsUpdate,
+                    required: isPrimaryKey
+                }
             }
         });
     }
 
-    const canonicalFieldNames = new Map(fields.map((field) => [field.name.toLowerCase(), field.name]));
+    /*
+     * Chuẩn hóa field phụ thuộc của lookup sau khi đã có
+     * danh sách field đầy đủ.
+     */
+    const canonicalFieldNames = new Map(
+        fields.map((field) => [
+            field.name.toLowerCase(),
+            field.name
+        ])
+    );
+
     for (const field of fields) {
-        if (!field.lookup || field.lookup.disabled === true || !field.lookup.dependsOn.length) continue;
+        if (
+            !field.lookup ||
+            field.lookup.disabled === true ||
+            !field.lookup.dependsOn.length
+        ) {
+            continue;
+        }
+
         const canonicalParents = [];
         const unresolvedParents = [];
+
         for (const parent of field.lookup.dependsOn) {
-            const canonical = canonicalFieldNames.get(String(parent).toLowerCase());
-            if (!canonical || canonical.toLowerCase() === field.name.toLowerCase()) {
+            const canonical = canonicalFieldNames.get(
+                String(parent).toLowerCase()
+            );
+
+            if (
+                !canonical ||
+                canonical.toLowerCase() ===
+                field.name.toLowerCase()
+            ) {
                 unresolvedParents.push(parent);
                 continue;
             }
-            if (!canonicalParents.some((name) => name.toLowerCase() === canonical.toLowerCase())) {
+
+            if (
+                !canonicalParents.some(
+                    (name) =>
+                        name.toLowerCase() ===
+                        canonical.toLowerCase()
+                )
+            ) {
                 canonicalParents.push(canonical);
             }
         }
+
         if (unresolvedParents.length) {
-            field.lookup = { ...field.lookup, dependsOn: [], disabled: true };
-            field.renderRule = resolveRenderType(field.formatId, field.sqlType, false, field.formatType);
+            field.lookup = {
+                ...field.lookup,
+                dependsOn: [],
+                disabled: true
+            };
+
+            field.renderRule = resolveRenderType(
+                field.formatId,
+                field.sqlType,
+                false,
+                field.formatType
+            );
+
             diagnostics.push({
                 severity: 'error',
                 code: 'LOOKUP_DEPENDENCY_FIELD_NOT_FOUND',
                 fieldName: field.name,
                 dependencies: unresolvedParents.slice(0, 20)
             });
+
             continue;
         }
-        field.lookup = { ...field.lookup, dependsOn: canonicalParents };
+
+        field.lookup = {
+            ...field.lookup,
+            dependsOn: canonicalParents
+        };
     }
 
     const classifiedFields = classifyMobileFields(fields);
     const firstRow = rows && rows[0] ? rows[0] : {};
-    const sourceKind = cleanText(first(firstRow, 'SourceKind', 'sourceKind'), 40);
-    const primaryKey = cleanText(first(firstRow, 'PrimaryKey', 'primaryKey'), 128);
-    const capabilityVersion = cleanText(first(firstRow, 'CapabilityVersion', 'capabilityVersion'), 20);
-    const deleteModeRaw = cleanText(first(firstRow, 'DeleteMode', 'deleteMode'), 40).toUpperCase();
-    const deleteMode = ['SOFT', 'HARD', 'HARD_APPROVED', 'BLOCKED_NO_SOFT_DELETE', 'INVALID_ISDELETED_TYPE', 'NONE'].includes(deleteModeRaw)
+
+    const sourceKind = cleanText(
+        first(firstRow, 'SourceKind', 'sourceKind'),
+        40
+    );
+
+    const primaryKey = cleanText(
+        first(firstRow, 'PrimaryKey', 'primaryKey'),
+        128
+    );
+
+    const capabilityVersion = cleanText(
+        first(
+            firstRow,
+            'CapabilityVersion',
+            'capabilityVersion'
+        ),
+        20
+    );
+
+    const deleteModeRaw = cleanText(
+        first(firstRow, 'DeleteMode', 'deleteMode'),
+        40
+    ).toUpperCase();
+
+    const deleteMode = [
+        'SOFT',
+        'HARD',
+        'HARD_APPROVED',
+        'BLOCKED_NO_SOFT_DELETE',
+        'INVALID_ISDELETED_TYPE',
+        'NONE'
+    ].includes(deleteModeRaw)
         ? deleteModeRaw
         : 'NONE';
-    const sourceDiagnostic = cleanText(first(firstRow, 'DiagnosticCode', 'diagnosticCode'), 80).toUpperCase();
-    if (!fields.length) diagnostics.push({ severity: 'error', code: 'NO_GRID_FIELDS' });
-    if (!primaryKey) diagnostics.push({ severity: 'error', code: 'NO_PRIMARY_KEY' });
-    if (!['RESULT_SET', 'MAIN_TABLE', 'TABLE_FALLBACK'].includes(sourceKind)) diagnostics.push({ severity: 'error', code: 'INVALID_SOURCE_KIND' });
-    if (sourceKind === 'TABLE_FALLBACK') diagnostics.push({ severity: 'warning', code: 'RESULTSET_FALLBACK_TO_TABLE' });
-    if (sourceDiagnostic === 'SHADOW_VIEW_NOT_REGISTERED') {
-        diagnostics.push({ severity: 'warning', code: 'SHADOW_VIEW_NOT_REGISTERED' });
+
+    const sourceDiagnostic = cleanText(
+        first(
+            firstRow,
+            'DiagnosticCode',
+            'diagnosticCode'
+        ),
+        80
+    ).toUpperCase();
+
+    const hasConfiguredFilters = bool(
+        first(
+            firstRow,
+            'HasConfiguredFilters',
+            'hasConfiguredFilters'
+        )
+    );
+
+    const filterSourceFormId = cleanText(
+        first(
+            firstRow,
+            'FilterSourceFormID',
+            'filterSourceFormId'
+        ),
+        250
+    );
+
+    if (!fields.length) {
+        diagnostics.push({
+            severity: 'error',
+            code: 'NO_GRID_FIELDS'
+        });
     }
-    if (sourceDiagnostic === 'RESULTSET_METADATA_ERROR' || sourceDiagnostic === 'RESULTSET_UNSAFE_FIELD') {
-        diagnostics.push({ severity: 'error', code: sourceDiagnostic });
+
+    if (!primaryKey) {
+        diagnostics.push({
+            severity: 'error',
+            code: 'NO_PRIMARY_KEY'
+        });
+    }
+
+    if (
+        ![
+            'RESULT_SET',
+            'MAIN_TABLE',
+            'TABLE_FALLBACK'
+        ].includes(sourceKind)
+    ) {
+        diagnostics.push({
+            severity: 'error',
+            code: 'INVALID_SOURCE_KIND'
+        });
+    }
+
+    if (sourceKind === 'TABLE_FALLBACK') {
+        diagnostics.push({
+            severity: 'warning',
+            code: 'RESULTSET_FALLBACK_TO_TABLE'
+        });
+    }
+
+    if (sourceDiagnostic === 'SHADOW_VIEW_NOT_REGISTERED') {
+        diagnostics.push({
+            severity: 'warning',
+            code: 'SHADOW_VIEW_NOT_REGISTERED'
+        });
+    }
+
+    if (
+        sourceDiagnostic === 'RESULTSET_METADATA_ERROR' ||
+        sourceDiagnostic === 'RESULTSET_UNSAFE_FIELD'
+    ) {
+        diagnostics.push({
+            severity: 'error',
+            code: sourceDiagnostic
+        });
     }
 
     return {
         schemaVersion: '2.0',
         capabilityVersion,
+
         formName: requestedFormName,
         erpFormId: erpFormName,
-        tableName: cleanText(first(firstRow, 'TableName', 'tableName'), 128),
+
+        tableName: cleanText(
+            first(firstRow, 'TableName', 'tableName'),
+            128
+        ),
+
         primaryKey,
         sourceKind,
+
         fields: classifiedFields,
-        gridFields: classifiedFields.filter((field) => field.showInGrid),
-        addFields: classifiedFields.filter((field) => field.showInAdd),
-        editFields: classifiedFields.filter((field) => field.showInEdit),
-        filterFields: classifiedFields.filter((field) => field.showInFilter && field.supportsFilter),
+
+        gridFields: classifiedFields.filter(
+            (field) => field.showInGrid
+        ),
+
+        addFields: classifiedFields.filter(
+            (field) => field.showInAdd
+        ),
+
+        editFields: classifiedFields.filter(
+            (field) => field.showInEdit
+        ),
+
+        filterFields: classifiedFields.filter(
+            (field) =>
+                field.showInFilter &&
+                field.supportsFilter
+        ),
+
+        filterPolicy: {
+            configured: hasConfiguredFilters,
+            sourceFormId: filterSourceFormId,
+
+            mode: hasConfiguredFilters
+                ? 'ERP_CONFIGURED'
+                : 'SEARCH_ONLY'
+        },
+
         runtimeRoutes: {
-            view: { registeredProcedure: cleanText(first(firstRow, 'RegisteredViewProcedure', 'registeredViewProcedure'), 128) },
-            save: { registeredProcedure: cleanText(first(firstRow, 'RegisteredSaveProcedure', 'registeredSaveProcedure'), 128) },
+            view: {
+                registeredProcedure: cleanText(
+                    first(
+                        firstRow,
+                        'RegisteredViewProcedure',
+                        'registeredViewProcedure'
+                    ),
+                    128
+                )
+            },
+
+            save: {
+                registeredProcedure: cleanText(
+                    first(
+                        firstRow,
+                        'RegisteredSaveProcedure',
+                        'registeredSaveProcedure'
+                    ),
+                    128
+                )
+            },
+
             delete: {
-                registeredProcedure: cleanText(first(firstRow, 'RegisteredDeleteProcedure', 'registeredDeleteProcedure'), 128),
+                registeredProcedure: cleanText(
+                    first(
+                        firstRow,
+                        'RegisteredDeleteProcedure',
+                        'registeredDeleteProcedure'
+                    ),
+                    128
+                ),
+
                 mode: deleteMode
             }
         },
-        lookups: classifiedFields.filter((field) => field.lookup).map((field) => ({ fieldName: field.name, ...field.lookup })),
+
+        lookups: classifiedFields
+            .filter((field) => field.lookup)
+            .map((field) => ({
+                fieldName: field.name,
+                ...field.lookup
+            })),
+
         mobile: {
             policyVersion: '1.0',
-            coreFields: classifiedFields.filter((field) => field.mobileClass === 'CORE').map((field) => field.name),
-            optionalFields: classifiedFields.filter((field) => field.mobileClass === 'OPTIONAL').map((field) => field.name),
-            advancedFields: classifiedFields.filter((field) => field.mobileClass === 'ADVANCED').map((field) => field.name),
-            hiddenFields: classifiedFields.filter((field) => field.mobileClass === 'HIDDEN').map((field) => field.name)
+
+            coreFields: classifiedFields
+                .filter(
+                    (field) =>
+                        field.mobileClass === 'CORE'
+                )
+                .map((field) => field.name),
+
+            optionalFields: classifiedFields
+                .filter(
+                    (field) =>
+                        field.mobileClass === 'OPTIONAL'
+                )
+                .map((field) => field.name),
+
+            advancedFields: classifiedFields
+                .filter(
+                    (field) =>
+                        field.mobileClass === 'ADVANCED'
+                )
+                .map((field) => field.name),
+
+            hiddenFields: classifiedFields
+                .filter(
+                    (field) =>
+                        field.mobileClass === 'HIDDEN'
+                )
+                .map((field) => field.name)
         },
+
         diagnostics,
         generatedAt: new Date().toISOString()
     };

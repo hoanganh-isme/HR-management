@@ -131,9 +131,17 @@ window.FieldSyncService = (function (global) {
     return Boolean(entry && (entry.enableGrid === true || entry.schemaPolicy === 'UNIFIED_V2'));
   }
 
-  function adaptUnifiedField(field, index, writeActive) {
+  function adaptUnifiedField(field, index, writeActive, contextName) {
     var rawLookup = field.lookup && field.lookup.disabled !== true ? field.lookup : null;
     var lookup = rawLookup;
+    var filterMeta = field.filter && typeof field.filter === 'object' ? field.filter : null;
+    var isFilterContext = contextName === 'filters';
+    var contextLabel = isFilterContext && filterMeta && filterMeta.label
+      ? filterMeta.label
+      : (field.label || field.name);
+    var contextOrder = isFilterContext && filterMeta && Number(filterMeta.keyId)
+      ? Number(filterMeta.keyId)
+      : (field.orderNo || index + 1);
     var showInAdd = field.showInAdd === true;
     var showInEdit = field.showInEdit === true;
     var supportsInsert = field.supportsInsert === true;
@@ -146,8 +154,8 @@ window.FieldSyncService = (function (global) {
       || ((mobileClass === 'CORE' ? 0 : mobileClass === 'OPTIONAL' ? 10000 : mobileClass === 'ADVANCED' ? 20000 : 30000) + index + 1);
     return {
       name: field.name,
-      label: field.label || field.name,
-      orderNo: field.orderNo || index + 1,
+      label: contextLabel,
+      orderNo: contextOrder,
       position: 'grid',
       renderRule: engineRule(field.renderRule),
       formatId: field.formatId || '',
@@ -170,6 +178,20 @@ window.FieldSyncService = (function (global) {
       supportsUpdate: supportsUpdate,
       supportsFilter: field.supportsFilter === true,
       supportsKeyword: field.supportsKeyword === true,
+      filterSourceFormId: filterMeta ? filterMeta.sourceFormId : '',
+      filterKeyId: filterMeta ? filterMeta.keyId : '',
+      filterControlType: filterMeta ? filterMeta.controlType : null,
+      filterOperator: filterMeta ? filterMeta.operator : null,
+      filterUseLikeOperator: filterMeta ? filterMeta.useLikeOperator === true : false,
+      filterControlWidth: filterMeta ? filterMeta.controlWidth : null,
+      filterValueField: filterMeta ? filterMeta.valueField : '',
+      filterDisplayField: filterMeta ? filterMeta.displayField : '',
+      filterDisplayColumns: filterMeta && Array.isArray(filterMeta.displayColumns)
+        ? filterMeta.displayColumns.slice()
+        : [],
+      filterDefaultValue: filterMeta ? filterMeta.defaultValue : '',
+      filterRememberLastValue: filterMeta ? filterMeta.rememberLastValue === true : false,
+      filterReload: filterMeta ? filterMeta.reload === true : false,
       isPrimaryKey: field.isPrimaryKey === true,
       isIdentity: field.isIdentity === true,
       isComputed: field.isComputed === true,
@@ -217,14 +239,16 @@ window.FieldSyncService = (function (global) {
       edit: mergeContractFields(allFields, contract.editFields, function (field) { return field.showInEdit === true; }),
       filters: mergeContractFields(allFields, contract.filterFields, function (field) { return field.showInFilter === true && field.supportsFilter === true; })
     };
-    function adapt(collection) {
-      return collection.map(function (field, index) { return adaptUnifiedField(field, index, writeActive === true); });
+    function adapt(collection, contextName) {
+      return collection.map(function (field, index) {
+        return adaptUnifiedField(field, index, writeActive === true, contextName);
+      });
     }
     return {
-      grid: enabled.enableGrid === false ? [] : cloneSchema(adapt(collections.grid)),
-      edit: enabled.enableEdit === false ? [] : cloneSchema(adapt(collections.edit)),
-      add: enabled.enableAdd === false ? [] : cloneSchema(adapt(collections.add)),
-      filters: enabled.enableFilter === false ? [] : cloneSchema(adapt(collections.filters))
+      grid: enabled.enableGrid === false ? [] : cloneSchema(adapt(collections.grid, 'grid')),
+      edit: enabled.enableEdit === false ? [] : cloneSchema(adapt(collections.edit, 'edit')),
+      add: enabled.enableAdd === false ? [] : cloneSchema(adapt(collections.add, 'add')),
+      filters: enabled.enableFilter === false ? [] : cloneSchema(adapt(collections.filters, 'filters'))
     };
   }
 

@@ -67,6 +67,31 @@ BEGIN
     IF @ERPFormID COLLATE DATABASE_DEFAULT <> @ExpectedERPFormID COLLATE DATABASE_DEFAULT
         THROW 53203, N'PHASE3_ERP_FORM_ALIAS_MISMATCH', 1;
 
+/*
+  Filter membership dùng trực tiếp SY_FrmFltTbl của ERP.
+  Không copy row HR_* sang WA_* và không fallback SY_FormatFields cho Unified V2.
+*/
+DECLARE @FilterSourceFormID varchar(250) = NULL;
+
+IF OBJECT_ID(N'dbo.SY_FrmFltTbl', N'U') IS NOT NULL
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.SY_FrmFltTbl AS X
+        WHERE X.FormID COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
+          AND ISNULL(X.IsDisable, 0) = 0
+    )
+        SET @FilterSourceFormID = @ERPFormID;
+    ELSE IF EXISTS
+    (
+        SELECT 1
+        FROM dbo.SY_FrmFltTbl AS X
+        WHERE X.FormID COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+          AND ISNULL(X.IsDisable, 0) = 0
+    )
+        SET @FilterSourceFormID = @WebFormName;
+END;
     DECLARE
         @RegisteredTable sysname,
         @RegisteredPrimaryKey sysname,
@@ -246,7 +271,10 @@ BEGIN
         Flags.CanQuery AS ShowInGrid,
         Flags.CanInsert AS ShowInAdd,
         CONVERT(bit, CASE WHEN Flags.CanUpdate = 1 OR Flags.IsPrimaryKey = 1 THEN 1 ELSE 0 END) AS ShowInEdit,
-        Flags.CanQuery AS ShowInFilter,
+        CONVERT(bit, CASE
+        WHEN Flags.CanQuery = 1 AND FilterCfg.UserAutoID IS NOT NULL THEN 1
+        ELSE 0
+        END) AS ShowInFilter,
         Flags.CanInsert AS SupportsInsert,
         Flags.CanUpdate AS SupportsUpdate,
         Flags.CanQuery AS SupportsFilter,
@@ -293,6 +321,26 @@ BEGIN
         CONVERT(bit, ISNULL(D.IsMultiSelect, 0)) AS LookupMultiSelect,
         D.ReloadType AS LookupReloadMode,
         CONVERT(bit, ISNULL(D.IsDisable, 0)) AS LookupDisabled,
+         CONVERT(bit, CASE WHEN @FilterSourceFormID IS NULL THEN 0 ELSE 1 END) AS HasConfiguredFilters,
+    @FilterSourceFormID AS FilterSourceFormID,
+    FilterCfg.KeyID AS FilterKeyID,
+    COALESCE(
+        NULLIF(FilterCfg.Caption, N''),
+        NULLIF(M.CaptionVN, N''),
+        NULLIF(M.CaptionEN, N''),
+        CONVERT(nvarchar(200), C.name)
+    ) AS FilterCaption,
+    FilterCfg.[Type] AS FilterControlType,
+    FilterCfg.Operator AS FilterOperator,
+    CONVERT(bit, ISNULL(FilterCfg.UseLikeOperator, 0)) AS FilterUseLikeOperator,
+    FilterCfg.ControlWidth AS FilterControlWidth,
+    FilterCfg.ValueColumn AS FilterValueColumn,
+    FilterCfg.DisplayColumn AS FilterDisplayColumn,
+    FilterCfg.ColumnArr AS FilterColumns,
+    FilterCfg.WidthArr AS FilterWidths,
+    CONVERT(bit, ISNULL(FilterCfg.RememberLastValue, 0)) AS FilterRememberLastValue,
+    FilterCfg.DefaultValue AS FilterDefaultValue,
+    CONVERT(bit, ISNULL(FilterCfg.IsReload, 0)) AS FilterReload,
         Mobile.MobileClass,
         Mobile.ReasonCodes AS MobileReasonCodes,
         CASE
@@ -353,50 +401,225 @@ BEGIN
             X.AutoID
     ) AS M
     LEFT JOIN dbo.SY_FmatTbl AS F
-      ON F.FormatID COLLATE DATABASE_DEFAULT = M.FormatID COLLATE DATABASE_DEFAULT
-    OUTER APPLY (
+      ON F.FormatID COLLATE DATABASE_DEFAULT =
+         M.FormatID COLLATE DATABASE_DEFAULT
+
+    OUTER APPLY
+    (
         SELECT TOP (1)
-            X.UserAutoID, X.FormID, X.ColumnID, X.[Type], X.ValueColumn, X.DisplayColumn,
-            X.ColumnArr, X.WidthArr, X.ParaRequireArr, X.IsMultiSelect, X.ReloadType, X.IsDisable
+            X.UserAutoID,
+            X.FormID,
+            X.ColumnID,
+            X.[Type],
+            X.ValueColumn,
+            X.DisplayColumn,
+            X.ColumnArr,
+            X.WidthArr,
+            X.ParaRequireArr,
+            X.IsMultiSelect,
+            X.ReloadType,
+            X.IsDisable
         FROM dbo.SY_FrmDrdwTbl AS X
-        WHERE X.ColumnID COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
-          AND X.FormID COLLATE DATABASE_DEFAULT IN (@ERPFormID, @WebFormName)
-          AND ISNULL(X.IsDisable, 0) = 0
-        ORDER BY CASE WHEN X.FormID COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1 ELSE 2 END,
-                 X.UserAutoID
+        WHERE
+            X.ColumnID COLLATE DATABASE_DEFAULT =
+                C.name COLLATE DATABASE_DEFAULT
+            AND X.FormID COLLATE DATABASE_DEFAULT
+                IN (@ERPFormID, @WebFormName)
+            AND ISNULL(X.IsDisable, 0) = 0
+        ORDER BY
+            CASE
+                WHEN X.FormID COLLATE DATABASE_DEFAULT =
+                     @ERPFormID COLLATE DATABASE_DEFAULT
+                THEN 1
+                ELSE 2
+            END,
+            X.UserAutoID
     ) AS D
-    OUTER APPLY (
+
+    OUTER APPLY
+    (
+        SELECT TOP (1)
+            X.UserAutoID,
+            X.KeyID,
+            X.Caption,
+            X.ControlWidth,
+            X.[Type],
+            X.ValueColumn,
+            X.DisplayColumn,
+            X.ColumnArr,
+            X.WidthArr,
+            X.RememberLastValue,
+            X.UseLikeOperator,
+            X.IsReload,
+            X.Operator,
+            X.DefaultValue
+        FROM dbo.SY_FrmFltTbl AS X
+        WHERE
+            @FilterSourceFormID IS NOT NULL
+            AND X.FormID COLLATE DATABASE_DEFAULT =
+                @FilterSourceFormID COLLATE DATABASE_DEFAULT
+            AND X.ColumnID COLLATE DATABASE_DEFAULT =
+                C.name COLLATE DATABASE_DEFAULT
+            AND ISNULL(X.IsDisable, 0) = 0
+        ORDER BY
+            CASE
+                WHEN TRY_CONVERT(int, X.KeyID) IS NULL
+                THEN 1
+                ELSE 0
+            END,
+            TRY_CONVERT(int, X.KeyID),
+            X.KeyID,
+            X.UserAutoID
+    ) AS FilterCfg
+
+    OUTER APPLY
+    (
         SELECT
             CASE
-                WHEN Flags.IsDenied = 1 OR Flags.IsServerManaged = 1 THEN 'HIDDEN'
-                WHEN (Flags.CanInsert = 1 AND C.is_nullable = 0 AND C.default_object_id = 0)
-                  OR Flags.IsPrimaryKey = 1
-                  OR LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%name'
-                  OR LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%code'
-                  OR LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%status%'
-                  OR LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%effective%'
-                  OR D.UserAutoID IS NOT NULL THEN 'CORE'
-                WHEN C.is_computed = 1
-                  OR (T.name IN ('varchar', 'nvarchar') AND (C.max_length = -1 OR C.max_length > 1000)) THEN 'ADVANCED'
+                WHEN Flags.IsDenied = 1
+                  OR Flags.IsServerManaged = 1
+                    THEN 'HIDDEN'
+
+                WHEN
+                    (
+                        Flags.CanInsert = 1
+                        AND C.is_nullable = 0
+                        AND C.default_object_id = 0
+                    )
+                    OR Flags.IsPrimaryKey = 1
+                    OR LOWER(C.name) COLLATE DATABASE_DEFAULT
+                        LIKE '%name'
+                    OR LOWER(C.name) COLLATE DATABASE_DEFAULT
+                        LIKE '%code'
+                    OR LOWER(C.name) COLLATE DATABASE_DEFAULT
+                        LIKE '%status%'
+                    OR LOWER(C.name) COLLATE DATABASE_DEFAULT
+                        LIKE '%effective%'
+                    OR D.UserAutoID IS NOT NULL
+                    THEN 'CORE'
+
+                WHEN
+                    C.is_computed = 1
+                    OR
+                    (
+                        T.name IN ('varchar', 'nvarchar')
+                        AND
+                        (
+                            C.max_length = -1
+                            OR C.max_length > 1000
+                        )
+                    )
+                    THEN 'ADVANCED'
+
                 ELSE 'OPTIONAL'
             END AS MobileClass,
-            NULLIF(STUFF(CONCAT(
-                CASE WHEN Flags.IsDenied = 1 THEN ';DENIED_FIELD' ELSE '' END,
-                CASE WHEN Flags.IsServerManaged = 1 THEN ';SERVER_MANAGED' ELSE '' END,
-                CASE WHEN Flags.IsPrimaryKey = 1 THEN ';PRIMARY_KEY' ELSE '' END,
-                CASE WHEN Flags.CanInsert = 1 AND C.is_nullable = 0 AND C.default_object_id = 0 THEN ';REQUIRED_ON_INSERT' ELSE '' END,
-                CASE WHEN LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%name' THEN ';BUSINESS_NAME' ELSE '' END,
-                CASE WHEN LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%code' THEN ';BUSINESS_CODE' ELSE '' END,
-                CASE WHEN LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%status%' THEN ';STATUS_FIELD' ELSE '' END,
-                CASE WHEN LOWER(C.name) COLLATE DATABASE_DEFAULT LIKE '%effective%' THEN ';EFFECTIVE_DATE' ELSE '' END,
-                CASE WHEN D.UserAutoID IS NOT NULL THEN ';LOOKUP_FIELD' ELSE '' END,
-                CASE WHEN C.is_computed = 1 THEN ';COMPUTED' ELSE '' END,
-                CASE WHEN T.name IN ('varchar', 'nvarchar') AND (C.max_length = -1 OR C.max_length > 1000) THEN ';LONG_TEXT' ELSE '' END,
-                CASE WHEN Flags.IsDenied = 0 AND Flags.IsServerManaged = 0 AND Flags.IsPrimaryKey = 0
-                       AND NOT (Flags.CanInsert = 1 AND C.is_nullable = 0 AND C.default_object_id = 0)
-                     THEN ';DEFAULT_OPTIONAL' ELSE '' END
-            ), 1, 1, ''), '') AS ReasonCodes
+
+            NULLIF(
+                STUFF(
+                    CONCAT(
+                        CASE
+                            WHEN Flags.IsDenied = 1
+                            THEN ';DENIED_FIELD'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN Flags.IsServerManaged = 1
+                            THEN ';SERVER_MANAGED'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN Flags.IsPrimaryKey = 1
+                            THEN ';PRIMARY_KEY'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN Flags.CanInsert = 1
+                             AND C.is_nullable = 0
+                             AND C.default_object_id = 0
+                            THEN ';REQUIRED_ON_INSERT'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN LOWER(C.name)
+                                 COLLATE DATABASE_DEFAULT
+                                 LIKE '%name'
+                            THEN ';BUSINESS_NAME'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN LOWER(C.name)
+                                 COLLATE DATABASE_DEFAULT
+                                 LIKE '%code'
+                            THEN ';BUSINESS_CODE'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN LOWER(C.name)
+                                 COLLATE DATABASE_DEFAULT
+                                 LIKE '%status%'
+                            THEN ';STATUS_FIELD'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN LOWER(C.name)
+                                 COLLATE DATABASE_DEFAULT
+                                 LIKE '%effective%'
+                            THEN ';EFFECTIVE_DATE'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN D.UserAutoID IS NOT NULL
+                            THEN ';LOOKUP_FIELD'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN C.is_computed = 1
+                            THEN ';COMPUTED'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN T.name IN ('varchar', 'nvarchar')
+                             AND
+                             (
+                                 C.max_length = -1
+                                 OR C.max_length > 1000
+                             )
+                            THEN ';LONG_TEXT'
+                            ELSE ''
+                        END,
+
+                        CASE
+                            WHEN Flags.IsDenied = 0
+                             AND Flags.IsServerManaged = 0
+                             AND Flags.IsPrimaryKey = 0
+                             AND NOT
+                             (
+                                 Flags.CanInsert = 1
+                                 AND C.is_nullable = 0
+                                 AND C.default_object_id = 0
+                             )
+                            THEN ';DEFAULT_OPTIONAL'
+                            ELSE ''
+                        END
+                    ),
+                    1,
+                    1,
+                    ''
+                ),
+                ''
+            ) AS ReasonCodes
     ) AS Mobile
+
     WHERE C.object_id = @ObjectID
     ORDER BY C.column_id;
 END;
