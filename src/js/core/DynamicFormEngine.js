@@ -2045,6 +2045,18 @@ window.DynamicFormEngine = (function () {
         query.JsonData = JSON.stringify(activeFilters);
       }
 
+      /*
+       * API_TruyVanDong_V2 nhận paging trong @Data để giữ Para contract ổn
+       * định; Keyword vẫn chỉ nằm ở top-level query.Keyword.
+       */
+      if (_usesUnifiedFieldContract() && !MODULE_CONFIG.IsFullPageDetail) {
+        var v2Data = Object.assign({}, activeFilters, {
+          page: currentPage,
+          pageSize: currentLimit
+        });
+        query.JsonData = JSON.stringify(v2Data);
+      }
+
       console.log('[DynamicFormEngine] Sending query to ApiSearch:', query);
       ApiClient.post(searchEndpoint, query).then(function (result) {
         if (!isLatestRequest()) return;
@@ -5944,7 +5956,28 @@ window.DynamicFormEngine = (function () {
     ApiClient.post(endpoint, finalPayload)
       .then(function (res) {
         if (res && res.code === 0) {
-          var masterDetailKey = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
+          /*
+           * Save V2 là nguồn sự thật cho khóa mới. Không dùng lại SapCaID rỗng
+           * của form add hoặc một giá trị cũ từ rowData khi DB vừa sinh khóa.
+           */
+          var responsePrimaryValue = res.primaryValue !== undefined
+            ? res.primaryValue
+            : (res.PrimaryValue !== undefined ? res.PrimaryValue : res.primary_value);
+          var masterDetailKey = _hasContractValue(responsePrimaryValue)
+            ? responsePrimaryValue
+            : (formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]));
+
+          if (!_hasContractValue(masterDetailKey)) {
+            Alert.error(MODULE_CONFIG.AlertTitleError, 'Master đã phản hồi thành công nhưng không trả về SapCaID.');
+            _restoreSaveBtn();
+            return;
+          }
+
+          if (MODULE_CONFIG.PrimaryKey) {
+            singlePayload[MODULE_CONFIG.PrimaryKey] = masterDetailKey;
+            if (rowData) rowData[MODULE_CONFIG.PrimaryKey] = masterDetailKey;
+          }
+
           var detailSave = body._detailPanels && detailManager
             ? detailManager.savePanels(body._detailPanels, masterDetailKey)
             : Promise.resolve([]);
@@ -5965,11 +5998,17 @@ window.DynamicFormEngine = (function () {
               if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
                 dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';
               }
-              Alert.error(MODULE_CONFIG.AlertTitleError, dMsg);
+              Alert.error(
+                MODULE_CONFIG.AlertTitleError,
+                'Master đã lưu thành công nhưng detail thất bại: ' + dMsg
+              );
               _restoreSaveBtn();
             }
           }).catch(function (err) {
-            Alert.error(MODULE_CONFIG.AlertTitleError, 'Lỗi lưu thông tin chi tiết: ' + err.message);
+            Alert.error(
+              MODULE_CONFIG.AlertTitleError,
+              'Master đã lưu thành công nhưng detail thất bại: ' + err.message
+            );
             _restoreSaveBtn();
           });
         } else {

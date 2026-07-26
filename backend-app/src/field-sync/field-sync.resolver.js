@@ -1066,6 +1066,24 @@ export function normalizeJoinSchema(
         128
     );
 
+    const registeredSaveProcedure = cleanText(
+        first(
+            firstRow,
+            'RegisteredSaveProcedure',
+            'registeredSaveProcedure'
+        ),
+        128
+    );
+
+    const registeredDeleteProcedure = cleanText(
+        first(
+            firstRow,
+            'RegisteredDeleteProcedure',
+            'registeredDeleteProcedure'
+        ),
+        128
+    );
+
     const sourceKind = cleanText(
         first(firstRow, 'SourceKind', 'sourceKind'),
         50
@@ -1481,6 +1499,8 @@ export function normalizeJoinSchema(
         tableName,
         primaryKey,
         registeredViewProcedure,
+        registeredSaveProcedure,
+        registeredDeleteProcedure,
         readOnly,
         sourceKind,
 

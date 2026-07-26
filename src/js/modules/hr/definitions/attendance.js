@@ -98,11 +98,11 @@
         metadataMode: 'JOIN_RESULT_SET_EDITABLE',
         joinContractKey: 'SHIFT_EMPLOYEES',
         primaryKey: 'UserAutoID',
-        hiddenFields: ['UserAutoID', 'SapCaID', 'BranchID'],
+        hiddenFields: ['UserAutoID', 'SapCaID'],
         filterField: 'SapCaID',
         editable: true,
         duplicateField: 'PersonID',
-        readOnlyFields: ['PersonName', 'PhongBan', 'TitleName'],
+        readOnlyFields: ['PersonName', 'PhongBan', 'TitleName', 'BranchID'],
         customButtons: [
           {
             id: 'btn-chon-nhanvien',
@@ -156,6 +156,8 @@
                       newRow['PersonID'] = rowData.PersonID || '';
                       newRow['PersonName'] = rowData.PersonName || '';
                       newRow['PhongBan'] = rowData.PhongBan || '';
+                      newRow['TitleName'] = rowData.TitleName || '';
+                      newRow['BranchID'] = rowData.BranchID || '';
                       newRow['GhiChu'] = '';
                       ctx.panel._currentRows.push(newRow);
                       added++;
@@ -183,11 +185,13 @@
             }
           }
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'GhiChu'],
+        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ Tên',
           PhongBan: 'Bộ phận',
+          TitleName: 'Chức vụ',
+          BranchID: 'Chi nhánh',
           GhiChu: 'Ghi chú'
         }
       },
@@ -211,7 +215,6 @@
     FormFields: [
       // Dòng 1: Tên bảng ca, Sắp ca, Nút
       { name: 'TenBangCa', position: 'grid|4' },
-      { name: 'SapCaID', position: 'grid|4' },
       { name: 'btnSapCaTuDong', position: 'grid|4', renderRule: 'html', html: '<button type="button" class="btn btn-outline-primary" style="margin-top:28px;width:100%;" onclick="window.SapCaTuDong()"><span class="material-symbols-outlined" style="vertical-align:middle;">auto_fix_high</span> Sắp ca tự động</button>' },
       // Dòng 2: Từ ngày, Đến ngày
       { name: 'TuNgay', position: 'grid|6' },

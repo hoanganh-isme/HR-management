@@ -41,7 +41,8 @@ BEGIN
         @EnableSave bit,
         @EnableDelete bit,
         @DeletePolicy varchar(40),
-        @GlobalReferenceOnly bit;
+        @GlobalReferenceOnly bit,
+        @BranchPolicy varchar(40);
 
     SELECT
         @ExpectedERPFormID = R.ERPFormID,
@@ -54,7 +55,8 @@ BEGIN
         @EnableSave = R.EnableSave,
         @EnableDelete = R.EnableDelete,
         @DeletePolicy = R.DeletePolicy,
-        @GlobalReferenceOnly = R.GlobalReferenceOnly
+        @GlobalReferenceOnly = R.GlobalReferenceOnly,
+        @BranchPolicy = R.BranchPolicy
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT;
 
@@ -148,11 +150,24 @@ END;
     )
         THROW 53206, N'PHASE3_EXPECTED_PRIMARY_KEY_NOT_FOUND', 1;
 
-    IF @GlobalReferenceOnly = 1 AND EXISTS (
+    DECLARE @BranchColumn sysname = NULL;
+    SELECT TOP (1) @BranchColumn = C.name
+    FROM sys.columns AS C
+    WHERE C.object_id = @ObjectID
+      AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
+    ORDER BY CASE LOWER(C.name)
+        WHEN 'branchid' THEN 1 WHEN 'tenantid' THEN 2 WHEN 'companyid' THEN 3 ELSE 4 END, C.column_id;
+
+    SET @BranchPolicy = UPPER(LTRIM(RTRIM(ISNULL(@BranchPolicy, 'AUTO_SCHEMA'))));
+    IF @BranchPolicy = 'AUTO_SCHEMA'
+        SET @BranchPolicy = CASE WHEN @BranchColumn IS NULL THEN 'GLOBAL_REFERENCE' ELSE 'BRANCH_SCOPED' END;
+
+    IF @GlobalReferenceOnly = 1 AND @BranchColumn IS NOT NULL
+       AND EXISTS (
         SELECT 1 FROM sys.columns AS C
         WHERE C.object_id = @ObjectID
           AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
-    )
+       )
         THROW 53207, N'PHASE3_BRANCH_POLICY_REQUIRES_REVIEW', 1;
 
     DECLARE @UserGroupID varchar(50), @UserBranches varchar(max);
@@ -164,7 +179,8 @@ END;
     IF @UserGroupID IS NULL
         THROW 53208, N'PHASE3_ACTOR_INVALID_OR_DISABLED', 1;
 
-    IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
+    IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
+       AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
     BEGIN
         IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = '' OR @BranchID = ''
             THROW 53209, N'PHASE3_BRANCH_CONTEXT_REQUIRED', 1;

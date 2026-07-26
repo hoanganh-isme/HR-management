@@ -43,7 +43,8 @@ BEGIN
 
         @PermissionFormName varchar(100),
 
-        @GlobalReferenceOnly bit;
+        @GlobalReferenceOnly bit,
+        @BranchPolicy varchar(40);
 
     SELECT
         @ExpectedTable = R.ExpectedTableName,
@@ -54,7 +55,8 @@ BEGIN
 
         @PermissionFormName = R.PermissionFormName,
 
-        @GlobalReferenceOnly = R.GlobalReferenceOnly
+        @GlobalReferenceOnly = R.GlobalReferenceOnly,
+        @BranchPolicy = R.BranchPolicy
 
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT;
@@ -149,6 +151,18 @@ BEGIN
         RETURN;
     END;
 
+    DECLARE @BranchColumn sysname = NULL;
+    SELECT TOP (1) @BranchColumn = C.name
+    FROM sys.columns AS C
+    WHERE C.object_id = @ObjectID
+      AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
+    ORDER BY CASE LOWER(C.name)
+        WHEN 'branchid' THEN 1 WHEN 'tenantid' THEN 2 WHEN 'companyid' THEN 3 ELSE 4 END, C.column_id;
+
+    SET @BranchPolicy = UPPER(LTRIM(RTRIM(ISNULL(@BranchPolicy, 'AUTO_SCHEMA'))));
+    IF @BranchPolicy = 'AUTO_SCHEMA'
+        SET @BranchPolicy = CASE WHEN @BranchColumn IS NULL THEN 'GLOBAL_REFERENCE' ELSE 'BRANCH_SCOPED' END;
+
     IF NOT EXISTS (
         SELECT 1
         FROM sys.indexes AS I
@@ -194,11 +208,12 @@ BEGIN
 
     SET @DeleteMode = CASE WHEN @IsDeletedColumn IS NULL THEN 'HARD' ELSE 'SOFT' END;
 
-    IF @GlobalReferenceOnly = 1 AND EXISTS (
+    IF @GlobalReferenceOnly = 1 AND @BranchColumn IS NOT NULL
+       AND EXISTS (
         SELECT 1 FROM sys.columns AS C
         WHERE C.object_id = @ObjectID
           AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
-    )
+       )
     BEGIN
         SELECT -1 AS code, N'PHASE3_BRANCH_POLICY_REQUIRES_REVIEW' AS msg, 0 AS rowsAffected,
                @DeletePolicy AS deleteMode;
@@ -244,7 +259,8 @@ BEGIN
         RETURN;
     END;
 
-    IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
+    IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
+       AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
     BEGIN
         IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = '' OR @BranchID = ''
         BEGIN
@@ -387,6 +403,19 @@ BEGIN
             SET @UpdateSet += N', T.' + QUOTENAME(@DeletedDateColumn) + N' = SYSUTCDATETIME()';
     END;
 
+    DECLARE @BranchScopePredicate nvarchar(2000) = N'';
+    IF @BranchPolicy = 'BRANCH_SCOPED' AND @BranchColumn IS NOT NULL
+        SET @BranchScopePredicate = N'
+                AND (
+                    LOWER(@UserGroupID) = ''admin''
+                    OR EXISTS (
+                        SELECT 1 FROM STRING_SPLIT(@BranchID, '','') AS AllowedBranch
+                        WHERE LTRIM(RTRIM(AllowedBranch.[value])) <> ''''
+                          AND LTRIM(RTRIM(AllowedBranch.[value])) COLLATE DATABASE_DEFAULT
+                              = CONVERT(nvarchar(4000), T.' + QUOTENAME(@BranchColumn) + N') COLLATE DATABASE_DEFAULT
+                    )
+                )';
+
     BEGIN TRY
         BEGIN TRANSACTION;
         IF @DeleteMode = 'SOFT'
@@ -399,14 +428,17 @@ BEGIN
                   + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
                   + N' = TRY_CONVERT(' + @PrimarySqlType + N', I.IdValue)'
                   + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END + N'
-                WHERE ISNULL(T.' + QUOTENAME(@IsDeletedColumn) + N', 0) = 0;
+                WHERE ISNULL(T.' + QUOTENAME(@IsDeletedColumn) + N', 0) = 0'
+                  + @BranchScopePredicate + N';
                 SET @OutRows = @@ROWCOUNT;';
 
             EXEC sys.sp_executesql
                 @Sql,
-                N'@Actor varchar(100), @OutRows int OUTPUT',
+                N'@Actor varchar(100), @OutRows int OUTPUT, @BranchID varchar(max), @UserGroupID varchar(50)',
                 @Actor = @UserName,
-                @OutRows = @RowsAffected OUTPUT;
+                @OutRows = @RowsAffected OUTPUT,
+                @BranchID = @BranchID,
+                @UserGroupID = @UserGroupID;
         END
         ELSE
         BEGIN
@@ -417,13 +449,16 @@ BEGIN
                   ON T.' + QUOTENAME(@PrimaryKey)
                   + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
                   + N' = TRY_CONVERT(' + @PrimarySqlType + N', I.IdValue)'
-                  + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END + N';
+                  + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
+                  + N' WHERE 1 = 1' + @BranchScopePredicate + N';
                 SET @OutRows = @@ROWCOUNT;';
 
             EXEC sys.sp_executesql
                 @Sql,
-                N'@OutRows int OUTPUT',
-                @OutRows = @RowsAffected OUTPUT;
+                N'@OutRows int OUTPUT, @BranchID varchar(max), @UserGroupID varchar(50)',
+                @OutRows = @RowsAffected OUTPUT,
+                @BranchID = @BranchID,
+                @UserGroupID = @UserGroupID;
         END;
 
         IF @RowsAffected <> @RequestedCount

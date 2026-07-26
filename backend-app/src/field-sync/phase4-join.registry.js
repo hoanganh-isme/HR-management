@@ -26,6 +26,9 @@ const RAW_CONTRACTS = [
     expectedProcedure:
       'API_CaLamViec_ChiTiet',
 
+    registeredViewProcedure:
+      'API_CaLamViec_ChiTiet',
+
     expectedSaveProcedure: '',
     expectedDeleteProcedure: '',
 
@@ -48,6 +51,9 @@ const RAW_CONTRACTS = [
     expectedProcedure:
       'API_CaLamViec_NhanVien',
 
+    registeredViewProcedure:
+      'API_CaLamViec_NhanVien',
+
     expectedSaveProcedure:
       'API_LuuDong_V2',
 
@@ -60,7 +66,14 @@ const RAW_CONTRACTS = [
     expectedPrimaryKey:
       'UserAutoID',
 
-    readOnly: false
+    readOnly: false,
+
+    // Editable JOIN mutation vẫn dùng chung allow-list V2 với master.
+    registeredSaveProcedure:
+      'API_LuuDong_V2',
+
+    registeredDeleteProcedure:
+      'API_XoaDong_V2'
   })
 ];
 

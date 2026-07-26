@@ -29,19 +29,34 @@ RETURN
         V.SaveV2,
         V.OldDelete,
         V.DeleteV2,
+        V.PermissionFormName,
+        V.WritePolicy,
+        CASE
+            WHEN V.BranchPolicy <> 'AUTO_SCHEMA' THEN V.BranchPolicy
+            WHEN EXISTS (
+                SELECT 1
+                FROM sys.columns AS C
+                WHERE C.object_id = OBJECT_ID(N'dbo.' + V.ExpectedTableName, N'U')
+                  AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
+            ) THEN CONVERT(varchar(40), 'BRANCH_SCOPED')
+            ELSE CONVERT(varchar(40), 'GLOBAL_REFERENCE')
+        END AS BranchPolicy,
         CONVERT(bit, V.EnableView) AS EnableView,
         CONVERT(bit, V.EnableSave) AS EnableSave,
         CONVERT(bit, V.EnableDelete) AS EnableDelete,
         V.DeletePolicy,
-        CONVERT(bit, 1) AS GlobalReferenceOnly
+        CONVERT(bit, V.GlobalReferenceOnly) AS GlobalReferenceOnly
     FROM (VALUES
-        (CONVERT(varchar(100), 'WA_BangThueTNCNFrm'), CONVERT(varchar(100), 'HR_BangThueTNCNFrm'), CONVERT(sysname, N'HR_BangThueTNCNTbl'), CONVERT(sysname, N'Bac'),                  CONVERT(sysname, N'API_TruyVanDong'),       CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA')),
-        (CONVERT(varchar(100), 'WA_ChucDanhFrm'),      CONVERT(varchar(100), 'WA_ChucDanhFrm'),      CONVERT(sysname, N'HR_ChucDanhTbl'),       CONVERT(sysname, N'ChucDanhChuyenMon'), CONVERT(sysname, N'API_DanhSachChucDanh'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA')),
-        (CONVERT(varchar(100), 'WA_TitleListFrm'),     CONVERT(varchar(100), 'WA_TitleListFrm'),     CONVERT(sysname, N'HR_TitleListTbl'),       CONVERT(sysname, N'TitleName'),          CONVERT(sysname, N'API_TruyVanDong'),       CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA')),
-        (CONVERT(varchar(100), 'WA_ShiftListFrm'),     CONVERT(varchar(100), 'WA_ShiftListFrm'),     CONVERT(sysname, N'HR_ShiftListTbl'),       CONVERT(sysname, N'ShiftID'),            CONVERT(sysname, N'API_TruyVanDong'),       CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'))
+        (CONVERT(varchar(100), 'WA_BangThueTNCNFrm'), CONVERT(varchar(100), 'HR_BangThueTNCNFrm'), CONVERT(sysname, N'HR_BangThueTNCNTbl'), CONVERT(sysname, N'Bac'), CONVERT(sysname, N'API_TruyVanDong'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_BangThueTNCNFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
+        (CONVERT(varchar(100), 'WA_ChucDanhFrm'), CONVERT(varchar(100), 'WA_ChucDanhFrm'), CONVERT(sysname, N'HR_ChucDanhTbl'), CONVERT(sysname, N'ChucDanhChuyenMon'), CONVERT(sysname, N'API_DanhSachChucDanh'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_ChucDanhFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
+        (CONVERT(varchar(100), 'WA_TitleListFrm'), CONVERT(varchar(100), 'WA_TitleListFrm'), CONVERT(sysname, N'HR_TitleListTbl'), CONVERT(sysname, N'TitleName'), CONVERT(sysname, N'API_TruyVanDong'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_TitleListFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
+        (CONVERT(varchar(100), 'WA_ShiftListFrm'), CONVERT(varchar(100), 'WA_ShiftListFrm'), CONVERT(sysname, N'HR_ShiftListTbl'), CONVERT(sysname, N'ShiftID'), CONVERT(sysname, N'API_TruyVanDong'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_ShiftListFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
+        (CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(sysname, N'HR_SapCaTbl'), CONVERT(sysname, N'SapCaID'), CONVERT(sysname, N'API_CaLamViec'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'AUTO_SCHEMA'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 0),
+        (CONVERT(varchar(100), 'API_CaLamViec_NhanVien'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(sysname, N'HR_SapCaNhanVienTbl'), CONVERT(sysname, N'UserAutoID'), CONVERT(sysname, N'API_CaLamViec_NhanVien'), CONVERT(sysname, N'API_CaLamViec_NhanVien'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(varchar(40), 'VIEW_PHYSICAL_COLUMNS'), CONVERT(varchar(40), 'AUTO_SCHEMA'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 0)
     ) AS V(WebFormName, ERPFormID, ExpectedTableName, ExpectedPrimaryKey,
            OldView, ViewV2, OldSave, SaveV2, OldDelete, DeleteV2,
-           EnableView, EnableSave, EnableDelete, DeletePolicy)
+           PermissionFormName, WritePolicy, BranchPolicy,
+           EnableView, EnableSave, EnableDelete, DeletePolicy, GlobalReferenceOnly)
 );
 GO
 
@@ -79,13 +94,15 @@ BEGIN
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
         @ExpectedView sysname,
-        @GlobalReferenceOnly bit;
+        @GlobalReferenceOnly bit,
+        @BranchPolicy varchar(40);
 
     SELECT
         @ExpectedTable = R.ExpectedTableName,
         @ExpectedPrimaryKey = R.ExpectedPrimaryKey,
         @ExpectedView = R.ViewV2,
-        @GlobalReferenceOnly = R.GlobalReferenceOnly
+        @GlobalReferenceOnly = R.GlobalReferenceOnly,
+        @BranchPolicy = R.BranchPolicy
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
       AND R.EnableView = 1;
@@ -183,7 +200,23 @@ BEGIN
     IF @UserGroupID IS NULL
         THROW 53111, N'PHASE3_ACTOR_INVALID_OR_DISABLED', 1;
 
-    IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
+    DECLARE @BranchColumn sysname = NULL;
+    SELECT TOP (1) @BranchColumn = C.name
+    FROM sys.columns AS C
+    WHERE C.object_id = @ObjectID
+      AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
+    ORDER BY CASE LOWER(C.name)
+        WHEN 'branchid' THEN 1
+        WHEN 'tenantid' THEN 2
+        WHEN 'companyid' THEN 3
+        ELSE 4 END, C.column_id;
+
+    SET @BranchPolicy = UPPER(LTRIM(RTRIM(ISNULL(@BranchPolicy, 'AUTO_SCHEMA'))));
+    IF @BranchPolicy = 'AUTO_SCHEMA'
+        SET @BranchPolicy = CASE WHEN @BranchColumn IS NULL THEN 'GLOBAL_REFERENCE' ELSE 'BRANCH_SCOPED' END;
+
+    IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
+       AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
     BEGIN
         IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = '' OR @BranchID = ''
             THROW 53112, N'PHASE3_BRANCH_CONTEXT_REQUIRED', 1;
@@ -362,7 +395,21 @@ BEGIN
         @KeywordPredicate nvarchar(max),
         @FilterPredicate nvarchar(max),
         @SoftDeletePredicate nvarchar(500) = N'',
+        @BranchPredicate nvarchar(2000) = N'',
         @Sql nvarchar(max);
+
+    IF @BranchPolicy = 'BRANCH_SCOPED' AND @BranchColumn IS NOT NULL
+        SET @BranchPredicate = N'
+          AND (
+              LOWER(@UserGroupID) = ''admin''
+              OR EXISTS (
+                  SELECT 1
+                  FROM STRING_SPLIT(@BranchID, '','') AS AllowedBranch
+                  WHERE LTRIM(RTRIM(AllowedBranch.[value])) <> ''''
+                    AND LTRIM(RTRIM(AllowedBranch.[value])) COLLATE DATABASE_DEFAULT
+                        = CONVERT(nvarchar(4000), T.' + QUOTENAME(@BranchColumn) + N') COLLATE DATABASE_DEFAULT
+              )
+          )';
 
     SELECT @SelectList = STUFF((
         SELECT N', T.' + QUOTENAME(C.ColumnName)
@@ -424,6 +471,7 @@ BEGIN
         FROM dbo.' + QUOTENAME(@ExpectedTable) + N' AS T
         WHERE (@Keyword = N'''' OR (' + COALESCE(NULLIF(@KeywordPredicate, N''), N'1 = 0') + N'))'
         + ISNULL(@FilterPredicate, N'')
+        + @BranchPredicate
         + @SoftDeletePredicate + N'
         ORDER BY T.' + QUOTENAME(@ResolvedSortColumn) + N' ' + @SortDir
         + CASE
@@ -436,10 +484,12 @@ BEGIN
 
     EXEC sys.sp_executesql
         @Sql,
-        N'@Keyword nvarchar(200), @Data nvarchar(max), @Offset int, @PageSize int',
+        N'@Keyword nvarchar(200), @Data nvarchar(max), @Offset int, @PageSize int, @BranchID varchar(max), @UserGroupID varchar(50)',
         @Keyword = @Keyword,
         @Data = @Data,
         @Offset = @Offset,
-        @PageSize = @PageSize;
+        @PageSize = @PageSize,
+        @BranchID = @BranchID,
+        @UserGroupID = @UserGroupID;
 END;
 GO

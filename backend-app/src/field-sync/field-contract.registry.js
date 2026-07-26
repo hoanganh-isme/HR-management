@@ -20,7 +20,10 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
-        deletePolicy: 'AUTO_SCHEMA'
+        deletePolicy: 'AUTO_SCHEMA',
+        permissionFormName: 'WA_BangThueTNCNFrm',
+        writePolicy: 'SAFE_TABLE_COLUMNS',
+        branchPolicy: 'LEGACY_GLOBAL_REFERENCE'
     }),
     freezeContract({
         webFormName: 'WA_ChucDanhFrm',
@@ -39,7 +42,10 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
-        deletePolicy: 'AUTO_SCHEMA'
+        deletePolicy: 'AUTO_SCHEMA',
+        permissionFormName: 'WA_ChucDanhFrm',
+        writePolicy: 'SAFE_TABLE_COLUMNS',
+        branchPolicy: 'LEGACY_GLOBAL_REFERENCE'
     }),
     freezeContract({
         webFormName: 'WA_TitleListFrm',
@@ -58,7 +64,10 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
-        deletePolicy: 'AUTO_SCHEMA'
+        deletePolicy: 'AUTO_SCHEMA',
+        permissionFormName: 'WA_TitleListFrm',
+        writePolicy: 'SAFE_TABLE_COLUMNS',
+        branchPolicy: 'LEGACY_GLOBAL_REFERENCE'
     }),
     freezeContract({
         webFormName: 'WA_ShiftListFrm',
@@ -77,7 +86,33 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
-        deletePolicy: 'AUTO_SCHEMA'
+        deletePolicy: 'AUTO_SCHEMA',
+        permissionFormName: 'WA_ShiftListFrm',
+        writePolicy: 'SAFE_TABLE_COLUMNS',
+        branchPolicy: 'LEGACY_GLOBAL_REFERENCE'
+    }),
+    freezeContract({
+        webFormName: 'WA_CaLamViecFrm',
+        erpFormId: 'WA_CaLamViecFrm',
+        expectedTableName: 'HR_SapCaTbl',
+        expectedPrimaryKey: 'SapCaID',
+        oldView: 'API_CaLamViec',
+        viewV2: 'API_TruyVanDong_V2',
+        oldSave: 'API_LuuDong',
+        saveV2: 'API_LuuDong_V2',
+        oldDelete: 'API_XoaDong',
+        deleteV2: 'API_XoaDong_V2',
+        enableGrid: true,
+        enableAdd: true,
+        enableEdit: true,
+        enableFilter: true,
+        enableSave: true,
+        enableDelete: true,
+        deletePolicy: 'AUTO_SCHEMA',
+        permissionFormName: 'WA_CaLamViecFrm',
+        writePolicy: 'SAFE_TABLE_COLUMNS',
+        // SQL resolves AUTO_SCHEMA to GLOBAL_REFERENCE/BRANCH_SCOPED.
+        branchPolicy: 'AUTO_SCHEMA'
     })
 ]);
 

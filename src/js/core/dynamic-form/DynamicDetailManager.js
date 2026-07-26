@@ -564,7 +564,18 @@ window.DynamicDetailManager = (function () {
       panels,
       masterKeyValue
     ) {
+      if (
+        masterKeyValue === undefined
+        || masterKeyValue === null
+        || String(masterKeyValue).trim() === ''
+      ) {
+        return Promise.reject(
+          new Error('Không thể lưu detail khi SapCaID của master còn rỗng.')
+        );
+      }
+
       var calls = [];
+      var buildError = null;
 
       (panels || []).forEach(
         function (panel) {
@@ -636,13 +647,18 @@ window.DynamicDetailManager = (function () {
 
           (panel._currentRows || [])
             .forEach(function (currentRow) {
-              var writablePayload =
-                createWritablePayload(
+              var writablePayload;
+              try {
+                writablePayload = createWritablePayload(
                   panel,
                   tabDef,
                   currentRow,
                   masterKeyValue
                 );
+              } catch (error) {
+                buildError = buildError || error;
+                return;
+              }
 
               calls.push(function () {
                 return api.post(
@@ -674,6 +690,8 @@ window.DynamicDetailManager = (function () {
             });
         }
       );
+
+      if (buildError) return Promise.reject(buildError);
 
       return calls.reduce(
         function (promise, call) {

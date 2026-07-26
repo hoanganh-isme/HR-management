@@ -41,7 +41,8 @@ BEGIN
         @PermissionFormName varchar(100),
         @WritePolicy varchar(40),
 
-        @GlobalReferenceOnly bit;
+        @GlobalReferenceOnly bit,
+        @BranchPolicy varchar(40);
 
     SELECT
         @ExpectedTable =
@@ -63,7 +64,10 @@ BEGIN
             R.WritePolicy,
 
         @GlobalReferenceOnly =
-            R.GlobalReferenceOnly
+            R.GlobalReferenceOnly,
+
+        @BranchPolicy =
+            R.BranchPolicy
 
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
@@ -161,6 +165,31 @@ BEGIN
                @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
         RETURN;
     END;
+
+    DECLARE @BranchColumn sysname = NULL;
+    SELECT TOP (1) @BranchColumn = C.name
+    FROM sys.columns AS C
+    WHERE C.object_id = @ObjectID
+      AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
+    ORDER BY CASE LOWER(C.name)
+        WHEN 'branchid' THEN 1 WHEN 'tenantid' THEN 2 WHEN 'companyid' THEN 3 ELSE 4 END, C.column_id;
+
+    SET @BranchPolicy = UPPER(LTRIM(RTRIM(ISNULL(@BranchPolicy, 'AUTO_SCHEMA'))));
+    IF @BranchPolicy = 'AUTO_SCHEMA'
+        SET @BranchPolicy = CASE WHEN @BranchColumn IS NULL THEN 'GLOBAL_REFERENCE' ELSE 'BRANCH_SCOPED' END;
+
+    DECLARE @BranchScopePredicate nvarchar(2000) = N'';
+    IF @BranchPolicy = 'BRANCH_SCOPED' AND @BranchColumn IS NOT NULL
+        SET @BranchScopePredicate = N'
+          AND (
+              LOWER(@UserGroupID) = ''admin''
+              OR EXISTS (
+                  SELECT 1 FROM STRING_SPLIT(@BranchID, '','') AS AllowedBranch
+                  WHERE LTRIM(RTRIM(AllowedBranch.[value])) <> ''''
+                    AND LTRIM(RTRIM(AllowedBranch.[value])) COLLATE DATABASE_DEFAULT
+                        = CONVERT(nvarchar(4000), T.' + QUOTENAME(@BranchColumn) + N') COLLATE DATABASE_DEFAULT
+              )
+          )';
 
     DECLARE @PrimaryKeyHasCollation bit = 0;
     SELECT @PrimaryKeyHasCollation = CONVERT(bit, CASE WHEN C.collation_name IS NULL THEN 0 ELSE 1 END)
@@ -389,7 +418,8 @@ END;
         RETURN;
     END;
 
-    IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
+    IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
+       AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
     BEGIN
         IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = '' OR @BranchID = ''
         BEGIN
@@ -422,6 +452,17 @@ END;
     )
     BEGIN
         SELECT -1 AS code, N'PHASE3_JSON_BRANCH_CONTEXT_DENIED' AS msg,
+               @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
+        RETURN;
+    END;
+
+    IF @BranchPolicy = 'BRANCH_SCOPED'
+       AND EXISTS (
+           SELECT 1 FROM OPENJSON(@Data) AS J
+           WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT = 'branchid' COLLATE DATABASE_DEFAULT
+       )
+    BEGIN
+        SELECT -1 AS code, N'PHASE3_BRANCH_MUST_BE_TOP_LEVEL' AS msg,
                @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
         RETURN;
     END;
@@ -564,13 +605,15 @@ END;
 
         SET @PrimaryValue = LTRIM(RTRIM(@PkJsonValue));
         DECLARE @ExistsSql nvarchar(max);
-        SET @ExistsSql = N'SELECT @RowExists = COUNT(*) FROM dbo.' + QUOTENAME(@ExpectedTable)
+        SET @ExistsSql = N'SELECT @RowExists = COUNT(*) FROM dbo.' + QUOTENAME(@ExpectedTable) + N' AS T'
                        + N' WHERE ' + QUOTENAME(@PrimaryKey)
                        + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
-                       + N' = @PkVal;';
+                       + N' = @PkVal'
+                       + @BranchScopePredicate + N';';
         DECLARE @RowExists int = 0;
-        EXEC sp_executesql @ExistsSql, N'@PkVal nvarchar(4000), @RowExists int OUTPUT',
-             @PkVal = @PrimaryValue, @RowExists = @RowExists OUTPUT;
+        EXEC sp_executesql @ExistsSql, N'@PkVal nvarchar(4000), @RowExists int OUTPUT, @BranchID varchar(max), @UserGroupID varchar(50)',
+             @PkVal = @PrimaryValue, @RowExists = @RowExists OUTPUT,
+             @BranchID = @BranchID, @UserGroupID = @UserGroupID;
 
         IF @RowExists <> 1
         BEGIN
@@ -607,13 +650,15 @@ END;
         END;
 
         DECLARE @UpdateSql nvarchar(max);
-        SET @UpdateSql = N'UPDATE dbo.' + QUOTENAME(@ExpectedTable)
-                       + N' SET ' + @UpdateAssignments
+        SET @UpdateSql = N'UPDATE T SET ' + @UpdateAssignments
+                       + N' FROM dbo.' + QUOTENAME(@ExpectedTable) + N' AS T'
                        + N' WHERE ' + QUOTENAME(@PrimaryKey)
                        + CASE WHEN @PrimaryKeyHasCollation = 1 THEN N' COLLATE DATABASE_DEFAULT' ELSE N'' END
-                       + N' = @PkVal;';
+                       + N' = @PkVal'
+                       + @BranchScopePredicate + N';';
 
-        EXEC sp_executesql @UpdateSql, N'@PkVal nvarchar(4000)', @PkVal = @PrimaryValue;
+        EXEC sp_executesql @UpdateSql, N'@PkVal nvarchar(4000), @BranchID varchar(max), @UserGroupID varchar(50)',
+             @PkVal = @PrimaryValue, @BranchID = @BranchID, @UserGroupID = @UserGroupID;
         SET @RowsAffected = @@ROWCOUNT;
     END
     ELSE
@@ -664,6 +709,12 @@ END;
             SET @InsertVals = @InsertVals + CASE WHEN @InsertVals = N'' THEN N'' ELSE N', ' END + N'GETDATE()';
         END;
 
+        IF @BranchPolicy = 'BRANCH_SCOPED' AND @BranchColumn IS NOT NULL
+        BEGIN
+            SET @InsertCols = @InsertCols + CASE WHEN @InsertCols = N'' THEN N'' ELSE N', ' END + QUOTENAME(@BranchColumn);
+            SET @InsertVals = @InsertVals + CASE WHEN @InsertVals = N'' THEN N'' ELSE N', ' END + N'CONVERT(nvarchar(4000), @BranchID)';
+        END;
+
         IF @InsertCols = N''
         BEGIN
             SELECT -1 AS code, N'PHASE3_INSERT_NO_WRITABLE_FIELDS' AS msg,
@@ -672,27 +723,23 @@ END;
         END;
 
         DECLARE @InsertSql nvarchar(max);
+        CREATE TABLE #InsertedPrimary (Value nvarchar(4000) NOT NULL);
         SET @InsertSql = N'INSERT INTO dbo.' + QUOTENAME(@ExpectedTable)
-                       + N' (' + @InsertCols + N') VALUES (' + @InsertVals + N');';
+                       + N' (' + @InsertCols + N') OUTPUT CONVERT(nvarchar(4000), INSERTED.' + QUOTENAME(@PrimaryKey)
+                       + N') INTO @InsertedPrimary(Value) VALUES (' + @InsertVals + N');';
 
-        EXEC sp_executesql @InsertSql;
-        SET @RowsAffected = @@ROWCOUNT;
+        EXEC sp_executesql @InsertSql,
+             N'@BranchID varchar(max)',
+             @BranchID = @BranchID;
+        SELECT @RowsAffected = COUNT(*) FROM #InsertedPrimary;
 
         IF @PrimaryValue IS NULL
         BEGIN
-            IF EXISTS (
-                SELECT 1 FROM sys.columns AS C
-                WHERE C.object_id = @ObjectID
-                  AND C.name COLLATE DATABASE_DEFAULT = @PrimaryKey COLLATE DATABASE_DEFAULT
-                  AND C.is_identity = 1
-            )
-            BEGIN
-                SET @PrimaryValue = CONVERT(nvarchar(4000), SCOPE_IDENTITY());
-            END;
+            SELECT TOP (1) @PrimaryValue = Value FROM @InsertedPrimary;
         END;
     END;
 
-    SELECT 1 AS code, N'SUCCESS' AS msg,
+    SELECT 0 AS code, N'SUCCESS' AS msg,
            @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, @RowsAffected AS rowsAffected;
 END;
 GO

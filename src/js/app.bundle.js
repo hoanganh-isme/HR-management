@@ -345,6 +345,19 @@ window.FieldContractMigrationRegistry = (function () {
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
       enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+    }),
+    WA_CaLamViecFrm: Object.freeze({
+      webFormName: 'WA_CaLamViecFrm', erpFormId: 'WA_CaLamViecFrm',
+      expectedTableName: 'HR_SapCaTbl', expectedPrimaryKey: 'SapCaID',
+      oldView: 'API_CaLamViec', viewV2: 'API_TruyVanDong_V2',
+      oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
+      oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
+      enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      permissionFormName: 'WA_CaLamViecFrm',
+      writePolicy: 'SAFE_TABLE_COLUMNS',
+      // SQL registry resolves this from the physical table schema.
+      branchPolicy: 'AUTO_SCHEMA'
     })
   });
 
@@ -14724,7 +14737,18 @@ window.DynamicDetailManager = (function () {
       panels,
       masterKeyValue
     ) {
+      if (
+        masterKeyValue === undefined
+        || masterKeyValue === null
+        || String(masterKeyValue).trim() === ''
+      ) {
+        return Promise.reject(
+          new Error('Không thể lưu detail khi SapCaID của master còn rỗng.')
+        );
+      }
+
       var calls = [];
+      var buildError = null;
 
       (panels || []).forEach(
         function (panel) {
@@ -14796,13 +14820,18 @@ window.DynamicDetailManager = (function () {
 
           (panel._currentRows || [])
             .forEach(function (currentRow) {
-              var writablePayload =
-                createWritablePayload(
+              var writablePayload;
+              try {
+                writablePayload = createWritablePayload(
                   panel,
                   tabDef,
                   currentRow,
                   masterKeyValue
                 );
+              } catch (error) {
+                buildError = buildError || error;
+                return;
+              }
 
               calls.push(function () {
                 return api.post(
@@ -14834,6 +14863,8 @@ window.DynamicDetailManager = (function () {
             });
         }
       );
+
+      if (buildError) return Promise.reject(buildError);
 
       return calls.reduce(
         function (promise, call) {
@@ -15561,11 +15592,11 @@ window.DynamicAttachmentManager = (function () {
         metadataMode: 'JOIN_RESULT_SET_EDITABLE',
         joinContractKey: 'SHIFT_EMPLOYEES',
         primaryKey: 'UserAutoID',
-        hiddenFields: ['UserAutoID', 'SapCaID', 'BranchID'],
+        hiddenFields: ['UserAutoID', 'SapCaID'],
         filterField: 'SapCaID',
         editable: true,
         duplicateField: 'PersonID',
-        readOnlyFields: ['PersonName', 'PhongBan', 'TitleName'],
+        readOnlyFields: ['PersonName', 'PhongBan', 'TitleName', 'BranchID'],
         customButtons: [
           {
             id: 'btn-chon-nhanvien',
@@ -15619,6 +15650,8 @@ window.DynamicAttachmentManager = (function () {
                       newRow['PersonID'] = rowData.PersonID || '';
                       newRow['PersonName'] = rowData.PersonName || '';
                       newRow['PhongBan'] = rowData.PhongBan || '';
+                      newRow['TitleName'] = rowData.TitleName || '';
+                      newRow['BranchID'] = rowData.BranchID || '';
                       newRow['GhiChu'] = '';
                       ctx.panel._currentRows.push(newRow);
                       added++;
@@ -15646,11 +15679,13 @@ window.DynamicAttachmentManager = (function () {
             }
           }
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'GhiChu'],
+        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ Tên',
           PhongBan: 'Bộ phận',
+          TitleName: 'Chức vụ',
+          BranchID: 'Chi nhánh',
           GhiChu: 'Ghi chú'
         }
       },
@@ -15674,7 +15709,6 @@ window.DynamicAttachmentManager = (function () {
     FormFields: [
       // Dòng 1: Tên bảng ca, Sắp ca, Nút
       { name: 'TenBangCa', position: 'grid|4' },
-      { name: 'SapCaID', position: 'grid|4' },
       { name: 'btnSapCaTuDong', position: 'grid|4', renderRule: 'html', html: '<button type="button" class="btn btn-outline-primary" style="margin-top:28px;width:100%;" onclick="window.SapCaTuDong()"><span class="material-symbols-outlined" style="vertical-align:middle;">auto_fix_high</span> Sắp ca tự động</button>' },
       // Dòng 2: Từ ngày, Đến ngày
       { name: 'TuNgay', position: 'grid|6' },
@@ -19307,6 +19341,18 @@ window.DynamicFormEngine = (function () {
         query.JsonData = JSON.stringify(detailFilter);
       } else if (Object.keys(activeFilters).length > 0) {
         query.JsonData = JSON.stringify(activeFilters);
+      }
+
+      /*
+       * API_TruyVanDong_V2 nhận paging trong @Data để giữ Para contract ổn
+       * định; Keyword vẫn chỉ nằm ở top-level query.Keyword.
+       */
+      if (_usesUnifiedFieldContract() && !MODULE_CONFIG.IsFullPageDetail) {
+        var v2Data = Object.assign({}, activeFilters, {
+          page: currentPage,
+          pageSize: currentLimit
+        });
+        query.JsonData = JSON.stringify(v2Data);
       }
 
       console.log('[DynamicFormEngine] Sending query to ApiSearch:', query);
@@ -23208,7 +23254,28 @@ window.DynamicFormEngine = (function () {
     ApiClient.post(endpoint, finalPayload)
       .then(function (res) {
         if (res && res.code === 0) {
-          var masterDetailKey = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
+          /*
+           * Save V2 là nguồn sự thật cho khóa mới. Không dùng lại SapCaID rỗng
+           * của form add hoặc một giá trị cũ từ rowData khi DB vừa sinh khóa.
+           */
+          var responsePrimaryValue = res.primaryValue !== undefined
+            ? res.primaryValue
+            : (res.PrimaryValue !== undefined ? res.PrimaryValue : res.primary_value);
+          var masterDetailKey = _hasContractValue(responsePrimaryValue)
+            ? responsePrimaryValue
+            : (formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]));
+
+          if (!_hasContractValue(masterDetailKey)) {
+            Alert.error(MODULE_CONFIG.AlertTitleError, 'Master đã phản hồi thành công nhưng không trả về SapCaID.');
+            _restoreSaveBtn();
+            return;
+          }
+
+          if (MODULE_CONFIG.PrimaryKey) {
+            singlePayload[MODULE_CONFIG.PrimaryKey] = masterDetailKey;
+            if (rowData) rowData[MODULE_CONFIG.PrimaryKey] = masterDetailKey;
+          }
+
           var detailSave = body._detailPanels && detailManager
             ? detailManager.savePanels(body._detailPanels, masterDetailKey)
             : Promise.resolve([]);
@@ -23229,11 +23296,17 @@ window.DynamicFormEngine = (function () {
               if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
                 dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';
               }
-              Alert.error(MODULE_CONFIG.AlertTitleError, dMsg);
+              Alert.error(
+                MODULE_CONFIG.AlertTitleError,
+                'Master đã lưu thành công nhưng detail thất bại: ' + dMsg
+              );
               _restoreSaveBtn();
             }
           }).catch(function (err) {
-            Alert.error(MODULE_CONFIG.AlertTitleError, 'Lỗi lưu thông tin chi tiết: ' + err.message);
+            Alert.error(
+              MODULE_CONFIG.AlertTitleError,
+              'Master đã lưu thành công nhưng detail thất bại: ' + err.message
+            );
             _restoreSaveBtn();
           });
         } else {

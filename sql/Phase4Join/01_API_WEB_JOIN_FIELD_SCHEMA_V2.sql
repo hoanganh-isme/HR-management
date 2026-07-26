@@ -1,6 +1,6 @@
 /*
-  Phase 4A:
-  Metadata cho result-set JOIN của detail tab chỉ đọc.
+  Phase 4:
+  Metadata cho result-set JOIN của detail tab read-only và editable.
 
   Nguồn dữ liệu:
   - Membership và thứ tự field: result-set của View procedure.
@@ -82,6 +82,8 @@ BEGIN
     DECLARE
         @ApiList varchar(100),
         @ExpectedProcedure sysname,
+        @ExpectedSaveProcedure sysname,
+        @ExpectedDeleteProcedure sysname,
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
         @ReadOnly bit,
@@ -95,6 +97,12 @@ BEGIN
 
         @ExpectedProcedure =
             MIN(CONVERT(sysname, R.ExpectedProcedure)),
+
+        @ExpectedSaveProcedure =
+            MIN(CONVERT(sysname, R.ExpectedSaveProcedure)),
+
+        @ExpectedDeleteProcedure =
+            MIN(CONVERT(sysname, R.ExpectedDeleteProcedure)),
 
         @ExpectedTable =
             MIN(CONVERT(sysname, R.ExpectedTableName)),
@@ -301,6 +309,49 @@ BEGIN
         THROW 53408,
             N'PHASE4_JOIN_VIEW_ROUTE_INVALID',
             1;
+    END;
+
+    /*
+      Editable JOIN phải có đúng route mutation V2.
+      Read-only JOIN không được đăng ký Save/Delete.
+    */
+    DECLARE
+        @SaveRouteCount int = 0,
+        @DeleteRouteCount int = 0,
+        @RegisteredSaveProcedure sysname = NULL,
+        @RegisteredDeleteProcedure sysname = NULL;
+
+    SELECT
+        @SaveRouteCount = COUNT(*),
+        @RegisteredSaveProcedure = MIN(CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)))
+    FROM dbo.WA_API AS A
+    WHERE A.[list] COLLATE DATABASE_DEFAULT = @ApiList COLLATE DATABASE_DEFAULT
+      AND A.[func] COLLATE DATABASE_DEFAULT = 'Save' COLLATE DATABASE_DEFAULT;
+
+    SELECT
+        @DeleteRouteCount = COUNT(*),
+        @RegisteredDeleteProcedure = MIN(CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)))
+    FROM dbo.WA_API AS A
+    WHERE A.[list] COLLATE DATABASE_DEFAULT = @ApiList COLLATE DATABASE_DEFAULT
+      AND A.[func] COLLATE DATABASE_DEFAULT = 'Delete' COLLATE DATABASE_DEFAULT;
+
+    IF @ReadOnly = 1
+       AND (@SaveRouteCount > 0 OR @DeleteRouteCount > 0)
+    BEGIN
+        THROW 53410, N'PHASE4_JOIN_READONLY_MUTATION_ROUTE_FORBIDDEN', 1;
+    END;
+
+    IF @ReadOnly = 0
+       AND (
+            @ExpectedSaveProcedure IS NULL
+            OR @ExpectedDeleteProcedure IS NULL
+            OR @SaveRouteCount <> 1
+            OR @DeleteRouteCount <> 1
+            OR @RegisteredSaveProcedure COLLATE DATABASE_DEFAULT <> @ExpectedSaveProcedure COLLATE DATABASE_DEFAULT
+            OR @RegisteredDeleteProcedure COLLATE DATABASE_DEFAULT <> @ExpectedDeleteProcedure COLLATE DATABASE_DEFAULT
+       )
+    BEGIN
+        THROW 53411, N'PHASE4_JOIN_MUTATION_ROUTE_INVALID', 1;
     END;
 
     DECLARE @ProcedureObjectID int =
@@ -579,6 +630,12 @@ SELECT
 
         @RegisteredProcedure
             AS RegisteredViewProcedure,
+
+        @ExpectedSaveProcedure
+            AS RegisteredSaveProcedure,
+
+        @ExpectedDeleteProcedure
+            AS RegisteredDeleteProcedure,
 
         CONVERT(bit, @ReadOnly)
             AS [ReadOnly],

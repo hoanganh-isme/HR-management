@@ -141,6 +141,18 @@ function assertJoinSchemaMatchesContract(schema, contract) {
     if (!sameIdentifier(schema.registeredViewProcedure, contract.expectedProcedure)) {
         throw contractError('View Procedure không khớp Phase 4 registry.', 'PHASE4_JOIN_PROCEDURE_MISMATCH');
     }
+    if (contract.readOnly === true) {
+        if (schema.registeredSaveProcedure || schema.registeredDeleteProcedure) {
+            throw contractError('JOIN read-only không được có route mutation.', 'PHASE4_JOIN_READONLY_MUTATION_ROUTE');
+        }
+    } else {
+        if (!sameIdentifier(schema.registeredSaveProcedure, contract.expectedSaveProcedure)) {
+            throw contractError('Save Procedure không khớp Phase 4 registry.', 'PHASE4_JOIN_SAVE_PROCEDURE_MISMATCH');
+        }
+        if (!sameIdentifier(schema.registeredDeleteProcedure, contract.expectedDeleteProcedure)) {
+            throw contractError('Delete Procedure không khớp Phase 4 registry.', 'PHASE4_JOIN_DELETE_PROCEDURE_MISMATCH');
+        }
+    }
     if (schema.sourceKind !== 'JOIN_RESULT_SET') {
         throw contractError('Nguồn metadata không phải JOIN_RESULT_SET.', 'PHASE4_JOIN_SOURCE_INVALID');
     }
