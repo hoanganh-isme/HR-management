@@ -3,6 +3,9 @@
  *
  * View được giữ là API nghiệp vụ riêng.
  * Generic mutation dùng chung API_LuuDong_V2/API_XoaDong_V2.
+ *
+ * @deprecated
+ * DB contract registry is the primary rollout source.
  */
 function normalizeKey(value) {
   return String(value || '')

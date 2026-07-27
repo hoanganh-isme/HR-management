@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Excel Import UI Harness</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">
+  <link rel="stylesheet" href="../src/components/excel-import/excel-import.css">
+  <style>
+    :root {
+      --color-surface: #fff;
+      --color-background: #f8fafc;
+      --color-border: #e2e8f0;
+      --color-border-strong: #cbd5e1;
+      --color-text: #1e293b;
+      --color-text-secondary: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: Inter, Arial, sans-serif; background: #e8eef8; }
+  </style>
+</head>
+<body>
+  <script>
+    (function () {
+      var fields = [
+        { name: 'Bac', label: 'Bậc thuế', sqlType: 'int', required: true, importable: true },
+        { name: 'TuMuc', label: 'Từ mức', sqlType: 'decimal', required: true, importable: true },
+        { name: 'ThueSuat', label: 'Thuế suất (%)', sqlType: 'decimal', required: true, importable: true },
+        { name: 'DenMuc', label: 'Đến mức', sqlType: 'decimal', required: true, importable: true },
+        { name: 'GioiTinh', label: 'Giới tính', sqlType: 'nvarchar(20)', required: false, importable: true },
+        { name: 'GhiChu', label: 'Ghi chú', sqlType: 'nvarchar(255)', required: false, importable: true }
+      ];
+      var preview = [
+        ['Bậc thuế', 'Từ mức', 'Thuế suất (%)', 'Đến mức', 'Giới tính', 'Ghi chú'],
+        ['1', '0', '5', '5,000,000', 'Nam', 'Dữ liệu mẫu 00001'],
+        ['2', '5,000,001', '10', '10,000,000', 'Nữ', 'Dữ liệu mẫu 00002'],
+        ['3', '10,000,001', '15', '18,000,000', 'Khác', 'Dữ liệu mẫu 00003'],
+        ['4', '18,000,001', '20', '32,000,000', 'Nam', 'Dữ liệu mẫu 00004'],
+        ['5', '32,000,001', '25', '52,000,000', 'Nữ', 'Dữ liệu mẫu 00005']
+      ];
+      var capabilities = {
+        success: true,
+        formName: 'WA_BangThueTNCNFrm',
+        mode: 'INSERT_ONLY',
+        sourceTypes: ['FILE', 'CLIPBOARD'],
+        fields: fields,
+        limits: {
+          maxFileBytes: 25 * 1024 * 1024,
+          maxRows: 200000,
+          maxColumns: 256,
+          maxHeaderRow: 20,
+          previewRows: 20,
+          batchSize: 10000
+        }
+      };
+      window.ApiClient = {
+        get: function () {
+          if (location.search.indexOf('preflight-error') >= 0) {
+            return Promise.reject({
+              data: {
+                code: 'EXCEL_IMPORT_SQL_UNREACHABLE',
+                message: 'Backend chưa kết nối được SQL Server cho Bulk Import. Kiểm tra SQL_SERVER và firewall cổng 1433.'
+              }
+            });
+          }
+          return Promise.resolve(capabilities);
+        },
+        upload: function (_url, formData, options) {
+          if (options && options.onProgress) options.onProgress(100, 100);
+          var sourceType = formData.get('sourceType');
+          return Promise.resolve(Object.assign({}, capabilities, {
+            importId: 'visual-test-import',
+            fileName: sourceType === 'CLIPBOARD' ? 'clipboard.tsv' : 'bang-thue.xlsx',
+            sourceType: sourceType,
+            expiresAt: new Date(Date.now() + 1800000).toISOString(),
+            sheets: [{
+              name: sourceType === 'CLIPBOARD' ? 'Clipboard' : 'BangThue',
+              estimatedRows: 100001,
+              preview: preview
+            }]
+          }));
+        },
+        post: function () {
+          if (location.search.indexOf('validation-error') >= 0) {
+            return Promise.reject({
+              data: {
+                code: 'EXCEL_IMPORT_VALIDATION_FAILED',
+                message: 'Dữ liệu import không hợp lệ.',
+                summary: { totalRows: 100000, validRows: 99998, invalidRows: 2 },
+                errors: [
+                  { row: 120, field: 'Bac', message: 'Bậc thuế phải là số nguyên.' },
+                  { row: 8450, field: 'TuMuc', message: 'Từ mức phải là số hợp lệ.' }
+                ]
+              }
+            });
+          }
+          return new Promise(function (resolve) {
+            setTimeout(function () {
+              resolve({
+                success: true,
+                summary: { totalRows: 100000, insertedRows: 100000, updatedRows: 0, skippedRows: 0, elapsedMs: 2840 }
+              });
+            }, 350);
+          });
+        },
+        delete: function () { return Promise.resolve({ success: true }); }
+      };
+    })();
+  </script>
+  <script src="../src/components/excel-import/ExcelImportModal.js"></script>
+  <script>
+    ExcelImportModal.show({
+      formName: 'WA_BangThueTNCNFrm',
+      formTitle: 'Bảng mức thuế TNCN',
+      apiBase: '',
+      requestHeaders: { Username: 'visual-test', BranchID: 'CN001' }
+    });
+  </script>
+</body>
+</html>

@@ -29,55 +29,36 @@ AS
 RETURN
 (
     SELECT
-        V.WebFormName,
-        V.DetailKey,
-        V.ApiList,
-        V.ExpectedProcedure,
-        V.ExpectedSaveProcedure,
-        V.ExpectedDeleteProcedure,
-        V.ExpectedTableName,
-        V.ExpectedPrimaryKey,
-        CONVERT(bit, V.IsReadOnly) AS IsReadOnly,
-        CONVERT(bit, V.EnableMetadata) AS EnableMetadata
-    FROM
-    (
-        VALUES
-        (
-            CONVERT(varchar(100), 'WA_CaLamViecFrm'),
-            CONVERT(varchar(80),  'SHIFT_DETAIL'),
-            CONVERT(varchar(100), 'API_CaLamViec_ChiTiet'),
-            CONVERT(sysname,      N'API_CaLamViec_ChiTiet'),
-            CONVERT(sysname,      N''),
-            CONVERT(sysname,      N''),
-            CONVERT(sysname,      N'HR_SapCaChiTietTbl'),
-            CONVERT(sysname,      N'UserAutoID'),
-            CONVERT(bit, 1),
-            CONVERT(bit, 1)
-        ),
-        (
-            CONVERT(varchar(100), 'WA_CaLamViecFrm'),
-            CONVERT(varchar(80),  'SHIFT_EMPLOYEES'),
-            CONVERT(varchar(100), 'API_CaLamViec_NhanVien'),
-            CONVERT(sysname,      N'API_CaLamViec_NhanVien'),
-            CONVERT(sysname,      N'API_LuuDong_V2'),
-            CONVERT(sysname,      N'API_XoaDong_V2'),
-            CONVERT(sysname,      N'HR_SapCaNhanVienTbl'),
-            CONVERT(sysname,      N'UserAutoID'),
-            CONVERT(bit, 0),
-            CONVERT(bit, 1)
-        )
-    ) AS V
-    (
-        WebFormName,
-        DetailKey,
-        ApiList,
-        ExpectedProcedure,
-        ExpectedSaveProcedure,
-        ExpectedDeleteProcedure,
-        ExpectedTableName,
-        ExpectedPrimaryKey,
-        IsReadOnly,
-        EnableMetadata
-    )
+        D.WebFormName,
+        D.DatasetKey AS DetailKey,
+        D.ApiList,
+        CONVERT(sysname, CASE WHEN D.RolloutStatus = 'SHADOW' THEN
+            COALESCE((SELECT MIN(PARSENAME(LTRIM(RTRIM(A.[SQL])), 1))
+                      FROM dbo.WA_API AS A
+                      WHERE A.[list] = D.ApiList AND A.[func] = 'View'), D.ViewProcedure)
+            ELSE D.ViewProcedure END) AS ExpectedProcedure,
+        CONVERT(sysname, CASE WHEN D.RolloutStatus = 'SHADOW' THEN
+            COALESCE((SELECT MIN(PARSENAME(LTRIM(RTRIM(A.[SQL])), 1))
+                      FROM dbo.WA_API AS A
+                      WHERE A.[list] = D.ApiList AND A.[func] = 'Save'), D.SaveProcedure)
+            ELSE D.SaveProcedure END) AS ExpectedSaveProcedure,
+        CONVERT(sysname, CASE WHEN D.RolloutStatus = 'SHADOW' THEN
+            COALESCE((SELECT MIN(PARSENAME(LTRIM(RTRIM(A.[SQL])), 1))
+                      FROM dbo.WA_API AS A
+                      WHERE A.[list] = D.ApiList AND A.[func] = 'Delete'), D.DeleteProcedure)
+            ELSE D.DeleteProcedure END) AS ExpectedDeleteProcedure,
+        D.ExpectedTableName,
+        D.ExpectedPrimaryKey,
+        D.IsReadOnly,
+        CONVERT(bit, 1) AS EnableMetadata
+    FROM dbo.WA_FieldDatasetRegistry AS D
+    INNER JOIN dbo.WA_FieldContractRegistry AS R
+      ON R.WebFormName = D.WebFormName
+    WHERE R.IsEnabled = 1
+      AND R.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      AND D.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      AND D.ExpectedTableName IS NOT NULL
+      AND D.ExpectedPrimaryKey IS NOT NULL
+      AND D.ViewProcedure IS NOT NULL
 );
 GO

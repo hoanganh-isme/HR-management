@@ -160,6 +160,63 @@ const ApiClient = (function () {
         return request(endpoint, options).then(normalizeResponse);
     }
 
+    function upload(endpoint, formData, options = {}) {
+        const baseUrl = getBaseUrl();
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+        return new Promise(function (resolve, reject) {
+            const xhr = new XMLHttpRequest();
+            xhr.open(options.method || 'POST', url, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            const token = getAuthToken();
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            Object.keys(options.headers || {}).forEach(function (name) {
+                if (options.headers[name] !== undefined && options.headers[name] !== null) {
+                    xhr.setRequestHeader(name, String(options.headers[name]));
+                }
+            });
+            if (typeof options.onProgress === 'function') {
+                xhr.upload.onprogress = function (event) {
+                    options.onProgress(event.loaded, event.lengthComputable ? event.total : 0);
+                };
+            }
+            const signal = options.signal;
+            const abort = function () { xhr.abort(); };
+            if (signal) {
+                if (signal.aborted) {
+                    reject(new DOMException('Đã hủy upload.', 'AbortError'));
+                    return;
+                }
+                signal.addEventListener('abort', abort, { once: true });
+            }
+            xhr.onload = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                let payload = {};
+                try {
+                    payload = xhr.responseText ? parseJsonResponse(xhr.responseText) : {};
+                } catch {
+                    payload = { message: 'Phản hồi JSON từ Server không hợp lệ.' };
+                }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(payload);
+                    return;
+                }
+                const error = new Error(payload.message || 'Upload dữ liệu import thất bại.');
+                error.status = xhr.status;
+                error.data = payload;
+                reject(error);
+            };
+            xhr.onerror = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                reject(new Error('Không thể kết nối Server để upload dữ liệu import.'));
+            };
+            xhr.onabort = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                reject(new DOMException('Đã hủy upload.', 'AbortError'));
+            };
+            xhr.send(formData);
+        });
+    }
+
     return {
         /**
          * G\u1eedi request GET
@@ -199,6 +256,7 @@ const ApiClient = (function () {
 
         normalizeResponse: normalizeResponse,
         requestRecords: requestRecords,
+        upload: upload,
 
         // Expose cookie helpers to be used globally (e.g., in login and logout)
         setCookie: setCookie,

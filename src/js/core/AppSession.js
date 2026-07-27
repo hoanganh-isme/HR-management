@@ -36,7 +36,7 @@ window.AppSession = (function () {
   }
 
   function isAdmin() {
-    return String(getGroupId()).toLowerCase() === 'admin';
+    return String(getGroupId()).trim().toLowerCase() === 'admin';
   }
 
   function getBranchId() {

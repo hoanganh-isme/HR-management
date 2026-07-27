@@ -1,5 +1,0 @@
-STT	int
-list	varchar
-func	varchar
-SQL	nvarchar
-Para	varchar

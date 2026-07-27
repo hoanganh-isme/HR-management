@@ -19,44 +19,91 @@ AS
 RETURN
 (
     SELECT
-        V.WebFormName,
-        V.ERPFormID,
-        V.ExpectedTableName,
-        V.ExpectedPrimaryKey,
-        V.OldView,
-        V.ViewV2,
-        V.OldSave,
-        V.SaveV2,
-        V.OldDelete,
-        V.DeleteV2,
-        V.PermissionFormName,
-        V.WritePolicy,
+        R.WebFormName,
+        R.ERPFormID,
+        R.ExpectedTableName,
+        R.ExpectedPrimaryKey,
+        CONVERT(sysname, CASE WHEN R.RolloutStatus = 'SHADOW' THEN
+            COALESCE((SELECT MIN(PARSENAME(LTRIM(RTRIM(A.[SQL])), 1))
+                      FROM dbo.WA_API AS A
+                      WHERE A.[list] = ISNULL(NULLIF(R.ViewList, ''), R.WebFormName)
+                        AND A.[func] = 'View'), R.ViewProcedure)
+            ELSE R.ViewProcedure END) AS OldView,
+        CONVERT(sysname, CASE WHEN R.RolloutStatus = 'SHADOW' THEN
+            COALESCE((SELECT MIN(PARSENAME(LTRIM(RTRIM(A.[SQL])), 1))
+                      FROM dbo.WA_API AS A
+                      WHERE A.[list] = ISNULL(NULLIF(R.ViewList, ''), R.WebFormName)
+                        AND A.[func] = 'View'), R.ViewProcedure)
+            ELSE R.ViewProcedure END) AS ViewV2,
+        CONVERT(sysname, N'API_LuuDong') AS OldSave,
+        CONVERT(sysname, CASE WHEN R.RolloutStatus = 'SHADOW' THEN
+            COALESCE((SELECT MIN(PARSENAME(LTRIM(RTRIM(A.[SQL])), 1))
+                      FROM dbo.WA_API AS A
+                      WHERE A.[list] = R.WebFormName AND A.[func] = 'Save'), R.SaveProcedure)
+            ELSE R.SaveProcedure END) AS SaveV2,
+        CONVERT(sysname, N'API_XoaDong') AS OldDelete,
+        CONVERT(sysname, CASE WHEN R.RolloutStatus = 'SHADOW' THEN
+            COALESCE((SELECT MIN(PARSENAME(LTRIM(RTRIM(A.[SQL])), 1))
+                      FROM dbo.WA_API AS A
+                      WHERE A.[list] = R.WebFormName AND A.[func] = 'Delete'), R.DeleteProcedure)
+            ELSE R.DeleteProcedure END) AS DeleteV2,
+        R.PermissionFormName,
+        R.WritePolicy,
         CASE
-            WHEN V.BranchPolicy <> 'AUTO_SCHEMA' THEN V.BranchPolicy
+            WHEN R.BranchPolicy <> 'AUTO_SCHEMA' THEN R.BranchPolicy
             WHEN EXISTS (
                 SELECT 1
                 FROM sys.columns AS C
-                WHERE C.object_id = OBJECT_ID(N'dbo.' + V.ExpectedTableName, N'U')
+                WHERE C.object_id = OBJECT_ID(N'dbo.' + R.ExpectedTableName, N'U')
                   AND LOWER(C.name) COLLATE DATABASE_DEFAULT IN ('branchid', 'tenantid', 'companyid', 'donviid')
             ) THEN CONVERT(varchar(40), 'BRANCH_SCOPED')
             ELSE CONVERT(varchar(40), 'GLOBAL_REFERENCE')
         END AS BranchPolicy,
-        CONVERT(bit, V.EnableView) AS EnableView,
-        CONVERT(bit, V.EnableSave) AS EnableSave,
-        CONVERT(bit, V.EnableDelete) AS EnableDelete,
-        V.DeletePolicy,
-        CONVERT(bit, V.GlobalReferenceOnly) AS GlobalReferenceOnly
-    FROM (VALUES
-        (CONVERT(varchar(100), 'WA_BangThueTNCNFrm'), CONVERT(varchar(100), 'HR_BangThueTNCNFrm'), CONVERT(sysname, N'HR_BangThueTNCNTbl'), CONVERT(sysname, N'Bac'), CONVERT(sysname, N'API_TruyVanDong'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_BangThueTNCNFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
-        (CONVERT(varchar(100), 'WA_ChucDanhFrm'), CONVERT(varchar(100), 'WA_ChucDanhFrm'), CONVERT(sysname, N'HR_ChucDanhTbl'), CONVERT(sysname, N'ChucDanhChuyenMon'), CONVERT(sysname, N'API_DanhSachChucDanh'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_ChucDanhFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
-        (CONVERT(varchar(100), 'WA_TitleListFrm'), CONVERT(varchar(100), 'WA_TitleListFrm'), CONVERT(sysname, N'HR_TitleListTbl'), CONVERT(sysname, N'TitleName'), CONVERT(sysname, N'API_TruyVanDong'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_TitleListFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
-        (CONVERT(varchar(100), 'WA_ShiftListFrm'), CONVERT(varchar(100), 'WA_ShiftListFrm'), CONVERT(sysname, N'HR_ShiftListTbl'), CONVERT(sysname, N'ShiftID'), CONVERT(sysname, N'API_TruyVanDong'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_ShiftListFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'LEGACY_GLOBAL_REFERENCE'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 1),
-        (CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(sysname, N'HR_SapCaTbl'), CONVERT(sysname, N'SapCaID'), CONVERT(sysname, N'API_CaLamViec'), CONVERT(sysname, N'API_TruyVanDong_V2'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(varchar(40), 'SAFE_TABLE_COLUMNS'), CONVERT(varchar(40), 'AUTO_SCHEMA'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 0),
-        (CONVERT(varchar(100), 'API_CaLamViec_NhanVien'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(sysname, N'HR_SapCaNhanVienTbl'), CONVERT(sysname, N'UserAutoID'), CONVERT(sysname, N'API_CaLamViec_NhanVien'), CONVERT(sysname, N'API_CaLamViec_NhanVien'), CONVERT(sysname, N'API_LuuDong'), CONVERT(sysname, N'API_LuuDong_V2'), CONVERT(sysname, N'API_XoaDong'), CONVERT(sysname, N'API_XoaDong_V2'), CONVERT(varchar(100), 'WA_CaLamViecFrm'), CONVERT(varchar(40), 'VIEW_PHYSICAL_COLUMNS'), CONVERT(varchar(40), 'AUTO_SCHEMA'), 1, 1, 1, CONVERT(varchar(40), 'AUTO_SCHEMA'), 0)
-    ) AS V(WebFormName, ERPFormID, ExpectedTableName, ExpectedPrimaryKey,
-           OldView, ViewV2, OldSave, SaveV2, OldDelete, DeleteV2,
-           PermissionFormName, WritePolicy, BranchPolicy,
-           EnableView, EnableSave, EnableDelete, DeletePolicy, GlobalReferenceOnly)
+        CONVERT(bit, CASE WHEN R.ViewProcedure IS NOT NULL THEN 1 ELSE 0 END) AS EnableView,
+        CONVERT(bit, CASE WHEN R.SaveProcedure IS NOT NULL THEN 1 ELSE 0 END) AS EnableSave,
+        CONVERT(bit, CASE WHEN R.DeleteProcedure IS NOT NULL THEN 1 ELSE 0 END) AS EnableDelete,
+        R.DeletePolicy,
+        CONVERT(bit, CASE WHEN R.BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' THEN 1 ELSE 0 END)
+            AS GlobalReferenceOnly
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.IsEnabled = 1
+      AND R.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      AND R.ContractType IN
+          ('SIMPLE_TABLE', 'JOIN_VIEW_SINGLE_TABLE', 'MASTER_DETAIL_SIMPLE', 'READ_ONLY')
+      AND R.ExpectedTableName IS NOT NULL
+      AND R.ExpectedPrimaryKey IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+        D.ApiList AS WebFormName,
+        R.ERPFormID,
+        D.ExpectedTableName,
+        D.ExpectedPrimaryKey,
+        CONVERT(sysname, D.ViewProcedure) AS OldView,
+        CONVERT(sysname, D.ViewProcedure) AS ViewV2,
+        CONVERT(sysname, N'API_LuuDong') AS OldSave,
+        CONVERT(sysname, D.SaveProcedure) AS SaveV2,
+        CONVERT(sysname, N'API_XoaDong') AS OldDelete,
+        CONVERT(sysname, D.DeleteProcedure) AS DeleteV2,
+        R.PermissionFormName,
+        D.WritePolicy,
+        D.BranchPolicy,
+        CONVERT(bit, 0) AS EnableView,
+        CONVERT(bit, CASE WHEN D.IsReadOnly = 0 AND D.SaveProcedure IS NOT NULL THEN 1 ELSE 0 END)
+            AS EnableSave,
+        CONVERT(bit, CASE WHEN D.IsReadOnly = 0 AND D.DeleteProcedure IS NOT NULL THEN 1 ELSE 0 END)
+            AS EnableDelete,
+        R.DeletePolicy,
+        CONVERT(bit, 0) AS GlobalReferenceOnly
+    FROM dbo.WA_FieldDatasetRegistry AS D
+    INNER JOIN dbo.WA_FieldContractRegistry AS R
+      ON R.WebFormName = D.WebFormName
+    WHERE R.IsEnabled = 1
+      AND R.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      AND D.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      AND D.ExpectedTableName IS NOT NULL
+      AND D.ExpectedPrimaryKey IS NOT NULL
 );
 GO
 
@@ -377,7 +424,7 @@ BEGIN
     DECLARE @UsePaging bit = CASE WHEN JSON_VALUE(@Data, '$.page') IS NOT NULL OR JSON_VALUE(@Data, '$.pageSize') IS NOT NULL THEN 1 ELSE 0 END;
     DECLARE @Page int = ISNULL(TRY_CONVERT(int, JSON_VALUE(@Data, '$.page')), 1);
     DECLARE @PageSize int = ISNULL(TRY_CONVERT(int, JSON_VALUE(@Data, '$.pageSize')), 30);
-    IF @Page < 1 OR @Page > 1000000 OR @PageSize < 1 OR @PageSize > 500
+    IF @Page < 1 OR @Page > 1000000 OR @PageSize < 1 OR @PageSize > 100000
         THROW 53121, N'PHASE3_PAGING_ARGUMENT_INVALID', 1;
     DECLARE @Offset int = (@Page - 1) * @PageSize;
 

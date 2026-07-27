@@ -1,3 +1,8 @@
+/**
+ * @deprecated
+ * DB contract registry is the primary rollout source.
+ * Danh sách này chỉ còn là compatibility fallback cho năm form đã audit.
+ */
 function freezeContract(contract) {
     return Object.freeze({ ...contract });
 }
@@ -8,6 +13,13 @@ function freezeLookupContract(contract) {
         fieldNames: Object.freeze(Array.isArray(contract.fieldNames) ? contract.fieldNames.slice() : [])
     });
 }
+
+const INSERT_ONLY_BULK_IMPORT = Object.freeze({
+    importEnabled: true,
+    importMode: 'INSERT_ONLY',
+    allowUpsert: false,
+    maxRows: 200_000
+});
 
 export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
     freezeContract({
@@ -27,6 +39,7 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
+        ...INSERT_ONLY_BULK_IMPORT,
         deletePolicy: 'AUTO_SCHEMA',
         permissionFormName: 'WA_BangThueTNCNFrm',
         writePolicy: 'SAFE_TABLE_COLUMNS',
@@ -49,6 +62,7 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
+        ...INSERT_ONLY_BULK_IMPORT,
         deletePolicy: 'AUTO_SCHEMA',
         permissionFormName: 'WA_ChucDanhFrm',
         writePolicy: 'SAFE_TABLE_COLUMNS',
@@ -71,6 +85,7 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
+        ...INSERT_ONLY_BULK_IMPORT,
         deletePolicy: 'AUTO_SCHEMA',
         permissionFormName: 'WA_TitleListFrm',
         writePolicy: 'SAFE_TABLE_COLUMNS',
@@ -93,6 +108,7 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
+        ...INSERT_ONLY_BULK_IMPORT,
         deletePolicy: 'AUTO_SCHEMA',
         permissionFormName: 'WA_ShiftListFrm',
         writePolicy: 'SAFE_TABLE_COLUMNS',
@@ -115,6 +131,7 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         enableFilter: true,
         enableSave: true,
         enableDelete: true,
+        ...INSERT_ONLY_BULK_IMPORT,
         deletePolicy: 'AUTO_SCHEMA',
         permissionFormName: 'WA_CaLamViecFrm',
         writePolicy: 'SAFE_TABLE_COLUMNS',

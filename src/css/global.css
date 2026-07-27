@@ -752,15 +752,15 @@ body.dark-theme .nav-item:hover span.icon {
 
 /* HIỆN LẠI KHI CÓ CLASS SHOW-FILTERS */
 .tabulator.show-filters .tabulator-header .tabulator-header-filter {
-    display: block !important;
+  display: block !important;
 }
 
 /* Ẩn nút Sắp ca tự động cũ do SY_FrmCfg sinh ra ở thân form (vì đã chuyển lên header action bar) */
 button[onclick*="SapCaTuDong"] {
-    display: none !important;
+  display: none !important;
 }
 
 /* Fix lỗi datepicker (Flatpickr) bị ẩn dưới Filter Overlay Panel */
 .flatpickr-calendar {
-    z-index: 9999999 !important;
+  z-index: 9999999 !important;
 }

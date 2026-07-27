@@ -147,6 +147,7 @@ window.DynamicFormEngine = (function () {
 
   function _observeFieldSync() {
     if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') return;
+    if (!_isUnifiedCrudForm(currentFormName)) return;
     var observedForm = currentFormName;
     var observedContextKey = typeof FieldSyncService.getContextKey === 'function'
       ? FieldSyncService.getContextKey(observedForm)
@@ -276,6 +277,10 @@ window.DynamicFormEngine = (function () {
     return String(MODULE_CONFIG.FormName).toLowerCase() === 'frmformbuilder';
   }
 
+  function _isUnifiedCrudForm(formName) {
+    return /Frm$/i.test(String(formName || '').trim());
+  }
+
   /**
    * Bật/tắt trạng thái loading trên nút bấm
    * @param {HTMLElement} btn
@@ -366,10 +371,7 @@ window.DynamicFormEngine = (function () {
     );
   }
   function _usesUnifiedFieldContract() {
-    var registry = window.Phase2MigrationRegistry;
-    if (registry && typeof registry.usesUnifiedSchema === 'function') return registry.usesUnifiedSchema(MODULE_CONFIG.FormName);
-    var entry = _phase2RegistryEntry();
-    return Boolean(entry && entry.schemaPolicy === 'UNIFIED_V2');
+    return Boolean(fieldContractState && fieldContractState.active === true);
   }
 
   function _contractWriteActive() {
@@ -378,6 +380,30 @@ window.DynamicFormEngine = (function () {
 
   function _contractDeleteActive() {
     return !_usesUnifiedFieldContract() || Boolean(fieldContractState && fieldContractState.deleteActive === true);
+  }
+
+  function _canImportExcel() {
+    var contract = _phase2RegistryEntry();
+    var action = String(MODULE_CONFIG.action || MODULE_CONFIG.Action || '').toLowerCase();
+    var readOnly = Boolean(
+      MODULE_CONFIG.ReadOnly
+      || MODULE_CONFIG.IsReadOnly
+      || MODULE_CONFIG.IsFullPageDetail
+      || MODULE_CONFIG.IsDetailAdd
+      || action === 'detail'
+    );
+    return Boolean(
+      !readOnly
+      && contract
+      && contract.importEnabled === true
+      && contract.enableSave === true
+      && contract.expectedTableName
+      && contract.expectedPrimaryKey
+      && contract.saveV2 === 'API_LuuDong_V2'
+      && _usesUnifiedFieldContract()
+      && _contractWriteActive()
+      && _hasPermission('ADD')
+    );
   }
 
   function _buildContractWritePayload(base, isEdit, originalRow) {
@@ -502,17 +528,26 @@ window.DynamicFormEngine = (function () {
       try { cachedData = window._uiConfigCache ? window._uiConfigCache[cacheKey] : null; } catch (e) { }
     }
 
-    var unifiedContract = _usesUnifiedFieldContract();
+    function loadLegacyMetadata() {
+      if (cachedData) return Promise.resolve(JSON.parse(cachedData));
+      return configEndpoint ? ApiClient.post(configEndpoint, { FormName: MODULE_CONFIG.FormName }).then(function (res) {
+        if (res && res.code === 0 && !_isFormBuilder()) {
+          window._uiConfigCache = window._uiConfigCache || {};
+          window._uiConfigCache[cacheKey] = JSON.stringify(res);
+        }
+        return res;
+      }) : Promise.resolve(null);
+    }
+
     var pConfig;
-    if (unifiedContract) {
-      if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') {
-        pConfig = Promise.reject(new Error('Thiếu dịch vụ Form Contract V2.'));
-      } else {
-        pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
-          if (!state || state.active !== true || !state.schema || !state.runtimeSchemas) {
-            throw new Error(state && state.error ? state.error : 'Form Contract V2 chưa active.');
-          }
-          fieldContractState = state;
+    if (!_isFormBuilder()
+      // Report chỉ dùng metadata legacy để xem/in, không đăng ký Unified CRUD.
+      && _isUnifiedCrudForm(MODULE_CONFIG.FormName)
+      && window.FieldSyncService
+      && typeof FieldSyncService.observeForm === 'function') {
+      pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
+        fieldContractState = state || null;
+        if (state && state.active === true && state.schema && state.runtimeSchemas) {
           MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
           return {
             code: 0,
@@ -520,18 +555,19 @@ window.DynamicFormEngine = (function () {
             _unifiedContract: true,
             _fieldContractState: state
           };
-        });
-      }
-    } else if (cachedData) {
-      pConfig = Promise.resolve(JSON.parse(cachedData));
-    } else {
-      pConfig = configEndpoint ? ApiClient.post(configEndpoint, { FormName: MODULE_CONFIG.FormName }).then(function (res) {
-        if (res && res.code === 0 && !_isFormBuilder()) {
-          window._uiConfigCache = window._uiConfigCache || {};
-          window._uiConfigCache[cacheKey] = JSON.stringify(res);
         }
-        return res;
-      }) : Promise.resolve(null);
+        if (state && state.failClosed === true) {
+          throw new Error(state.error || 'Metadata của form ACTIVE không sẵn sàng.');
+        }
+        return loadLegacyMetadata().then(function (legacyResponse) {
+          if (legacyResponse && typeof legacyResponse === 'object') {
+            legacyResponse._fieldContractState = state || null;
+          }
+          return legacyResponse;
+        });
+      });
+    } else {
+      pConfig = loadLegacyMetadata();
     }
 
     pConfig.then(function (resConfig) {
@@ -692,7 +728,7 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          if (!isUnifiedMetadata && MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+          if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
             var ff = MODULE_CONFIG.FormFields.find(function (f) { return f.name.toLowerCase() === fieldName.toLowerCase(); });
             if (ff) {
               if (ff.isReadOnlyEdit !== undefined) isReadOnlyEditVal = ff.isReadOnlyEdit;
@@ -749,7 +785,7 @@ window.DynamicFormEngine = (function () {
         });
 
         // Hỗ trợ CHÈN THÊM TRƯỜNG TỰ DO (ví dụ nút bấm) từ FormFields (Chỉ chèn những trường chưa có trong DB)
-        if (!isUnifiedMetadata && MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+        if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
           MODULE_CONFIG.FormFields.forEach(function (cf) {
             if (!globalFormSchema.find(function (sf) { return sf.name.toLowerCase() === cf.name.toLowerCase(); })) {
               globalFormSchema.push({
@@ -790,6 +826,9 @@ window.DynamicFormEngine = (function () {
         fieldContractState = resConfig._fieldContractState;
         runtimeSchemas = resConfig._fieldContractState.runtimeSchemas;
       } else {
+        if (resConfig && resConfig._fieldContractState) {
+          fieldContractState = resConfig._fieldContractState;
+        }
         _setLegacyRuntimeSchemas();
         _observeFieldSync();
       }
@@ -973,165 +1012,33 @@ window.DynamicFormEngine = (function () {
         }
 
   function _openExcelImportModal() {
-    if (!window.tabulatorInstance) {
-      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Bảng dữ liệu chưa sẵn sàng.');
+    if (!_canImportExcel()) {
+      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Form hiện tại chưa đủ điều kiện import an toàn.');
       return;
     }
-
-    if (typeof ExcelImportModal === 'undefined') {
+    if (!window.tabulatorInstance || typeof ExcelImportModal === 'undefined') {
       if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Thư viện ExcelImportModal chưa được nạp.');
       return;
     }
-
-    var columns = window.tabulatorInstance.getColumns().filter(function (col) {
-      var field = col.getField();
-      return col.isVisible() && field && field !== 'row_select' && field !== '__action__';
-    });
-
-    if (!columns || columns.length === 0) {
-      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không tìm thấy cột dữ liệu hợp lệ trên bảng.');
-      return;
-    }
-
-    var gridSchema = _schemaFor('grid') || [];
-    var editSchema = _schemaFor('add') || _schemaFor('edit') || [];
-
-    var webColumns = columns.map(function (col) {
-      var field = col.getField();
-      var colDef = col.getDefinition() || {};
-      var title = colDef.title || field;
-
-      var schemaItem = editSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); }) ||
-                       gridSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); });
-
-      var fieldType = 'string';
-      var isRequired = false;
-
-      if (schemaItem) {
-        fieldType = schemaItem.fieldType || schemaItem.renderRule || schemaItem.type || 'string';
-        isRequired = schemaItem.required === true || schemaItem.isRequired === true || String(schemaItem.required) === '1';
-      } else {
-        if (field.toLowerCase().indexOf('ngay') >= 0 || field.toLowerCase().indexOf('date') >= 0) {
-          fieldType = 'date';
-        } else if (field.toLowerCase().indexOf('gia') >= 0 || field.toLowerCase().indexOf('tien') >= 0 || field.toLowerCase().indexOf('thuethue') >= 0 || field.toLowerCase().indexOf('amount') >= 0 || field.toLowerCase().indexOf('rate') >= 0 || field.toLowerCase().indexOf('bac') >= 0) {
-          fieldType = 'number';
-        }
-      }
-
-      return {
-        field: field,
-        title: title,
-        type: fieldType,
-        isRequired: isRequired
-      };
-    });
-
+    var documentConfig = window.API_CONFIG
+      && API_CONFIG.ENDPOINTS
+      && API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
     ExcelImportModal.show({
-      webColumns: webColumns,
-      formName: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName || 'Bảng dữ liệu',
-      onConfirm: function (parsedRows, modalApi) {
-        if (!parsedRows || parsedRows.length === 0) {
-          if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không có dữ liệu hợp lệ để import.');
-          return;
+      formName: MODULE_CONFIG.FormName,
+      formTitle: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName,
+      apiBase: documentConfig ? documentConfig.SERVICE_BASE : '',
+      requestHeaders: {
+        Username: _currentUser(),
+        BranchID: _currentBranchId()
+      },
+      onSuccess: function () {
+        selectedRows = [];
+        currentPage = 1;
+        if (window.tabulatorInstance && typeof window.tabulatorInstance.deselectRow === 'function') {
+          window.tabulatorInstance.deselectRow();
         }
-
-        var endpoint = _usesUnifiedFieldContract() ? _gateway() : (MODULE_CONFIG.ApiSave || _gateway());
-        if (!endpoint) {
-          if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không xác định được API lưu dữ liệu.');
-          return;
-        }
-
-        // Đóng gói Payload lưu CSDL thực tế cho từng dòng
-        var payloads = parsedRows.map(function (row) {
-          var rowPayload = _usesUnifiedFieldContract()
-            ? _buildContractWritePayload(row, false)
-            : _buildPayload(row, false);
-
-          if (endpoint === _gateway()) {
-            return {
-              List: MODULE_CONFIG.FormName,
-              Func: 'Save',
-              JsonData: JSON.stringify(rowPayload),
-              UserName: _currentUser(),
-              BranchID: _currentBranchId()
-            };
-          }
-          return rowPayload;
-        });
-
-        // BÀN THUẬT LƯU THẬT VÀO CSDL VỚI LƯỢNG KẾT NỐI SONG SONG TỐI ĐA (MAX CONCURRENCY = 25 WORKERS)
-        var totalCount = payloads.length;
-        var successCount = 0;
-        var processedCount = 0;
-        var errorLogs = [];
-        var CONCURRENCY = 25; // 25 luồng gửi song song tới API Gateway CSDL
-        var isAborted = false;
-        var startTime = Date.now();
-
-        modalApi.onCancel(function () {
-          isAborted = true;
-        });
-
-        var queueIndex = 0;
-
-        function runWorker() {
-          if (queueIndex >= totalCount || isAborted) return Promise.resolve();
-
-          var idx = queueIndex++;
-          return ApiClient.post(endpoint, payloads[idx])
-            .then(function (res) {
-              var code = res ? res.code : null;
-              var msg = String((res && res.msg) || '');
-              var msgUpper = msg.toUpperCase();
-
-              if (res && (code === 0 || code === '0' || code === 1 || code === '1' || res.status === 200 || res.success === true || msgUpper.indexOf('THÀNH CÔNG') > -1 || msgUpper.indexOf('SUCCESS') > -1)) {
-                successCount++;
-              } else {
-                var cleanMsg = msg || (res && res.records && res.records[0] ? res.records[0].msg : 'Lỗi CSDL');
-                errorLogs.push({ row: idx + 1, msg: cleanMsg });
-              }
-            })
-            .catch(function (err) {
-              var errStr = (err && err.message) || String(err);
-              errorLogs.push({ row: idx + 1, msg: errStr });
-            })
-            .finally(function () {
-              processedCount++;
-              var elapsed = Math.max(0.1, (Date.now() - startTime) / 1000);
-              var speed = Math.round(processedCount / elapsed);
-              var etaSec = speed > 0 ? Math.ceil((totalCount - processedCount) / speed) : 0;
-
-              modalApi.updateProgress(processedCount, totalCount, speed, etaSec);
-
-              if (processedCount < totalCount && !isAborted) {
-                return runWorker();
-              }
-            });
-        }
-
-        var workers = [];
-        var activeWorkersCount = Math.min(CONCURRENCY, totalCount);
-        for (var w = 0; w < activeWorkersCount; w++) {
-          workers.push(runWorker());
-        }
-
-        Promise.all(workers).then(function () {
-          modalApi.close();
-          var totalTimeSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-          if (typeof Alert !== 'undefined') {
-            if (isAborted) {
-              Alert.warning('Tạm dừng Import', 'Đã dừng tiến trình. Đã lưu CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + processedCount.toLocaleString('vi-VN') + ' bản ghi.');
-            } else if (successCount > 0) {
-              Alert.success('Lưu CSDL Thành Công', 'Đã lưu THẬT vào CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + totalCount.toLocaleString('vi-VN') + ' bản ghi (Thời gian: ' + totalTimeSec + 's). Khi nhấn F5 dữ liệu vẫn giữ nguyên 100%.');
-            } else {
-              var firstErr = errorLogs.length > 0 ? errorLogs[0].msg : 'Lỗi kết nối CSDL';
-              Alert.error('Lưu CSDL Thất bại', 'Không thể lưu bản ghi vào CSDL. Lỗi: ' + firstErr);
-            }
-          }
-          // Nạp lại dữ liệu thực tế trực tiếp từ CSDL về Bảng Web
-          _loadData();
-        });
+        _updateSelectionCounter();
+        _loadData();
       }
     });
   }
@@ -1488,7 +1395,7 @@ window.DynamicFormEngine = (function () {
           };
         }));
 
-        if (_hasPermission('ADD') || _hasPermission('EDIT') || _hasPermission('EXPORT')) {
+        if (_canImportExcel()) {
           tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Import dữ liệu Excel', function () {
             _openExcelImportModal();
           }));
@@ -2194,9 +2101,10 @@ window.DynamicFormEngine = (function () {
        * định; Keyword vẫn chỉ nằm ở top-level query.Keyword.
        */
       if (_usesUnifiedFieldContract() && !MODULE_CONFIG.IsFullPageDetail) {
+        var safePageSize = Math.min(500, Math.max(1, parseInt(currentLimit, 10) || 30));
         var v2Data = Object.assign({}, activeFilters, {
           page: currentPage,
-          pageSize: currentLimit
+          pageSize: safePageSize
         });
         query.JsonData = JSON.stringify(v2Data);
       }

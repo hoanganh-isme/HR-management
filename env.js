@@ -26,13 +26,25 @@ var HRM_DOCUMENT_SERVICE_BASE = HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE ||
  * Cấu hình được inject từ môi trường vẫn có quyền override các giá trị này,
  * kể cả enabled:false để rollback khẩn cấp.
  */
+var HRM_EXISTING_FIELD_SYNC = HRM_RUNTIME_CONFIG.FIELD_SYNC || {};
+var HRM_USES_LEGACY_PILOT_CONFIG = Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'pilotForms')
+  && !Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'rolloutMode');
+
 HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     enabled: true,
     shadowMode: false,
-    pilotForms: ['WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm', 'WA_CaLamViecFrm'],
+    rolloutMode: 'registry',
+    includeForms: [],
+    excludeForms: [],
+    fallbackToLegacy: true,
     pollSeconds: 360,
     metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
-}, HRM_RUNTIME_CONFIG.FIELD_SYNC || {});
+}, HRM_EXISTING_FIELD_SYNC);
+
+// Cấu hình production cũ chỉ có pilotForms tiếp tục giữ đúng phạm vi pilot.
+if (HRM_USES_LEGACY_PILOT_CONFIG) {
+  HRM_RUNTIME_CONFIG.FIELD_SYNC.rolloutMode = 'pilot';
+}
 
 if (typeof window !== 'undefined') {
     window.HRM_RUNTIME_CONFIG = HRM_RUNTIME_CONFIG;

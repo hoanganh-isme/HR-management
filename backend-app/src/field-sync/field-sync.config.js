@@ -12,6 +12,7 @@ export const FIELD_SYNC_CONTRACTS = Object.freeze({
     gridCompare: 'API_Web_GridFieldCompareV2',
     lookupSchema: 'API_Web_LookupSchemaV2',
     joinSchema: 'API_Web_JoinFieldSchemaV2',
+    fieldContractResolve: 'API_Web_FieldContractResolveV2',
     updateFieldFormat: 'API_Web_UpdateFieldFormat',
     formatList: 'SY_FmatTbl'
 });
@@ -34,7 +35,7 @@ export function createFieldSyncConfig(documentConfig, env = process.env) {
         maxConcurrentRequests: positiveInteger(env.FIELD_SYNC_MAX_CONCURRENT_REQUESTS, 4),
         transientRetryCount: positiveInteger(env.FIELD_SYNC_TRANSIENT_RETRY_COUNT, 2),
         transientRetryDelayMs: positiveInteger(env.FIELD_SYNC_TRANSIENT_RETRY_DELAY_MS, 150),
-        aliases: FIELD_SYNC_FORM_ALIASES,
-        migrationRegistry: FIELD_CONTRACT_MIGRATION_REGISTRY
+        // Chỉ giữ alias đã xác nhận để tương thích wire contract cũ.
+        aliases: FIELD_SYNC_FORM_ALIASES
     });
 }

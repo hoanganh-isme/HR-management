@@ -1,6 +1,4 @@
 import express from 'express';
-import { FIELD_CONTRACT_MIGRATION_REGISTRY, getRegisteredLookupContract } from './field-contract.registry.js';
-import { getPhase4JoinContract } from './phase4-join.registry.js';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
 import { FieldSyncGatewayError } from './field-sync.gateway.js';
@@ -8,6 +6,7 @@ import { normalizeGridCompare, normalizeGridSchema, normalizeJoinSchema, normali
 
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
 const SAFE_DETAIL_KEY = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
+const CRUD_FORM = /Frm$/i;
 const SAFE_LOOKUP_KEY = /^[A-Fa-f0-9]{64}$/;
 const SAFE_DEPENDENCY = /^[A-Za-z_][A-Za-z0-9_@$#]{0,127}$/;
 const BLOCKED_DEPENDENCY_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
@@ -32,31 +31,39 @@ function validateFormName(value) {
     return formName;
 }
 
-function configuredContract(config, formName) {
-    const registry = Array.isArray(config.migrationRegistry)
-        ? config.migrationRegistry
-        : FIELD_CONTRACT_MIGRATION_REGISTRY;
-    return registry.find((item) => (
-        String(item?.webFormName || '').toLowerCase() === formName.toLowerCase()
-    ));
+function assertContractReadable(contract) {
+    const status = String(contract?.rolloutStatus || '').toUpperCase();
+    if (!contract?.isEnabled || status === 'DISABLED') {
+        throw contractError('Unified Field Contract đang bị tắt.', 'FIELD_CONTRACT_DISABLED');
+    }
+    if (status === 'DEFERRED' || contract.contractType === 'COMPLEX_DEFERRED') {
+        throw contractError('Form được giữ ở runtime legacy.', 'FIELD_CONTRACT_DEFERRED');
+    }
+    if (status === 'BLOCKED' || contract.contractType === 'BLOCKED') {
+        throw contractError('Form bị chặn do contract chưa đủ an toàn.', 'FIELD_CONTRACT_BLOCKED');
+    }
+    if (status !== 'ACTIVE' && status !== 'SHADOW') {
+        throw contractError('Trạng thái Unified Field Contract không hợp lệ.', 'FIELD_CONTRACT_DISABLED');
+    }
 }
 
-function resolveFormNames(config, formName, requestedValue) {
-    const contract = configuredContract(config, formName);
-    if (!contract) {
+async function resolveDbFormNames(repository, context, formName, requestedValue, forceRefresh = false) {
+    const contract = await repository.resolveContract(formName, context, { forceRefresh });
+    if (!CRUD_FORM.test(contract.webFormName)) {
         throw contractError(
-            'Form chưa nằm trong allow-list Unified Field Contract.',
-            'FIELD_CONTRACT_FORM_NOT_ALLOWLISTED',
+            'Report không thuộc Unified CRUD contract.',
+            'FIELD_CONTRACT_NOT_REGISTERED',
             404
         );
     }
+    assertContractReadable(contract);
     const webFormName = contract.webFormName;
     const erpFormName = contract.erpFormId;
     if (requestedValue !== undefined && requestedValue !== null && requestedValue !== '') {
         const requested = validateFormName(requestedValue);
         if (requested.toLowerCase() !== erpFormName.toLowerCase()) {
             throw contractError(
-                'ERPFormID không khớp migration registry.',
+                'ERPFormID không khớp DB contract registry.',
                 'FIELD_CONTRACT_ERP_FORM_MISMATCH'
             );
         }
@@ -81,6 +88,19 @@ function assertSchemaMatchesContract(schema, contract) {
     if (!sameIdentifier(schema.primaryKey, contract.expectedPrimaryKey)) {
         throw contractError('PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
     }
+    if (contract.rolloutStatus === 'ACTIVE') {
+        const registeredView = schema?.runtimeRoutes?.view?.registeredProcedure;
+        const registeredSave = schema?.runtimeRoutes?.save?.registeredProcedure;
+        const registeredDelete = schema?.runtimeRoutes?.delete?.registeredProcedure;
+        if (!sameIdentifier(registeredView, contract.viewProcedure)
+            || (contract.saveProcedure && !sameIdentifier(registeredSave, contract.saveProcedure))
+            || (contract.deleteProcedure && !sameIdentifier(registeredDelete, contract.deleteProcedure))) {
+            throw contractError(
+                'WA_API route không khớp DB contract registry.',
+                'FIELD_CONTRACT_ROUTE_MISMATCH'
+            );
+        }
+    }
 }
 
 function assertComparisonMatchesContract(comparison, contract) {
@@ -93,30 +113,34 @@ function assertComparisonMatchesContract(comparison, contract) {
     }
 }
 
-function resolveJoinContract(formName, detailKeyValue) {
-    const detailKey =
-        String(detailKeyValue || '').trim();
-
-    if (!SAFE_DETAIL_KEY.test(detailKey)) {
-        throw badRequest(
-            'DetailKey không hợp lệ.'
-        );
-    }
-
-    const contract = getPhase4JoinContract(
+async function resolveDbJoinContract(repository, context, formName, detailKeyValue, forceRefresh = false) {
+    const detailKey = String(detailKeyValue || '').trim();
+    if (!SAFE_DETAIL_KEY.test(detailKey)) throw badRequest('DetailKey không hợp lệ.');
+    const resolved = await repository.resolveDataset(
         formName,
-        detailKey
+        detailKey,
+        context,
+        { forceRefresh }
     );
-
-    if (!contract) {
+    assertContractReadable(resolved.contract);
+    const datasetStatus = String(resolved.dataset.rolloutStatus || '').toUpperCase();
+    if (datasetStatus !== 'ACTIVE' && datasetStatus !== 'SHADOW') {
         throw contractError(
-            'JOIN detail key chưa được đăng ký trong Phase 4 allow-list.',
-            'PHASE4_JOIN_CONTRACT_NOT_ALLOWLISTED',
+            'Dataset chưa được bật cho Unified Field Contract.',
+            'FIELD_CONTRACT_DATASET_NOT_REGISTERED',
             404
         );
     }
-
-    return contract;
+    return {
+        ...resolved.dataset,
+        webFormName: resolved.contract.webFormName,
+        detailKey: resolved.dataset.datasetKey,
+        expectedProcedure: resolved.dataset.viewProcedure,
+        expectedSaveProcedure: resolved.dataset.saveProcedure,
+        expectedDeleteProcedure: resolved.dataset.deleteProcedure,
+        expectedTableName: resolved.dataset.expectedTableName,
+        expectedPrimaryKey: resolved.dataset.expectedPrimaryKey
+    };
 }
 
 function assertJoinSchemaMatchesContract(schema, contract) {
@@ -240,7 +264,27 @@ function normalizeLookupDependencies(rawValues, declaredNames) {
     return result;
 }
 
-export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCache(config.cacheTtlMs, undefined, config.cacheMaxEntries) }) {
+function publicContract(contract) {
+    return {
+        webFormName: contract.webFormName,
+        erpFormId: contract.erpFormId,
+        permissionFormName: contract.permissionFormName,
+        contractType: contract.contractType,
+        rolloutStatus: contract.rolloutStatus,
+        rolloutReason: contract.rolloutReason,
+        schemaVersion: contract.schemaVersion,
+        active: contract.isEnabled === true && contract.rolloutStatus === 'ACTIVE',
+        shadow: contract.isEnabled === true && contract.rolloutStatus === 'SHADOW',
+        source: contract.source
+    };
+}
+
+export function createFieldSyncRouter({
+    gateway,
+    config,
+    repository,
+    cache = new FieldSyncCache(config.cacheTtlMs, undefined, config.cacheMaxEntries)
+}) {
     const router = express.Router();
 
     router.use((req, res, next) => {
@@ -252,18 +296,44 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
         try {
             const context = resolveFieldSyncContext(req);
             await gateway.verifySession(context);
-            const names = resolveFormNames(config, validateFormName(req.params.formName), req.query.erpFormId);
+            const refresh = bypassMetadataCache(req);
+            const names = await resolveDbFormNames(
+                repository,
+                context,
+                validateFormName(req.params.formName),
+                req.query.erpFormId,
+                refresh
+            );
             const formName = names.webFormName;
             const erpFormName = names.erpFormName;
             const key = cacheKey('schema', context, formName, erpFormName);
-            let schema = bypassMetadataCache(req) ? undefined : cache.get(key);
+            let schema = refresh ? undefined : cache.get(key);
             if (!schema) {
-                const rows = await gateway.gridSchema({ FormName: formName, ERPFormID: erpFormName }, context);
+                let rows;
+                try {
+                    rows = await gateway.gridSchema({ FormName: formName, ERPFormID: erpFormName }, context);
+                } catch (error) {
+                    if (names.contract.rolloutStatus === 'ACTIVE') {
+                        throw contractError(
+                            'Metadata của form ACTIVE không sẵn sàng.',
+                            'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
+                            503
+                        );
+                    }
+                    throw error;
+                }
                 schema = normalizeGridSchema(rows, formName, erpFormName);
-                assertSchemaMatchesContract(schema, names.contract);
+                if (names.contract.rolloutStatus === 'ACTIVE') {
+                    assertSchemaMatchesContract(schema, names.contract);
+                }
                 schema = cache.set(key, schema);
             }
-            return res.json({ success: true, schema });
+            return res.json({
+                success: true,
+                active: names.contract.rolloutStatus === 'ACTIVE',
+                contract: publicContract(names.contract),
+                schema
+            });
         } catch (error) {
             return next(error);
         }
@@ -273,18 +343,44 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
         try {
             const context = resolveFieldSyncContext(req);
             await gateway.verifySession(context);
-            const names = resolveFormNames(config, validateFormName(req.params.formName), req.query.erpFormId);
+            const refresh = bypassMetadataCache(req);
+            const names = await resolveDbFormNames(
+                repository,
+                context,
+                validateFormName(req.params.formName),
+                req.query.erpFormId,
+                refresh
+            );
             const formName = names.webFormName;
             const erpFormName = names.erpFormName;
             const key = cacheKey('compare', context, formName, erpFormName);
-            let comparison = bypassMetadataCache(req) ? undefined : cache.get(key);
+            let comparison = refresh ? undefined : cache.get(key);
             if (!comparison) {
-                const rows = await gateway.gridCompare({ FormName: formName, ERPFormID: erpFormName }, context);
+                let rows;
+                try {
+                    rows = await gateway.gridCompare({ FormName: formName, ERPFormID: erpFormName }, context);
+                } catch (error) {
+                    if (names.contract.rolloutStatus === 'ACTIVE') {
+                        throw contractError(
+                            'Metadata compare của form ACTIVE không sẵn sàng.',
+                            'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
+                            503
+                        );
+                    }
+                    throw error;
+                }
                 comparison = normalizeGridCompare(rows, formName, erpFormName);
-                assertComparisonMatchesContract(comparison, names.contract);
+                if (names.contract.rolloutStatus === 'ACTIVE') {
+                    assertComparisonMatchesContract(comparison, names.contract);
+                }
                 comparison = cache.set(key, comparison);
             }
-            return res.json({ success: true, comparison });
+            return res.json({
+                success: true,
+                active: names.contract.rolloutStatus === 'ACTIVE',
+                contract: publicContract(names.contract),
+                comparison
+            });
         } catch (error) {
             return next(error);
         }
@@ -296,7 +392,12 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
             await gateway.verifySession(context);
             const lookupKey = String(req.params.lookupKey || '').trim();
             if (!SAFE_LOOKUP_KEY.test(lookupKey)) throw badRequest('LookupKey không hợp lệ.');
-            const names = resolveFormNames(config, validateFormName(req.body?.formName), req.body?.erpFormId);
+            const names = await resolveDbFormNames(
+                repository,
+                context,
+                validateFormName(req.body?.formName),
+                req.body?.erpFormId
+            );
             const formName = names.webFormName;
             const erpFormName = names.erpFormName;
             const keyword = String(req.body?.keyword || '').trim().slice(0, 200);
@@ -384,7 +485,7 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
                  * theo đúng form + field; tuyệt đối không suy đoán source từ tên.
                  */
                 if (descriptor.mode === 'BLOCKED' && descriptor.diagnosticCode === 'LOOKUP_KEY_NOT_FOUND') {
-                    const registeredLookup = getRegisteredLookupContract(
+                    const registeredLookup = repository.getRegisteredLookupContract(
                         formName,
                         lookupFields[0]?.name
                     );
@@ -434,10 +535,21 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
                 const formName = validateFormName(
                     req.params.formName
                 );
+                if (!CRUD_FORM.test(formName)) {
+                    throw contractError(
+                        'Report không thuộc Unified CRUD contract.',
+                        'FIELD_CONTRACT_NOT_REGISTERED',
+                        404
+                    );
+                }
 
-                const contract = resolveJoinContract(
+                const refresh = bypassMetadataCache(req);
+                const contract = await resolveDbJoinContract(
+                    repository,
+                    context,
                     formName,
-                    req.params.detailKey
+                    req.params.detailKey,
+                    refresh
                 );
 
                 const detailKey = contract.detailKey;
@@ -449,7 +561,7 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
                     detailKey + '|' + contract.apiList
                 );
 
-                let schema = bypassMetadataCache(req)
+                let schema = refresh
                     ? undefined
                     : cache.get(key);
 
@@ -468,16 +580,25 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
                         detailKey
                     );
 
-                    assertJoinSchemaMatchesContract(
-                        schema,
-                        contract
-                    );
+                    if (contract.rolloutStatus === 'ACTIVE') {
+                        assertJoinSchemaMatchesContract(
+                            schema,
+                            contract
+                        );
+                    }
 
                     schema = cache.set(key, schema);
                 }
 
                 return res.json({
                     success: true,
+                    active: contract.rolloutStatus === 'ACTIVE',
+                    contract: {
+                        webFormName: contract.webFormName,
+                        datasetKey: contract.detailKey,
+                        rolloutStatus: contract.rolloutStatus,
+                        active: contract.rolloutStatus === 'ACTIVE'
+                    },
                     schema
                 });
             } catch (error) {
@@ -554,6 +675,7 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
 
             const result = await gateway.updateFieldFormat(params, context);
             cache.clear();
+            repository.invalidate(formName || undefined);
 
             const firstRecord = Array.isArray(result) && result.length ? result[0] : (result || params);
             if (firstRecord && (firstRecord.Success === false || firstRecord.Success === 0 || String(firstRecord.Success) === '0')) {

@@ -1,8 +1,18 @@
 /**
  * Unified Field Contract migration registry.
  * Entries describe cutover mechanics only; field metadata stays in ERP.
+ *
+ * @deprecated
+ * DB contract registry is the primary rollout source.
  */
 window.FieldContractMigrationRegistry = (function () {
+  var insertOnlyBulkImport = Object.freeze({
+    importEnabled: true,
+    importMode: 'INSERT_ONLY',
+    allowUpsert: false,
+    maxRows: 200000
+  });
+
   var forms = Object.freeze({
     WA_BangThueTNCNFrm: Object.freeze({
       webFormName: 'WA_BangThueTNCNFrm', erpFormId: 'HR_BangThueTNCNFrm',
@@ -11,7 +21,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_ChucDanhFrm: Object.freeze({
       webFormName: 'WA_ChucDanhFrm', erpFormId: 'WA_ChucDanhFrm',
@@ -20,7 +31,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_TitleListFrm: Object.freeze({
       webFormName: 'WA_TitleListFrm', erpFormId: 'WA_TitleListFrm',
@@ -29,7 +41,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_ShiftListFrm: Object.freeze({
       webFormName: 'WA_ShiftListFrm', erpFormId: 'WA_ShiftListFrm',
@@ -38,7 +51,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_CaLamViecFrm: Object.freeze({
       webFormName: 'WA_CaLamViecFrm', erpFormId: 'WA_CaLamViecFrm',
@@ -48,6 +62,7 @@ window.FieldContractMigrationRegistry = (function () {
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
       enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport,
       permissionFormName: 'WA_CaLamViecFrm',
       writePolicy: 'SAFE_TABLE_COLUMNS',
       // SQL registry resolves this from the physical table schema.

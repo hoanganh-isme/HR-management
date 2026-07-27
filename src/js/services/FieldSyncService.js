@@ -3,9 +3,18 @@ window.FieldSyncService = (function (global) {
   var states = Object.create(null);
   var timers = Object.create(null);
   var lookupKeyAliases = Object.create(null);
+  var listenersInstalled = false;
 
   function config() {
-    return global.ERP_FIELD_SYNC_CONFIG || { enabled: false, shadowMode: true, pilotForms: [], pollSeconds: 120 };
+    return global.ERP_FIELD_SYNC_CONFIG || {
+      enabled: false,
+      shadowMode: true,
+      rolloutMode: 'registry',
+      includeForms: [],
+      excludeForms: [],
+      fallbackToLegacy: true,
+      pollSeconds: 120
+    };
   }
 
   function normalizeName(value) {
@@ -26,10 +35,24 @@ window.FieldSyncService = (function (global) {
     return Array.isArray(schema) ? schema.map(cloneValue) : [];
   }
 
+  function isCrudContractForm(formName) {
+    return /Frm$/i.test(String(formName || '').trim());
+  }
+
   function isPilot(formName) {
+    // Chỉ form CRUD có hậu tố Frm mới tham gia Unified Field Contract.
+    if (!isCrudContractForm(formName)) return false;
     var target = normalizeName(formName);
-    var pilotForms = Array.isArray(config().pilotForms) ? config().pilotForms : [];
-    return pilotForms.some(function (item) { return normalizeName(item) === target; });
+    var settings = config();
+    var excluded = Array.isArray(settings.excludeForms) ? settings.excludeForms : [];
+    if (excluded.some(function (item) { return normalizeName(item) === target; })) return false;
+    var included = Array.isArray(settings.includeForms) ? settings.includeForms : [];
+    if (included.some(function (item) { return normalizeName(item) === target; })) return true;
+    var legacyPilotForms = Array.isArray(settings.pilotForms) ? settings.pilotForms : [];
+    if (settings.rolloutMode === 'pilot') {
+      return legacyPilotForms.some(function (item) { return normalizeName(item) === target; });
+    }
+    return settings.rolloutMode === 'registry';
   }
 
   function metadataBaseUrl() {
@@ -254,8 +277,8 @@ window.FieldSyncService = (function (global) {
   }
 
   function isManagedForm(formName) {
-    var registry = global.FieldContractMigrationRegistry || global.Phase2MigrationRegistry;
-    return Boolean(registry && typeof registry.isManagedForm === 'function' && registry.isManagedForm(formName));
+    var state = states[stateKey(formName)];
+    return state ? state.managed === true : isPilot(formName);
   }
 
   function hasBlockingDiagnostics(schema) {
@@ -409,6 +432,8 @@ window.FieldSyncService = (function (global) {
       return {
         schema: responses[0] && responses[0].schema,
         comparison: responses[1] && responses[1].comparison,
+        control: responses[0] && responses[0].contract,
+        backendActive: Boolean(responses[0] && responses[0].active === true),
         expectedErpFormId: expectedErpFormId
       };
     });
@@ -676,7 +701,184 @@ window.FieldSyncService = (function (global) {
     return pending;
   }
 
+  function fetchRegistryState(formName, legacySchema, force) {
+    var key = stateKey(formName);
+    var current = states[key];
+    var settings = config();
+    var ttlSeconds = Number(settings.pollSeconds);
+    var ttlMs = Math.max(30, Number.isFinite(ttlSeconds) ? ttlSeconds : 120) * 1000;
+    var resolvedLegacySchema = Array.isArray(legacySchema) && legacySchema.length
+      ? legacySchema
+      : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
+
+    if (!isPilot(formName) || settings.enabled !== true) {
+      clearFormTimers(formName);
+      var disabled = legacyFullState(formName, resolvedLegacySchema, 'legacy-disabled');
+      disabled.managed = false;
+      disabled.rolloutStatus = 'DISABLED';
+      disabled.pollAllowed = false;
+      states[key] = disabled;
+      return Promise.resolve(disabled);
+    }
+    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
+      current.runtimeSchemas = current.active === true
+        ? createUnifiedRuntimeSchemas(current.schema || {}, current.writeActive === true, current.registryEntry || {})
+        : createRuntimeSchemas(resolvedLegacySchema, [], false);
+      return Promise.resolve(current);
+    }
+    if (current && current.pending) return current.pending;
+
+    var lastKnownActive = current && current.active === true && current.schema ? current : null;
+    var pending = requestMetadata(formName, settings.shadowMode === true, force === true).then(function (metadata) {
+      var schema = metadata.schema;
+      var control = metadata.control || {};
+      var rolloutStatus = String(control.rolloutStatus || '').toUpperCase();
+      if (!schema || !Array.isArray(schema.gridFields) || !rolloutStatus) {
+        var invalid = new Error('Unified Field Contract không hợp lệ.');
+        invalid.code = 'FIELD_CONTRACT_INVALID';
+        throw invalid;
+      }
+      var backendActive = metadata.backendActive === true && control.active === true;
+      var active = backendActive && settings.shadowMode !== true;
+      var writeActive = active
+        && String(control.contractType || '').toUpperCase() !== 'READ_ONLY'
+        && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.save && schema.runtimeRoutes.save.registeredProcedure);
+      var deleteActive = writeActive
+        && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.delete && schema.runtimeRoutes.delete.registeredProcedure);
+      var next = {
+        status: active ? (writeActive ? 'unified-active' : 'unified-readonly') : 'legacy-shadow',
+        runtimeMode: active ? 'V2_FULL' : 'LEGACY_FULL',
+        managed: true,
+        active: active,
+        writeActive: writeActive,
+        deleteActive: deleteActive,
+        contextKey: key,
+        schema: schema,
+        comparison: metadata.comparison || null,
+        contract: control,
+        rolloutStatus: rolloutStatus,
+        registryEntry: {},
+        pollAllowed: rolloutStatus === 'ACTIVE' || rolloutStatus === 'SHADOW',
+        runtimeSchemas: active
+          ? createUnifiedRuntimeSchemas(schema, writeActive, {})
+          : createRuntimeSchemas(resolvedLegacySchema, [], false),
+        loadedAt: Date.now(),
+        errorCode: null,
+        error: null
+      };
+      states[key] = next;
+      if (metadata.comparison) storeParity(formName, metadata.comparison);
+      dispatchUpdate(formName, next);
+      return next;
+    }).catch(function (error) {
+      var status = Number(error && error.status) || 0;
+      var code = String(
+        (error && error.data && error.data.code)
+        || (error && error.code)
+        || ''
+      ).trim().toUpperCase();
+      var legacyCodes = {
+        FIELD_CONTRACT_NOT_REGISTERED: true,
+        FIELD_CONTRACT_DEFERRED: true,
+        FIELD_CONTRACT_BLOCKED: true,
+        FIELD_CONTRACT_DISABLED: true
+      };
+      if (legacyCodes[code] || (status === 404 && !code)) {
+        clearFormTimers(formName);
+        var legacy = legacyFullState(
+          formName,
+          resolvedLegacySchema,
+          'legacy-' + (code || 'not-registered').toLowerCase(),
+          null,
+          code || 'FIELD_CONTRACT_NOT_REGISTERED',
+          null
+        );
+        legacy.managed = code !== 'FIELD_CONTRACT_NOT_REGISTERED';
+        legacy.rolloutStatus = code.replace('FIELD_CONTRACT_', '') || 'NOT_REGISTERED';
+        legacy.pollAllowed = false;
+        states[key] = legacy;
+        dispatchUpdate(formName, legacy);
+        return legacy;
+      }
+      if (status === 401) {
+        return verifyPrimarySession().then(function (verification) {
+          var sessionState = errorState(
+            formName,
+            verification.expired ? 'metadata-session-expired' : 'metadata-session-error',
+            verification.expired ? 'PRIMARY_SESSION_EXPIRED' : 'METADATA_UNAUTHORIZED',
+            verification.expired ? 'Phiên đăng nhập đã hết hạn.' : 'Metadata từ chối xác thực.'
+          );
+          sessionState.failClosed = true;
+          states[key] = sessionState;
+          if (verification.expired) expirePrimarySession();
+          dispatchUpdate(formName, sessionState);
+          return sessionState;
+        });
+      }
+      if (lastKnownActive && (status === 0 || status >= 500)) {
+        var readOnly = Object.assign({}, lastKnownActive, {
+          status: 'unified-last-known-readonly',
+          runtimeMode: 'V2_READONLY',
+          writeActive: false,
+          deleteActive: false,
+          runtimeSchemas: createUnifiedRuntimeSchemas(lastKnownActive.schema, false, {}),
+          loadedAt: Date.now(),
+          errorCode: code || 'METADATA_UNAVAILABLE_LAST_KNOWN'
+        });
+        states[key] = readOnly;
+        dispatchUpdate(formName, readOnly);
+        return readOnly;
+      }
+      var isContractIntegrityFailure = code.indexOf('FIELD_CONTRACT_') === 0;
+      if (settings.fallbackToLegacy !== false && !isContractIntegrityFailure) {
+        var fallback = legacyFullState(
+          formName,
+          resolvedLegacySchema,
+          'legacy-metadata-unavailable',
+          null,
+          code || 'METADATA_UNAVAILABLE',
+          null
+        );
+        fallback.managed = false;
+        fallback.pollAllowed = false;
+        states[key] = fallback;
+        dispatchUpdate(formName, fallback);
+        return fallback;
+      }
+      var unavailable = errorState(
+        formName,
+        'cutover-contract-error',
+        code || 'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
+        'Metadata của form ACTIVE không sẵn sàng.'
+      );
+      unavailable.failClosed = true;
+      unavailable.pollAllowed = true;
+      states[key] = unavailable;
+      dispatchUpdate(formName, unavailable);
+      return unavailable;
+    });
+
+    states[key] = {
+      status: 'loading',
+      runtimeMode: current && current.runtimeMode ? current.runtimeMode : 'LOADING',
+      managed: true,
+      active: Boolean(current && current.active),
+      writeActive: false,
+      deleteActive: false,
+      contextKey: key,
+      pending: pending,
+      schema: current && current.schema ? current.schema : null,
+      runtimeSchemas: current && current.runtimeSchemas
+        ? current.runtimeSchemas
+        : createRuntimeSchemas(resolvedLegacySchema, [], false)
+    };
+    return pending;
+  }
+
   function fetchState(formName, legacySchema, force) {
+    if (config().rolloutMode === 'registry') {
+      return fetchRegistryState(formName, legacySchema, force);
+    }
     var unified = usesUnifiedSchema(formName);
     if (unified) return fetchManagedState(formName, legacySchema, force);
     if (!isPilot(formName)) {
@@ -812,7 +1014,14 @@ window.FieldSyncService = (function (global) {
   function ensurePolling(formName, legacySchema) {
     if (!isPilot(formName) || typeof global.setInterval !== 'function') return;
     var key = stateKey(formName);
+    var current = states[key];
+    if (!current || current.pollAllowed !== true) {
+      clearFormTimers(formName);
+      return;
+    }
     if (timers[key]) return;
+    var pollSeconds = Number(config().pollSeconds);
+    var intervalMs = Math.max(30, Number.isFinite(pollSeconds) ? pollSeconds : 120) * 1000;
     timers[key] = global.setInterval(function () {
       if (!isPilot(formName) || stateKey(formName) !== key) {
         if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
@@ -820,20 +1029,54 @@ window.FieldSyncService = (function (global) {
         return;
       }
       var current = states[key];
+      if (!current || current.pollAllowed !== true) {
+        if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
+        delete timers[key];
+        return;
+      }
       var effectiveLegacySchema = Array.isArray(legacySchema) && legacySchema.length
         ? legacySchema
         : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
       fetchState(formName, effectiveLegacySchema, true);
-    }, config().pollSeconds * 1000);
+    }, intervalMs);
   }
 
   function observeForm(formName, legacySchema) {
-    ensurePolling(formName, legacySchema);
-    return fetchState(formName, legacySchema, usesUnifiedSchema(formName));
+    var activePrefix = normalizeName(formName) + '|';
+    Object.keys(timers).forEach(function (key) {
+      if (key.indexOf(activePrefix) === 0) return;
+      if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
+      delete timers[key];
+    });
+    installRefreshListeners();
+    return fetchState(formName, legacySchema, false).then(function (state) {
+      ensurePolling(formName, legacySchema);
+      return state;
+    });
   }
 
   function refreshForm(formName, legacySchema) {
     return fetchState(formName, Array.isArray(legacySchema) ? legacySchema : [], true);
+  }
+
+  function installRefreshListeners() {
+    if (listenersInstalled || !global.addEventListener) return;
+    listenersInstalled = true;
+    function refreshVisibleContracts() {
+      if (global.document && global.document.visibilityState === 'hidden') return;
+      Object.keys(states).forEach(function (key) {
+        var state = states[key];
+        if (!state || state.pollAllowed !== true || state.pending) return;
+        var formName = state.contract && state.contract.webFormName;
+        if (!formName) return;
+        fetchState(formName, state.runtimeMode === 'LEGACY_FULL' ? state.runtimeSchemas.grid : [], true)
+          .then(function () { ensurePolling(formName, []); });
+      });
+    }
+    global.addEventListener('focus', refreshVisibleContracts);
+    if (global.document && global.document.addEventListener) {
+      global.document.addEventListener('visibilitychange', refreshVisibleContracts);
+    }
   }
 
   function lookupDependencies(values) {
@@ -885,7 +1128,8 @@ window.FieldSyncService = (function (global) {
     var aliasPrefix = stateKey(formName) + '|';
     var aliasKey = aliasPrefix + requestedLookupKey.toLowerCase();
     var effectiveLookupKey = lookupKeyAliases[aliasKey] || requestedLookupKey;
-    if (!isPilot(formName) || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
+    var currentState = getState(formName);
+    if (!currentState || currentState.active !== true || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
       return Promise.reject(normalizeLookupError(new Error('Lookup V2 không hợp lệ')));
     }
     var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(effectiveLookupKey) + '/search';
@@ -948,10 +1192,6 @@ window.FieldSyncService = (function (global) {
   }
 
   function inspectForm(formName) {
-    var registry = global.FieldContractMigrationRegistry || global.Phase2MigrationRegistry;
-    if (!registry || typeof registry.isManagedForm !== 'function' || !registry.isManagedForm(formName)) {
-      return Promise.reject(new Error('Form không nằm trong Unified Field Contract registry'));
-    }
     return requestMetadata(formName, true, true).then(function (metadata) {
       if (!metadata.schema || !metadata.comparison) throw new Error('Metadata compare V2 không hợp lệ');
       return {

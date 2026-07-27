@@ -15,7 +15,14 @@ import { createContractDocumentService } from './src/contracts/contract-document
 import { createContractDocumentRouter } from './src/contracts/contract-document.routes.js';
 import { createFieldSyncConfig } from './src/field-sync/field-sync.config.js';
 import { createFieldSyncGateway, FieldSyncGatewayError } from './src/field-sync/field-sync.gateway.js';
+import { createFieldContractRepository } from './src/field-sync/field-contract.repository.js';
 import { createFieldSyncRouter } from './src/field-sync/field-sync.routes.js';
+import { createSqlServer } from './src/db/sql-server.js';
+import { createExcelImportConfig } from './src/excel-import/excel-import.config.js';
+import { isExcelImportError } from './src/excel-import/excel-import.errors.js';
+import { createExcelImportStore } from './src/excel-import/excel-import.store.js';
+import { createExcelImportService } from './src/excel-import/excel-import.service.js';
+import { createExcelImportRouter } from './src/excel-import/excel-import.routes.js';
 
 try {
     if (typeof dns.setDefaultResultOrder === 'function') {
@@ -75,7 +82,8 @@ app.use(express.json({ limit: '2mb' }));
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
         console.error('[EXPRESS] Lỗi parse JSON payload!');
-        if (String(req.path || '').toLowerCase().startsWith('/api/metadata')) {
+        const requestPath = String(req.path || '').toLowerCase();
+        if (requestPath.startsWith('/api/metadata') || requestPath.startsWith('/api/excel-import')) {
             return res.status(400).set('Cache-Control', 'private, no-store').json({ success: false, message: 'Invalid JSON payload' });
         }
         return res.json({ error: 0, message: 'Invalid JSON payload' });
@@ -98,7 +106,29 @@ app.use('/api', createContractDocumentRouter(documentConfig, contractDocumentSer
 
 const fieldSyncConfig = createFieldSyncConfig(documentConfig);
 const fieldSyncGateway = createFieldSyncGateway(fieldSyncConfig);
-app.use('/api/metadata', createFieldSyncRouter({ gateway: fieldSyncGateway, config: fieldSyncConfig }));
+const fieldContractRepository = createFieldContractRepository({
+    gateway: fieldSyncGateway,
+    config: fieldSyncConfig
+});
+app.use('/api/metadata', createFieldSyncRouter({
+    gateway: fieldSyncGateway,
+    config: fieldSyncConfig,
+    repository: fieldContractRepository
+}));
+
+const excelImportConfig = createExcelImportConfig(documentConfig);
+const excelImportStore = createExcelImportStore(excelImportConfig);
+const sqlServer = createSqlServer();
+const excelImportService = createExcelImportService({
+    config: excelImportConfig,
+    store: excelImportStore,
+    gateway: fieldSyncGateway,
+    sqlServer
+});
+app.use('/api/excel-import', createExcelImportRouter({
+    config: excelImportConfig,
+    service: excelImportService
+}));
 
 function extractUserName(req) {
     const authHeader = req.headers.authorization;
@@ -778,7 +808,14 @@ app.get('/health', async (req, res) => {
         onlyOfficeConfigured: Boolean(documentConfig.onlyOfficePublicUrl),
         samplesAvailable: fs.existsSync(SAMPLES_DIR),
         storageWritable,
-        sqlApiConfigured: Boolean(SQL_API_BASE)
+        sqlApiConfigured: Boolean(SQL_API_BASE),
+        excelImportEnabled: excelImportConfig.enabled,
+        excelImportSqlConfigured: Boolean(
+            process.env.SQL_SERVER
+            && process.env.SQL_DATABASE
+            && process.env.SQL_USER
+            && process.env.SQL_PASSWORD
+        )
     });
 });
 
@@ -805,12 +842,29 @@ const cleanupTimer = setInterval(() => {
 }, 60 * 60 * 1000);
 cleanupTimer.unref();
 
+excelImportService.cleanupExpired().catch((error) => {
+    console.error('[EXCEL IMPORT CLEANUP]', error.message);
+});
+const excelImportCleanupTimer = setInterval(() => {
+    excelImportService.cleanupExpired().catch((error) => {
+        console.error('[EXCEL IMPORT CLEANUP]', error.message);
+    });
+}, 5 * 60 * 1000);
+excelImportCleanupTimer.unref();
+
 app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = Number(error.statusCode) || 500;
     if (status >= 500) console.error('[SERVER]', error.message);
     if (String(req.path || '').toLowerCase().startsWith('/api/metadata')) res.set('Cache-Control', 'private, no-store');
     const body = { success: false, message: error.message || 'Lỗi máy chủ.' };
+    if (isExcelImportError(error) && /^[A-Z0-9_]{3,80}$/.test(String(error.code || ''))) {
+        body.code = error.code;
+        const diagnostic = error.diagnostic || {};
+        if (diagnostic.summary) body.summary = diagnostic.summary;
+        if (Array.isArray(diagnostic.errors)) body.errors = diagnostic.errors;
+        if (diagnostic.errorsTruncated !== undefined) body.errorsTruncated = Boolean(diagnostic.errorsTruncated);
+    }
     if (error instanceof FieldSyncGatewayError && /^[A-Z0-9_]{3,80}$/.test(String(error.diagnosticCode || ''))) {
         body.code = error.diagnosticCode;
         const details = error.details || {};
@@ -823,7 +877,7 @@ app.use((error, req, res, next) => {
     return res.status(status).json(body);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+const httpServer = app.listen(PORT, '0.0.0.0', () => {
     console.log('=======================================================');
     console.log('       ✨ BACKEND SERVER - HR DOCUMENT MANAGEMENT     ');
     console.log('=======================================================');
@@ -833,3 +887,22 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`[🔗] SQL API: ${SQL_API_BASE}`);
     console.log('=======================================================');
 });
+
+let shuttingDown = false;
+async function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.info(`[SERVER] Nhận ${signal}, đang đóng tài nguyên.`);
+    clearInterval(cleanupTimer);
+    clearInterval(excelImportCleanupTimer);
+    httpServer.close(async () => {
+        await Promise.allSettled([
+            excelImportService.dispose(),
+            sqlServer.close()
+        ]);
+        process.exit(0);
+    });
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));

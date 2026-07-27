@@ -9,14 +9,18 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test src/field-sync/field-sync.test.js",
+    "test": "node --test src/field-sync/field-sync.test.js src/excel-import/excel-import.test.js",
     "verify:field-sync:staging": "node ../scripts/verify-field-sync-staging.mjs"
   },
   "dependencies": {
     "axios": "^1.16.1",
     "cors": "^2.8.6",
     "docxtemplater": "^3.68.7",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "pizzip": "^3.2.0"
+    "mssql": "^12.7.0",
+    "multer": "^2.2.0",
+    "pizzip": "^3.2.0",
+    "yauzl": "^3.4.0"
   }
 }

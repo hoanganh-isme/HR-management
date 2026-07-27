@@ -161,6 +161,63 @@ const ApiClient = (function () {
         return request(endpoint, options).then(normalizeResponse);
     }
 
+    function upload(endpoint, formData, options = {}) {
+        const baseUrl = getBaseUrl();
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+        return new Promise(function (resolve, reject) {
+            const xhr = new XMLHttpRequest();
+            xhr.open(options.method || 'POST', url, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            const token = getAuthToken();
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            Object.keys(options.headers || {}).forEach(function (name) {
+                if (options.headers[name] !== undefined && options.headers[name] !== null) {
+                    xhr.setRequestHeader(name, String(options.headers[name]));
+                }
+            });
+            if (typeof options.onProgress === 'function') {
+                xhr.upload.onprogress = function (event) {
+                    options.onProgress(event.loaded, event.lengthComputable ? event.total : 0);
+                };
+            }
+            const signal = options.signal;
+            const abort = function () { xhr.abort(); };
+            if (signal) {
+                if (signal.aborted) {
+                    reject(new DOMException('Đã hủy upload.', 'AbortError'));
+                    return;
+                }
+                signal.addEventListener('abort', abort, { once: true });
+            }
+            xhr.onload = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                let payload = {};
+                try {
+                    payload = xhr.responseText ? parseJsonResponse(xhr.responseText) : {};
+                } catch {
+                    payload = { message: 'Phản hồi JSON từ Server không hợp lệ.' };
+                }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(payload);
+                    return;
+                }
+                const error = new Error(payload.message || 'Upload dữ liệu import thất bại.');
+                error.status = xhr.status;
+                error.data = payload;
+                reject(error);
+            };
+            xhr.onerror = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                reject(new Error('Không thể kết nối Server để upload dữ liệu import.'));
+            };
+            xhr.onabort = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                reject(new DOMException('Đã hủy upload.', 'AbortError'));
+            };
+            xhr.send(formData);
+        });
+    }
+
     return {
         /**
          * G\u1eedi request GET
@@ -200,6 +257,7 @@ const ApiClient = (function () {
 
         normalizeResponse: normalizeResponse,
         requestRecords: requestRecords,
+        upload: upload,
 
         // Expose cookie helpers to be used globally (e.g., in login and logout)
         setCookie: setCookie,
@@ -259,7 +317,7 @@ window.AppSession = (function () {
   }
 
   function isAdmin() {
-    return String(getGroupId()).toLowerCase() === 'admin';
+    return String(getGroupId()).trim().toLowerCase() === 'admin';
   }
 
   function getBranchId() {
@@ -307,8 +365,18 @@ window.AppSession = (function () {
 /**
  * Unified Field Contract migration registry.
  * Entries describe cutover mechanics only; field metadata stays in ERP.
+ *
+ * @deprecated
+ * DB contract registry is the primary rollout source.
  */
 window.FieldContractMigrationRegistry = (function () {
+  var insertOnlyBulkImport = Object.freeze({
+    importEnabled: true,
+    importMode: 'INSERT_ONLY',
+    allowUpsert: false,
+    maxRows: 200000
+  });
+
   var forms = Object.freeze({
     WA_BangThueTNCNFrm: Object.freeze({
       webFormName: 'WA_BangThueTNCNFrm', erpFormId: 'HR_BangThueTNCNFrm',
@@ -317,7 +385,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_ChucDanhFrm: Object.freeze({
       webFormName: 'WA_ChucDanhFrm', erpFormId: 'WA_ChucDanhFrm',
@@ -326,7 +395,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_TitleListFrm: Object.freeze({
       webFormName: 'WA_TitleListFrm', erpFormId: 'WA_TitleListFrm',
@@ -335,7 +405,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_ShiftListFrm: Object.freeze({
       webFormName: 'WA_ShiftListFrm', erpFormId: 'WA_ShiftListFrm',
@@ -344,7 +415,8 @@ window.FieldContractMigrationRegistry = (function () {
       oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA'
+      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport
     }),
     WA_CaLamViecFrm: Object.freeze({
       webFormName: 'WA_CaLamViecFrm', erpFormId: 'WA_CaLamViecFrm',
@@ -354,6 +426,7 @@ window.FieldContractMigrationRegistry = (function () {
       oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
       enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
       enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
+      ...insertOnlyBulkImport,
       permissionFormName: 'WA_CaLamViecFrm',
       writePolicy: 'SAFE_TABLE_COLUMNS',
       // SQL registry resolves this from the physical table schema.
@@ -435,13 +508,26 @@ window.ErpFormAliases = (function () {
   var runtime = configObject(runtimeRoot.FIELD_SYNC);
   var explicit = configObject(global.ERP_FIELD_SYNC_CONFIG);
   var supplied = Object.keys(explicit).length ? explicit : runtime;
-  var pilotForms = Array.isArray(supplied.pilotForms) ? supplied.pilotForms.slice() : [];
+  var legacyPilotForms = Array.isArray(supplied.pilotForms) ? supplied.pilotForms.slice() : [];
+  var includeForms = Array.isArray(supplied.includeForms)
+    ? supplied.includeForms.slice()
+    : legacyPilotForms;
+  var excludeForms = Array.isArray(supplied.excludeForms) ? supplied.excludeForms.slice() : [];
+  var rolloutMode = supplied.rolloutMode === 'pilot'
+    || (!supplied.rolloutMode && legacyPilotForms.length > 0)
+    ? 'pilot'
+    : 'registry';
   var pollSeconds = Number(supplied.pollSeconds);
 
   global.ERP_FIELD_SYNC_CONFIG = Object.freeze({
     enabled: supplied.enabled === true,
     shadowMode: supplied.shadowMode !== false,
-    pilotForms: Object.freeze(pilotForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
+    rolloutMode: rolloutMode,
+    includeForms: Object.freeze(includeForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
+    excludeForms: Object.freeze(excludeForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
+    // Giữ cấu hình cũ để production có thể rollback trong giai đoạn chuyển tiếp.
+    pilotForms: Object.freeze(legacyPilotForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
+    fallbackToLegacy: supplied.fallbackToLegacy !== false,
     pollSeconds: Number.isFinite(pollSeconds) && pollSeconds >= 30 ? Math.floor(pollSeconds) : 120,
     metadataBaseUrl: typeof supplied.metadataBaseUrl === 'string' ? supplied.metadataBaseUrl.replace(/\/+$/, '') : ''
   });
@@ -1738,9 +1824,18 @@ window.FieldSyncService = (function (global) {
   var states = Object.create(null);
   var timers = Object.create(null);
   var lookupKeyAliases = Object.create(null);
+  var listenersInstalled = false;
 
   function config() {
-    return global.ERP_FIELD_SYNC_CONFIG || { enabled: false, shadowMode: true, pilotForms: [], pollSeconds: 120 };
+    return global.ERP_FIELD_SYNC_CONFIG || {
+      enabled: false,
+      shadowMode: true,
+      rolloutMode: 'registry',
+      includeForms: [],
+      excludeForms: [],
+      fallbackToLegacy: true,
+      pollSeconds: 120
+    };
   }
 
   function normalizeName(value) {
@@ -1763,8 +1858,16 @@ window.FieldSyncService = (function (global) {
 
   function isPilot(formName) {
     var target = normalizeName(formName);
-    var pilotForms = Array.isArray(config().pilotForms) ? config().pilotForms : [];
-    return pilotForms.some(function (item) { return normalizeName(item) === target; });
+    var settings = config();
+    var excluded = Array.isArray(settings.excludeForms) ? settings.excludeForms : [];
+    if (excluded.some(function (item) { return normalizeName(item) === target; })) return false;
+    var included = Array.isArray(settings.includeForms) ? settings.includeForms : [];
+    if (included.some(function (item) { return normalizeName(item) === target; })) return true;
+    var legacyPilotForms = Array.isArray(settings.pilotForms) ? settings.pilotForms : [];
+    if (settings.rolloutMode === 'pilot') {
+      return legacyPilotForms.some(function (item) { return normalizeName(item) === target; });
+    }
+    return settings.rolloutMode === 'registry';
   }
 
   function metadataBaseUrl() {
@@ -1989,8 +2092,8 @@ window.FieldSyncService = (function (global) {
   }
 
   function isManagedForm(formName) {
-    var registry = global.FieldContractMigrationRegistry || global.Phase2MigrationRegistry;
-    return Boolean(registry && typeof registry.isManagedForm === 'function' && registry.isManagedForm(formName));
+    var state = states[stateKey(formName)];
+    return state ? state.managed === true : isPilot(formName);
   }
 
   function hasBlockingDiagnostics(schema) {
@@ -2144,6 +2247,8 @@ window.FieldSyncService = (function (global) {
       return {
         schema: responses[0] && responses[0].schema,
         comparison: responses[1] && responses[1].comparison,
+        control: responses[0] && responses[0].contract,
+        backendActive: Boolean(responses[0] && responses[0].active === true),
         expectedErpFormId: expectedErpFormId
       };
     });
@@ -2411,7 +2516,183 @@ window.FieldSyncService = (function (global) {
     return pending;
   }
 
+  function fetchRegistryState(formName, legacySchema, force) {
+    var key = stateKey(formName);
+    var current = states[key];
+    var settings = config();
+    var ttlSeconds = Number(settings.pollSeconds);
+    var ttlMs = Math.max(30, Number.isFinite(ttlSeconds) ? ttlSeconds : 120) * 1000;
+    var resolvedLegacySchema = Array.isArray(legacySchema) && legacySchema.length
+      ? legacySchema
+      : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
+
+    if (!isPilot(formName) || settings.enabled !== true) {
+      clearFormTimers(formName);
+      var disabled = legacyFullState(formName, resolvedLegacySchema, 'legacy-disabled');
+      disabled.managed = false;
+      disabled.rolloutStatus = 'DISABLED';
+      disabled.pollAllowed = false;
+      states[key] = disabled;
+      return Promise.resolve(disabled);
+    }
+    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
+      current.runtimeSchemas = current.active === true
+        ? createUnifiedRuntimeSchemas(current.schema || {}, current.writeActive === true, current.registryEntry || {})
+        : createRuntimeSchemas(resolvedLegacySchema, [], false);
+      return Promise.resolve(current);
+    }
+    if (current && current.pending) return current.pending;
+
+    var lastKnownActive = current && current.active === true && current.schema ? current : null;
+    var pending = requestMetadata(formName, settings.shadowMode === true, force === true).then(function (metadata) {
+      var schema = metadata.schema;
+      var control = metadata.control || {};
+      var rolloutStatus = String(control.rolloutStatus || '').toUpperCase();
+      if (!schema || !Array.isArray(schema.gridFields) || !rolloutStatus) {
+        var invalid = new Error('Unified Field Contract không hợp lệ.');
+        invalid.code = 'FIELD_CONTRACT_INVALID';
+        throw invalid;
+      }
+      var backendActive = metadata.backendActive === true && control.active === true;
+      var active = backendActive && settings.shadowMode !== true;
+      var writeActive = active
+        && String(control.contractType || '').toUpperCase() !== 'READ_ONLY'
+        && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.save && schema.runtimeRoutes.save.registeredProcedure);
+      var deleteActive = writeActive
+        && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.delete && schema.runtimeRoutes.delete.registeredProcedure);
+      var next = {
+        status: active ? (writeActive ? 'unified-active' : 'unified-readonly') : 'legacy-shadow',
+        runtimeMode: active ? 'V2_FULL' : 'LEGACY_FULL',
+        managed: true,
+        active: active,
+        writeActive: writeActive,
+        deleteActive: deleteActive,
+        contextKey: key,
+        schema: schema,
+        comparison: metadata.comparison || null,
+        contract: control,
+        rolloutStatus: rolloutStatus,
+        registryEntry: {},
+        pollAllowed: rolloutStatus === 'ACTIVE' || rolloutStatus === 'SHADOW',
+        runtimeSchemas: active
+          ? createUnifiedRuntimeSchemas(schema, writeActive, {})
+          : createRuntimeSchemas(resolvedLegacySchema, [], false),
+        loadedAt: Date.now(),
+        errorCode: null,
+        error: null
+      };
+      states[key] = next;
+      if (metadata.comparison) storeParity(formName, metadata.comparison);
+      dispatchUpdate(formName, next);
+      return next;
+    }).catch(function (error) {
+      var status = Number(error && error.status) || 0;
+      var code = String(
+        (error && error.data && error.data.code)
+        || (error && error.code)
+        || ''
+      ).trim().toUpperCase();
+      var legacyCodes = {
+        FIELD_CONTRACT_NOT_REGISTERED: true,
+        FIELD_CONTRACT_DEFERRED: true,
+        FIELD_CONTRACT_BLOCKED: true,
+        FIELD_CONTRACT_DISABLED: true
+      };
+      if (legacyCodes[code] || (status === 404 && !code)) {
+        clearFormTimers(formName);
+        var legacy = legacyFullState(
+          formName,
+          resolvedLegacySchema,
+          'legacy-' + (code || 'not-registered').toLowerCase(),
+          null,
+          code || 'FIELD_CONTRACT_NOT_REGISTERED',
+          null
+        );
+        legacy.managed = code !== 'FIELD_CONTRACT_NOT_REGISTERED';
+        legacy.rolloutStatus = code.replace('FIELD_CONTRACT_', '') || 'NOT_REGISTERED';
+        legacy.pollAllowed = false;
+        states[key] = legacy;
+        dispatchUpdate(formName, legacy);
+        return legacy;
+      }
+      if (status === 401) {
+        return verifyPrimarySession().then(function (verification) {
+          var sessionState = errorState(
+            formName,
+            verification.expired ? 'metadata-session-expired' : 'metadata-session-error',
+            verification.expired ? 'PRIMARY_SESSION_EXPIRED' : 'METADATA_UNAUTHORIZED',
+            verification.expired ? 'Phiên đăng nhập đã hết hạn.' : 'Metadata từ chối xác thực.'
+          );
+          sessionState.failClosed = true;
+          states[key] = sessionState;
+          if (verification.expired) expirePrimarySession();
+          dispatchUpdate(formName, sessionState);
+          return sessionState;
+        });
+      }
+      if (lastKnownActive && (status === 0 || status >= 500)) {
+        var readOnly = Object.assign({}, lastKnownActive, {
+          status: 'unified-last-known-readonly',
+          runtimeMode: 'V2_READONLY',
+          writeActive: false,
+          deleteActive: false,
+          runtimeSchemas: createUnifiedRuntimeSchemas(lastKnownActive.schema, false, {}),
+          loadedAt: Date.now(),
+          errorCode: code || 'METADATA_UNAVAILABLE_LAST_KNOWN'
+        });
+        states[key] = readOnly;
+        dispatchUpdate(formName, readOnly);
+        return readOnly;
+      }
+      if (settings.fallbackToLegacy !== false && code.indexOf('FIELD_CONTRACT_ACTIVE_') !== 0) {
+        var fallback = legacyFullState(
+          formName,
+          resolvedLegacySchema,
+          'legacy-metadata-unavailable',
+          null,
+          code || 'METADATA_UNAVAILABLE',
+          null
+        );
+        fallback.managed = false;
+        fallback.pollAllowed = false;
+        states[key] = fallback;
+        dispatchUpdate(formName, fallback);
+        return fallback;
+      }
+      var unavailable = errorState(
+        formName,
+        'cutover-contract-error',
+        code || 'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
+        'Metadata của form ACTIVE không sẵn sàng.'
+      );
+      unavailable.failClosed = true;
+      unavailable.pollAllowed = true;
+      states[key] = unavailable;
+      dispatchUpdate(formName, unavailable);
+      return unavailable;
+    });
+
+    states[key] = {
+      status: 'loading',
+      runtimeMode: current && current.runtimeMode ? current.runtimeMode : 'LOADING',
+      managed: true,
+      active: Boolean(current && current.active),
+      writeActive: false,
+      deleteActive: false,
+      contextKey: key,
+      pending: pending,
+      schema: current && current.schema ? current.schema : null,
+      runtimeSchemas: current && current.runtimeSchemas
+        ? current.runtimeSchemas
+        : createRuntimeSchemas(resolvedLegacySchema, [], false)
+    };
+    return pending;
+  }
+
   function fetchState(formName, legacySchema, force) {
+    if (config().rolloutMode === 'registry') {
+      return fetchRegistryState(formName, legacySchema, force);
+    }
     var unified = usesUnifiedSchema(formName);
     if (unified) return fetchManagedState(formName, legacySchema, force);
     if (!isPilot(formName)) {
@@ -2547,7 +2828,14 @@ window.FieldSyncService = (function (global) {
   function ensurePolling(formName, legacySchema) {
     if (!isPilot(formName) || typeof global.setInterval !== 'function') return;
     var key = stateKey(formName);
+    var current = states[key];
+    if (!current || current.pollAllowed !== true) {
+      clearFormTimers(formName);
+      return;
+    }
     if (timers[key]) return;
+    var pollSeconds = Number(config().pollSeconds);
+    var intervalMs = Math.max(30, Number.isFinite(pollSeconds) ? pollSeconds : 120) * 1000;
     timers[key] = global.setInterval(function () {
       if (!isPilot(formName) || stateKey(formName) !== key) {
         if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
@@ -2555,20 +2843,54 @@ window.FieldSyncService = (function (global) {
         return;
       }
       var current = states[key];
+      if (!current || current.pollAllowed !== true) {
+        if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
+        delete timers[key];
+        return;
+      }
       var effectiveLegacySchema = Array.isArray(legacySchema) && legacySchema.length
         ? legacySchema
         : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
       fetchState(formName, effectiveLegacySchema, true);
-    }, config().pollSeconds * 1000);
+    }, intervalMs);
   }
 
   function observeForm(formName, legacySchema) {
-    ensurePolling(formName, legacySchema);
-    return fetchState(formName, legacySchema, usesUnifiedSchema(formName));
+    var activePrefix = normalizeName(formName) + '|';
+    Object.keys(timers).forEach(function (key) {
+      if (key.indexOf(activePrefix) === 0) return;
+      if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
+      delete timers[key];
+    });
+    installRefreshListeners();
+    return fetchState(formName, legacySchema, false).then(function (state) {
+      ensurePolling(formName, legacySchema);
+      return state;
+    });
   }
 
   function refreshForm(formName, legacySchema) {
     return fetchState(formName, Array.isArray(legacySchema) ? legacySchema : [], true);
+  }
+
+  function installRefreshListeners() {
+    if (listenersInstalled || !global.addEventListener) return;
+    listenersInstalled = true;
+    function refreshVisibleContracts() {
+      if (global.document && global.document.visibilityState === 'hidden') return;
+      Object.keys(states).forEach(function (key) {
+        var state = states[key];
+        if (!state || state.pollAllowed !== true || state.pending) return;
+        var formName = state.contract && state.contract.webFormName;
+        if (!formName) return;
+        fetchState(formName, state.runtimeMode === 'LEGACY_FULL' ? state.runtimeSchemas.grid : [], true)
+          .then(function () { ensurePolling(formName, []); });
+      });
+    }
+    global.addEventListener('focus', refreshVisibleContracts);
+    if (global.document && global.document.addEventListener) {
+      global.document.addEventListener('visibilitychange', refreshVisibleContracts);
+    }
   }
 
   function lookupDependencies(values) {
@@ -2620,7 +2942,8 @@ window.FieldSyncService = (function (global) {
     var aliasPrefix = stateKey(formName) + '|';
     var aliasKey = aliasPrefix + requestedLookupKey.toLowerCase();
     var effectiveLookupKey = lookupKeyAliases[aliasKey] || requestedLookupKey;
-    if (!isPilot(formName) || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
+    var currentState = getState(formName);
+    if (!currentState || currentState.active !== true || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
       return Promise.reject(normalizeLookupError(new Error('Lookup V2 không hợp lệ')));
     }
     var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(effectiveLookupKey) + '/search';
@@ -2683,10 +3006,6 @@ window.FieldSyncService = (function (global) {
   }
 
   function inspectForm(formName) {
-    var registry = global.FieldContractMigrationRegistry || global.Phase2MigrationRegistry;
-    if (!registry || typeof registry.isManagedForm !== 'function' || !registry.isManagedForm(formName)) {
-      return Promise.reject(new Error('Form không nằm trong Unified Field Contract registry'));
-    }
     return requestMetadata(formName, true, true).then(function (metadata) {
       if (!metadata.schema || !metadata.comparison) throw new Error('Metadata compare V2 không hợp lệ');
       return {
@@ -17568,673 +17887,779 @@ var DocumentExportPlugin = (function (global) {
 
 /* --- ExcelImportModal.js --- */
 /**
- * ExcelImportModal.js - Component Import Excel với Kiểm tra Cấu trúc Cột & Kiểu Dữ liệu
+ * Import Excel/clipboard qua cùng pipeline backend:
+ * prepare nguồn -> preview/mapping -> validate -> BulkCopy trong một transaction.
  */
 window.ExcelImportModal = (function () {
   'use strict';
 
-  var activeModalElement = null;
-  var currentWorkbook = null;
-  var currentFile = null;
-  var validationResult = { isValid: false, columnErrors: [], rowErrors: [], parsedRows: [] };
+  var SOURCE_FILE = 'FILE';
+  var SOURCE_CLIPBOARD = 'CLIPBOARD';
+  var PREVIEW_COLUMN_LIMIT = 12;
 
-  function _normalizeText(str) {
-    if (str == null) return '';
-    return String(str)
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .replace(/[\*\:]+$/, ''); // Bỏ ký tự dấu sao bắt buộc hoặc hai chấm ở cuối tên cột
+  function text(value) {
+    return String(value === undefined || value === null ? '' : value);
   }
 
-  function _formatDateVal(rawVal) {
-    if (rawVal == null || rawVal === '') return '';
-
-    if (rawVal instanceof Date) {
-      if (isNaN(rawVal.getTime())) return null;
-      var y = rawVal.getFullYear();
-      var m = String(rawVal.getMonth() + 1).padStart(2, '0');
-      var d = String(rawVal.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    var str = String(rawVal).trim();
-    // Dạng DD/MM/YYYY hoặc DD-MM-YYYY
-    var matchDmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-    if (matchDmy) {
-      var day = parseInt(matchDmy[1], 10);
-      var month = parseInt(matchDmy[2], 10);
-      var year = parseInt(matchDmy[3], 10);
-      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      }
-      return null;
-    }
-
-    // Dạng YYYY-MM-DD hoặc YYYY/MM/DD
-    var matchYmd = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-    if (matchYmd) {
-      var year = parseInt(matchYmd[1], 10);
-      var month = parseInt(matchYmd[2], 10);
-      var day = parseInt(matchYmd[3], 10);
-      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      }
-      return null;
-    }
-
-    // Parse thử bằng Date constructor
-    var parsed = new Date(str);
-    if (!isNaN(parsed.getTime())) {
-      var y = parsed.getFullYear();
-      var m = String(parsed.getMonth() + 1).padStart(2, '0');
-      var d = String(parsed.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    return null;
+  function normalize(value) {
+    return text(value).trim().replace(/\s+/g, ' ').toLowerCase();
   }
 
-  /**
-   * Thực hiện kiểm tra toàn bộ file Excel so với cấu hình webColumns
-   */
-  function _validateExcelData(rawRows, webColumns, headerRowIdx, dataStartRowIdx) {
-    var columnErrors = [];
-    var rowErrors = [];
-    var parsedRows = [];
+  function normalizeLoose(value) {
+    return normalize(value)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/[^a-z0-9]+/g, '');
+  }
 
-    if (!rawRows || rawRows.length === 0) {
-      return {
-        isValid: false,
-        columnErrors: ['File Excel rỗng hoặc không chứa dữ liệu.'],
-        rowErrors: [],
-        parsedRows: []
-      };
-    }
+  function formatNumber(value) {
+    return Number(value || 0).toLocaleString('vi-VN');
+  }
 
-    var headerRowZeroIdx = headerRowIdx - 1;
-    if (headerRowZeroIdx < 0 || headerRowZeroIdx >= rawRows.length) {
-      return {
-        isValid: false,
-        columnErrors: [`Dòng tiêu đề (Dòng ${headerRowIdx}) nằm ngoài phạm vi số dòng file Excel (Tổng ${rawRows.length} dòng).`],
-        rowErrors: [],
-        parsedRows: []
-      };
-    }
+  function formatBytes(value) {
+    var bytes = Number(value || 0);
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
 
-    var rawHeader = rawRows[headerRowZeroIdx] || [];
-    var excelHeaders = [];
-    for (var i = 0; i < rawHeader.length; i++) {
-      excelHeaders.push(String(rawHeader[i] || '').trim());
-    }
-    while (excelHeaders.length > 0 && excelHeaders[excelHeaders.length - 1] === '') {
-      excelHeaders.pop();
-    }
+  function errorPayload(error) {
+    return error && error.data && typeof error.data === 'object'
+      ? error.data
+      : { message: error && error.message ? error.message : 'Không thể xử lý dữ liệu import.' };
+  }
 
-    var webColsCount = webColumns.length;
-    var excelColsCount = excelHeaders.length;
-
-    // Chỉ kiểm tra THIẾU CỘT (Nếu file Excel ít cột hơn số cột hiển thị trên Web)
-    if (excelColsCount < webColsCount) {
-      var missingCols = webColumns.slice(excelColsCount).map(function (c) { return `Cột ${c.colIdx || ''} ("${c.title}")`; }).join(', ');
-      columnErrors.push(`Lỗi thiếu cột: File Excel chỉ có ${excelColsCount} cột, nhưng bảng Web cần ${webColsCount} cột dữ liệu theo thứ tự. (Thiếu từ: ${missingCols})`);
-    }
-
-    // ĐỌC DỮ LIỆU THEO VỊ TRÍ CỘT 1, 2, 3... TƯƠNG ỨNG VỚI CÁC CỘT WEB (BỎ QUA KIỂM TRA CHUỖI TIÊU ĐỀ)
-    var dataStartZeroIdx = dataStartRowIdx - 1;
-    if (dataStartZeroIdx < rawRows.length) {
-      for (var r = dataStartZeroIdx; r < rawRows.length; r++) {
-        var rowData = rawRows[r] || [];
-        var excelRowNumber = r + 1;
-
-        // Bỏ qua dòng rỗng hoàn toàn
-        var isRowBlank = true;
-        for (var k = 0; k < rowData.length; k++) {
-          if (rowData[k] !== undefined && rowData[k] !== null && String(rowData[k]).trim() !== '') {
-            isRowBlank = false;
-            break;
-          }
-        }
-        if (isRowBlank) continue;
-
-        var rowObj = {};
-        for (var c = 0; c < webColsCount; c++) {
-          var colDef = webColumns[c];
-          var fieldName = colDef.field;
-          var fieldTitle = colDef.title || fieldName;
-          var fieldType = String(colDef.type || colDef.fieldType || 'string').toLowerCase();
-          var isRequired = colDef.isRequired === true || colDef.required === true;
-
-          // Tự động nhận diện trường Kiểu Số nếu tên trường/tiêu đề chứa các từ khóa số
-          var fLower = (fieldName + ' ' + fieldTitle).toLowerCase();
-          var isNumericCol = ['number', 'numeric', 'integer', 'int', 'decimal', 'float', 'currency', 'money'].indexOf(fieldType) > -1
-            || fLower.indexOf('bac') >= 0 || fLower.indexOf('tu') >= 0 || fLower.indexOf('den') >= 0
-            || fLower.indexOf('thue') >= 0 || fLower.indexOf('suat') >= 0 || fLower.indexOf('gia') >= 0
-            || fLower.indexOf('tien') >= 0 || fLower.indexOf('amount') >= 0 || fLower.indexOf('rate') >= 0
-            || fLower.indexOf('soluong') >= 0 || fLower.indexOf('so') >= 0 || fLower.indexOf('phantram') >= 0;
-
-          var isDateCol = ['date', 'datetime'].indexOf(fieldType) > -1 || fLower.indexOf('ngay') >= 0 || fLower.indexOf('date') >= 0;
-          var isBoolCol = ['boolean', 'bit', 'checkbox'].indexOf(fieldType) > -1;
-
-          var cellRaw = rowData[c];
-          var cellStr = (cellRaw !== undefined && cellRaw !== null) ? String(cellRaw).trim() : '';
-
-          // A. Bắt buộc
-          if (isRequired && cellStr === '') {
-            rowErrors.push({
-              row: excelRowNumber,
-              colIdx: c + 1,
-              colTitle: fieldTitle,
-              expectedType: 'Bắt buộc',
-              value: '(Để trống)',
-              error: 'Dữ liệu không được để trống'
-            });
-            continue;
-          }
-
-          if (cellStr === '') {
-            rowObj[fieldName] = null;
-            continue;
-          }
-
-          // B. Kiểm tra Kiểu Số
-          if (isNumericCol) {
-            var cleanNumStr = cellStr.replace(/\,/g, '');
-            if (cleanNumStr.match(/^\d+\.\d{3}(\.\d{3})*$/)) {
-              cleanNumStr = cleanNumStr.replace(/\./g, '');
-            }
-            cleanNumStr = cleanNumStr.replace(/\s+/g, '');
-
-            var numVal = Number(cleanNumStr);
-            if (isNaN(numVal) || !isFinite(numVal)) {
-              rowErrors.push({
-                row: excelRowNumber,
-                colIdx: c + 1,
-                colTitle: fieldTitle,
-                expectedType: 'Kiểu Số (Numeric)',
-                value: cellStr,
-                error: 'Dữ liệu "' + cellStr + '" có chứa chữ, không phải là số hợp lệ'
-              });
-            } else {
-              rowObj[fieldName] = numVal;
-            }
-          }
-          // C. Kiểm tra Kiểu Ngày
-          else if (isDateCol) {
-            var dateFormatted = _formatDateVal(cellRaw);
-            if (!dateFormatted) {
-              rowErrors.push({
-                row: excelRowNumber,
-                colIdx: c + 1,
-                colTitle: fieldTitle,
-                expectedType: 'Kiểu Ngày (Date)',
-                value: cellStr,
-                error: 'Dữ liệu "' + cellStr + '" không đúng định dạng ngày tháng (Cần DD/MM/YYYY)'
-              });
-            } else {
-              rowObj[fieldName] = dateFormatted;
-            }
-          }
-          // D. Kiểm tra Kiểu Logic
-          else if (isBoolCol) {
-            var lowerBool = cellStr.toLowerCase();
-            if (['1', 'true', 'có', 'co', 'x', 'yes'].indexOf(lowerBool) > -1) {
-              rowObj[fieldName] = true;
-            } else if (['0', 'false', 'không', 'khong', 'no', 'n'].indexOf(lowerBool) > -1) {
-              rowObj[fieldName] = false;
-            } else {
-              rowErrors.push({
-                row: excelRowNumber,
-                colIdx: c + 1,
-                colTitle: fieldTitle,
-                expectedType: 'Kiểu Logic (Boolean)',
-                value: cellStr,
-                error: 'Dữ liệu "' + cellStr + '" phải là Có/Không hoặc True/False hoặc 1/0'
-              });
-            }
-          }
-          // E. Kiểu Chuỗi
-          else {
-            rowObj[fieldName] = cellStr;
-          }
-        }
-
-        parsedRows.push(rowObj);
-      }
-    }
-
-    var isValid = columnErrors.length === 0 && rowErrors.length === 0;
-
-    return {
-      isValid: isValid,
-      columnErrors: columnErrors,
-      rowErrors: rowErrors,
-      parsedRows: parsedRows
-    };
+  function autoMatch(header, fields) {
+    var exactName = fields.filter(function (field) { return text(field.name) === text(header).trim(); });
+    if (exactName.length === 1) return exactName[0].name;
+    var exactLabel = fields.filter(function (field) { return text(field.label) === text(header).trim(); });
+    if (exactLabel.length === 1) return exactLabel[0].name;
+    var normalized = fields.filter(function (field) {
+      return normalize(field.name) === normalize(header) || normalize(field.label) === normalize(header);
+    });
+    if (normalized.length === 1) return normalized[0].name;
+    var loose = fields.filter(function (field) {
+      return normalizeLoose(field.name) === normalizeLoose(header)
+        || normalizeLoose(field.label) === normalizeLoose(header);
+    });
+    return loose.length === 1 ? loose[0].name : '';
   }
 
   function show(options) {
-    options = options || {};
-    var webColumns = options.webColumns || [];
-    var formName = options.formName || 'Form';
-    var onConfirmCallback = options.onConfirm;
-
-    if (activeModalElement) activeModalElement.remove();
+    var config = options || {};
+    var formName = text(config.formName).trim();
+    var apiBase = text(config.apiBase).replace(/\/+$/, '');
+    var requestHeaders = config.requestHeaders || {};
+    var state = {
+      sourceType: SOURCE_FILE,
+      importId: '',
+      prepared: null,
+      capabilities: null,
+      busy: false,
+      busyStartedAt: 0,
+      busyTimer: null,
+      executed: false,
+      successNotified: false,
+      controller: null
+    };
 
     var backdrop = document.createElement('div');
     backdrop.className = 'excel-import-backdrop';
+    backdrop.innerHTML = [
+      '<section class="excel-import-card" role="dialog" aria-modal="true" aria-labelledby="excel-import-title" tabindex="-1">',
+      '  <header class="excel-import-header">',
+      '    <div>',
+      '      <h3 id="excel-import-title"><span class="material-symbols-outlined">upload_file</span> Import dữ liệu</h3>',
+      '      <p id="excel-import-subtitle"></p>',
+      '    </div>',
+      '    <button type="button" class="excel-import-close-btn" aria-label="Đóng"><span class="material-symbols-outlined">close</span></button>',
+      '  </header>',
+      '  <div class="excel-import-body">',
+      '    <div class="excel-import-source-box" role="radiogroup" aria-label="Nguồn dữ liệu">',
+      '      <label class="excel-import-source-option"><input type="radio" name="import_source" value="FILE" checked><span>Lấy từ file Excel</span></label>',
+      '      <label class="excel-import-source-option"><input type="radio" name="import_source" value="CLIPBOARD"><span>Lấy từ clipboard</span></label>',
+      '    </div>',
+      '    <div class="excel-import-source-panel excel-import-file-panel">',
+      '      <label class="excel-import-dropzone" tabindex="0">',
+      '        <span class="material-symbols-outlined excel-import-dropzone-icon">cloud_upload</span>',
+      '        <span class="excel-import-dropzone-text">Chọn hoặc kéo thả file Excel</span>',
+      '        <span class="excel-import-dropzone-subtext">Hỗ trợ .xlsx không có macro</span>',
+      '        <input class="excel-import-file-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>',
+      '      </label>',
+      '    </div>',
+      '    <div class="excel-import-source-panel excel-import-clipboard-panel" hidden>',
+      '      <div class="excel-import-paste-help"><span class="material-symbols-outlined">content_paste</span><span>Mở Excel, copy vùng dữ liệu rồi dán vào vùng bên dưới.</span></div>',
+      '      <button type="button" class="excel-import-paste-zone">',
+      '        <span class="material-symbols-outlined">content_paste_go</span>',
+      '        <strong>Nhấn Ctrl + V để dán dữ liệu</strong>',
+      '        <small>Dữ liệu lớn sẽ được upload dạng luồng, không gửi JSON từng dòng.</small>',
+      '      </button>',
+      '    </div>',
+      '    <div class="excel-import-file-badge" hidden><span class="material-symbols-outlined">description</span><span class="excel-import-file-name"></span><small class="excel-import-file-size"></small></div>',
+      '    <div class="excel-import-upload-progress" hidden>',
+      '      <div><span class="excel-import-progress-label">Đang upload...</span><span class="excel-import-progress-percent">0%</span></div>',
+      '      <div class="excel-import-progress-track"><span></span></div>',
+      '    </div>',
+      '    <div class="excel-import-banner excel-import-banner-info" role="status" aria-live="polite">',
+      '      <span class="material-symbols-outlined">info</span><div class="excel-import-status">Đang kiểm tra khả năng Bulk Import...</div>',
+      '    </div>',
+      '    <div class="excel-import-config" hidden>',
+      '      <div class="excel-import-config-grid">',
+      '        <div class="excel-import-field"><label for="excel-import-sheet">Nguồn dữ liệu</label><select id="excel-import-sheet" class="excel-import-sheet"></select></div>',
+      '        <div class="excel-import-field"><label for="excel-import-header-row">Tiêu đề các cột</label><select id="excel-import-header-row" class="excel-import-header-row"></select></div>',
+      '      </div>',
+      '      <div class="excel-import-mapping-toolbar">',
+      '        <label class="excel-import-checkbox-label"><input type="checkbox" class="excel-import-toggle-mapping"><span>Chỉnh ánh xạ cột</span></label>',
+      '        <span class="excel-import-row-count"></span>',
+      '      </div>',
+      '      <div class="excel-import-mapping-summary"></div>',
+      '      <div class="excel-import-mapping-list" hidden></div>',
+      '      <section class="excel-import-preview-section">',
+      '        <h4 class="excel-import-section-title">Xem trước dữ liệu</h4>',
+      '        <div class="excel-import-table-wrapper"><table class="excel-import-table excel-import-preview"></table></div>',
+      '      </section>',
+      '    </div>',
+      '    <div class="excel-import-result" hidden></div>',
+      '  </div>',
+      '  <footer class="excel-import-footer">',
+      '    <button type="button" class="excel-import-btn excel-import-btn-cancel">Hủy</button>',
+      '    <button type="button" class="excel-import-btn excel-import-btn-submit" disabled><span class="material-symbols-outlined">database_upload</span> Import dữ liệu</button>',
+      '  </footer>',
+      '</section>'
+    ].join('');
 
-    var card = document.createElement('div');
-    card.className = 'excel-import-card';
+    var card = backdrop.querySelector('.excel-import-card');
+    var subtitle = backdrop.querySelector('#excel-import-subtitle');
+    var closeButton = backdrop.querySelector('.excel-import-close-btn');
+    var cancelButton = backdrop.querySelector('.excel-import-btn-cancel');
+    var submitButton = backdrop.querySelector('.excel-import-btn-submit');
+    var sourceBox = backdrop.querySelector('.excel-import-source-box');
+    var sourceRadios = backdrop.querySelectorAll('input[name="import_source"]');
+    var filePanel = backdrop.querySelector('.excel-import-file-panel');
+    var clipboardPanel = backdrop.querySelector('.excel-import-clipboard-panel');
+    var fileInput = backdrop.querySelector('.excel-import-file-input');
+    var dropzone = backdrop.querySelector('.excel-import-dropzone');
+    var pasteZone = backdrop.querySelector('.excel-import-paste-zone');
+    var fileBadge = backdrop.querySelector('.excel-import-file-badge');
+    var fileName = backdrop.querySelector('.excel-import-file-name');
+    var fileSize = backdrop.querySelector('.excel-import-file-size');
+    var uploadProgress = backdrop.querySelector('.excel-import-upload-progress');
+    var progressLabel = backdrop.querySelector('.excel-import-progress-label');
+    var progressPercent = backdrop.querySelector('.excel-import-progress-percent');
+    var progressFill = backdrop.querySelector('.excel-import-progress-track span');
+    var banner = backdrop.querySelector('.excel-import-banner');
+    var status = backdrop.querySelector('.excel-import-status');
+    var configSection = backdrop.querySelector('.excel-import-config');
+    var resultSection = backdrop.querySelector('.excel-import-result');
+    var sheetSelect = backdrop.querySelector('.excel-import-sheet');
+    var headerRowSelect = backdrop.querySelector('.excel-import-header-row');
+    var toggleMapping = backdrop.querySelector('.excel-import-toggle-mapping');
+    var mappingSummary = backdrop.querySelector('.excel-import-mapping-summary');
+    var mappingList = backdrop.querySelector('.excel-import-mapping-list');
+    var rowCount = backdrop.querySelector('.excel-import-row-count');
+    var previewTable = backdrop.querySelector('.excel-import-preview');
 
-    // 1. Header
-    card.innerHTML = `
-      <div class="excel-import-header">
-        <h3><span class="material-symbols-outlined">upload_file</span> Import dữ liệu Excel - ${formName}</h3>
-        <button type="button" class="excel-import-close-btn" id="excel-import-close">&times;</button>
-      </div>
-      <div class="excel-import-body">
-        <!-- Configuration Controls -->
-        <div class="excel-import-config-grid">
-          <div class="excel-import-field">
-            <label>Chọn Sheet dữ liệu:</label>
-            <select id="excel-import-sheet-select" disabled>
-              <option value="">-- Chưa nạp file --</option>
-            </select>
-          </div>
-          <div class="excel-import-field">
-            <label>Dòng chứa Tiêu đề cột:</label>
-            <input type="number" id="excel-import-header-row" value="1" min="1" max="100">
-          </div>
-          <div class="excel-import-field">
-            <label>Dòng bắt đầu đọc dữ liệu:</label>
-            <input type="number" id="excel-import-data-row" value="2" min="1" max="100">
-          </div>
-        </div>
+    subtitle.textContent = text(config.formTitle || formName);
 
-        <!-- File Dropzone -->
-        <div class="excel-import-dropzone" id="excel-import-dropzone">
-          <span class="material-symbols-outlined excel-import-dropzone-icon">cloud_upload</span>
-          <div class="excel-import-dropzone-text">Kéo thả file Excel (.xlsx, .xls, .csv) vào đây hoặc <span style="color:#4f46e5; text-decoration:underline;">chọn file từ máy tính</span></div>
-          <div class="excel-import-dropzone-subtext">Hệ thống sẽ kiểm tra thứ tự cột trên Web (${webColumns.length} cột) và bắt chặn nếu có lỗi dữ liệu.</div>
-          <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
-        </div>
-
-        <!-- Selected File Info -->
-        <div class="excel-import-file-badge" id="excel-file-badge" style="display:none;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="material-symbols-outlined">description</span>
-            <span id="excel-file-name" style="font-weight:600;">filename.xlsx</span>
-            <span id="excel-file-size" style="opacity:0.8; font-size:12px;">(0 KB)</span>
-          </div>
-          <button type="button" id="excel-file-change-btn" style="background:none; border:none; color:#3730a3; cursor:pointer; font-size:13px; font-weight:600; text-decoration:underline;">Đổi file khác</button>
-        </div>
-
-        <!-- Status Banner -->
-        <div id="excel-import-status-banner" class="excel-import-banner excel-import-banner-info">
-          <span class="material-symbols-outlined">info</span>
-          <div>Vui lòng chọn file Excel để bắt đầu kiểm tra tự động.</div>
-        </div>
-
-        <!-- Detailed Error / Result Area -->
-        <div id="excel-import-result-area"></div>
-      </div>
-
-      <!-- Footer Actions -->
-      <div class="excel-import-footer">
-        <button type="button" class="excel-import-btn excel-import-btn-cancel" id="excel-import-btn-cancel">Hủy bỏ</button>
-        <button type="button" class="excel-import-btn excel-import-btn-submit" id="excel-import-btn-submit" disabled>
-          <span class="material-symbols-outlined">check_circle</span>
-          Xác nhận Import
-        </button>
-      </div>
-    `;
-
-    backdrop.appendChild(card);
-    document.body.appendChild(backdrop);
-    activeModalElement = backdrop;
-
-    // References
-    var closeBtn = card.querySelector('#excel-import-close');
-    var cancelBtn = card.querySelector('#excel-import-btn-cancel');
-    var submitBtn = card.querySelector('#excel-import-btn-submit');
-    var dropzone = card.querySelector('#excel-import-dropzone');
-    var fileInput = card.querySelector('#excel-file-input');
-    var fileBadge = card.querySelector('#excel-file-badge');
-    var fileNameEl = card.querySelector('#excel-file-name');
-    var fileSizeEl = card.querySelector('#excel-file-size');
-    var changeFileBtn = card.querySelector('#excel-file-change-btn');
-    var sheetSelect = card.querySelector('#excel-import-sheet-select');
-    var headerRowInput = card.querySelector('#excel-import-header-row');
-    var dataRowInput = card.querySelector('#excel-import-data-row');
-    var statusBanner = card.querySelector('#excel-import-status-banner');
-    var resultArea = card.querySelector('#excel-import-result-area');
-
-    function closeModal() {
-      if (activeModalElement) {
-        activeModalElement.remove();
-        activeModalElement = null;
-      }
-      currentWorkbook = null;
-      currentFile = null;
+    function endpoint(pathName) {
+      return apiBase + '/api/excel-import' + pathName;
     }
 
-    closeBtn.onclick = closeModal;
-    cancelBtn.onclick = closeModal;
-
-    // Dropzone Events
-    dropzone.onclick = function () { fileInput.click(); };
-    dropzone.ondragover = function (e) { e.preventDefault(); dropzone.classList.add('dragover'); };
-    dropzone.ondragleave = function () { dropzone.classList.remove('dragover'); };
-    dropzone.ondrop = function (e) {
-      e.preventDefault();
-      dropzone.classList.remove('dragover');
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFileSelect(e.dataTransfer.files[0]);
-      }
-    };
-    fileInput.onchange = function () {
-      if (fileInput.files && fileInput.files.length > 0) {
-        handleFileSelect(fileInput.files[0]);
-      }
-    };
-    changeFileBtn.onclick = function () {
-      fileInput.click();
-    };
-
-    // Header & Data Row change listeners
-    headerRowInput.onchange = function () {
-      var hVal = parseInt(headerRowInput.value, 10) || 1;
-      if (hVal < 1) hVal = 1;
-      headerRowInput.value = hVal;
-
-      var dVal = parseInt(dataRowInput.value, 10) || 2;
-      if (dVal <= hVal) {
-        dataRowInput.value = hVal + 1;
-      }
-      reprocessSheetData();
-    };
-
-    dataRowInput.onchange = function () {
-      var hVal = parseInt(headerRowInput.value, 10) || 1;
-      var dVal = parseInt(dataRowInput.value, 10) || 2;
-      if (dVal <= hVal) dVal = hVal + 1;
-      dataRowInput.value = dVal;
-      reprocessSheetData();
-    };
-
-    sheetSelect.onchange = function () {
-      reprocessSheetData();
-    };
-
-    function handleFileSelect(file) {
-      if (typeof XLSX === 'undefined') {
-        if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Thư viện đọc Excel (SheetJS XLSX) chưa sẵn sàng.');
-        return;
-      }
-
-      currentFile = file;
-      fileNameEl.textContent = file.name;
-      fileSizeEl.textContent = `(${Math.round(file.size / 1024)} KB)`;
-      dropzone.style.display = 'none';
-      fileBadge.style.display = 'flex';
-
-      var reader = new FileReader();
-      reader.onload = function (e) {
-        try {
-          var data = new Uint8Array(e.target.result);
-          currentWorkbook = XLSX.read(data, { type: 'array', cellDates: true });
-
-          sheetSelect.innerHTML = '';
-          currentWorkbook.SheetNames.forEach(function (sName) {
-            var opt = document.createElement('option');
-            opt.value = sName;
-            opt.textContent = sName;
-            sheetSelect.appendChild(opt);
-          });
-          sheetSelect.disabled = false;
-
-          reprocessSheetData();
-        } catch (err) {
-          console.error('Lỗi đọc file Excel:', err);
-          renderErrorState(['Không thể đọc nội dung file Excel. File bị hỏng hoặc mã hóa không tương thích.']);
-        }
-      };
-      reader.readAsArrayBuffer(file);
+    function selectedSource() {
+      var selected = backdrop.querySelector('input[name="import_source"]:checked');
+      return selected ? selected.value : SOURCE_FILE;
     }
 
-    function reprocessSheetData() {
-      if (!currentWorkbook) return;
-
-      var selectedSheetName = sheetSelect.value || currentWorkbook.SheetNames[0];
-      var sheet = currentWorkbook.Sheets[selectedSheetName];
-      if (!sheet) {
-        renderErrorState(['Sheet đã chọn không hợp lệ.']);
-        return;
-      }
-
-      var rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
-      var headerRowIdx = parseInt(headerRowInput.value, 10) || 1;
-      var dataStartRowIdx = parseInt(dataRowInput.value, 10) || 2;
-
-      validationResult = _validateExcelData(rawRows, webColumns, headerRowIdx, dataStartRowIdx);
-      renderValidationResult(validationResult);
+    function showSelectedSourcePanel() {
+      var sourceType = selectedSource();
+      filePanel.hidden = sourceType !== SOURCE_FILE;
+      clipboardPanel.hidden = sourceType !== SOURCE_CLIPBOARD;
     }
 
-    function renderErrorState(columnErrs) {
-      validationResult = { isValid: false, columnErrors: columnErrs, rowErrors: [], parsedRows: [] };
-      renderValidationResult(validationResult);
+    function setSourceInputsDisabled(disabled) {
+      fileInput.disabled = disabled;
+      pasteZone.disabled = disabled;
+      sourceRadios.forEach(function (radio) { radio.disabled = disabled; });
     }
 
-    function renderValidationResult(res) {
-      resultArea.innerHTML = '';
+    function stopBusyTimer() {
+      if (state.busyTimer) window.clearInterval(state.busyTimer);
+      state.busyTimer = null;
+    }
 
-      if (!res.isValid) {
-        submitBtn.disabled = true;
-        var totalErrs = res.columnErrors.length + res.rowErrors.length;
-
-        statusBanner.className = 'excel-import-banner excel-import-banner-error';
-        statusBanner.innerHTML = `
-          <span class="material-symbols-outlined" style="font-size:24px;">error</span>
-          <div>
-            <strong style="font-size:15px;">❌ BẮT CHẠN IMPORT: Phát hiện ${totalErrs} lỗi trong file Excel!</strong>
-            <div style="font-size:13px; margin-top:2px;">Vui lòng sửa các lỗi cấu trúc cột hoặc kiểu dữ liệu dưới đây trước khi thực hiện nạp dữ liệu.</div>
-          </div>
-        `;
-
-        var errContainer = document.createElement('div');
-        errContainer.className = 'excel-import-error-section';
-
-        // A. Cấu trúc Cột
-        if (res.columnErrors.length > 0) {
-          var colErrBox = document.createElement('div');
-          colErrBox.style.cssText = 'background:#fff1f2; border:1px solid #fecdd3; padding:12px 16px; border-radius:8px;';
-          var colErrTitle = document.createElement('div');
-          colErrTitle.className = 'excel-import-error-title';
-          colErrTitle.innerHTML = '<span class="material-symbols-outlined">view_column</span> Lỗi Cấu Trúc Cột (' + res.columnErrors.length + ' lỗi)';
-          colErrBox.appendChild(colErrTitle);
-
-          var colUl = document.createElement('ul');
-          colUl.style.cssText = 'margin:8px 0 0 20px; padding:0; font-size:13px; color:#9f1239; line-height:1.6;';
-          res.columnErrors.forEach(function (errText) {
-            var li = document.createElement('li');
-            li.textContent = errText;
-            colUl.appendChild(li);
-          });
-          colErrBox.appendChild(colUl);
-          errContainer.appendChild(colErrBox);
-        }
-
-        // B. Kiểu dữ liệu theo dòng
-        if (res.rowErrors.length > 0) {
-          var rowErrTitle = document.createElement('div');
-          rowErrTitle.className = 'excel-import-error-title';
-          rowErrTitle.innerHTML = '<span class="material-symbols-outlined">rule</span> Danh Sách Chi Tiết Lỗi Kiểu Dữ Liệu Dòng (' + res.rowErrors.length + ' lỗi)';
-          errContainer.appendChild(rowErrTitle);
-
-          var tableWrapper = document.createElement('div');
-          tableWrapper.className = 'excel-import-table-wrapper';
-
-          var tableHtml = `
-            <table class="excel-import-table">
-              <thead>
-                <tr>
-                  <th style="width:65px; text-align:center;">Dòng</th>
-                  <th style="width:140px;">Vị trí Cột</th>
-                  <th style="width:140px;">Kiểu dữ liệu</th>
-                  <th style="width:140px;">Dữ liệu nhập (Excel)</th>
-                  <th>Mô tả chi tiết Lỗi</th>
-                </tr>
-              </thead>
-              <tbody>
-          `;
-
-          res.rowErrors.forEach(function (item) {
-            tableHtml += `
-              <tr>
-                <td style="font-weight:700; text-align:center; color:#b91c1c;">${item.row}</td>
-                <td><strong style="color:#1e293b;">Cột ${item.colIdx}</strong> <span style="font-size:11px; color:#64748b;">(${item.colTitle})</span></td>
-                <td><span style="font-size:12px; font-weight:600; color:#475569; background:#f1f5f9; padding:2px 6px; border-radius:4px;">${item.expectedType || 'Số/Chuỗi'}</span></td>
-                <td class="badge-err-cell" style="font-weight:600; color:#dc2626;">"${item.value}"</td>
-                <td style="color:#b91c1c; font-weight:500;">${item.error}</td>
-              </tr>
-            `;
-          });
-
-          tableHtml += `</tbody></table>`;
-          tableWrapper.innerHTML = tableHtml;
-          errContainer.appendChild(tableWrapper);
-        }
-
-        resultArea.appendChild(errContainer);
-
+    function setBusy(busy, label) {
+      state.busy = busy;
+      if (busy) {
+        state.busyStartedAt = Date.now();
+        cancelButton.textContent = 'Hủy xử lý';
+        stopBusyTimer();
+        state.busyTimer = window.setInterval(function () {
+          var seconds = Math.max(1, Math.floor((Date.now() - state.busyStartedAt) / 1000));
+          submitButton.title = 'Đã xử lý ' + seconds + ' giây';
+        }, 1000);
       } else {
-        // HỢP LỆ 100%
-        submitBtn.disabled = false;
-        var count = res.parsedRows.length;
+        stopBusyTimer();
+        cancelButton.textContent = state.executed ? 'Đóng' : 'Hủy';
+        submitButton.title = '';
+      }
+      setSourceInputsDisabled(busy || !state.capabilities);
+      sheetSelect.disabled = busy;
+      headerRowSelect.disabled = busy;
+      closeButton.disabled = busy;
+      mappingList.querySelectorAll('select').forEach(function (select) { select.disabled = busy; });
+      submitButton.disabled = busy || !canSubmit();
+      submitButton.innerHTML = busy
+        ? '<span class="material-symbols-outlined excel-import-spin">progress_activity</span>' + text(label || 'Đang xử lý...')
+        : '<span class="material-symbols-outlined">database_upload</span> Import ' + formatNumber(selectedDataRows()) + ' dòng';
+    }
 
-        statusBanner.className = 'excel-import-banner excel-import-banner-success';
-        statusBanner.innerHTML = `
-          <span class="material-symbols-outlined" style="font-size:24px;">check_circle</span>
-          <div>
-            <strong style="font-size:15px;">✅ HỢP LỆ: File Excel hoàn toàn khớp với thứ tự cột & kiểu dữ liệu Web!</strong>
-            <div style="font-size:13px; margin-top:2px;">Sẵn sàng import <strong>${count} bản ghi</strong> dữ liệu hợp lệ vào hệ thống.</div>
-          </div>
-        `;
+    function setStatus(kind, message) {
+      banner.className = 'excel-import-banner excel-import-banner-' + kind;
+      banner.querySelector('.material-symbols-outlined').textContent = kind === 'error'
+        ? 'error'
+        : kind === 'success' ? 'check_circle' : 'info';
+      status.textContent = message;
+    }
 
-        // Render Preview Table (Tối đa 10 dòng đầu)
-        var previewBox = document.createElement('div');
-        previewBox.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
-        previewBox.innerHTML = '<div style="font-size:13px; font-weight:600; color:#334155;">Xem trước dữ liệu chuẩn hóa (10 dòng đầu):</div>';
+    function selectedSheet() {
+      if (!state.prepared) return null;
+      return state.prepared.sheets.find(function (sheet) {
+        return sheet.name === sheetSelect.value;
+      }) || state.prepared.sheets[0] || null;
+    }
 
-        var tableWrapper = document.createElement('div');
-        tableWrapper.className = 'excel-import-table-wrapper';
+    function selectedDataRows() {
+      var sheet = selectedSheet();
+      if (!sheet) return 0;
+      var headerRows = Math.max(0, Number(headerRowSelect.value || 0));
+      return Math.max(0, Number(sheet.estimatedRows || 0) - headerRows);
+    }
 
-        var pTable = `<table class="excel-import-table"><thead><tr><th style="width:50px;">STT</th>`;
-        webColumns.forEach(function (col) {
-          pTable += `<th>${col.title}</th>`;
+    function headers() {
+      var sheet = selectedSheet();
+      if (!sheet) return [];
+      var headerRow = Number(headerRowSelect.value || 0);
+      if (headerRow === 0) {
+        var firstRow = (sheet.preview || []).find(function (row) {
+          return Array.isArray(row) && row.some(function (value) { return text(value).trim(); });
+        }) || [];
+        return firstRow.map(function (_value, index) { return 'Cột ' + (index + 1); });
+      }
+      return Array.isArray(sheet.preview[headerRow - 1]) ? sheet.preview[headerRow - 1] : [];
+    }
+
+    function currentMapping() {
+      var output = {};
+      mappingList.querySelectorAll('.excel-import-mapping-row').forEach(function (row) {
+        var source = row.getAttribute('data-source') || '';
+        var target = row.querySelector('select').value;
+        if (source && target) output[source] = target;
+      });
+      return output;
+    }
+
+    function mappingState() {
+      var current = currentMapping();
+      var targetNames = Object.keys(current).map(function (source) { return current[source]; });
+      var duplicates = targetNames.filter(function (name, index) {
+        return targetNames.indexOf(name) !== index;
+      });
+      var requiredMissing = (state.prepared ? state.prepared.fields : []).filter(function (field) {
+        return field.required === true && targetNames.indexOf(field.name) === -1;
+      });
+      return {
+        count: targetNames.length,
+        duplicates: duplicates,
+        requiredMissing: requiredMissing
+      };
+    }
+
+    function canSubmit() {
+      if (!state.importId || !state.prepared || state.executed) return false;
+      var check = mappingState();
+      return check.count > 0 && check.duplicates.length === 0 && check.requiredMissing.length === 0;
+    }
+
+    function renderPreview() {
+      previewTable.innerHTML = '';
+      var sheet = selectedSheet();
+      if (!sheet) return;
+      var allHeaders = headers();
+      var indices = [];
+      allHeaders.forEach(function (header, index) {
+        if (text(header).trim() && indices.length < PREVIEW_COLUMN_LIMIT) indices.push(index);
+      });
+      if (!indices.length) {
+        var emptyRow = document.createElement('tr');
+        var emptyCell = document.createElement('td');
+        emptyCell.textContent = 'Dòng tiêu đề đang chọn không có dữ liệu.';
+        emptyRow.appendChild(emptyCell);
+        previewTable.appendChild(emptyRow);
+        return;
+      }
+
+      var thead = document.createElement('thead');
+      var headingRow = document.createElement('tr');
+      indices.forEach(function (index) {
+        var th = document.createElement('th');
+        th.textContent = text(allHeaders[index]) || ('Cột ' + (index + 1));
+        headingRow.appendChild(th);
+      });
+      thead.appendChild(headingRow);
+      previewTable.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
+      var headerIndex = Number(headerRowSelect.value || 0) - 1;
+      (sheet.preview || []).slice(Math.max(0, headerIndex + 1)).forEach(function (row) {
+        var tr = document.createElement('tr');
+        indices.forEach(function (index) {
+          var td = document.createElement('td');
+          td.textContent = text(row[index]);
+          tr.appendChild(td);
         });
-        pTable += `</tr></thead><tbody>`;
+        tbody.appendChild(tr);
+      });
+      previewTable.appendChild(tbody);
 
-        var previewSlice = res.parsedRows.slice(0, 10);
-        previewSlice.forEach(function (rowObj, idx) {
-          pTable += `<tr><td style="text-align:center; color:#64748b;">${idx + 1}</td>`;
-          webColumns.forEach(function (col) {
-            var val = rowObj[col.field];
-            pTable += `<td>${val != null ? val : ''}</td>`;
-          });
-          pTable += `</tr>`;
-        });
-
-        pTable += `</tbody></table>`;
-        tableWrapper.innerHTML = pTable;
-        previewBox.appendChild(tableWrapper);
-        resultArea.appendChild(previewBox);
+      if (allHeaders.filter(function (item) { return text(item).trim(); }).length > PREVIEW_COLUMN_LIMIT) {
+        var caption = document.createElement('caption');
+        caption.textContent = 'Đang xem ' + PREVIEW_COLUMN_LIMIT + ' cột đầu; tất cả cột đã map vẫn được import.';
+        previewTable.appendChild(caption);
       }
     }
 
-    // Submit handler
-    submitBtn.onclick = function () {
-      if (!validationResult.isValid || validationResult.parsedRows.length === 0) return;
+    function renderMapping() {
+      mappingList.innerHTML = '';
+      var sourceHeaders = headers();
+      var fields = state.prepared ? state.prepared.fields : [];
+      var noHeader = Number(headerRowSelect.value || 0) === 0;
 
-      submitBtn.disabled = true;
-      cancelBtn.disabled = true;
+      sourceHeaders.forEach(function (source, index) {
+        source = text(source).trim();
+        if (!source) return;
+        var row = document.createElement('div');
+        row.className = 'excel-import-mapping-row';
+        row.setAttribute('data-source', source);
 
-      var cancelCallback = null;
+        var sourceBox = document.createElement('div');
+        sourceBox.innerHTML = '<small>Cột nguồn ' + (index + 1) + '</small>';
+        var sourceName = document.createElement('strong');
+        sourceName.textContent = source;
+        sourceBox.appendChild(sourceName);
 
-      // Render Modern Stats Progress Box
-      resultArea.innerHTML = `
-        <div class="excel-import-progress-box">
-          <div class="excel-import-progress-header">
-            <div class="excel-import-progress-title">
-              <span class="material-symbols-outlined spinner-border-sm" style="font-size:20px; color:#0284c7;">sync</span>
-              <span>Đang lưu dữ liệu siêu tốc vào hệ thống...</span>
-            </div>
-            <div class="excel-import-stats-badge">
-              <span id="excel-import-speed-text">⚡ 0 dòng/s</span>
-              <span style="color:#cbd5e1;">|</span>
-              <span id="excel-import-eta-text">⏱️ --s còn lại</span>
-              <button type="button" class="excel-import-cancel-task-btn" id="excel-import-cancel-task">Hủy Import</button>
-            </div>
-          </div>
+        var arrow = document.createElement('span');
+        arrow.className = 'material-symbols-outlined';
+        arrow.textContent = 'arrow_forward';
 
-          <div class="excel-import-progress-bar-bg">
-            <div class="excel-import-progress-fill" id="excel-import-progress-fill"></div>
-          </div>
+        var select = document.createElement('select');
+        select.setAttribute('aria-label', 'Trường đích cho ' + source);
+        var skipOption = document.createElement('option');
+        skipOption.value = '';
+        skipOption.textContent = 'Không import cột này';
+        select.appendChild(skipOption);
+        fields.forEach(function (field) {
+          var option = document.createElement('option');
+          option.value = field.name;
+          option.textContent = (field.label || field.name) + ' (' + field.name + ')' + (field.required ? ' *' : '');
+          select.appendChild(option);
+        });
+        select.value = autoMatch(source, fields) || (noHeader && fields[index] ? fields[index].name : '');
+        select.addEventListener('change', updateMappingSummary);
 
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:600; color:#0369a1;">
-            <span id="excel-import-progress-percent">Tiến trình: 0%</span>
-            <span id="excel-import-progress-text">0 / ${validationResult.parsedRows.length} bản ghi</span>
-          </div>
-        </div>
-      `;
+        row.appendChild(sourceBox);
+        row.appendChild(arrow);
+        row.appendChild(select);
+        mappingList.appendChild(row);
+      });
+      updateMappingSummary();
+      renderPreview();
+    }
 
-      var cancelTaskBtn = resultArea.querySelector('#excel-import-cancel-task');
-      if (cancelTaskBtn) {
-        cancelTaskBtn.onclick = function () {
-          cancelTaskBtn.disabled = true;
-          cancelTaskBtn.textContent = 'Đang hủy...';
-          if (typeof cancelCallback === 'function') cancelCallback();
-        };
+    function updateMappingSummary() {
+      var check = mappingState();
+      mappingSummary.className = 'excel-import-mapping-summary';
+      if (check.duplicates.length) {
+        mappingSummary.classList.add('is-error');
+        mappingSummary.textContent = 'Một trường đích đang được map nhiều lần. Hãy chọn lại.';
+      } else if (check.requiredMissing.length) {
+        mappingSummary.classList.add('is-warning');
+        mappingSummary.textContent = 'Còn thiếu trường bắt buộc: ' + check.requiredMissing.map(function (field) {
+          return field.label || field.name;
+        }).join(', ');
+      } else if (check.count === 0) {
+        mappingSummary.classList.add('is-error');
+        mappingSummary.textContent = 'Chưa nhận diện được cột nào. Hãy mở phần ánh xạ để chọn.';
+      } else {
+        mappingSummary.classList.add('is-ready');
+        mappingSummary.textContent = 'Đã map ' + check.count + ' cột. Sẵn sàng import.';
       }
 
-      var modalApi = {
-        updateProgress: function (current, total, speed, etaSec) {
-          var textEl = card.querySelector('#excel-import-progress-text');
-          var pctEl = card.querySelector('#excel-import-progress-percent');
-          var fillEl = card.querySelector('#excel-import-progress-fill');
-          var speedEl = card.querySelector('#excel-import-speed-text');
-          var etaEl = card.querySelector('#excel-import-eta-text');
+      var needsAttention = check.count === 0 || check.duplicates.length > 0 || check.requiredMissing.length > 0;
+      if (needsAttention) toggleMapping.checked = true;
+      mappingList.hidden = !toggleMapping.checked;
+      rowCount.textContent = formatNumber(selectedDataRows()) + ' dòng dữ liệu';
+      submitButton.disabled = state.busy || !canSubmit();
+      if (!state.busy) {
+        submitButton.innerHTML = '<span class="material-symbols-outlined">database_upload</span> Import '
+          + formatNumber(selectedDataRows()) + ' dòng';
+      }
+    }
 
-          if (textEl && fillEl) {
-            var pct = total > 0 ? Math.round((current / total) * 100) : 0;
-            textEl.textContent = `${current.toLocaleString('vi-VN')} / ${total.toLocaleString('vi-VN')} bản ghi`;
-            if (pctEl) pctEl.textContent = `Tiến trình: ${pct}%`;
-            fillEl.style.width = pct + '%';
-            if (speedEl && speed !== undefined) speedEl.textContent = `⚡ ${speed.toLocaleString('vi-VN')} dòng/s`;
-            if (etaEl && etaSec !== undefined) {
-              var m = Math.floor(etaSec / 60);
-              var s = etaSec % 60;
-              var etaFormatted = m > 0 ? `${m}p ${s}s` : `${s}s`;
-              etaEl.textContent = `⏱️ ~${etaFormatted} còn lại`;
-            }
+    function buildHeaderOptions(response) {
+      headerRowSelect.innerHTML = '';
+      var noHeader = document.createElement('option');
+      noHeader.value = '0';
+      noHeader.textContent = 'Không có tiêu đề';
+      headerRowSelect.appendChild(noHeader);
+
+      var maxHeaderRow = Number(response.limits && response.limits.maxHeaderRow) || 1;
+      for (var row = 1; row <= maxHeaderRow; row += 1) {
+        var option = document.createElement('option');
+        option.value = String(row);
+        option.textContent = 'Dòng ' + row;
+        headerRowSelect.appendChild(option);
+      }
+      headerRowSelect.value = '1';
+    }
+
+    function renderPrepared(response) {
+      state.prepared = response;
+      state.importId = response.importId;
+      state.executed = false;
+      state.sourceType = response.sourceType;
+      resultSection.hidden = true;
+      resultSection.innerHTML = '';
+      configSection.hidden = false;
+      filePanel.hidden = true;
+      clipboardPanel.hidden = true;
+      uploadProgress.hidden = true;
+      sheetSelect.innerHTML = '';
+      response.sheets.forEach(function (sheet) {
+        var option = document.createElement('option');
+        option.value = sheet.name;
+        option.textContent = sheet.name + ' — khoảng ' + formatNumber(sheet.estimatedRows) + ' dòng';
+        sheetSelect.appendChild(option);
+      });
+      buildHeaderOptions(response);
+      renderMapping();
+      setStatus(
+        'success',
+        'Đã đọc dữ liệu ở backend. Kiểm tra tiêu đề, ánh xạ và bản xem trước trước khi import.'
+      );
+      setBusy(false);
+    }
+
+    function renderErrors(payload) {
+      resultSection.classList.remove('is-success');
+      resultSection.innerHTML = '';
+      resultSection.hidden = false;
+      var heading = document.createElement('h4');
+      heading.textContent = payload.message || 'Dữ liệu import không hợp lệ.';
+      resultSection.appendChild(heading);
+
+      if (payload.summary) {
+        var summary = document.createElement('p');
+        summary.textContent = 'Tổng dòng: ' + formatNumber(payload.summary.totalRows)
+          + ' · Hợp lệ: ' + formatNumber(payload.summary.validRows)
+          + ' · Không hợp lệ: ' + formatNumber(payload.summary.invalidRows);
+        resultSection.appendChild(summary);
+      }
+      if (Array.isArray(payload.errors) && payload.errors.length) {
+        var list = document.createElement('div');
+        list.className = 'excel-import-error-list';
+        payload.errors.forEach(function (item) {
+          var row = document.createElement('div');
+          row.innerHTML = '<strong></strong><span></span>';
+          row.querySelector('strong').textContent = item.row ? ('Dòng ' + item.row) : 'Ánh xạ';
+          row.querySelector('span').textContent = (item.field ? item.field + ': ' : '') + text(item.message);
+          list.appendChild(row);
+        });
+        resultSection.appendChild(list);
+      }
+      if (payload.errorsTruncated) {
+        var note = document.createElement('small');
+        note.textContent = 'Danh sách lỗi đã được rút gọn. Sửa các lỗi mẫu rồi thử lại.';
+        resultSection.appendChild(note);
+      }
+    }
+
+    function renderSuccess(response) {
+      var summary = response.summary || {};
+      resultSection.classList.add('is-success');
+      resultSection.innerHTML = '';
+      resultSection.hidden = false;
+      configSection.hidden = true;
+      sourceBox.hidden = true;
+      fileBadge.hidden = true;
+      uploadProgress.hidden = true;
+      var box = document.createElement('div');
+      box.className = 'excel-import-success-result';
+      box.innerHTML = [
+        '<span class="material-symbols-outlined">task_alt</span>',
+        '<h4>Import hoàn tất</h4>',
+        '<p>Dữ liệu đã được ghi nguyên khối; không có trạng thái ghi dở dang.</p>',
+        '<div class="excel-import-result-stats">',
+        '  <div><strong class="inserted"></strong><small>Đã thêm</small></div>',
+        '  <div><strong class="elapsed"></strong><small>Thời gian</small></div>',
+        '</div>'
+      ].join('');
+      box.querySelector('.inserted').textContent = formatNumber(summary.insertedRows);
+      box.querySelector('.elapsed').textContent = ((Number(summary.elapsedMs) || 0) / 1000).toFixed(1) + ' giây';
+      resultSection.appendChild(box);
+      setStatus('success', 'Bulk Import thành công trong một transaction.');
+      submitButton.hidden = true;
+      cancelButton.textContent = 'Đóng';
+    }
+
+    async function discardImport() {
+      if (!state.importId || state.executed) return;
+      var importId = state.importId;
+      state.importId = '';
+      try {
+        await ApiClient.delete(endpoint('/' + encodeURIComponent(importId)), {
+          headers: requestHeaders,
+          logoutOnUnauthorized: false
+        });
+      } catch (error) {
+        console.warn('[ExcelImport] Không thể dọn phiên import:', error && error.message);
+      }
+    }
+
+    function clearPrepared() {
+      state.prepared = null;
+      state.importId = '';
+      state.executed = false;
+      configSection.hidden = true;
+      resultSection.hidden = true;
+      resultSection.innerHTML = '';
+      resultSection.classList.remove('is-success');
+      sourceBox.hidden = false;
+      fileBadge.hidden = true;
+      uploadProgress.hidden = true;
+      showSelectedSourcePanel();
+      submitButton.hidden = false;
+      submitButton.disabled = true;
+      submitButton.innerHTML = '<span class="material-symbols-outlined">database_upload</span> Import dữ liệu';
+    }
+
+    async function closeModal() {
+      if (state.controller) state.controller.abort();
+      stopBusyTimer();
+      await discardImport();
+      backdrop.remove();
+    }
+
+    async function switchSource() {
+      if (state.busy) return;
+      var nextSource = selectedSource();
+      if (state.prepared && state.sourceType !== nextSource) {
+        await discardImport();
+        clearPrepared();
+      }
+      state.sourceType = nextSource;
+      showSelectedSourcePanel();
+      if (!state.prepared) {
+        setStatus(
+          'info',
+          nextSource === SOURCE_CLIPBOARD
+            ? 'Copy vùng dữ liệu trong Excel rồi nhấn Ctrl + V tại đây.'
+            : 'Chọn file .xlsx để backend đọc cấu trúc và tạo bản xem trước.'
+        );
+      }
+      if (nextSource === SOURCE_CLIPBOARD) pasteZone.focus();
+      else dropzone.focus();
+    }
+
+    async function prepareSource(file, sourceType, displayName) {
+      if (!file || state.busy || !state.capabilities) return;
+      var limits = state.capabilities.limits || {};
+      if (limits.maxFileBytes && file.size > limits.maxFileBytes) {
+        setStatus('error', 'Dữ liệu vượt giới hạn ' + formatBytes(limits.maxFileBytes) + '.');
+        return;
+      }
+      if (sourceType === SOURCE_FILE && !/\.xlsx$/i.test(displayName || file.name || '')) {
+        setStatus('error', 'Chỉ hỗ trợ .xlsx không có macro. Hãy lưu lại file rồi thử lại.');
+        return;
+      }
+
+      await discardImport();
+      clearPrepared();
+      state.sourceType = sourceType;
+      state.controller = new AbortController();
+      fileBadge.hidden = false;
+      fileName.textContent = displayName || file.name || 'Clipboard';
+      fileSize.textContent = formatBytes(file.size);
+      uploadProgress.hidden = false;
+      progressFill.style.width = '0%';
+      progressPercent.textContent = '0%';
+      setBusy(true, sourceType === SOURCE_CLIPBOARD ? 'Đang nhận clipboard...' : 'Đang upload...');
+      setStatus('info', 'Đang upload và đọc cấu trúc dữ liệu ở backend...');
+
+      var formData = new FormData();
+      formData.append('formName', formName);
+      formData.append('sourceType', sourceType);
+      formData.append('file', file, sourceType === SOURCE_CLIPBOARD ? 'clipboard.tsv' : (displayName || file.name));
+      try {
+        var response = await ApiClient.upload(endpoint('/prepare'), formData, {
+          headers: requestHeaders,
+          signal: state.controller.signal,
+          onProgress: function (loaded, total) {
+            var percent = total > 0 ? Math.min(100, Math.round(loaded * 100 / total)) : 0;
+            progressFill.style.width = percent + '%';
+            progressPercent.textContent = percent + '%';
+            progressLabel.textContent = percent >= 100 ? 'Backend đang đọc dữ liệu...' : 'Đang upload...';
           }
-        },
-        onCancel: function (fn) {
-          cancelCallback = fn;
-        },
-        close: closeModal
-      };
-
-      if (typeof onConfirmCallback === 'function') {
-        onConfirmCallback(validationResult.parsedRows, modalApi);
+        });
+        progressFill.style.width = '100%';
+        progressPercent.textContent = '100%';
+        renderPrepared(response);
+      } catch (error) {
+        if (error && error.name === 'AbortError') return;
+        var payload = errorPayload(error);
+        setStatus('error', payload.message);
+        clearPrepared();
+        resultSection.hidden = false;
+        renderErrors(payload);
+      } finally {
+        state.controller = null;
+        setBusy(false);
       }
-    };
+    }
+
+    async function handlePaste(event) {
+      if (selectedSource() !== SOURCE_CLIPBOARD || state.busy) return;
+      var clipboardData = event.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+      var pastedText = clipboardData.getData('text/plain') || clipboardData.getData('text');
+      if (!pastedText || !pastedText.trim()) return;
+      event.preventDefault();
+      var blob = new Blob([pastedText], { type: 'text/tab-separated-values' });
+      await prepareSource(blob, SOURCE_CLIPBOARD, 'Dữ liệu từ clipboard');
+    }
+
+    async function executeImport() {
+      if (!canSubmit() || state.busy) return;
+      state.controller = new AbortController();
+      setBusy(true, 'Đang Bulk Import...');
+      setStatus(
+        'info',
+        'Backend đang kiểm tra toàn bộ dữ liệu và BulkCopy theo batch. Có thể hủy trước khi transaction hoàn tất.'
+      );
+      resultSection.hidden = true;
+      try {
+        var response = await ApiClient.post(
+          endpoint('/' + encodeURIComponent(state.importId) + '/execute'),
+          {
+            formName: formName,
+            sheetName: sheetSelect.value,
+            headerRow: Number(headerRowSelect.value),
+            mapping: currentMapping(),
+            mode: state.prepared.mode || 'INSERT_ONLY'
+          },
+          { headers: requestHeaders, signal: state.controller.signal }
+        );
+        state.executed = true;
+        renderSuccess(response);
+        if (!state.successNotified && typeof config.onSuccess === 'function') {
+          state.successNotified = true;
+          config.onSuccess(response.summary || {});
+        }
+      } catch (error) {
+        if (error && error.name === 'AbortError') return;
+        var payload = errorPayload(error);
+        setStatus('error', payload.message);
+        renderErrors(payload);
+        if (payload.code !== 'EXCEL_IMPORT_BUSY') {
+          state.importId = '';
+          configSection.hidden = true;
+        }
+      } finally {
+        state.controller = null;
+        setBusy(false);
+      }
+    }
+
+    async function cancelOrClose() {
+      if (!state.busy) {
+        await closeModal();
+        return;
+      }
+      if (state.controller) state.controller.abort();
+      await discardImport();
+      state.controller = null;
+      setBusy(false);
+      clearPrepared();
+      setStatus('info', 'Đã gửi yêu cầu hủy. Bạn có thể chọn lại nguồn dữ liệu.');
+    }
+
+    async function loadCapabilities() {
+      setSourceInputsDisabled(true);
+      try {
+        var response = await ApiClient.get(
+          endpoint('/capabilities?formName=' + encodeURIComponent(formName)),
+          { headers: requestHeaders, logoutOnUnauthorized: false }
+        );
+        state.capabilities = response;
+        setSourceInputsDisabled(false);
+        setStatus(
+          'info',
+          'Sẵn sàng Bulk Import tối đa ' + formatNumber(response.limits && response.limits.maxRows)
+            + ' dòng, batch ' + formatNumber(response.limits && response.limits.batchSize) + '.'
+        );
+      } catch (error) {
+        var payload = errorPayload(error);
+        state.capabilities = null;
+        setStatus('error', payload.message);
+        resultSection.hidden = true;
+        submitButton.disabled = true;
+      }
+    }
+
+    sourceRadios.forEach(function (radio) { radio.addEventListener('change', switchSource); });
+    toggleMapping.addEventListener('change', function () {
+      mappingList.hidden = !toggleMapping.checked;
+    });
+    sheetSelect.addEventListener('change', renderMapping);
+    headerRowSelect.addEventListener('change', renderMapping);
+    submitButton.addEventListener('click', executeImport);
+    closeButton.addEventListener('click', closeModal);
+    cancelButton.addEventListener('click', cancelOrClose);
+    fileInput.addEventListener('change', function () {
+      prepareSource(fileInput.files[0], SOURCE_FILE, fileInput.files[0] && fileInput.files[0].name);
+    });
+    dropzone.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        fileInput.click();
+      }
+    });
+    dropzone.addEventListener('dragover', function (event) {
+      event.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', function () { dropzone.classList.remove('dragover'); });
+    dropzone.addEventListener('drop', function (event) {
+      event.preventDefault();
+      dropzone.classList.remove('dragover');
+      var file = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files[0] : null;
+      prepareSource(file, SOURCE_FILE, file && file.name);
+    });
+    pasteZone.addEventListener('click', function () { pasteZone.focus(); });
+    backdrop.addEventListener('paste', handlePaste);
+    backdrop.addEventListener('click', function (event) {
+      if (event.target === backdrop && !state.busy) closeModal();
+    });
+    backdrop.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !state.busy) closeModal();
+    });
+
+    document.body.appendChild(backdrop);
+    card.focus();
+    loadCapabilities();
   }
 
-  return {
-    show: show
-  };
+  return Object.freeze({ show: show });
 })();
 
 /* --- DynamicFormEngine.js --- */
@@ -18606,10 +19031,7 @@ window.DynamicFormEngine = (function () {
     );
   }
   function _usesUnifiedFieldContract() {
-    var registry = window.Phase2MigrationRegistry;
-    if (registry && typeof registry.usesUnifiedSchema === 'function') return registry.usesUnifiedSchema(MODULE_CONFIG.FormName);
-    var entry = _phase2RegistryEntry();
-    return Boolean(entry && entry.schemaPolicy === 'UNIFIED_V2');
+    return Boolean(fieldContractState && fieldContractState.active === true);
   }
 
   function _contractWriteActive() {
@@ -18618,6 +19040,30 @@ window.DynamicFormEngine = (function () {
 
   function _contractDeleteActive() {
     return !_usesUnifiedFieldContract() || Boolean(fieldContractState && fieldContractState.deleteActive === true);
+  }
+
+  function _canImportExcel() {
+    var contract = _phase2RegistryEntry();
+    var action = String(MODULE_CONFIG.action || MODULE_CONFIG.Action || '').toLowerCase();
+    var readOnly = Boolean(
+      MODULE_CONFIG.ReadOnly
+      || MODULE_CONFIG.IsReadOnly
+      || MODULE_CONFIG.IsFullPageDetail
+      || MODULE_CONFIG.IsDetailAdd
+      || action === 'detail'
+    );
+    return Boolean(
+      !readOnly
+      && contract
+      && contract.importEnabled === true
+      && contract.enableSave === true
+      && contract.expectedTableName
+      && contract.expectedPrimaryKey
+      && contract.saveV2 === 'API_LuuDong_V2'
+      && _usesUnifiedFieldContract()
+      && _contractWriteActive()
+      && _hasPermission('ADD')
+    );
   }
 
   function _buildContractWritePayload(base, isEdit, originalRow) {
@@ -18742,17 +19188,24 @@ window.DynamicFormEngine = (function () {
       try { cachedData = window._uiConfigCache ? window._uiConfigCache[cacheKey] : null; } catch (e) { }
     }
 
-    var unifiedContract = _usesUnifiedFieldContract();
+    function loadLegacyMetadata() {
+      if (cachedData) return Promise.resolve(JSON.parse(cachedData));
+      return configEndpoint ? ApiClient.post(configEndpoint, { FormName: MODULE_CONFIG.FormName }).then(function (res) {
+        if (res && res.code === 0 && !_isFormBuilder()) {
+          window._uiConfigCache = window._uiConfigCache || {};
+          window._uiConfigCache[cacheKey] = JSON.stringify(res);
+        }
+        return res;
+      }) : Promise.resolve(null);
+    }
+
     var pConfig;
-    if (unifiedContract) {
-      if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') {
-        pConfig = Promise.reject(new Error('Thiếu dịch vụ Form Contract V2.'));
-      } else {
-        pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
-          if (!state || state.active !== true || !state.schema || !state.runtimeSchemas) {
-            throw new Error(state && state.error ? state.error : 'Form Contract V2 chưa active.');
-          }
-          fieldContractState = state;
+    if (!_isFormBuilder()
+      && window.FieldSyncService
+      && typeof FieldSyncService.observeForm === 'function') {
+      pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
+        fieldContractState = state || null;
+        if (state && state.active === true && state.schema && state.runtimeSchemas) {
           MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
           return {
             code: 0,
@@ -18760,18 +19213,19 @@ window.DynamicFormEngine = (function () {
             _unifiedContract: true,
             _fieldContractState: state
           };
-        });
-      }
-    } else if (cachedData) {
-      pConfig = Promise.resolve(JSON.parse(cachedData));
-    } else {
-      pConfig = configEndpoint ? ApiClient.post(configEndpoint, { FormName: MODULE_CONFIG.FormName }).then(function (res) {
-        if (res && res.code === 0 && !_isFormBuilder()) {
-          window._uiConfigCache = window._uiConfigCache || {};
-          window._uiConfigCache[cacheKey] = JSON.stringify(res);
         }
-        return res;
-      }) : Promise.resolve(null);
+        if (state && state.failClosed === true) {
+          throw new Error(state.error || 'Metadata của form ACTIVE không sẵn sàng.');
+        }
+        return loadLegacyMetadata().then(function (legacyResponse) {
+          if (legacyResponse && typeof legacyResponse === 'object') {
+            legacyResponse._fieldContractState = state || null;
+          }
+          return legacyResponse;
+        });
+      });
+    } else {
+      pConfig = loadLegacyMetadata();
     }
 
     pConfig.then(function (resConfig) {
@@ -18932,7 +19386,7 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          if (!isUnifiedMetadata && MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+          if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
             var ff = MODULE_CONFIG.FormFields.find(function (f) { return f.name.toLowerCase() === fieldName.toLowerCase(); });
             if (ff) {
               if (ff.isReadOnlyEdit !== undefined) isReadOnlyEditVal = ff.isReadOnlyEdit;
@@ -18989,7 +19443,7 @@ window.DynamicFormEngine = (function () {
         });
 
         // Hỗ trợ CHÈN THÊM TRƯỜNG TỰ DO (ví dụ nút bấm) từ FormFields (Chỉ chèn những trường chưa có trong DB)
-        if (!isUnifiedMetadata && MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+        if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
           MODULE_CONFIG.FormFields.forEach(function (cf) {
             if (!globalFormSchema.find(function (sf) { return sf.name.toLowerCase() === cf.name.toLowerCase(); })) {
               globalFormSchema.push({
@@ -19030,6 +19484,9 @@ window.DynamicFormEngine = (function () {
         fieldContractState = resConfig._fieldContractState;
         runtimeSchemas = resConfig._fieldContractState.runtimeSchemas;
       } else {
+        if (resConfig && resConfig._fieldContractState) {
+          fieldContractState = resConfig._fieldContractState;
+        }
         _setLegacyRuntimeSchemas();
         _observeFieldSync();
       }
@@ -19213,165 +19670,33 @@ window.DynamicFormEngine = (function () {
         }
 
   function _openExcelImportModal() {
-    if (!window.tabulatorInstance) {
-      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Bảng dữ liệu chưa sẵn sàng.');
+    if (!_canImportExcel()) {
+      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Form hiện tại chưa đủ điều kiện import an toàn.');
       return;
     }
-
-    if (typeof ExcelImportModal === 'undefined') {
+    if (!window.tabulatorInstance || typeof ExcelImportModal === 'undefined') {
       if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Thư viện ExcelImportModal chưa được nạp.');
       return;
     }
-
-    var columns = window.tabulatorInstance.getColumns().filter(function (col) {
-      var field = col.getField();
-      return col.isVisible() && field && field !== 'row_select' && field !== '__action__';
-    });
-
-    if (!columns || columns.length === 0) {
-      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không tìm thấy cột dữ liệu hợp lệ trên bảng.');
-      return;
-    }
-
-    var gridSchema = _schemaFor('grid') || [];
-    var editSchema = _schemaFor('add') || _schemaFor('edit') || [];
-
-    var webColumns = columns.map(function (col) {
-      var field = col.getField();
-      var colDef = col.getDefinition() || {};
-      var title = colDef.title || field;
-
-      var schemaItem = editSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); }) ||
-                       gridSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); });
-
-      var fieldType = 'string';
-      var isRequired = false;
-
-      if (schemaItem) {
-        fieldType = schemaItem.fieldType || schemaItem.renderRule || schemaItem.type || 'string';
-        isRequired = schemaItem.required === true || schemaItem.isRequired === true || String(schemaItem.required) === '1';
-      } else {
-        if (field.toLowerCase().indexOf('ngay') >= 0 || field.toLowerCase().indexOf('date') >= 0) {
-          fieldType = 'date';
-        } else if (field.toLowerCase().indexOf('gia') >= 0 || field.toLowerCase().indexOf('tien') >= 0 || field.toLowerCase().indexOf('thuethue') >= 0 || field.toLowerCase().indexOf('amount') >= 0 || field.toLowerCase().indexOf('rate') >= 0 || field.toLowerCase().indexOf('bac') >= 0) {
-          fieldType = 'number';
-        }
-      }
-
-      return {
-        field: field,
-        title: title,
-        type: fieldType,
-        isRequired: isRequired
-      };
-    });
-
+    var documentConfig = window.API_CONFIG
+      && API_CONFIG.ENDPOINTS
+      && API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
     ExcelImportModal.show({
-      webColumns: webColumns,
-      formName: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName || 'Bảng dữ liệu',
-      onConfirm: function (parsedRows, modalApi) {
-        if (!parsedRows || parsedRows.length === 0) {
-          if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không có dữ liệu hợp lệ để import.');
-          return;
+      formName: MODULE_CONFIG.FormName,
+      formTitle: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName,
+      apiBase: documentConfig ? documentConfig.SERVICE_BASE : '',
+      requestHeaders: {
+        Username: _currentUser(),
+        BranchID: _currentBranchId()
+      },
+      onSuccess: function () {
+        selectedRows = [];
+        currentPage = 1;
+        if (window.tabulatorInstance && typeof window.tabulatorInstance.deselectRow === 'function') {
+          window.tabulatorInstance.deselectRow();
         }
-
-        var endpoint = _usesUnifiedFieldContract() ? _gateway() : (MODULE_CONFIG.ApiSave || _gateway());
-        if (!endpoint) {
-          if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không xác định được API lưu dữ liệu.');
-          return;
-        }
-
-        // Đóng gói Payload lưu CSDL thực tế cho từng dòng
-        var payloads = parsedRows.map(function (row) {
-          var rowPayload = _usesUnifiedFieldContract()
-            ? _buildContractWritePayload(row, false)
-            : _buildPayload(row, false);
-
-          if (endpoint === _gateway()) {
-            return {
-              List: MODULE_CONFIG.FormName,
-              Func: 'Save',
-              JsonData: JSON.stringify(rowPayload),
-              UserName: _currentUser(),
-              BranchID: _currentBranchId()
-            };
-          }
-          return rowPayload;
-        });
-
-        // BÀN THUẬT LƯU THẬT VÀO CSDL VỚI LƯỢNG KẾT NỐI SONG SONG TỐI ĐA (MAX CONCURRENCY = 25 WORKERS)
-        var totalCount = payloads.length;
-        var successCount = 0;
-        var processedCount = 0;
-        var errorLogs = [];
-        var CONCURRENCY = 25; // 25 luồng gửi song song tới API Gateway CSDL
-        var isAborted = false;
-        var startTime = Date.now();
-
-        modalApi.onCancel(function () {
-          isAborted = true;
-        });
-
-        var queueIndex = 0;
-
-        function runWorker() {
-          if (queueIndex >= totalCount || isAborted) return Promise.resolve();
-
-          var idx = queueIndex++;
-          return ApiClient.post(endpoint, payloads[idx])
-            .then(function (res) {
-              var code = res ? res.code : null;
-              var msg = String((res && res.msg) || '');
-              var msgUpper = msg.toUpperCase();
-
-              if (res && (code === 0 || code === '0' || code === 1 || code === '1' || res.status === 200 || res.success === true || msgUpper.indexOf('THÀNH CÔNG') > -1 || msgUpper.indexOf('SUCCESS') > -1)) {
-                successCount++;
-              } else {
-                var cleanMsg = msg || (res && res.records && res.records[0] ? res.records[0].msg : 'Lỗi CSDL');
-                errorLogs.push({ row: idx + 1, msg: cleanMsg });
-              }
-            })
-            .catch(function (err) {
-              var errStr = (err && err.message) || String(err);
-              errorLogs.push({ row: idx + 1, msg: errStr });
-            })
-            .finally(function () {
-              processedCount++;
-              var elapsed = Math.max(0.1, (Date.now() - startTime) / 1000);
-              var speed = Math.round(processedCount / elapsed);
-              var etaSec = speed > 0 ? Math.ceil((totalCount - processedCount) / speed) : 0;
-
-              modalApi.updateProgress(processedCount, totalCount, speed, etaSec);
-
-              if (processedCount < totalCount && !isAborted) {
-                return runWorker();
-              }
-            });
-        }
-
-        var workers = [];
-        var activeWorkersCount = Math.min(CONCURRENCY, totalCount);
-        for (var w = 0; w < activeWorkersCount; w++) {
-          workers.push(runWorker());
-        }
-
-        Promise.all(workers).then(function () {
-          modalApi.close();
-          var totalTimeSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-          if (typeof Alert !== 'undefined') {
-            if (isAborted) {
-              Alert.warning('Tạm dừng Import', 'Đã dừng tiến trình. Đã lưu CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + processedCount.toLocaleString('vi-VN') + ' bản ghi.');
-            } else if (successCount > 0) {
-              Alert.success('Lưu CSDL Thành Công', 'Đã lưu THẬT vào CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + totalCount.toLocaleString('vi-VN') + ' bản ghi (Thời gian: ' + totalTimeSec + 's). Khi nhấn F5 dữ liệu vẫn giữ nguyên 100%.');
-            } else {
-              var firstErr = errorLogs.length > 0 ? errorLogs[0].msg : 'Lỗi kết nối CSDL';
-              Alert.error('Lưu CSDL Thất bại', 'Không thể lưu bản ghi vào CSDL. Lỗi: ' + firstErr);
-            }
-          }
-          // Nạp lại dữ liệu thực tế trực tiếp từ CSDL về Bảng Web
-          _loadData();
-        });
+        _updateSelectionCounter();
+        _loadData();
       }
     });
   }
@@ -19728,7 +20053,7 @@ window.DynamicFormEngine = (function () {
           };
         }));
 
-        if (_hasPermission('ADD') || _hasPermission('EDIT') || _hasPermission('EXPORT')) {
+        if (_canImportExcel()) {
           tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Import dữ liệu Excel', function () {
             _openExcelImportModal();
           }));
@@ -20434,9 +20759,10 @@ window.DynamicFormEngine = (function () {
        * định; Keyword vẫn chỉ nằm ở top-level query.Keyword.
        */
       if (_usesUnifiedFieldContract() && !MODULE_CONFIG.IsFullPageDetail) {
+        var safePageSize = Math.min(500, Math.max(1, parseInt(currentLimit, 10) || 30));
         var v2Data = Object.assign({}, activeFilters, {
           page: currentPage,
-          pageSize: currentLimit
+          pageSize: safePageSize
         });
         query.JsonData = JSON.stringify(v2Data);
       }
