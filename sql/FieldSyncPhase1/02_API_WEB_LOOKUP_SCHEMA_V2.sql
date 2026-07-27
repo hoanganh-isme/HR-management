@@ -78,11 +78,31 @@ BEGIN
         @LookupType = D.[Type],
         @ValueColumn = D.ValueColumn,
         @DisplayColumn = D.DisplayColumn,
-        @ResolvedKey = CONVERT(varchar(64), HASHBYTES('SHA2_256', CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID)), 2)
+        @ResolvedKey = CONVERT(varchar(64), HASHBYTES(
+            'SHA2_256',
+            UPPER(CONCAT(
+                LTRIM(RTRIM(CONVERT(varchar(100), D.FormID))),
+                '|',
+                LTRIM(RTRIM(CONVERT(varchar(128), D.ColumnID)))
+            ))
+        ), 2)
     FROM dbo.SY_FrmDrdwTbl AS D
-    WHERE LOWER(ISNULL(D.FormID, '')) IN (LOWER(@ERPFormID), LOWER(@WebFormName))
+    WHERE LOWER(LTRIM(RTRIM(ISNULL(D.FormID, '')))) IN (LOWER(@ERPFormID), LOWER(@WebFormName))
       AND ISNULL(D.IsDisable, 0) = 0
-      AND CONVERT(varchar(64), HASHBYTES('SHA2_256', CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID)), 2) = @LookupKey
+      AND (
+          /* Key V2 ổn định, không phụ thuộc khóa ngẫu nhiên UserAutoID của metadata. */
+          CONVERT(varchar(64), HASHBYTES(
+              'SHA2_256',
+              UPPER(CONCAT(
+                  LTRIM(RTRIM(CONVERT(varchar(100), D.FormID))),
+                  '|',
+                  LTRIM(RTRIM(CONVERT(varchar(128), D.ColumnID)))
+              ))
+          ), 2) = @LookupKey
+          /* Tương thích trong thời gian cache/client còn giữ key V1. */
+          OR CONVERT(varchar(64), HASHBYTES('SHA2_256', CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID)), 2) = @LookupKey
+          OR CONVERT(varchar(64), HASHBYTES('SHA2_256', UPPER(CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID))), 2) = @LookupKey
+      )
     ORDER BY CASE WHEN LOWER(ISNULL(D.FormID, '')) = LOWER(@ERPFormID) THEN 1 ELSE 2 END, D.UserAutoID;
 
     IF @ResolvedKey IS NULL
@@ -139,8 +159,8 @@ BEGIN
     DECLARE @RegisteredList varchar(50);
     SELECT @RegisteredList = MIN(A.[list])
     FROM dbo.WA_API AS A
-    WHERE LOWER(A.[func]) = 'view'
-      AND LOWER(A.[list]) = LOWER(LTRIM(RTRIM(@Source)))
+    WHERE LOWER(LTRIM(RTRIM(A.[func]))) = 'view'
+      AND LOWER(LTRIM(RTRIM(A.[list]))) = LOWER(LTRIM(RTRIM(@Source)))
     GROUP BY A.[list]
     HAVING COUNT(*) = 1;
 

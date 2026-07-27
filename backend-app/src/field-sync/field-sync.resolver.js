@@ -126,6 +126,9 @@ export function resolveRenderType(formatId, sqlType, hasLookup = false, formatTy
     if (hasLookup) return 'lookup';
     const formatIdCode = cleanText(formatId, 20).toUpperCase();
     const formatTypeCode = cleanText(formatType, 20).toUpperCase();
+    if (['SL', 'SELECT', 'LOOKUP', 'CBO', 'COMBO'].includes(formatIdCode) || ['SL', 'SELECT', 'LOOKUP', 'CBO', 'COMBO'].includes(formatTypeCode)) {
+        return 'sl';
+    }
     const format = ['D', 'DT', 'H', 'B', 'Q', 'N', 'N0', 'N3'].includes(formatIdCode)
         ? formatIdCode
         : formatTypeCode;

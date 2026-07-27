@@ -156,6 +156,13 @@ EXEC sys.sp_set_session_context N'PHASE3_APPLY_DELETE', NULL;
 - **Kỳ vọng:** Cả bốn row View trỏ `API_TruyVanDong_V2`; `Para` có đủ `@List`, `@Keyword`, `@SortColumn`, `@SortDir`, `@Data`, `@UserName`, `@BranchID`; không còn lỗi “expects parameter `@List`” hoặc `PHASE3_ACTOR_REQUIRED`.
 - **Nếu lỗi cần lưu:** Snapshot `WA_API` trước/sau; toàn bộ result set/Messages; ảnh Web; Network URL, request payload, HTTP status, response body và lỗi SQL.
 
+### SQL-04 — Khôi phục lookup ca V2 cho form Sắp ca
+
+- **Chuẩn bị:** Đã cài `API_HR_DropdownShifts` và `API_CaLamViec_NhanVien`; có backup/snapshot database.
+- **Thao tác Web:** Người dùng tự chạy theo thứ tự `sql/FieldSyncPhase1/01_API_WEB_GRID_FIELD_SCHEMA_V2.sql` → `sql/Phase3SimpleCrud/02_UPDATE_UNIFIED_FIELD_CONTRACT.sql` → `sql/FieldSyncPhase1/02_API_WEB_LOOKUP_SCHEMA_V2.sql` → `sql/Phase3SimpleCrud/09_REPAIR_CA_LOOKUPS_V2.sql`, sau đó refresh `WA_CaLamViecFrm`. Thứ tự này bảo đảm contract tạo `LookupKey` ổn định và procedure đọc lookup hiểu cả key mới lẫn key V1 trong giai đoạn chuyển tiếp.
+- **Kỳ vọng:** Bảy field `ShiftIDThu2`…`ShiftIDChuNhat` có lookup `API_HR_DropdownShifts` trong `SY_FrmDrdwTbl`; không còn rơi về textbox; không có duplicate route `WA_API`. Không chạy lại `Insert_WA_CaLamViecFrm_SY_FormatFields.sql` vì file legacy này xóa metadata V2.
+- **Nếu lỗi cần lưu:** Result set cuối của file 09; snapshot các dòng `SY_FrmDrdwTbl`/`WA_API`; Network URL/payload/status/body của lookup; Console và lỗi SQL.
+
 ## 5. Cutover View trước
 
 ### VIEW-01 — Chưa active phải fallback legacy toàn bộ
@@ -243,6 +250,20 @@ EXEC sys.sp_set_session_context N'PHASE3_APPLY_DELETE', NULL;
 - **Thao tác Web:** Mở Add/Edit/Filter, mở dropdown, tìm/chọn giá trị, đổi field cha, lưu rồi mở lại.
 - **Kỳ vọng:** Options đúng quyền/branch; label và value đúng; dependency refresh đúng; giá trị cũ hiển thị lại; không dùng SQL/lookup từ `SY_FormatFields`.
 - **Nếu lỗi cần lưu:** Lookup metadata; URL/payload/status/body của lookup; ảnh options; selected label/value; Console/SQL error.
+
+### FIELD-06A — Chọn ca trong form Sắp ca
+
+- **Chuẩn bị:** Đã hoàn tất SQL-04; có ít nhất một dòng trong `HR_ShiftListTbl`; mở form `WA_CaLamViecFrm` ở chế độ thêm/sửa.
+- **Thao tác Web:** Bật từng thứ trong tuần, mở ô Ca tương ứng, tìm theo mã/tên ca rồi chọn; lưu và mở lại bản ghi.
+- **Kỳ vọng:** Ô Ca là selectbox có mã và tên ca; giá trị gửi là `ShiftID`, nhãn hiển thị là `ShiftName`; bảy ngày dùng cùng một API lookup; sau lưu giá trị vẫn hiển thị đúng.
+- **Nếu lỗi cần lưu:** Ảnh dropdown; contract field/lookupKey; Network URL, request payload, HTTP status, response body; Console và lỗi SQL.
+
+### DETAIL-01 — Chọn mã nhân viên và tự điền chi tiết
+
+- **Chuẩn bị:** Form `WA_CaLamViecFrm` ở chế độ thêm; tài khoản có quyền đọc nhân viên; có mã nhân viên hợp lệ trong `HR_PersonTbl`.
+- **Thao tác Web:** Trong tab **Nhân viên**, mở selectbox Mã nhân viên, tìm/chọn một mã; không nhập tay các cột Họ tên, Bộ phận, Chức vụ, Chi nhánh.
+- **Kỳ vọng:** Ngay sau khi chọn, bốn cột chi tiết được điền từ cùng dòng lookup và ở trạng thái read-only; bấm Thêm mới/Lưu vẫn gửi đúng `PersonID`; mở lại bản ghi vẫn trả đủ `TitleName`.
+- **Nếu lỗi cần lưu:** Ảnh dòng detail trước/sau; lookup response; request payload Save; URL/status/response body; Console và lỗi SQL của `API_CaLamViec_NhanVien`.
 
 ### FIELD-07 — Cột mới có ký tự NUL trong response
 

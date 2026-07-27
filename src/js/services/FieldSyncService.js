@@ -2,6 +2,7 @@
 window.FieldSyncService = (function (global) {
   var states = Object.create(null);
   var timers = Object.create(null);
+  var lookupKeyAliases = Object.create(null);
 
   function config() {
     return global.ERP_FIELD_SYNC_CONFIG || { enabled: false, shadowMode: true, pilotForms: [], pollSeconds: 120 };
@@ -847,11 +848,47 @@ window.FieldSyncService = (function (global) {
     return result;
   }
 
+  function normalizeLookupError(error) {
+    var safeError = error instanceof Error ? error : new Error('Không tải được danh mục.');
+    var data = safeError.data && typeof safeError.data === 'object' ? safeError.data : {};
+    var code = String(data.code || safeError.code || 'LOOKUP_LOAD_FAILED').trim().toUpperCase();
+    var messages = {
+      LOOKUP_KEY_NOT_FOUND: 'Danh mục chưa được đồng bộ. Vui lòng liên hệ quản trị viên.',
+      LOOKUP_CONTRACT_NOT_UNIQUE: 'Cấu hình danh mục chưa đồng nhất. Vui lòng liên hệ quản trị viên.',
+      LOOKUP_SOURCE_NOT_REGISTERED: 'Nguồn danh mục chưa được đăng ký.',
+      LOOKUP_COLUMNS_NOT_CONFIGURED: 'Danh mục chưa cấu hình đủ cột mã và tên.',
+      LOOKUP_COLUMNS_MISMATCH: 'Dữ liệu danh mục không khớp cấu hình.',
+      LOOKUP_DEPENDENCY_REQUIRED: 'Vui lòng chọn trường liên quan trước.',
+      LOOKUP_LOAD_FAILED: 'Không tải được danh sách. Vui lòng thử lại.'
+    };
+    safeError.code = code;
+    safeError.userMessage = messages[code] || messages.LOOKUP_LOAD_FAILED;
+    return safeError;
+  }
+
+  function declaredLookupDependencies(names, values) {
+    var source = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
+    var result = {};
+    var declared = Array.isArray(names)
+      ? names
+      : String(names || '').split(',');
+    declared.slice(0, 20).forEach(function (name) {
+      var safeName = String(name || '').trim();
+      if (!safeName || !Object.prototype.hasOwnProperty.call(source, safeName)) return;
+      result[safeName] = source[safeName];
+    });
+    return result;
+  }
+
   function searchLookup(formName, lookupKey, keyword, page, pageSize, dependencies) {
-    if (!isPilot(formName) || !/^[A-Fa-f0-9]{64}$/.test(String(lookupKey || ''))) {
-      return Promise.reject(new Error('Lookup V2 không hợp lệ'));
+    var requestedLookupKey = String(lookupKey || '');
+    var aliasPrefix = stateKey(formName) + '|';
+    var aliasKey = aliasPrefix + requestedLookupKey.toLowerCase();
+    var effectiveLookupKey = lookupKeyAliases[aliasKey] || requestedLookupKey;
+    if (!isPilot(formName) || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
+      return Promise.reject(normalizeLookupError(new Error('Lookup V2 không hợp lệ')));
     }
-    var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(lookupKey) + '/search';
+    var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(effectiveLookupKey) + '/search';
     return global.ApiClient.post(endpoint, {
       formName: formName,
       erpFormId: erpFormId(formName),
@@ -860,8 +897,50 @@ window.FieldSyncService = (function (global) {
       pageSize: Math.min(100, Math.max(1, Number(pageSize) || 30)),
       dependencies: lookupDependencies(dependencies)
     }, { headers: requestHeaders(), logoutOnUnauthorized: false }).then(function (response) {
+      var resolvedLookupKey = String(response && response.lookupKey || '');
+      if (/^[A-Fa-f0-9]{64}$/.test(resolvedLookupKey)) {
+        lookupKeyAliases[aliasKey] = resolvedLookupKey;
+      }
+      var aliases = response && response.lookupAliases && typeof response.lookupAliases === 'object'
+        ? response.lookupAliases
+        : {};
+      Object.keys(aliases).forEach(function (staleKey) {
+        var currentKey = String(aliases[staleKey] || '');
+        if (/^[A-Fa-f0-9]{64}$/.test(staleKey) && /^[A-Fa-f0-9]{64}$/.test(currentKey)) {
+          lookupKeyAliases[aliasPrefix + staleKey.toLowerCase()] = currentKey;
+        }
+      });
       return response && Array.isArray(response.options) ? response.options : [];
+    }).catch(function (error) {
+      throw normalizeLookupError(error);
     });
+  }
+
+  function createLookupDataSource(options) {
+    var settings = options && typeof options === 'object' ? options : {};
+    var pageSize = Math.min(100, Math.max(1, Number(settings.pageSize) || 30));
+    return function (keyword, page) {
+      var values = typeof settings.getDependencyValues === 'function'
+        ? settings.getDependencyValues()
+        : settings.dependencyValues;
+      var dependencies = declaredLookupDependencies(settings.dependsOn, values);
+      return searchLookup(
+        settings.formName,
+        settings.lookupKey,
+        keyword,
+        page,
+        pageSize,
+        dependencies
+      ).then(function (optionsList) {
+        return {
+          headers: [settings.valueHeader || 'Mã', settings.displayHeader || 'Tên'],
+          data: optionsList.map(function (item) { return [item.value, item.label]; }),
+          colFilterIndex: 1,
+          forceMultiColumn: settings.forceMultiColumn === true,
+          hasMore: optionsList.length === pageSize
+        };
+      });
+    };
   }
 
   function getState(formName) {
@@ -991,8 +1070,13 @@ window.FieldSyncService = (function (global) {
   function clearCache(formName) {
     if (formName) {
       delete states[stateKey(formName)];
+      var aliasPrefix = stateKey(formName) + '|';
+      Object.keys(lookupKeyAliases).forEach(function (key) {
+        if (key.indexOf(aliasPrefix) === 0) delete lookupKeyAliases[key];
+      });
     } else {
       states = Object.create(null);
+      lookupKeyAliases = Object.create(null);
     }
   }
 
@@ -1000,6 +1084,7 @@ window.FieldSyncService = (function (global) {
     observeForm: observeForm,
     refreshForm: refreshForm,
     searchLookup: searchLookup,
+    createLookupDataSource: createLookupDataSource,
     getState: getState,
     getContextKey: function (formName) { return stateKey(formName); },
     inspectForm: inspectForm,

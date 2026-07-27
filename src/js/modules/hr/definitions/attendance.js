@@ -1,7 +1,8 @@
 (function (global) {
   var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
   definitions.attendance = definitions.attendance || {};
-    definitions.attendance['WA_TIMESHEETDAYFRM'] = {
+
+  definitions.attendance['WA_TIMESHEETDAYFRM'] = {
     FormName: 'WA_TimeSheetDayFrm',
     PrimaryKey: 'UserAutoID',
     ProcessAction: 'hr.timesheet.process',
@@ -10,13 +11,12 @@
     HideDeleteBtn: true,
     HidePrintBtn: true
   };
+
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
     ShiftAction: 'hr.shift.auto',
     ModalWidth: '860px',
-    // Nút Sắp ca tự động nằm trên thanh thao tác (cạnh Lưu thay đổi/Sửa)
-    // Hoạt động ở cả chế độ Xem và Sửa
     customFooterButtons: [
       {
         label: 'Sắp ca tự động',
@@ -25,7 +25,7 @@
         onClick: function (ctx) {
           var tuNgay = '';
           var denNgay = '';
-          
+
           if (ctx.isEdit) {
             var elTu = ctx.body ? ctx.body.querySelector('[name="TuNgay"]') : null;
             var elDen = ctx.body ? ctx.body.querySelector('[name="DenNgay"]') : null;
@@ -53,39 +53,34 @@
               message: msg,
               confirmText: 'Xác nhận',
               confirmClass: 'btn-primary',
-              onConfirm: function() {
-                 _proceedSapCa();
+              onConfirm: function () {
+                _proceedSapCa();
               }
             });
           } else {
-            // Fallback nếu ConfirmModal không tồn tại
             var plainMsg = msg.replace(/<[^>]*>?/gm, '');
             if (confirm(plainMsg)) _proceedSapCa();
           }
 
           function _proceedSapCa() {
             if (ctx.isEdit) {
-              // Lắng nghe sự kiện lưu thành công để chạy SP
-              var saveHandler = function(e) {
+              var saveHandler = function (e) {
                 if (e.detail && e.detail.formName === 'WA_CaLamViecFrm') {
                   document.removeEventListener('dynamicFormSaved', saveHandler);
-                  // Lấy ID mới sau khi lưu (nếu là thêm mới) hoặc ID cũ
                   var newSapCaID = e.detail.data ? e.detail.data.SapCaID : (ctx.row ? ctx.row.SapCaID : '');
-                  window.SapCaTuDong_ByID(newSapCaID, ctx.btnSave); // ctx.btnSave có thể truyền null nếu muốn
+                  window.SapCaTuDong_ByID(newSapCaID, ctx.btnSave);
                 }
               };
               document.addEventListener('dynamicFormSaved', saveHandler);
-              
-              // Tự động gọi hàm lưu của Engine
+
               if (ctx.btnSave) {
                 ctx.btnSave.click();
               } else {
-                 if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy nút Lưu để lưu dữ liệu');
+                if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy nút Lưu để lưu dữ liệu');
               }
             } else {
-               // Đang ở chế độ xem, chạy SP luôn
-               var currentID = ctx.row ? ctx.row.SapCaID : '';
-               window.SapCaTuDong_ByID(currentID, null);
+              var currentID = ctx.row ? ctx.row.SapCaID : '';
+              window.SapCaTuDong_ByID(currentID, null);
             }
           }
         }
@@ -120,7 +115,6 @@
               }).then(function (res) {
                 if (loadingMsg) loadingMsg.close();
                 var rawList = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
-                // Chuẩn hóa thành object nếu API trả về mảng phẳng
                 var dataList = rawList.map(function (r) {
                   if (Array.isArray(r)) {
                     return { PersonID: r[0] || '', PersonName: r[1] || '', PhongBan: r[2] || '', TitleName: r[3] || '' };
@@ -177,11 +171,27 @@
             headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
             colFilterIndex: 0,
             apiList: 'HR_PersonTbl',
+            valueFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID'],
             getPayload: function () {
               return {};
             },
             mapData: function (d) {
-              return [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+              if (Array.isArray(d)) {
+                return [
+                  d[0] || '',
+                  d[1] || '',
+                  d[2] || '',
+                  d[3] || '',
+                  d[4] || ''
+                ];
+              }
+              return [
+                d.PersonID || '',
+                d.PersonName || '',
+                d.PhongBan || d.BoPhan || '',
+                d.TitleName || d.ChucVu || '',
+                d.BranchID || ''
+              ];
             }
           }
         },

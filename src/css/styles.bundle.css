@@ -4887,6 +4887,62 @@ body.dark-theme .calendar-days-header {
   background: var(--color-surface, #fff);
 }
 
+.dd-state {
+  min-width: 220px;
+  min-height: 92px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--color-text-secondary, #64748b);
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.dd-state-icon {
+  font-size: 22px;
+  opacity: 0.8;
+}
+
+.dd-state-loading .dd-state-icon {
+  color: var(--color-primary, #6366f1);
+  animation: dd-state-spin 0.9s linear infinite;
+}
+
+.dd-state-error .dd-state-icon {
+  color: var(--color-danger, #ef4444);
+}
+
+.dd-state-text {
+  max-width: 280px;
+}
+
+.dd-retry-btn {
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 6px 14px;
+  border: 1px solid var(--color-primary, #6366f1);
+  border-radius: 7px;
+  background: var(--color-surface, #fff);
+  color: var(--color-primary, #6366f1);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dd-retry-btn:hover,
+.dd-retry-btn:focus-visible {
+  background: rgba(99, 102, 241, 0.08);
+  outline: none;
+}
+
+@keyframes dd-state-spin {
+  to { transform: rotate(360deg); }
+}
+
 
 
 /* ── Dropdown: Footer "+ Thêm mới" ───────────────────────────── */
@@ -4921,6 +4977,25 @@ body.dark-theme .calendar-days-header {
 .dd-footer-add-btn .material-symbols-outlined {
   font-size: 16px;
   flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .data-dropdown-menu {
+    max-width: calc(100vw - 16px);
+  }
+
+  .dd-search-wrapper {
+    min-height: 44px;
+  }
+
+  .dd-search-input {
+    font-size: 16px;
+  }
+
+  .dd-retry-btn {
+    min-height: 40px;
+    padding-inline: 18px;
+  }
 }
 
 /* --- context-menu.css --- */
@@ -7879,6 +7954,435 @@ body.dark-theme .column-caption-modal .btn-secondary {
   background: #1e293b;
   color: #cbd5e1;
   border-color: #475569;
+}
+
+/* --- excel-import.css --- */
+/* ==========================================================================
+   Excel Import Modal CSS - Glassmorphism Modern Styling
+   ========================================================================== */
+
+.excel-import-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: excelImportFadeIn 0.25s ease-out;
+}
+
+@keyframes excelImportFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.excel-import-card {
+  background: var(--color-surface, #ffffff);
+  width: 100%;
+  max-width: 960px;
+  max-height: 90vh;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.excel-import-header {
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.excel-import-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.excel-import-close-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.excel-import-close-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(1.05);
+}
+
+.excel-import-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Config Grid */
+.excel-import-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  background: var(--color-background, #f8fafc);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.excel-import-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.excel-import-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text, #334155);
+}
+
+.excel-import-field input,
+.excel-import-field select {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-strong, #cbd5e1);
+  border-radius: 8px;
+  font-size: 14px;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.excel-import-field input:focus,
+.excel-import-field select:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+/* Dropzone */
+.excel-import-dropzone {
+  border: 2px dashed #a5b4fc;
+  background: rgba(79, 70, 229, 0.02);
+  border-radius: 12px;
+  padding: 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.excel-import-dropzone:hover,
+.excel-import-dropzone.dragover {
+  border-color: #4f46e5;
+  background: rgba(79, 70, 229, 0.06);
+}
+
+.excel-import-dropzone-icon {
+  font-size: 42px;
+  color: #4f46e5;
+}
+
+.excel-import-dropzone-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text, #1e293b);
+}
+
+.excel-import-dropzone-subtext {
+  font-size: 12px;
+  color: var(--color-text-secondary, #64748b);
+}
+
+/* File Selected Info Badge */
+.excel-import-file-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #e0e7ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  color: #3730a3;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+/* Status Banners */
+.excel-import-banner {
+  padding: 14px 18px;
+  border-radius: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.excel-import-banner-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.excel-import-banner-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.excel-import-banner-info {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #075985;
+}
+
+/* Error Table Container */
+.excel-import-error-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.excel-import-error-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.excel-import-table-wrapper {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+}
+
+.excel-import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.excel-import-table th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 600;
+  padding: 8px 12px;
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.excel-import-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+
+.excel-import-table tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.excel-import-table tr:hover {
+  background: #f1f5f9;
+}
+
+.excel-import-table .badge-err-cell {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* Footer Buttons */
+.excel-import-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-background, #f8fafc);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.excel-import-btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.excel-import-btn-cancel {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.excel-import-btn-cancel:hover {
+  background: #f1f5f9;
+}
+
+.excel-import-btn-submit {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.excel-import-btn-submit:hover:not(:disabled) {
+  background: #4338ca;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.excel-import-btn-submit:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Progress bar inside modal */
+.excel-import-progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+}
+
+.excel-import-progress-bar {
+  height: 8px;
+  background: #dbeafe;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.excel-import-progress-fill {
+  height: 100%;
+  background: #3b82f6;
+  width: 0%;
+  transition: width 0.2s ease;
+}
+
+/* Modern High-Speed Progress Box */
+.excel-import-progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.08);
+}
+
+.excel-import-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.excel-import-progress-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.excel-import-stats-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid #7dd3fc;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0284c7;
+}
+
+.excel-import-progress-bar-bg {
+  height: 12px;
+  background: #e0f2fe;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid #93c5fd;
+}
+
+.excel-import-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);
+  width: 0%;
+  transition: width 0.15s ease-out;
+  border-radius: 6px;
+  position: relative;
+}
+
+.excel-import-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+  animation: shimmerProgress 1.5s infinite;
+}
+
+@keyframes shimmerProgress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.excel-import-cancel-task-btn {
+  padding: 6px 14px;
+  background: #fff;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.excel-import-cancel-task-btn:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
 }
 
 /* --- contract-document.css --- */

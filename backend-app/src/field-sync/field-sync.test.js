@@ -607,6 +607,49 @@ test('HTTP lookup raw SQL bị chặn và không rò nội dung nguồn', async 
     assert.match(response.headers.get('cache-control') || '', /no-store/i);
 });
 
+test('HTTP lookup tự làm mới schema một lần khi metadata key trong cache đã cũ', async (t) => {
+    const staleKey = 'A'.repeat(64);
+    const currentKey = 'B'.repeat(64);
+    let schemaCalls = 0;
+    const lookupKeys = [];
+    const gateway = {
+        async verifySession() {},
+        async gridSchema() {
+            schemaCalls += 1;
+            return gridSchemaRows(schemaCalls === 1 ? staleKey : currentKey);
+        },
+        async lookupSchema(params) {
+            lookupKeys.push(params.LookupKey);
+            if (params.LookupKey === staleKey) {
+                return [{ LookupMode: 'BLOCKED', DiagnosticCode: 'LOOKUP_KEY_NOT_FOUND' }];
+            }
+            return [{
+                LookupMode: 'REGISTERED_API',
+                RegisteredList: 'CF_BranchListFrm',
+                ValueColumn: 'Code',
+                DisplayColumn: 'Name'
+            }];
+        },
+        async registeredLookup() {
+            return [{ Code: 'CN01', Name: 'Chi nhánh 01' }];
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const response = await fetch(`${baseUrl}/lookups/${staleKey}/search`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formName: 'WA_BangThueTNCNFrm', keyword: '', page: 1, pageSize: 30 })
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(body.options, [{ value: 'CN01', label: 'Chi nhánh 01' }]);
+    assert.equal(body.lookupKey, currentKey);
+    assert.deepEqual(body.lookupAliases, { [staleKey]: currentKey });
+    assert.equal(schemaCalls, 2);
+    assert.deepEqual(lookupKeys, [staleKey, currentKey]);
+});
+
 test('HTTP registered lookup chỉ trả hai cột đã đăng ký và fail-closed khi mismatch', async (t) => {
     const lookupKey = 'D'.repeat(64);
     const gateway = {
@@ -692,7 +735,8 @@ test('Phase 3 registry là allow-list duy nhất và alias backend được sinh
         ['WA_BangThueTNCNFrm', 'HR_BangThueTNCNFrm', 'HR_BangThueTNCNTbl', 'Bac'],
         ['WA_ChucDanhFrm', 'WA_ChucDanhFrm', 'HR_ChucDanhTbl', 'ChucDanhChuyenMon'],
         ['WA_TitleListFrm', 'WA_TitleListFrm', 'HR_TitleListTbl', 'TitleName'],
-        ['WA_ShiftListFrm', 'WA_ShiftListFrm', 'HR_ShiftListTbl', 'ShiftID']
+        ['WA_ShiftListFrm', 'WA_ShiftListFrm', 'HR_ShiftListTbl', 'ShiftID'],
+        ['WA_CaLamViecFrm', 'WA_CaLamViecFrm', 'HR_SapCaTbl', 'SapCaID']
     ];
     assert.deepEqual(FIELD_CONTRACT_MIGRATION_REGISTRY.map((contract) => [
         contract.webFormName,
@@ -887,4 +931,3 @@ test('HTTP POST /field-config cập nhật tiêu đề & định dạng cột th
     assert.equal(received.CaptionVN, 'Chi nhánh mới');
     assert.equal(received.FormatID, 'D');
 });
-

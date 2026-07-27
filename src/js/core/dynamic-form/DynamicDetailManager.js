@@ -176,9 +176,38 @@ window.DynamicDetailManager = (function () {
               onSelect: function (selected) {
                 var value = selected[lookup.colFilterIndex || 0];
                 currentRow[fieldName] = value;
+
+                /*
+                 * Ánh xạ option dạng mảng về detail row bằng metadata của
+                 * lookup. Các phần tử nằm ngoài số header vẫn được giữ để
+                 * điền field ẩn/read-only nhưng không hiển thị trên dropdown.
+                 */
+                if (Array.isArray(lookup.valueFields)) {
+                  lookup.valueFields.forEach(function (targetField, index) {
+                    if (
+                      targetField
+                      && selected[index] !== undefined
+                    ) {
+                      currentRow[targetField] = selected[index];
+                    }
+                  });
+                }
+
                 if (typeof lookup.mapData === 'function') {
                   var mapped = { _tr: tr };
-                  lookup.mapData(selected, mapped, false);
+                  var mapResult =
+                    lookup.mapData(selected, mapped, false);
+
+                  if (
+                    mapResult
+                    && !Array.isArray(mapResult)
+                    && typeof mapResult === 'object'
+                  ) {
+                    Object.keys(mapResult).forEach(function (key) {
+                      mapped[key] = mapResult[key];
+                    });
+                  }
+
                   Object.keys(mapped).forEach(function (key) { if (key !== '_tr') currentRow[key] = mapped[key]; });
                 }
                 renderEditableGrid(tabDef, panel, row, isViewMode);

@@ -101,7 +101,8 @@ test('Phase 3 có đủ SQL và tài liệu bắt buộc', () => {
     '05A_REPAIR_VIEW_V2_ALL_FORMS.sql',
     '06_VERIFY_PHASE3_FORMS.sql',
     '07_RUNTIME_TEST_READONLY.sql',
-    '08_ROLLBACK_PHASE3_REGISTRATION.sql'
+    '08_ROLLBACK_PHASE3_REGISTRATION.sql',
+    '09_REPAIR_CA_LOOKUPS_V2.sql'
   ];
   const docsExpected = [
     '00_BAO_CAO_COMMIT_NEN.md',
@@ -121,12 +122,12 @@ test('Phase 3 có đủ SQL và tài liệu bắt buộc', () => {
   assert.match(read('docs/phase3-simple-crud/BAO_CAO_TONG_KET.md'), /NOT READY/i);
 });
 
-test('registry frontend/backend parity đúng bốn form và không chứa field metadata', () => {
+test('registry frontend/backend parity đúng các form đã cutover và không chứa field metadata', () => {
   const window = runBrowserFiles(['src/js/config/FieldContractMigrationRegistry.js']);
   const frontend = window.FieldContractMigrationRegistry.list();
   const backendSource = read('backend-app/src/field-sync/field-contract.registry.js');
   assert.deepEqual(frontend.map((item) => item.webFormName), [
-    'WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm'
+    'WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm', 'WA_CaLamViecFrm'
   ]);
   frontend.forEach((entry) => {
     assert.match(backendSource, new RegExp(`webFormName:\\s*'${entry.webFormName}'`));
@@ -137,6 +138,25 @@ test('registry frontend/backend parity đúng bốn form và không chứa field
     assert.equal(Object.hasOwn(entry, 'fields'), false);
     assert.equal(Object.hasOwn(entry, 'caption'), false);
   });
+});
+
+test('lookup ca làm việc lấy nguồn từ metadata và dùng key ổn định, không fallback theo tên field', () => {
+  const phase1Grid = read('sql/FieldSyncPhase1/01_API_WEB_GRID_FIELD_SCHEMA_V2.sql');
+  const phase1Lookup = read('sql/FieldSyncPhase1/02_API_WEB_LOOKUP_SCHEMA_V2.sql');
+  const unified = read('sql/Phase3SimpleCrud/02_UPDATE_UNIFIED_FIELD_CONTRACT.sql');
+  const engine = read('src/js/core/DynamicFormEngine.js');
+  const attendance = read('src/js/modules/hr/definitions/attendance.js');
+  const repair = read('sql/Phase3SimpleCrud/09_REPAIR_CA_LOOKUPS_V2.sql');
+
+  [phase1Grid, unified].forEach((source) => {
+    assert.match(source, /UPPER\(CONCAT\([\s\S]*D\.FormID[\s\S]*D\.ColumnID/);
+    assert.doesNotMatch(source, /AUTO_SHIFT_LOOKUP/);
+  });
+  assert.match(phase1Lookup, /Tương thích trong thời gian cache\/client còn giữ key V1/);
+  assert.doesNotMatch(phase1Lookup, /AUTO_SHIFT_LOOKUP|HR_SapCaTbl|API_HR_DropdownShifts/);
+  assert.doesNotMatch(engine, /\^ShiftID|API_HR_DropdownShifts/);
+  assert.doesNotMatch(attendance, /dataSource:\s*'API_HR_DropdownShifts'/);
+  assert.match(repair, /SY_FrmDrdwTbl[\s\S]*API_HR_DropdownShifts/);
 });
 
 test('View cũ chưa cutover giữ nguyên LEGACY_FULL thay vì trang trắng', async () => {

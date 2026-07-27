@@ -3,6 +3,7 @@ import cors from 'cors';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns';
 import { fileURLToPath } from 'url';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
@@ -15,6 +16,12 @@ import { createContractDocumentRouter } from './src/contracts/contract-document.
 import { createFieldSyncConfig } from './src/field-sync/field-sync.config.js';
 import { createFieldSyncGateway, FieldSyncGatewayError } from './src/field-sync/field-sync.gateway.js';
 import { createFieldSyncRouter } from './src/field-sync/field-sync.routes.js';
+
+try {
+    if (typeof dns.setDefaultResultOrder === 'function') {
+        dns.setDefaultResultOrder('ipv4first');
+    }
+} catch (e) { /* ignore */ }
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

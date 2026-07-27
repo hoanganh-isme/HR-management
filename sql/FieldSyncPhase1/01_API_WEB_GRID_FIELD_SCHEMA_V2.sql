@@ -397,7 +397,14 @@ BEGIN
         M.MinWidth,
         M.MaxWidth,
         CASE WHEN D.UserAutoID IS NULL THEN NULL ELSE
-            CONVERT(varchar(64), HASHBYTES('SHA2_256', CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID)), 2)
+            CONVERT(varchar(64), HASHBYTES(
+                'SHA2_256',
+                UPPER(CONCAT(
+                    LTRIM(RTRIM(CONVERT(varchar(100), D.FormID))),
+                    '|',
+                    LTRIM(RTRIM(CONVERT(varchar(128), D.ColumnID)))
+                ))
+            ), 2)
         END AS LookupKey,
         D.[Type] AS LookupType,
         D.ValueColumn AS LookupValueColumn,

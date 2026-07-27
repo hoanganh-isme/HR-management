@@ -330,8 +330,54 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
                 dependencyValues,
                 { FormName: formName, ERPFormID: erpFormName, LookupKey: lookupKey, Keyword: keyword, Page: page, PageSize: pageSize }
             );
-            const rows = await gateway.lookupSchema(params, context);
-            const descriptor = normalizeLookupSchema(rows);
+            let lookupAliases = {};
+            let rows = await gateway.lookupSchema(params, context);
+            let descriptor = normalizeLookupSchema(rows);
+            /*
+             * LookupKey V1 từng phụ thuộc UserAutoID của metadata. Nếu dòng
+             * SY_FrmDrdwTbl được tạo lại trong lúc schema còn cache, client sẽ
+             * gửi key cũ. Làm mới schema đúng một lần và ánh xạ bằng field đã
+             * được contract xác nhận, không đoán Source hay tên API.
+             */
+            if (descriptor.mode === 'BLOCKED' && descriptor.diagnosticCode === 'LOOKUP_KEY_NOT_FOUND') {
+                const refreshedRows = await gateway.gridSchema(
+                    { FormName: formName, ERPFormID: erpFormName },
+                    context
+                );
+                const refreshedSchema = normalizeGridSchema(refreshedRows, formName, erpFormName);
+                assertSchemaMatchesContract(refreshedSchema, names.contract);
+                cache.set(schemaKey, refreshedSchema);
+
+                const refreshedByField = new Map(
+                    (refreshedSchema.fields || [])
+                        .filter((field) => field?.lookup && SAFE_LOOKUP_KEY.test(String(field.lookup.key || '')))
+                        .map((field) => [String(field.name || '').toLowerCase(), String(field.lookup.key)])
+                );
+                for (const staleField of schema.fields || []) {
+                    const staleLookupKey = String(staleField?.lookup?.key || '');
+                    const currentLookupKey = refreshedByField.get(String(staleField?.name || '').toLowerCase()) || '';
+                    if (SAFE_LOOKUP_KEY.test(staleLookupKey) && SAFE_LOOKUP_KEY.test(currentLookupKey)
+                        && staleLookupKey.toLowerCase() !== currentLookupKey.toLowerCase()) {
+                        lookupAliases[staleLookupKey] = currentLookupKey;
+                    }
+                }
+
+                const fieldName = String(lookupFields[0]?.name || '').toLowerCase();
+                const refreshedFields = (refreshedSchema.fields || []).filter((field) => (
+                    String(field?.name || '').toLowerCase() === fieldName
+                    && field?.lookup
+                    && field.lookup.disabled !== true
+                    && SAFE_LOOKUP_KEY.test(String(field.lookup.key || ''))
+                ));
+                const refreshedLookupKey = refreshedFields.length === 1
+                    ? String(refreshedFields[0].lookup.key)
+                    : '';
+                if (refreshedLookupKey && refreshedLookupKey.toLowerCase() !== lookupKey.toLowerCase()) {
+                    params.LookupKey = refreshedLookupKey;
+                    rows = await gateway.lookupSchema(params, context);
+                    descriptor = normalizeLookupSchema(rows);
+                }
+            }
             if (descriptor.mode === 'BLOCKED') {
                 return res.status(409).json({ success: false, code: descriptor.diagnosticCode, message: 'Lookup này chưa có nguồn đọc an toàn được đăng ký.' });
             }
@@ -344,7 +390,14 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
                 }
                 options = options.slice(0, pageSize);
             }
-            return res.json({ success: true, options, page, pageSize });
+            return res.json({
+                success: true,
+                options,
+                page,
+                pageSize,
+                lookupKey: params.LookupKey,
+                lookupAliases
+            });
         } catch (error) {
             return next(error);
         }

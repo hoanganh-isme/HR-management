@@ -726,7 +726,7 @@ END;
         CREATE TABLE #InsertedPrimary (Value nvarchar(4000) NOT NULL);
         SET @InsertSql = N'INSERT INTO dbo.' + QUOTENAME(@ExpectedTable)
                        + N' (' + @InsertCols + N') OUTPUT CONVERT(nvarchar(4000), INSERTED.' + QUOTENAME(@PrimaryKey)
-                       + N') INTO @InsertedPrimary(Value) VALUES (' + @InsertVals + N');';
+                       + N') INTO #InsertedPrimary(Value) VALUES (' + @InsertVals + N');';
 
         EXEC sp_executesql @InsertSql,
              N'@BranchID varchar(max)',
@@ -735,7 +735,7 @@ END;
 
         IF @PrimaryValue IS NULL
         BEGIN
-            SELECT TOP (1) @PrimaryValue = Value FROM @InsertedPrimary;
+            SELECT TOP (1) @PrimaryValue = Value FROM #InsertedPrimary;
         END;
     END;
 

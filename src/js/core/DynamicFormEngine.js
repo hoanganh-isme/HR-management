@@ -972,7 +972,171 @@ window.DynamicFormEngine = (function () {
           });
         }
 
-        // Menu Tùy chọn bảng
+  function _openExcelImportModal() {
+    if (!window.tabulatorInstance) {
+      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Bảng dữ liệu chưa sẵn sàng.');
+      return;
+    }
+
+    if (typeof ExcelImportModal === 'undefined') {
+      if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Thư viện ExcelImportModal chưa được nạp.');
+      return;
+    }
+
+    var columns = window.tabulatorInstance.getColumns().filter(function (col) {
+      var field = col.getField();
+      return col.isVisible() && field && field !== 'row_select' && field !== '__action__';
+    });
+
+    if (!columns || columns.length === 0) {
+      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không tìm thấy cột dữ liệu hợp lệ trên bảng.');
+      return;
+    }
+
+    var gridSchema = _schemaFor('grid') || [];
+    var editSchema = _schemaFor('add') || _schemaFor('edit') || [];
+
+    var webColumns = columns.map(function (col) {
+      var field = col.getField();
+      var colDef = col.getDefinition() || {};
+      var title = colDef.title || field;
+
+      var schemaItem = editSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); }) ||
+                       gridSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); });
+
+      var fieldType = 'string';
+      var isRequired = false;
+
+      if (schemaItem) {
+        fieldType = schemaItem.fieldType || schemaItem.renderRule || schemaItem.type || 'string';
+        isRequired = schemaItem.required === true || schemaItem.isRequired === true || String(schemaItem.required) === '1';
+      } else {
+        if (field.toLowerCase().indexOf('ngay') >= 0 || field.toLowerCase().indexOf('date') >= 0) {
+          fieldType = 'date';
+        } else if (field.toLowerCase().indexOf('gia') >= 0 || field.toLowerCase().indexOf('tien') >= 0 || field.toLowerCase().indexOf('thuethue') >= 0 || field.toLowerCase().indexOf('amount') >= 0 || field.toLowerCase().indexOf('rate') >= 0 || field.toLowerCase().indexOf('bac') >= 0) {
+          fieldType = 'number';
+        }
+      }
+
+      return {
+        field: field,
+        title: title,
+        type: fieldType,
+        isRequired: isRequired
+      };
+    });
+
+    ExcelImportModal.show({
+      webColumns: webColumns,
+      formName: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName || 'Bảng dữ liệu',
+      onConfirm: function (parsedRows, modalApi) {
+        if (!parsedRows || parsedRows.length === 0) {
+          if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không có dữ liệu hợp lệ để import.');
+          return;
+        }
+
+        var endpoint = _usesUnifiedFieldContract() ? _gateway() : (MODULE_CONFIG.ApiSave || _gateway());
+        if (!endpoint) {
+          if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không xác định được API lưu dữ liệu.');
+          return;
+        }
+
+        // Đóng gói Payload lưu CSDL thực tế cho từng dòng
+        var payloads = parsedRows.map(function (row) {
+          var rowPayload = _usesUnifiedFieldContract()
+            ? _buildContractWritePayload(row, false)
+            : _buildPayload(row, false);
+
+          if (endpoint === _gateway()) {
+            return {
+              List: MODULE_CONFIG.FormName,
+              Func: 'Save',
+              JsonData: JSON.stringify(rowPayload),
+              UserName: _currentUser(),
+              BranchID: _currentBranchId()
+            };
+          }
+          return rowPayload;
+        });
+
+        // BÀN THUẬT LƯU THẬT VÀO CSDL VỚI LƯỢNG KẾT NỐI SONG SONG TỐI ĐA (MAX CONCURRENCY = 25 WORKERS)
+        var totalCount = payloads.length;
+        var successCount = 0;
+        var processedCount = 0;
+        var errorLogs = [];
+        var CONCURRENCY = 25; // 25 luồng gửi song song tới API Gateway CSDL
+        var isAborted = false;
+        var startTime = Date.now();
+
+        modalApi.onCancel(function () {
+          isAborted = true;
+        });
+
+        var queueIndex = 0;
+
+        function runWorker() {
+          if (queueIndex >= totalCount || isAborted) return Promise.resolve();
+
+          var idx = queueIndex++;
+          return ApiClient.post(endpoint, payloads[idx])
+            .then(function (res) {
+              var code = res ? res.code : null;
+              var msg = String((res && res.msg) || '');
+              var msgUpper = msg.toUpperCase();
+
+              if (res && (code === 0 || code === '0' || code === 1 || code === '1' || res.status === 200 || res.success === true || msgUpper.indexOf('THÀNH CÔNG') > -1 || msgUpper.indexOf('SUCCESS') > -1)) {
+                successCount++;
+              } else {
+                var cleanMsg = msg || (res && res.records && res.records[0] ? res.records[0].msg : 'Lỗi CSDL');
+                errorLogs.push({ row: idx + 1, msg: cleanMsg });
+              }
+            })
+            .catch(function (err) {
+              var errStr = (err && err.message) || String(err);
+              errorLogs.push({ row: idx + 1, msg: errStr });
+            })
+            .finally(function () {
+              processedCount++;
+              var elapsed = Math.max(0.1, (Date.now() - startTime) / 1000);
+              var speed = Math.round(processedCount / elapsed);
+              var etaSec = speed > 0 ? Math.ceil((totalCount - processedCount) / speed) : 0;
+
+              modalApi.updateProgress(processedCount, totalCount, speed, etaSec);
+
+              if (processedCount < totalCount && !isAborted) {
+                return runWorker();
+              }
+            });
+        }
+
+        var workers = [];
+        var activeWorkersCount = Math.min(CONCURRENCY, totalCount);
+        for (var w = 0; w < activeWorkersCount; w++) {
+          workers.push(runWorker());
+        }
+
+        Promise.all(workers).then(function () {
+          modalApi.close();
+          var totalTimeSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+          if (typeof Alert !== 'undefined') {
+            if (isAborted) {
+              Alert.warning('Tạm dừng Import', 'Đã dừng tiến trình. Đã lưu CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + processedCount.toLocaleString('vi-VN') + ' bản ghi.');
+            } else if (successCount > 0) {
+              Alert.success('Lưu CSDL Thành Công', 'Đã lưu THẬT vào CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + totalCount.toLocaleString('vi-VN') + ' bản ghi (Thời gian: ' + totalTimeSec + 's). Khi nhấn F5 dữ liệu vẫn giữ nguyên 100%.');
+            } else {
+              var firstErr = errorLogs.length > 0 ? errorLogs[0].msg : 'Lỗi kết nối CSDL';
+              Alert.error('Lưu CSDL Thất bại', 'Không thể lưu bản ghi vào CSDL. Lỗi: ' + firstErr);
+            }
+          }
+          // Nạp lại dữ liệu thực tế trực tiếp từ CSDL về Bảng Web
+          _loadData();
+        });
+      }
+    });
+  }
+
+  // Menu Tùy chọn bảng
         var tabulatorActionWrapper = document.createElement('div');
         tabulatorActionWrapper.className = 'tabulator-action-wrapper';
         tabulatorActionWrapper.style.cssText = 'position: relative; display: inline-flex; margin-left: auto; align-items: center;';
@@ -1324,70 +1488,50 @@ window.DynamicFormEngine = (function () {
           };
         }));
 
+        if (_hasPermission('ADD') || _hasPermission('EDIT') || _hasPermission('EXPORT')) {
+          tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Import dữ liệu Excel', function () {
+            _openExcelImportModal();
+          }));
+        }
+
         if (_hasPermission('EXPORT')) {
           tabulatorActionMenu.appendChild(createMenuItem('download', 'Xuất dữ liệu Excel', function () {
             if (window.tabulatorInstance) {
               try {
-                // Xuất Excel có style (Màu nền, chữ đậm cho tiêu đề, hiển thị đúng thứ tự kéo thả)
-                var columns = window.tabulatorInstance.getColumns().filter(function (c) {
-                  return c.isVisible() && c.getField();
-                });
-                var data = window.tabulatorInstance.getData('active');
-                var title = MODULE_CONFIG.PageTitle || "Danh_sach_du_lieu";
 
-                var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
-                html += '<head><meta charset="utf-8"></head><body>';
-                html += '<h3 style="font-family: Arial, sans-serif;">' + title + '</h3>';
-                html += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 13px;">';
-
-                function escapeHtml(text) {
-                  if (text == null) return '';
-                  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                }
-
-                // Tạo dòng Header với CSS inline
-                html += '<tr>';
-                columns.forEach(function (col) {
-                  var colTitle = col.getDefinition().title || '';
-                  html += '<th style="background-color: #f1f5f9; color: #1e293b; font-weight: bold; text-align: left; border: 1px solid #cbd5e1;">' + escapeHtml(colTitle) + '</th>';
-                });
-                html += '</tr>';
-
-                // Tạo các dòng Dữ liệu
-                data.forEach(function (row) {
-                  html += '<tr>';
-                  columns.forEach(function (col) {
-                    var field = col.getField();
-                    var val = row[field];
-
-                    // Map riêng cột PersonStatus sang chữ giống như UI đã xử lý
-                    if (field.toLowerCase() === 'personstatus') {
-                      val = row.PersonStatusName || row.personstatusname || val;
-                    }
-
-                    // Giữ định dạng chuỗi cho các số dễ bị Excel biến dạng (VD: Số điện thoại, CCCD)
-                    var valStr = escapeHtml(val);
-                    var tdStyle = 'border: 1px solid #e2e8f0; vertical-align: middle;';
-                    if (String(val).match(/^0[0-9]{8,11}$/)) {
-                      tdStyle += ' mso-number-format:"\\@";'; // Ép kiểu text cho số 0 ở đầu
-                    }
-
-                    html += '<td style="' + tdStyle + '">' + valStr + '</td>';
+                if (typeof XLSX !== 'undefined') {
+                  var columns = window.tabulatorInstance.getColumns().filter(function (c) {
+                    var f = c.getField();
+                    return c.isVisible() && f && f !== 'row_select' && f !== '__action__';
                   });
-                  html += '</tr>';
-                });
+                  var data = window.tabulatorInstance.getData('active');
+                  var title = MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormTitle || "Danh_sach_du_lieu";
 
-                html += '</table></body></html>';
+                  var aoa = [];
+                  var headerRow = columns.map(function (col) {
+                    return col.getDefinition().title || col.getField();
+                  });
+                  aoa.push(headerRow);
 
-                var blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = title + ".xls";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                  data.forEach(function (row) {
+                    var dataRow = columns.map(function (col) {
+                      var field = col.getField();
+                      var val = row[field];
+                      if (field && field.toLowerCase() === 'personstatus') {
+                        val = row.PersonStatusName || row.personstatusname || val;
+                      }
+                      return val != null ? val : '';
+                    });
+                    aoa.push(dataRow);
+                  });
+
+                  var wb = XLSX.utils.book_new();
+                  var ws = XLSX.utils.aoa_to_sheet(aoa);
+                  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+                  XLSX.writeFile(wb, title + ".xlsx");
+                } else {
+                  window.tabulatorInstance.download("xlsx", (MODULE_CONFIG.PageTitle || "Data") + ".xlsx", { sheetName: "Du_Lieu" });
+                }
               } catch (e) {
                 console.error("Lỗi xuất Excel tùy chỉnh:", e);
                 // Fallback lại cách cũ nếu có lỗi
@@ -2271,8 +2415,17 @@ window.DynamicFormEngine = (function () {
             var isFieldSyncLookup = Boolean(
               /^[A-Fa-f0-9]{64}$/.test(String(f.lookupKey || ''))
               && window.FieldSyncService
-              && typeof FieldSyncService.searchLookup === 'function'
+              && typeof FieldSyncService.createLookupDataSource === 'function'
             );
+            var fieldSyncSearch = isFieldSyncLookup
+              ? FieldSyncService.createLookupDataSource({
+                formName: MODULE_CONFIG.FormName,
+                lookupKey: f.lookupKey,
+                dependsOn: f.dependsOn,
+                getDependencyValues: function () { return rowData; },
+                pageSize: 30
+              })
+              : null;
 
             var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
             var maxCols = 4;
@@ -2303,13 +2456,7 @@ window.DynamicFormEngine = (function () {
 
             var searchApiCall = function (q, page) {
               if (isFieldSyncLookup) {
-                return FieldSyncService.searchLookup(MODULE_CONFIG.FormName, f.lookupKey, q, page, 30).then(function (options) {
-                  return {
-                    headers: ['Giá trị', 'Hiển thị'],
-                    data: options.map(function (item) { return [item.value, item.label]; }),
-                    colFilterIndex: 1
-                  };
-                });
+                return fieldSyncSearch(q, page);
               }
               var payload = Object.assign({}, fetchPayload);
               var isGateway = finalUrl.indexOf(_gateway()) > -1;
@@ -2391,6 +2538,7 @@ window.DynamicFormEngine = (function () {
               placeholder: '-- Chọn --',
               headers: ['Mã', 'Tên'],
               showAddNew: false,
+              enablePagination: isFieldSyncLookup,
               onSearch: searchApiCall,
               onChange: function (val) { },
               onSelect: function (row) {
@@ -4758,7 +4906,7 @@ window.DynamicFormEngine = (function () {
       } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
         inputEl = UIInput.createTime(field);
       } else if (/^[A-Fa-f0-9]{64}$/.test(String(field.lookupKey || ''))
-        && window.FieldSyncService && typeof FieldSyncService.searchLookup === 'function') {
+        && window.FieldSyncService && typeof FieldSyncService.createLookupDataSource === 'function') {
         var contractLookupWrapper = document.createElement('div');
         contractLookupWrapper.className = 'form-group';
         if (field.label) {
@@ -4773,20 +4921,20 @@ window.DynamicFormEngine = (function () {
         contractLookupValue.value = _hasContractValue(field.value) ? field.value : '';
         contractLookupWrapper.appendChild(contractLookupValue);
 
+        var contractLookupSearch = FieldSyncService.createLookupDataSource({
+          formName: MODULE_CONFIG.FormName,
+          lookupKey: field.lookupKey,
+          dependsOn: field.dependsOn,
+          getDependencyValues: function () { return currentModalFormState; },
+          pageSize: 30
+        });
         var contractLookupCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
-          headers: ['Giá trị', 'Hiển thị'],
+          headers: ['Mã', 'Tên'],
           disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
           showAddNew: false,
-          onSearch: function (q, page) {
-            return FieldSyncService.searchLookup(MODULE_CONFIG.FormName, field.lookupKey, q, page, 30).then(function (options) {
-              return {
-                headers: ['Giá trị', 'Hiển thị'],
-                data: options.map(function (option) { return [option.value, option.label]; }),
-                colFilterIndex: 1
-              };
-            });
-          },
+          enablePagination: true,
+          onSearch: contractLookupSearch,
           onChange: function (value) { contractLookupValue.value = value; },
           onSelect: function (row) {
             contractLookupValue.value = row[0];
@@ -4796,16 +4944,16 @@ window.DynamicFormEngine = (function () {
         var contractLookupDisplay = contractLookupCombo.querySelector('input.ui-input');
         if (contractLookupDisplay) contractLookupDisplay.value = _hasContractValue(field.value) ? field.value : '';
         if (_hasContractValue(field.value)) {
-          FieldSyncService.searchLookup(MODULE_CONFIG.FormName, field.lookupKey, String(field.value), 1, 30)
-            .then(function (options) {
-              var matched = options.find(function (option) { return String(option.value) === String(field.value); });
-              if (matched && contractLookupDisplay) contractLookupDisplay.value = matched.label;
+          contractLookupSearch(String(field.value), 1)
+            .then(function (result) {
+              var matched = result.data.find(function (option) { return String(option[0]) === String(field.value); });
+              if (matched && contractLookupDisplay) contractLookupDisplay.value = matched[1];
             })
             .catch(function () { /* Giữ giá trị thô nếu lookup tạm thời không tải được. */ });
         }
         contractLookupWrapper.appendChild(contractLookupCombo);
         inputEl = contractLookupWrapper;
-      } else if (field.renderRule === 'sl' || field.renderRule === 'select') {
+      } else if (field.renderRule === 'sl' || field.renderRule === 'select' || field.renderRule === 'combo' || field.renderRule === 'lookup') {
         var formGroupWrapper = document.createElement('div');
         formGroupWrapper.className = 'form-group';
 

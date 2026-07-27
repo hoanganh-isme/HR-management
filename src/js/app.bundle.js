@@ -1737,6 +1737,7 @@ var PermissionsService = (function () {
 window.FieldSyncService = (function (global) {
   var states = Object.create(null);
   var timers = Object.create(null);
+  var lookupKeyAliases = Object.create(null);
 
   function config() {
     return global.ERP_FIELD_SYNC_CONFIG || { enabled: false, shadowMode: true, pilotForms: [], pollSeconds: 120 };
@@ -2582,11 +2583,47 @@ window.FieldSyncService = (function (global) {
     return result;
   }
 
+  function normalizeLookupError(error) {
+    var safeError = error instanceof Error ? error : new Error('Không tải được danh mục.');
+    var data = safeError.data && typeof safeError.data === 'object' ? safeError.data : {};
+    var code = String(data.code || safeError.code || 'LOOKUP_LOAD_FAILED').trim().toUpperCase();
+    var messages = {
+      LOOKUP_KEY_NOT_FOUND: 'Danh mục chưa được đồng bộ. Vui lòng liên hệ quản trị viên.',
+      LOOKUP_CONTRACT_NOT_UNIQUE: 'Cấu hình danh mục chưa đồng nhất. Vui lòng liên hệ quản trị viên.',
+      LOOKUP_SOURCE_NOT_REGISTERED: 'Nguồn danh mục chưa được đăng ký.',
+      LOOKUP_COLUMNS_NOT_CONFIGURED: 'Danh mục chưa cấu hình đủ cột mã và tên.',
+      LOOKUP_COLUMNS_MISMATCH: 'Dữ liệu danh mục không khớp cấu hình.',
+      LOOKUP_DEPENDENCY_REQUIRED: 'Vui lòng chọn trường liên quan trước.',
+      LOOKUP_LOAD_FAILED: 'Không tải được danh sách. Vui lòng thử lại.'
+    };
+    safeError.code = code;
+    safeError.userMessage = messages[code] || messages.LOOKUP_LOAD_FAILED;
+    return safeError;
+  }
+
+  function declaredLookupDependencies(names, values) {
+    var source = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
+    var result = {};
+    var declared = Array.isArray(names)
+      ? names
+      : String(names || '').split(',');
+    declared.slice(0, 20).forEach(function (name) {
+      var safeName = String(name || '').trim();
+      if (!safeName || !Object.prototype.hasOwnProperty.call(source, safeName)) return;
+      result[safeName] = source[safeName];
+    });
+    return result;
+  }
+
   function searchLookup(formName, lookupKey, keyword, page, pageSize, dependencies) {
-    if (!isPilot(formName) || !/^[A-Fa-f0-9]{64}$/.test(String(lookupKey || ''))) {
-      return Promise.reject(new Error('Lookup V2 không hợp lệ'));
+    var requestedLookupKey = String(lookupKey || '');
+    var aliasPrefix = stateKey(formName) + '|';
+    var aliasKey = aliasPrefix + requestedLookupKey.toLowerCase();
+    var effectiveLookupKey = lookupKeyAliases[aliasKey] || requestedLookupKey;
+    if (!isPilot(formName) || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
+      return Promise.reject(normalizeLookupError(new Error('Lookup V2 không hợp lệ')));
     }
-    var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(lookupKey) + '/search';
+    var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(effectiveLookupKey) + '/search';
     return global.ApiClient.post(endpoint, {
       formName: formName,
       erpFormId: erpFormId(formName),
@@ -2595,8 +2632,50 @@ window.FieldSyncService = (function (global) {
       pageSize: Math.min(100, Math.max(1, Number(pageSize) || 30)),
       dependencies: lookupDependencies(dependencies)
     }, { headers: requestHeaders(), logoutOnUnauthorized: false }).then(function (response) {
+      var resolvedLookupKey = String(response && response.lookupKey || '');
+      if (/^[A-Fa-f0-9]{64}$/.test(resolvedLookupKey)) {
+        lookupKeyAliases[aliasKey] = resolvedLookupKey;
+      }
+      var aliases = response && response.lookupAliases && typeof response.lookupAliases === 'object'
+        ? response.lookupAliases
+        : {};
+      Object.keys(aliases).forEach(function (staleKey) {
+        var currentKey = String(aliases[staleKey] || '');
+        if (/^[A-Fa-f0-9]{64}$/.test(staleKey) && /^[A-Fa-f0-9]{64}$/.test(currentKey)) {
+          lookupKeyAliases[aliasPrefix + staleKey.toLowerCase()] = currentKey;
+        }
+      });
       return response && Array.isArray(response.options) ? response.options : [];
+    }).catch(function (error) {
+      throw normalizeLookupError(error);
     });
+  }
+
+  function createLookupDataSource(options) {
+    var settings = options && typeof options === 'object' ? options : {};
+    var pageSize = Math.min(100, Math.max(1, Number(settings.pageSize) || 30));
+    return function (keyword, page) {
+      var values = typeof settings.getDependencyValues === 'function'
+        ? settings.getDependencyValues()
+        : settings.dependencyValues;
+      var dependencies = declaredLookupDependencies(settings.dependsOn, values);
+      return searchLookup(
+        settings.formName,
+        settings.lookupKey,
+        keyword,
+        page,
+        pageSize,
+        dependencies
+      ).then(function (optionsList) {
+        return {
+          headers: [settings.valueHeader || 'Mã', settings.displayHeader || 'Tên'],
+          data: optionsList.map(function (item) { return [item.value, item.label]; }),
+          colFilterIndex: 1,
+          forceMultiColumn: settings.forceMultiColumn === true,
+          hasMore: optionsList.length === pageSize
+        };
+      });
+    };
   }
 
   function getState(formName) {
@@ -2726,8 +2805,13 @@ window.FieldSyncService = (function (global) {
   function clearCache(formName) {
     if (formName) {
       delete states[stateKey(formName)];
+      var aliasPrefix = stateKey(formName) + '|';
+      Object.keys(lookupKeyAliases).forEach(function (key) {
+        if (key.indexOf(aliasPrefix) === 0) delete lookupKeyAliases[key];
+      });
     } else {
       states = Object.create(null);
+      lookupKeyAliases = Object.create(null);
     }
   }
 
@@ -2735,6 +2819,7 @@ window.FieldSyncService = (function (global) {
     observeForm: observeForm,
     refreshForm: refreshForm,
     searchLookup: searchLookup,
+    createLookupDataSource: createLookupDataSource,
     getState: getState,
     getContextKey: function (formName) { return stateKey(formName); },
     inspectForm: inspectForm,
@@ -4315,28 +4400,64 @@ UIControls.utils = (function () {
 
     var mBox = document.createElement('div');
     mBox.className = 'ui-modal-content';
-    mBox.style.cssText = 'background: #fff; width: 900px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
+    mBox.style.cssText = 'background: #fff; width: 920px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
 
     var mHeader = document.createElement('div');
     mHeader.style.cssText = 'padding: 16px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); border-radius: 8px 8px 0 0;';
     mHeader.innerHTML = '<h3 style="margin: 0; font-size: 16px;">' + (options.title || 'Chọn dữ liệu') + '</h3><button type="button" class="btn-close" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>';
     mHeader.querySelector('.btn-close').onclick = function () { document.body.removeChild(mWrap); };
 
-    var mBody = document.createElement('div');
-    mBody.style.cssText = 'padding: 16px; overflow-y: auto; flex: 1;';
+    // Search and Filter Bar
+    var filterBar = document.createElement('div');
+    filterBar.style.cssText = 'padding: 12px 16px; border-bottom: 1px solid var(--color-border, #e8e8e8); background: var(--color-surface, #fafafa); display: flex; gap: 12px; align-items: center; flex-wrap: wrap;';
 
-    var tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
-    tableHTML += '<thead style="background: var(--color-surface-elevated);"><tr style="border-bottom: 2px solid var(--color-border);">';
-    tableHTML += '<th style="padding: 10px; text-align: center; width: 40px;"><input type="checkbox" id="chkAllMulti" /></th>';
+    var departments = [];
+    dataList.forEach(function (r) {
+      var dept = (r.PhongBan || r.BoPhan || r.Department || '').toString().trim();
+      if (dept && departments.indexOf(dept) === -1) {
+        departments.push(dept);
+      }
+    });
+    departments.sort();
+
+    var searchHTML = '<div style="position: relative; flex: 1; min-width: 220px;">' +
+      '<input type="text" class="multi-search-input" placeholder="Tìm kiếm theo Mã NV, Họ Tên, Bộ phận, Chức vụ..." ' +
+      'style="width: 100%; padding: 8px 12px 8px 32px; border: 1px solid var(--color-border, #d9d9d9); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;" />' +
+      '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #8c8c8c; pointer-events: none; display: flex; align-items: center;">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+      '</span></div>';
+
+    if (departments.length > 1) {
+      searchHTML += '<div style="min-width: 210px;">' +
+        '<select class="multi-dept-filter" style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border, #d9d9d9); border-radius: 6px; font-size: 13px; outline: none; background: #fff; box-sizing: border-box; cursor: pointer;">' +
+        '<option value="">-- Tất cả bộ phận(' + departments.length + ') --</option>';
+      departments.forEach(function (d) {
+        searchHTML += '<option value="' + d.replace(/"/g, '&quot;') + '">' + d + '</option>';
+      });
+      searchHTML += '</select></div>';
+    }
+
+    searchHTML += '<div style="font-size: 12px; color: #595959; white-space: nowrap;" class="multi-count-label">' +
+      'Hiển thị: <b>' + dataList.length + '</b> / ' + dataList.length + ' nhân viên</div>';
+
+    filterBar.innerHTML = searchHTML;
+
+    var mBody = document.createElement('div');
+    mBody.style.cssText = 'padding: 0; overflow-y: auto; flex: 1; position: relative;';
+
+    var tableHTML = '<table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px;">';
+    tableHTML += '<thead style="position: sticky; top: 0; z-index: 10; background: var(--color-surface-elevated, #f5f5f5);">';
+    tableHTML += '<tr style="background: var(--color-surface-elevated, #f5f5f5);">';
+    tableHTML += '<th style="padding: 10px 12px; text-align: center; width: 40px; background: var(--color-surface-elevated, #f5f5f5); border-bottom: 2px solid var(--color-border, #e8e8e8);"><input type="checkbox" id="chkAllMulti" /></th>';
     options.headers.forEach(function (h) {
-      tableHTML += '<th style="padding: 10px; text-align: left;">' + h + '</th>';
+      tableHTML += '<th style="padding: 10px 12px; text-align: left; background: var(--color-surface-elevated, #f5f5f5); border-bottom: 2px solid var(--color-border, #e8e8e8); font-weight: 600; color: var(--color-text, #262626);">' + h + '</th>';
     });
     tableHTML += '</tr></thead><tbody>';
 
     dataList.forEach(function (rData, idx) {
       var isDuplicate = ctx.panel._currentRows.some(function (r) { return r[options.keyField] === rData[options.keyField]; });
       var chkDisabled = isDuplicate ? 'disabled' : '';
-      var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : '';
+      var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : 'background: #ffffff;';
       var warningText = isDuplicate ? 'Đã có trên form' : '';
       var warningStyle = isDuplicate ? 'color: red;' : '';
 
@@ -4349,13 +4470,13 @@ UIControls.utils = (function () {
         }
       }
 
-      tableHTML += '<tr style="border-bottom: 1px solid var(--color-border); ' + styleClass + '">';
-      tableHTML += '<td style="padding: 8px; text-align: center;"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
+      tableHTML += '<tr style="' + styleClass + '">';
+      tableHTML += '<td style="padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--color-border, #e8e8e8);"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
       options.fields.forEach(function (f) {
         if (f === '_warning_') {
-          tableHTML += '<td style="padding: 8px; ' + warningStyle + '">' + warningText + '</td>';
+          tableHTML += '<td style="padding: 10px 12px; border-bottom: 1px solid var(--color-border, #e8e8e8); ' + warningStyle + '">' + warningText + '</td>';
         } else {
-          tableHTML += '<td style="padding: 8px;">' + (rData[f] || '') + '</td>';
+          tableHTML += '<td style="padding: 10px 12px; border-bottom: 1px solid var(--color-border, #e8e8e8);">' + (rData[f] || '') + '</td>';
         }
       });
       tableHTML += '</tr>';
@@ -4409,18 +4530,71 @@ UIControls.utils = (function () {
     mFooter.appendChild(btnSelect);
 
     mBox.appendChild(mHeader);
+    mBox.appendChild(filterBar);
     mBox.appendChild(mBody);
     mBox.appendChild(mFooter);
     mWrap.appendChild(mBox);
 
     document.body.appendChild(mWrap);
 
+    // Filter Logic
+    function applyFilter() {
+      var searchInput = filterBar.querySelector('.multi-search-input');
+      var deptSelect = filterBar.querySelector('.multi-dept-filter');
+      var countLabel = filterBar.querySelector('.multi-count-label');
+
+      var kw = (searchInput ? searchInput.value : '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      var deptVal = deptSelect ? deptSelect.value.trim().toLowerCase() : '';
+
+      var rows = mBody.querySelectorAll('tbody tr');
+      var visibleCount = 0;
+
+      rows.forEach(function (tr, idx) {
+        var rData = dataList[idx];
+        if (!rData) return;
+
+        var matchesDept = !deptVal || (rData.PhongBan || rData.BoPhan || rData.Department || '').toString().trim().toLowerCase() === deptVal;
+
+        var matchesKw = true;
+        if (kw) {
+          var rowText = options.fields.map(function (f) {
+            return f !== '_warning_' ? String(rData[f] || '') : '';
+          }).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          matchesKw = rowText.indexOf(kw) !== -1;
+        }
+
+        if (matchesDept && matchesKw) {
+          tr.style.display = '';
+          visibleCount++;
+        } else {
+          tr.style.display = 'none';
+        }
+      });
+
+      if (countLabel) {
+        countLabel.innerHTML = 'Hiển thị: <b>' + visibleCount + '</b> / ' + dataList.length + ' nhân viên';
+      }
+
+      var chkAll = mBody.querySelector('#chkAllMulti');
+      if (chkAll) chkAll.checked = false;
+    }
+
+    var searchInput = filterBar.querySelector('.multi-search-input');
+    if (searchInput) {
+      searchInput.oninput = applyFilter;
+      setTimeout(function () { searchInput.focus(); }, 100);
+    }
+    var deptSelect = filterBar.querySelector('.multi-dept-filter');
+    if (deptSelect) {
+      deptSelect.onchange = applyFilter;
+    }
+
     var chkAll = mBody.querySelector('#chkAllMulti');
     if (chkAll) {
       chkAll.onclick = function () {
-        var chks = mBody.querySelectorAll('.chk-item-multi:not([disabled])');
         var isChecked = this.checked;
-        chks.forEach(function (chk) { chk.checked = isChecked; });
+        var visibleChks = mBody.querySelectorAll('tbody tr:not([style*="display: none"]) .chk-item-multi:not([disabled])');
+        visibleChks.forEach(function (chk) { chk.checked = isChecked; });
       };
     }
   }
@@ -5375,6 +5549,8 @@ UIControls.createDataComboBox = function (options) {
   input.type = 'text';
   input.className = 'ui-input';
   input.placeholder = (options.placeholder !== undefined) ? options.placeholder : 'Tìm kiếm...';
+  input.setAttribute('aria-haspopup', 'listbox');
+  input.setAttribute('aria-expanded', 'false');
   if (options.id) input.id = options.id;
 
   // Actions block – chỉ giữ nút mũi tên
@@ -5425,6 +5601,8 @@ UIControls.createDataComboBox = function (options) {
   // Table wrapper (scrollable)
   var tableWrapper = document.createElement('div');
   tableWrapper.className = 'dd-table-wrapper';
+  tableWrapper.setAttribute('role', 'status');
+  tableWrapper.setAttribute('aria-live', 'polite');
 
   // Footer "+ Thêm mới" & Phân trang
   var footer = document.createElement('div');
@@ -5454,6 +5632,7 @@ UIControls.createDataComboBox = function (options) {
   // Pagination Elements
   var currentPage = 1;
   var currentQuery = '';
+  var requestSequence = 0;
 
   var paginationWrapper = document.createElement('div');
   paginationWrapper.className = 'dd-pagination';
@@ -5512,7 +5691,46 @@ UIControls.createDataComboBox = function (options) {
   // ── Data & Render ───────────────────────────────────────────────
   var fullData = options.data || [];
 
+  function renderState(type, message, allowRetry) {
+    tableWrapper.innerHTML = '';
+    var state = document.createElement('div');
+    state.className = 'dd-state dd-state-' + type;
+
+    var icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined dd-state-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = type === 'error' ? 'cloud_off' : (type === 'empty' ? 'search_off' : 'progress_activity');
+    state.appendChild(icon);
+
+    var text = document.createElement('span');
+    text.className = 'dd-state-text';
+    text.textContent = message;
+    state.appendChild(text);
+
+    if (allowRetry) {
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'dd-retry-btn';
+      retry.textContent = options.retryText || 'Thử lại';
+      retry.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        loadData(currentQuery, currentPage);
+      });
+      state.appendChild(retry);
+    }
+
+    tableWrapper.appendChild(state);
+  }
+
   function renderTable(displayData) {
+    if (!Array.isArray(displayData) || displayData.length === 0) {
+      renderState(
+        'empty',
+        currentQuery ? (options.noResultsText || 'Không tìm thấy kết quả phù hợp.') : (options.emptyText || 'Chưa có dữ liệu.')
+      );
+      return;
+    }
     if (UIControls.utils) {
       tableWrapper.innerHTML = UIControls.utils.createDropdownTableHTML(
         options.headers || [], displayData, options.colHighlightIndex !== undefined ? options.colHighlightIndex : (options.colFilterIndex || 0), options
@@ -5573,12 +5791,17 @@ UIControls.createDataComboBox = function (options) {
     currentQuery = q;
     currentPage = page;
     if (typeof options.onSearch === 'function') {
-      tableWrapper.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">Đang tải...</div>';
+      var requestId = ++requestSequence;
+      tableWrapper.setAttribute('aria-busy', 'true');
+      renderState('loading', q ? (options.searchingText || 'Đang tìm...') : (options.loadingText || 'Đang tải danh sách...'));
       Promise.resolve(options.onSearch(q, page)).then(function (result) {
+        if (requestId !== requestSequence) return;
+        var hasMore;
         if (result && !Array.isArray(result) && result.data) {
           if (result.headers) options.headers = result.headers;
           if (result.colFilterIndex !== undefined) options.colFilterIndex = result.colFilterIndex;
           if (result.forceMultiColumn !== undefined) options.forceMultiColumn = result.forceMultiColumn;
+          if (result.hasMore !== undefined) hasMore = result.hasMore === true;
           result = result.data;
         }
         if (Array.isArray(result)) {
@@ -5589,15 +5812,22 @@ UIControls.createDataComboBox = function (options) {
             lblPage.textContent = 'Trang ' + page + ' (' + result.length + ')';
             btnPrev.disabled = (page <= 1);
             btnPrev.style.opacity = (page <= 1) ? '0.5' : '1';
-            btnNext.disabled = (result.length < 200);
-            btnNext.style.opacity = (result.length < 200) ? '0.5' : '1';
+            var canLoadNext = hasMore !== undefined
+              ? hasMore
+              : result.length >= Math.max(1, Number(options.pageSize) || 200);
+            btnNext.disabled = !canLoadNext;
+            btnNext.style.opacity = canLoadNext ? '1' : '0.5';
           }
           if (UIControls.utils) {
             UIControls.utils.computeDropdownPosition(container, dropdown);
           }
         }
-      }).catch(function () {
-        tableWrapper.innerHTML = '<div style="padding:12px;text-align:center;color:#ef4444;font-size:13px">Lỗi tải dữ liệu</div>';
+        tableWrapper.setAttribute('aria-busy', 'false');
+      }).catch(function (error) {
+        if (requestId !== requestSequence) return;
+        tableWrapper.setAttribute('aria-busy', 'false');
+        renderState('error', error && error.userMessage ? error.userMessage : (options.errorText || 'Không tải được danh sách.'), true);
+        if (typeof options.onError === 'function') options.onError(error);
       });
     } else {
       var lval = q.toLowerCase();
@@ -5626,6 +5856,7 @@ UIControls.createDataComboBox = function (options) {
       UIControls.utils.computeDropdownPosition(container, dropdown);
     }
     dropdown.classList.add('active');
+    input.setAttribute('aria-expanded', 'true');
     attachScrollListeners();
     setTimeout(function () {
       if (document.activeElement !== input) {
@@ -5637,6 +5868,7 @@ UIControls.createDataComboBox = function (options) {
   function hideDropdown() {
     detachScrollListeners();
     dropdown.classList.remove('active');
+    input.setAttribute('aria-expanded', 'false');
     if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
   }
 
@@ -5649,7 +5881,7 @@ UIControls.createDataComboBox = function (options) {
     if (typeof options.onSearch === 'function') {
       // Server-side: debounce 300ms rồi gọi API
       clearTimeout(_searchDebounce);
-      tableWrapper.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">Đang tìm...</div>';
+      renderState('loading', options.searchingText || 'Đang tìm...');
       _searchDebounce = setTimeout(function () {
         loadData(val, 1);
       }, 300);
@@ -14349,9 +14581,38 @@ window.DynamicDetailManager = (function () {
               onSelect: function (selected) {
                 var value = selected[lookup.colFilterIndex || 0];
                 currentRow[fieldName] = value;
+
+                /*
+                 * Ánh xạ option dạng mảng về detail row bằng metadata của
+                 * lookup. Các phần tử nằm ngoài số header vẫn được giữ để
+                 * điền field ẩn/read-only nhưng không hiển thị trên dropdown.
+                 */
+                if (Array.isArray(lookup.valueFields)) {
+                  lookup.valueFields.forEach(function (targetField, index) {
+                    if (
+                      targetField
+                      && selected[index] !== undefined
+                    ) {
+                      currentRow[targetField] = selected[index];
+                    }
+                  });
+                }
+
                 if (typeof lookup.mapData === 'function') {
                   var mapped = { _tr: tr };
-                  lookup.mapData(selected, mapped, false);
+                  var mapResult =
+                    lookup.mapData(selected, mapped, false);
+
+                  if (
+                    mapResult
+                    && !Array.isArray(mapResult)
+                    && typeof mapResult === 'object'
+                  ) {
+                    Object.keys(mapResult).forEach(function (key) {
+                      mapped[key] = mapResult[key];
+                    });
+                  }
+
                   Object.keys(mapped).forEach(function (key) { if (key !== '_tr') currentRow[key] = mapped[key]; });
                 }
                 renderEditableGrid(tabDef, panel, row, isViewMode);
@@ -15495,7 +15756,8 @@ window.DynamicAttachmentManager = (function () {
 (function (global) {
   var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
   definitions.attendance = definitions.attendance || {};
-    definitions.attendance['WA_TIMESHEETDAYFRM'] = {
+
+  definitions.attendance['WA_TIMESHEETDAYFRM'] = {
     FormName: 'WA_TimeSheetDayFrm',
     PrimaryKey: 'UserAutoID',
     ProcessAction: 'hr.timesheet.process',
@@ -15504,13 +15766,12 @@ window.DynamicAttachmentManager = (function () {
     HideDeleteBtn: true,
     HidePrintBtn: true
   };
+
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
     ShiftAction: 'hr.shift.auto',
     ModalWidth: '860px',
-    // Nút Sắp ca tự động nằm trên thanh thao tác (cạnh Lưu thay đổi/Sửa)
-    // Hoạt động ở cả chế độ Xem và Sửa
     customFooterButtons: [
       {
         label: 'Sắp ca tự động',
@@ -15547,39 +15808,34 @@ window.DynamicAttachmentManager = (function () {
               message: msg,
               confirmText: 'Xác nhận',
               confirmClass: 'btn-primary',
-              onConfirm: function() {
-                 _proceedSapCa();
+              onConfirm: function () {
+                _proceedSapCa();
               }
             });
           } else {
-            // Fallback nếu ConfirmModal không tồn tại
             var plainMsg = msg.replace(/<[^>]*>?/gm, '');
             if (confirm(plainMsg)) _proceedSapCa();
           }
 
           function _proceedSapCa() {
             if (ctx.isEdit) {
-              // Lắng nghe sự kiện lưu thành công để chạy SP
-              var saveHandler = function(e) {
+              var saveHandler = function (e) {
                 if (e.detail && e.detail.formName === 'WA_CaLamViecFrm') {
                   document.removeEventListener('dynamicFormSaved', saveHandler);
-                  // Lấy ID mới sau khi lưu (nếu là thêm mới) hoặc ID cũ
                   var newSapCaID = e.detail.data ? e.detail.data.SapCaID : (ctx.row ? ctx.row.SapCaID : '');
-                  window.SapCaTuDong_ByID(newSapCaID, ctx.btnSave); // ctx.btnSave có thể truyền null nếu muốn
+                  window.SapCaTuDong_ByID(newSapCaID, ctx.btnSave);
                 }
               };
               document.addEventListener('dynamicFormSaved', saveHandler);
 
-              // Tự động gọi hàm lưu của Engine
               if (ctx.btnSave) {
                 ctx.btnSave.click();
               } else {
-                 if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy nút Lưu để lưu dữ liệu');
+                if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không tìm thấy nút Lưu để lưu dữ liệu');
               }
             } else {
-               // Đang ở chế độ xem, chạy SP luôn
-               var currentID = ctx.row ? ctx.row.SapCaID : '';
-               window.SapCaTuDong_ByID(currentID, null);
+              var currentID = ctx.row ? ctx.row.SapCaID : '';
+              window.SapCaTuDong_ByID(currentID, null);
             }
           }
         }
@@ -15614,7 +15870,6 @@ window.DynamicAttachmentManager = (function () {
               }).then(function (res) {
                 if (loadingMsg) loadingMsg.close();
                 var rawList = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
-                // Chuẩn hóa thành object nếu API trả về mảng phẳng
                 var dataList = rawList.map(function (r) {
                   if (Array.isArray(r)) {
                     return { PersonID: r[0] || '', PersonName: r[1] || '', PhongBan: r[2] || '', TitleName: r[3] || '' };
@@ -15671,11 +15926,27 @@ window.DynamicAttachmentManager = (function () {
             headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
             colFilterIndex: 0,
             apiList: 'HR_PersonTbl',
+            valueFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID'],
             getPayload: function () {
               return {};
             },
             mapData: function (d) {
-              return [d.PersonID || '', d.PersonName || '', d.PhongBan || '', d.TitleName || ''];
+              if (Array.isArray(d)) {
+                return [
+                  d[0] || '',
+                  d[1] || '',
+                  d[2] || '',
+                  d[3] || '',
+                  d[4] || ''
+                ];
+              }
+              return [
+                d.PersonID || '',
+                d.PersonName || '',
+                d.PhongBan || d.BoPhan || '',
+                d.TitleName || d.ChucVu || '',
+                d.BranchID || ''
+              ];
             }
           }
         },
@@ -17295,6 +17566,677 @@ var DocumentExportPlugin = (function (global) {
   registry.install();
 })(window);
 
+/* --- ExcelImportModal.js --- */
+/**
+ * ExcelImportModal.js - Component Import Excel với Kiểm tra Cấu trúc Cột & Kiểu Dữ liệu
+ */
+window.ExcelImportModal = (function () {
+  'use strict';
+
+  var activeModalElement = null;
+  var currentWorkbook = null;
+  var currentFile = null;
+  var validationResult = { isValid: false, columnErrors: [], rowErrors: [], parsedRows: [] };
+
+  function _normalizeText(str) {
+    if (str == null) return '';
+    return String(str)
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[\*\:]+$/, ''); // Bỏ ký tự dấu sao bắt buộc hoặc hai chấm ở cuối tên cột
+  }
+
+  function _formatDateVal(rawVal) {
+    if (rawVal == null || rawVal === '') return '';
+
+    if (rawVal instanceof Date) {
+      if (isNaN(rawVal.getTime())) return null;
+      var y = rawVal.getFullYear();
+      var m = String(rawVal.getMonth() + 1).padStart(2, '0');
+      var d = String(rawVal.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    var str = String(rawVal).trim();
+    // Dạng DD/MM/YYYY hoặc DD-MM-YYYY
+    var matchDmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (matchDmy) {
+      var day = parseInt(matchDmy[1], 10);
+      var month = parseInt(matchDmy[2], 10);
+      var year = parseInt(matchDmy[3], 10);
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+      return null;
+    }
+
+    // Dạng YYYY-MM-DD hoặc YYYY/MM/DD
+    var matchYmd = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (matchYmd) {
+      var year = parseInt(matchYmd[1], 10);
+      var month = parseInt(matchYmd[2], 10);
+      var day = parseInt(matchYmd[3], 10);
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+      return null;
+    }
+
+    // Parse thử bằng Date constructor
+    var parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      var y = parsed.getFullYear();
+      var m = String(parsed.getMonth() + 1).padStart(2, '0');
+      var d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    return null;
+  }
+
+  /**
+   * Thực hiện kiểm tra toàn bộ file Excel so với cấu hình webColumns
+   */
+  function _validateExcelData(rawRows, webColumns, headerRowIdx, dataStartRowIdx) {
+    var columnErrors = [];
+    var rowErrors = [];
+    var parsedRows = [];
+
+    if (!rawRows || rawRows.length === 0) {
+      return {
+        isValid: false,
+        columnErrors: ['File Excel rỗng hoặc không chứa dữ liệu.'],
+        rowErrors: [],
+        parsedRows: []
+      };
+    }
+
+    var headerRowZeroIdx = headerRowIdx - 1;
+    if (headerRowZeroIdx < 0 || headerRowZeroIdx >= rawRows.length) {
+      return {
+        isValid: false,
+        columnErrors: [`Dòng tiêu đề (Dòng ${headerRowIdx}) nằm ngoài phạm vi số dòng file Excel (Tổng ${rawRows.length} dòng).`],
+        rowErrors: [],
+        parsedRows: []
+      };
+    }
+
+    var rawHeader = rawRows[headerRowZeroIdx] || [];
+    var excelHeaders = [];
+    for (var i = 0; i < rawHeader.length; i++) {
+      excelHeaders.push(String(rawHeader[i] || '').trim());
+    }
+    while (excelHeaders.length > 0 && excelHeaders[excelHeaders.length - 1] === '') {
+      excelHeaders.pop();
+    }
+
+    var webColsCount = webColumns.length;
+    var excelColsCount = excelHeaders.length;
+
+    // Chỉ kiểm tra THIẾU CỘT (Nếu file Excel ít cột hơn số cột hiển thị trên Web)
+    if (excelColsCount < webColsCount) {
+      var missingCols = webColumns.slice(excelColsCount).map(function (c) { return `Cột ${c.colIdx || ''} ("${c.title}")`; }).join(', ');
+      columnErrors.push(`Lỗi thiếu cột: File Excel chỉ có ${excelColsCount} cột, nhưng bảng Web cần ${webColsCount} cột dữ liệu theo thứ tự. (Thiếu từ: ${missingCols})`);
+    }
+
+    // ĐỌC DỮ LIỆU THEO VỊ TRÍ CỘT 1, 2, 3... TƯƠNG ỨNG VỚI CÁC CỘT WEB (BỎ QUA KIỂM TRA CHUỖI TIÊU ĐỀ)
+    var dataStartZeroIdx = dataStartRowIdx - 1;
+    if (dataStartZeroIdx < rawRows.length) {
+      for (var r = dataStartZeroIdx; r < rawRows.length; r++) {
+        var rowData = rawRows[r] || [];
+        var excelRowNumber = r + 1;
+
+        // Bỏ qua dòng rỗng hoàn toàn
+        var isRowBlank = true;
+        for (var k = 0; k < rowData.length; k++) {
+          if (rowData[k] !== undefined && rowData[k] !== null && String(rowData[k]).trim() !== '') {
+            isRowBlank = false;
+            break;
+          }
+        }
+        if (isRowBlank) continue;
+
+        var rowObj = {};
+        for (var c = 0; c < webColsCount; c++) {
+          var colDef = webColumns[c];
+          var fieldName = colDef.field;
+          var fieldTitle = colDef.title || fieldName;
+          var fieldType = String(colDef.type || colDef.fieldType || 'string').toLowerCase();
+          var isRequired = colDef.isRequired === true || colDef.required === true;
+
+          // Tự động nhận diện trường Kiểu Số nếu tên trường/tiêu đề chứa các từ khóa số
+          var fLower = (fieldName + ' ' + fieldTitle).toLowerCase();
+          var isNumericCol = ['number', 'numeric', 'integer', 'int', 'decimal', 'float', 'currency', 'money'].indexOf(fieldType) > -1
+            || fLower.indexOf('bac') >= 0 || fLower.indexOf('tu') >= 0 || fLower.indexOf('den') >= 0
+            || fLower.indexOf('thue') >= 0 || fLower.indexOf('suat') >= 0 || fLower.indexOf('gia') >= 0
+            || fLower.indexOf('tien') >= 0 || fLower.indexOf('amount') >= 0 || fLower.indexOf('rate') >= 0
+            || fLower.indexOf('soluong') >= 0 || fLower.indexOf('so') >= 0 || fLower.indexOf('phantram') >= 0;
+
+          var isDateCol = ['date', 'datetime'].indexOf(fieldType) > -1 || fLower.indexOf('ngay') >= 0 || fLower.indexOf('date') >= 0;
+          var isBoolCol = ['boolean', 'bit', 'checkbox'].indexOf(fieldType) > -1;
+
+          var cellRaw = rowData[c];
+          var cellStr = (cellRaw !== undefined && cellRaw !== null) ? String(cellRaw).trim() : '';
+
+          // A. Bắt buộc
+          if (isRequired && cellStr === '') {
+            rowErrors.push({
+              row: excelRowNumber,
+              colIdx: c + 1,
+              colTitle: fieldTitle,
+              expectedType: 'Bắt buộc',
+              value: '(Để trống)',
+              error: 'Dữ liệu không được để trống'
+            });
+            continue;
+          }
+
+          if (cellStr === '') {
+            rowObj[fieldName] = null;
+            continue;
+          }
+
+          // B. Kiểm tra Kiểu Số
+          if (isNumericCol) {
+            var cleanNumStr = cellStr.replace(/\,/g, '');
+            if (cleanNumStr.match(/^\d+\.\d{3}(\.\d{3})*$/)) {
+              cleanNumStr = cleanNumStr.replace(/\./g, '');
+            }
+            cleanNumStr = cleanNumStr.replace(/\s+/g, '');
+
+            var numVal = Number(cleanNumStr);
+            if (isNaN(numVal) || !isFinite(numVal)) {
+              rowErrors.push({
+                row: excelRowNumber,
+                colIdx: c + 1,
+                colTitle: fieldTitle,
+                expectedType: 'Kiểu Số (Numeric)',
+                value: cellStr,
+                error: 'Dữ liệu "' + cellStr + '" có chứa chữ, không phải là số hợp lệ'
+              });
+            } else {
+              rowObj[fieldName] = numVal;
+            }
+          }
+          // C. Kiểm tra Kiểu Ngày
+          else if (isDateCol) {
+            var dateFormatted = _formatDateVal(cellRaw);
+            if (!dateFormatted) {
+              rowErrors.push({
+                row: excelRowNumber,
+                colIdx: c + 1,
+                colTitle: fieldTitle,
+                expectedType: 'Kiểu Ngày (Date)',
+                value: cellStr,
+                error: 'Dữ liệu "' + cellStr + '" không đúng định dạng ngày tháng (Cần DD/MM/YYYY)'
+              });
+            } else {
+              rowObj[fieldName] = dateFormatted;
+            }
+          }
+          // D. Kiểm tra Kiểu Logic
+          else if (isBoolCol) {
+            var lowerBool = cellStr.toLowerCase();
+            if (['1', 'true', 'có', 'co', 'x', 'yes'].indexOf(lowerBool) > -1) {
+              rowObj[fieldName] = true;
+            } else if (['0', 'false', 'không', 'khong', 'no', 'n'].indexOf(lowerBool) > -1) {
+              rowObj[fieldName] = false;
+            } else {
+              rowErrors.push({
+                row: excelRowNumber,
+                colIdx: c + 1,
+                colTitle: fieldTitle,
+                expectedType: 'Kiểu Logic (Boolean)',
+                value: cellStr,
+                error: 'Dữ liệu "' + cellStr + '" phải là Có/Không hoặc True/False hoặc 1/0'
+              });
+            }
+          }
+          // E. Kiểu Chuỗi
+          else {
+            rowObj[fieldName] = cellStr;
+          }
+        }
+
+        parsedRows.push(rowObj);
+      }
+    }
+
+    var isValid = columnErrors.length === 0 && rowErrors.length === 0;
+
+    return {
+      isValid: isValid,
+      columnErrors: columnErrors,
+      rowErrors: rowErrors,
+      parsedRows: parsedRows
+    };
+  }
+
+  function show(options) {
+    options = options || {};
+    var webColumns = options.webColumns || [];
+    var formName = options.formName || 'Form';
+    var onConfirmCallback = options.onConfirm;
+
+    if (activeModalElement) activeModalElement.remove();
+
+    var backdrop = document.createElement('div');
+    backdrop.className = 'excel-import-backdrop';
+
+    var card = document.createElement('div');
+    card.className = 'excel-import-card';
+
+    // 1. Header
+    card.innerHTML = `
+      <div class="excel-import-header">
+        <h3><span class="material-symbols-outlined">upload_file</span> Import dữ liệu Excel - ${formName}</h3>
+        <button type="button" class="excel-import-close-btn" id="excel-import-close">&times;</button>
+      </div>
+      <div class="excel-import-body">
+        <!-- Configuration Controls -->
+        <div class="excel-import-config-grid">
+          <div class="excel-import-field">
+            <label>Chọn Sheet dữ liệu:</label>
+            <select id="excel-import-sheet-select" disabled>
+              <option value="">-- Chưa nạp file --</option>
+            </select>
+          </div>
+          <div class="excel-import-field">
+            <label>Dòng chứa Tiêu đề cột:</label>
+            <input type="number" id="excel-import-header-row" value="1" min="1" max="100">
+          </div>
+          <div class="excel-import-field">
+            <label>Dòng bắt đầu đọc dữ liệu:</label>
+            <input type="number" id="excel-import-data-row" value="2" min="1" max="100">
+          </div>
+        </div>
+
+        <!-- File Dropzone -->
+        <div class="excel-import-dropzone" id="excel-import-dropzone">
+          <span class="material-symbols-outlined excel-import-dropzone-icon">cloud_upload</span>
+          <div class="excel-import-dropzone-text">Kéo thả file Excel (.xlsx, .xls, .csv) vào đây hoặc <span style="color:#4f46e5; text-decoration:underline;">chọn file từ máy tính</span></div>
+          <div class="excel-import-dropzone-subtext">Hệ thống sẽ kiểm tra thứ tự cột trên Web (${webColumns.length} cột) và bắt chặn nếu có lỗi dữ liệu.</div>
+          <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
+        </div>
+
+        <!-- Selected File Info -->
+        <div class="excel-import-file-badge" id="excel-file-badge" style="display:none;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="material-symbols-outlined">description</span>
+            <span id="excel-file-name" style="font-weight:600;">filename.xlsx</span>
+            <span id="excel-file-size" style="opacity:0.8; font-size:12px;">(0 KB)</span>
+          </div>
+          <button type="button" id="excel-file-change-btn" style="background:none; border:none; color:#3730a3; cursor:pointer; font-size:13px; font-weight:600; text-decoration:underline;">Đổi file khác</button>
+        </div>
+
+        <!-- Status Banner -->
+        <div id="excel-import-status-banner" class="excel-import-banner excel-import-banner-info">
+          <span class="material-symbols-outlined">info</span>
+          <div>Vui lòng chọn file Excel để bắt đầu kiểm tra tự động.</div>
+        </div>
+
+        <!-- Detailed Error / Result Area -->
+        <div id="excel-import-result-area"></div>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="excel-import-footer">
+        <button type="button" class="excel-import-btn excel-import-btn-cancel" id="excel-import-btn-cancel">Hủy bỏ</button>
+        <button type="button" class="excel-import-btn excel-import-btn-submit" id="excel-import-btn-submit" disabled>
+          <span class="material-symbols-outlined">check_circle</span>
+          Xác nhận Import
+        </button>
+      </div>
+    `;
+
+    backdrop.appendChild(card);
+    document.body.appendChild(backdrop);
+    activeModalElement = backdrop;
+
+    // References
+    var closeBtn = card.querySelector('#excel-import-close');
+    var cancelBtn = card.querySelector('#excel-import-btn-cancel');
+    var submitBtn = card.querySelector('#excel-import-btn-submit');
+    var dropzone = card.querySelector('#excel-import-dropzone');
+    var fileInput = card.querySelector('#excel-file-input');
+    var fileBadge = card.querySelector('#excel-file-badge');
+    var fileNameEl = card.querySelector('#excel-file-name');
+    var fileSizeEl = card.querySelector('#excel-file-size');
+    var changeFileBtn = card.querySelector('#excel-file-change-btn');
+    var sheetSelect = card.querySelector('#excel-import-sheet-select');
+    var headerRowInput = card.querySelector('#excel-import-header-row');
+    var dataRowInput = card.querySelector('#excel-import-data-row');
+    var statusBanner = card.querySelector('#excel-import-status-banner');
+    var resultArea = card.querySelector('#excel-import-result-area');
+
+    function closeModal() {
+      if (activeModalElement) {
+        activeModalElement.remove();
+        activeModalElement = null;
+      }
+      currentWorkbook = null;
+      currentFile = null;
+    }
+
+    closeBtn.onclick = closeModal;
+    cancelBtn.onclick = closeModal;
+
+    // Dropzone Events
+    dropzone.onclick = function () { fileInput.click(); };
+    dropzone.ondragover = function (e) { e.preventDefault(); dropzone.classList.add('dragover'); };
+    dropzone.ondragleave = function () { dropzone.classList.remove('dragover'); };
+    dropzone.ondrop = function (e) {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileSelect(e.dataTransfer.files[0]);
+      }
+    };
+    fileInput.onchange = function () {
+      if (fileInput.files && fileInput.files.length > 0) {
+        handleFileSelect(fileInput.files[0]);
+      }
+    };
+    changeFileBtn.onclick = function () {
+      fileInput.click();
+    };
+
+    // Header & Data Row change listeners
+    headerRowInput.onchange = function () {
+      var hVal = parseInt(headerRowInput.value, 10) || 1;
+      if (hVal < 1) hVal = 1;
+      headerRowInput.value = hVal;
+
+      var dVal = parseInt(dataRowInput.value, 10) || 2;
+      if (dVal <= hVal) {
+        dataRowInput.value = hVal + 1;
+      }
+      reprocessSheetData();
+    };
+
+    dataRowInput.onchange = function () {
+      var hVal = parseInt(headerRowInput.value, 10) || 1;
+      var dVal = parseInt(dataRowInput.value, 10) || 2;
+      if (dVal <= hVal) dVal = hVal + 1;
+      dataRowInput.value = dVal;
+      reprocessSheetData();
+    };
+
+    sheetSelect.onchange = function () {
+      reprocessSheetData();
+    };
+
+    function handleFileSelect(file) {
+      if (typeof XLSX === 'undefined') {
+        if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Thư viện đọc Excel (SheetJS XLSX) chưa sẵn sàng.');
+        return;
+      }
+
+      currentFile = file;
+      fileNameEl.textContent = file.name;
+      fileSizeEl.textContent = `(${Math.round(file.size / 1024)} KB)`;
+      dropzone.style.display = 'none';
+      fileBadge.style.display = 'flex';
+
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          var data = new Uint8Array(e.target.result);
+          currentWorkbook = XLSX.read(data, { type: 'array', cellDates: true });
+
+          sheetSelect.innerHTML = '';
+          currentWorkbook.SheetNames.forEach(function (sName) {
+            var opt = document.createElement('option');
+            opt.value = sName;
+            opt.textContent = sName;
+            sheetSelect.appendChild(opt);
+          });
+          sheetSelect.disabled = false;
+
+          reprocessSheetData();
+        } catch (err) {
+          console.error('Lỗi đọc file Excel:', err);
+          renderErrorState(['Không thể đọc nội dung file Excel. File bị hỏng hoặc mã hóa không tương thích.']);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function reprocessSheetData() {
+      if (!currentWorkbook) return;
+
+      var selectedSheetName = sheetSelect.value || currentWorkbook.SheetNames[0];
+      var sheet = currentWorkbook.Sheets[selectedSheetName];
+      if (!sheet) {
+        renderErrorState(['Sheet đã chọn không hợp lệ.']);
+        return;
+      }
+
+      var rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      var headerRowIdx = parseInt(headerRowInput.value, 10) || 1;
+      var dataStartRowIdx = parseInt(dataRowInput.value, 10) || 2;
+
+      validationResult = _validateExcelData(rawRows, webColumns, headerRowIdx, dataStartRowIdx);
+      renderValidationResult(validationResult);
+    }
+
+    function renderErrorState(columnErrs) {
+      validationResult = { isValid: false, columnErrors: columnErrs, rowErrors: [], parsedRows: [] };
+      renderValidationResult(validationResult);
+    }
+
+    function renderValidationResult(res) {
+      resultArea.innerHTML = '';
+
+      if (!res.isValid) {
+        submitBtn.disabled = true;
+        var totalErrs = res.columnErrors.length + res.rowErrors.length;
+
+        statusBanner.className = 'excel-import-banner excel-import-banner-error';
+        statusBanner.innerHTML = `
+          <span class="material-symbols-outlined" style="font-size:24px;">error</span>
+          <div>
+            <strong style="font-size:15px;">❌ BẮT CHẠN IMPORT: Phát hiện ${totalErrs} lỗi trong file Excel!</strong>
+            <div style="font-size:13px; margin-top:2px;">Vui lòng sửa các lỗi cấu trúc cột hoặc kiểu dữ liệu dưới đây trước khi thực hiện nạp dữ liệu.</div>
+          </div>
+        `;
+
+        var errContainer = document.createElement('div');
+        errContainer.className = 'excel-import-error-section';
+
+        // A. Cấu trúc Cột
+        if (res.columnErrors.length > 0) {
+          var colErrBox = document.createElement('div');
+          colErrBox.style.cssText = 'background:#fff1f2; border:1px solid #fecdd3; padding:12px 16px; border-radius:8px;';
+          var colErrTitle = document.createElement('div');
+          colErrTitle.className = 'excel-import-error-title';
+          colErrTitle.innerHTML = '<span class="material-symbols-outlined">view_column</span> Lỗi Cấu Trúc Cột (' + res.columnErrors.length + ' lỗi)';
+          colErrBox.appendChild(colErrTitle);
+
+          var colUl = document.createElement('ul');
+          colUl.style.cssText = 'margin:8px 0 0 20px; padding:0; font-size:13px; color:#9f1239; line-height:1.6;';
+          res.columnErrors.forEach(function (errText) {
+            var li = document.createElement('li');
+            li.textContent = errText;
+            colUl.appendChild(li);
+          });
+          colErrBox.appendChild(colUl);
+          errContainer.appendChild(colErrBox);
+        }
+
+        // B. Kiểu dữ liệu theo dòng
+        if (res.rowErrors.length > 0) {
+          var rowErrTitle = document.createElement('div');
+          rowErrTitle.className = 'excel-import-error-title';
+          rowErrTitle.innerHTML = '<span class="material-symbols-outlined">rule</span> Danh Sách Chi Tiết Lỗi Kiểu Dữ Liệu Dòng (' + res.rowErrors.length + ' lỗi)';
+          errContainer.appendChild(rowErrTitle);
+
+          var tableWrapper = document.createElement('div');
+          tableWrapper.className = 'excel-import-table-wrapper';
+
+          var tableHtml = `
+            <table class="excel-import-table">
+              <thead>
+                <tr>
+                  <th style="width:65px; text-align:center;">Dòng</th>
+                  <th style="width:140px;">Vị trí Cột</th>
+                  <th style="width:140px;">Kiểu dữ liệu</th>
+                  <th style="width:140px;">Dữ liệu nhập (Excel)</th>
+                  <th>Mô tả chi tiết Lỗi</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+
+          res.rowErrors.forEach(function (item) {
+            tableHtml += `
+              <tr>
+                <td style="font-weight:700; text-align:center; color:#b91c1c;">${item.row}</td>
+                <td><strong style="color:#1e293b;">Cột ${item.colIdx}</strong> <span style="font-size:11px; color:#64748b;">(${item.colTitle})</span></td>
+                <td><span style="font-size:12px; font-weight:600; color:#475569; background:#f1f5f9; padding:2px 6px; border-radius:4px;">${item.expectedType || 'Số/Chuỗi'}</span></td>
+                <td class="badge-err-cell" style="font-weight:600; color:#dc2626;">"${item.value}"</td>
+                <td style="color:#b91c1c; font-weight:500;">${item.error}</td>
+              </tr>
+            `;
+          });
+
+          tableHtml += `</tbody></table>`;
+          tableWrapper.innerHTML = tableHtml;
+          errContainer.appendChild(tableWrapper);
+        }
+
+        resultArea.appendChild(errContainer);
+
+      } else {
+        // HỢP LỆ 100%
+        submitBtn.disabled = false;
+        var count = res.parsedRows.length;
+
+        statusBanner.className = 'excel-import-banner excel-import-banner-success';
+        statusBanner.innerHTML = `
+          <span class="material-symbols-outlined" style="font-size:24px;">check_circle</span>
+          <div>
+            <strong style="font-size:15px;">✅ HỢP LỆ: File Excel hoàn toàn khớp với thứ tự cột & kiểu dữ liệu Web!</strong>
+            <div style="font-size:13px; margin-top:2px;">Sẵn sàng import <strong>${count} bản ghi</strong> dữ liệu hợp lệ vào hệ thống.</div>
+          </div>
+        `;
+
+        // Render Preview Table (Tối đa 10 dòng đầu)
+        var previewBox = document.createElement('div');
+        previewBox.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+        previewBox.innerHTML = '<div style="font-size:13px; font-weight:600; color:#334155;">Xem trước dữ liệu chuẩn hóa (10 dòng đầu):</div>';
+
+        var tableWrapper = document.createElement('div');
+        tableWrapper.className = 'excel-import-table-wrapper';
+
+        var pTable = `<table class="excel-import-table"><thead><tr><th style="width:50px;">STT</th>`;
+        webColumns.forEach(function (col) {
+          pTable += `<th>${col.title}</th>`;
+        });
+        pTable += `</tr></thead><tbody>`;
+
+        var previewSlice = res.parsedRows.slice(0, 10);
+        previewSlice.forEach(function (rowObj, idx) {
+          pTable += `<tr><td style="text-align:center; color:#64748b;">${idx + 1}</td>`;
+          webColumns.forEach(function (col) {
+            var val = rowObj[col.field];
+            pTable += `<td>${val != null ? val : ''}</td>`;
+          });
+          pTable += `</tr>`;
+        });
+
+        pTable += `</tbody></table>`;
+        tableWrapper.innerHTML = pTable;
+        previewBox.appendChild(tableWrapper);
+        resultArea.appendChild(previewBox);
+      }
+    }
+
+    // Submit handler
+    submitBtn.onclick = function () {
+      if (!validationResult.isValid || validationResult.parsedRows.length === 0) return;
+
+      submitBtn.disabled = true;
+      cancelBtn.disabled = true;
+
+      var cancelCallback = null;
+
+      // Render Modern Stats Progress Box
+      resultArea.innerHTML = `
+        <div class="excel-import-progress-box">
+          <div class="excel-import-progress-header">
+            <div class="excel-import-progress-title">
+              <span class="material-symbols-outlined spinner-border-sm" style="font-size:20px; color:#0284c7;">sync</span>
+              <span>Đang lưu dữ liệu siêu tốc vào hệ thống...</span>
+            </div>
+            <div class="excel-import-stats-badge">
+              <span id="excel-import-speed-text">⚡ 0 dòng/s</span>
+              <span style="color:#cbd5e1;">|</span>
+              <span id="excel-import-eta-text">⏱️ --s còn lại</span>
+              <button type="button" class="excel-import-cancel-task-btn" id="excel-import-cancel-task">Hủy Import</button>
+            </div>
+          </div>
+
+          <div class="excel-import-progress-bar-bg">
+            <div class="excel-import-progress-fill" id="excel-import-progress-fill"></div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:600; color:#0369a1;">
+            <span id="excel-import-progress-percent">Tiến trình: 0%</span>
+            <span id="excel-import-progress-text">0 / ${validationResult.parsedRows.length} bản ghi</span>
+          </div>
+        </div>
+      `;
+
+      var cancelTaskBtn = resultArea.querySelector('#excel-import-cancel-task');
+      if (cancelTaskBtn) {
+        cancelTaskBtn.onclick = function () {
+          cancelTaskBtn.disabled = true;
+          cancelTaskBtn.textContent = 'Đang hủy...';
+          if (typeof cancelCallback === 'function') cancelCallback();
+        };
+      }
+
+      var modalApi = {
+        updateProgress: function (current, total, speed, etaSec) {
+          var textEl = card.querySelector('#excel-import-progress-text');
+          var pctEl = card.querySelector('#excel-import-progress-percent');
+          var fillEl = card.querySelector('#excel-import-progress-fill');
+          var speedEl = card.querySelector('#excel-import-speed-text');
+          var etaEl = card.querySelector('#excel-import-eta-text');
+
+          if (textEl && fillEl) {
+            var pct = total > 0 ? Math.round((current / total) * 100) : 0;
+            textEl.textContent = `${current.toLocaleString('vi-VN')} / ${total.toLocaleString('vi-VN')} bản ghi`;
+            if (pctEl) pctEl.textContent = `Tiến trình: ${pct}%`;
+            fillEl.style.width = pct + '%';
+            if (speedEl && speed !== undefined) speedEl.textContent = `⚡ ${speed.toLocaleString('vi-VN')} dòng/s`;
+            if (etaEl && etaSec !== undefined) {
+              var m = Math.floor(etaSec / 60);
+              var s = etaSec % 60;
+              var etaFormatted = m > 0 ? `${m}p ${s}s` : `${s}s`;
+              etaEl.textContent = `⏱️ ~${etaFormatted} còn lại`;
+            }
+          }
+        },
+        onCancel: function (fn) {
+          cancelCallback = fn;
+        },
+        close: closeModal
+      };
+
+      if (typeof onConfirmCallback === 'function') {
+        onConfirmCallback(validationResult.parsedRows, modalApi);
+      }
+    };
+  }
+
+  return {
+    show: show
+  };
+})();
+
 /* --- DynamicFormEngine.js --- */
 /**
  * Dynamic Form Engine - Generic Metadata-Driven UI Engine
@@ -18270,7 +19212,171 @@ window.DynamicFormEngine = (function () {
           });
         }
 
-        // Menu Tùy chọn bảng
+  function _openExcelImportModal() {
+    if (!window.tabulatorInstance) {
+      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Bảng dữ liệu chưa sẵn sàng.');
+      return;
+    }
+
+    if (typeof ExcelImportModal === 'undefined') {
+      if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Thư viện ExcelImportModal chưa được nạp.');
+      return;
+    }
+
+    var columns = window.tabulatorInstance.getColumns().filter(function (col) {
+      var field = col.getField();
+      return col.isVisible() && field && field !== 'row_select' && field !== '__action__';
+    });
+
+    if (!columns || columns.length === 0) {
+      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không tìm thấy cột dữ liệu hợp lệ trên bảng.');
+      return;
+    }
+
+    var gridSchema = _schemaFor('grid') || [];
+    var editSchema = _schemaFor('add') || _schemaFor('edit') || [];
+
+    var webColumns = columns.map(function (col) {
+      var field = col.getField();
+      var colDef = col.getDefinition() || {};
+      var title = colDef.title || field;
+
+      var schemaItem = editSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); }) ||
+                       gridSchema.find(function (s) { return s.name && s.name.toLowerCase() === field.toLowerCase(); });
+
+      var fieldType = 'string';
+      var isRequired = false;
+
+      if (schemaItem) {
+        fieldType = schemaItem.fieldType || schemaItem.renderRule || schemaItem.type || 'string';
+        isRequired = schemaItem.required === true || schemaItem.isRequired === true || String(schemaItem.required) === '1';
+      } else {
+        if (field.toLowerCase().indexOf('ngay') >= 0 || field.toLowerCase().indexOf('date') >= 0) {
+          fieldType = 'date';
+        } else if (field.toLowerCase().indexOf('gia') >= 0 || field.toLowerCase().indexOf('tien') >= 0 || field.toLowerCase().indexOf('thuethue') >= 0 || field.toLowerCase().indexOf('amount') >= 0 || field.toLowerCase().indexOf('rate') >= 0 || field.toLowerCase().indexOf('bac') >= 0) {
+          fieldType = 'number';
+        }
+      }
+
+      return {
+        field: field,
+        title: title,
+        type: fieldType,
+        isRequired: isRequired
+      };
+    });
+
+    ExcelImportModal.show({
+      webColumns: webColumns,
+      formName: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName || 'Bảng dữ liệu',
+      onConfirm: function (parsedRows, modalApi) {
+        if (!parsedRows || parsedRows.length === 0) {
+          if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không có dữ liệu hợp lệ để import.');
+          return;
+        }
+
+        var endpoint = _usesUnifiedFieldContract() ? _gateway() : (MODULE_CONFIG.ApiSave || _gateway());
+        if (!endpoint) {
+          if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Không xác định được API lưu dữ liệu.');
+          return;
+        }
+
+        // Đóng gói Payload lưu CSDL thực tế cho từng dòng
+        var payloads = parsedRows.map(function (row) {
+          var rowPayload = _usesUnifiedFieldContract()
+            ? _buildContractWritePayload(row, false)
+            : _buildPayload(row, false);
+
+          if (endpoint === _gateway()) {
+            return {
+              List: MODULE_CONFIG.FormName,
+              Func: 'Save',
+              JsonData: JSON.stringify(rowPayload),
+              UserName: _currentUser(),
+              BranchID: _currentBranchId()
+            };
+          }
+          return rowPayload;
+        });
+
+        // BÀN THUẬT LƯU THẬT VÀO CSDL VỚI LƯỢNG KẾT NỐI SONG SONG TỐI ĐA (MAX CONCURRENCY = 25 WORKERS)
+        var totalCount = payloads.length;
+        var successCount = 0;
+        var processedCount = 0;
+        var errorLogs = [];
+        var CONCURRENCY = 25; // 25 luồng gửi song song tới API Gateway CSDL
+        var isAborted = false;
+        var startTime = Date.now();
+
+        modalApi.onCancel(function () {
+          isAborted = true;
+        });
+
+        var queueIndex = 0;
+
+        function runWorker() {
+          if (queueIndex >= totalCount || isAborted) return Promise.resolve();
+
+          var idx = queueIndex++;
+          return ApiClient.post(endpoint, payloads[idx])
+            .then(function (res) {
+              var code = res ? res.code : null;
+              var msg = String((res && res.msg) || '');
+              var msgUpper = msg.toUpperCase();
+
+              if (res && (code === 0 || code === '0' || code === 1 || code === '1' || res.status === 200 || res.success === true || msgUpper.indexOf('THÀNH CÔNG') > -1 || msgUpper.indexOf('SUCCESS') > -1)) {
+                successCount++;
+              } else {
+                var cleanMsg = msg || (res && res.records && res.records[0] ? res.records[0].msg : 'Lỗi CSDL');
+                errorLogs.push({ row: idx + 1, msg: cleanMsg });
+              }
+            })
+            .catch(function (err) {
+              var errStr = (err && err.message) || String(err);
+              errorLogs.push({ row: idx + 1, msg: errStr });
+            })
+            .finally(function () {
+              processedCount++;
+              var elapsed = Math.max(0.1, (Date.now() - startTime) / 1000);
+              var speed = Math.round(processedCount / elapsed);
+              var etaSec = speed > 0 ? Math.ceil((totalCount - processedCount) / speed) : 0;
+
+              modalApi.updateProgress(processedCount, totalCount, speed, etaSec);
+
+              if (processedCount < totalCount && !isAborted) {
+                return runWorker();
+              }
+            });
+        }
+
+        var workers = [];
+        var activeWorkersCount = Math.min(CONCURRENCY, totalCount);
+        for (var w = 0; w < activeWorkersCount; w++) {
+          workers.push(runWorker());
+        }
+
+        Promise.all(workers).then(function () {
+          modalApi.close();
+          var totalTimeSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+          if (typeof Alert !== 'undefined') {
+            if (isAborted) {
+              Alert.warning('Tạm dừng Import', 'Đã dừng tiến trình. Đã lưu CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + processedCount.toLocaleString('vi-VN') + ' bản ghi.');
+            } else if (successCount > 0) {
+              Alert.success('Lưu CSDL Thành Công', 'Đã lưu THẬT vào CSDL thành công ' + successCount.toLocaleString('vi-VN') + ' / ' + totalCount.toLocaleString('vi-VN') + ' bản ghi (Thời gian: ' + totalTimeSec + 's). Khi nhấn F5 dữ liệu vẫn giữ nguyên 100%.');
+            } else {
+              var firstErr = errorLogs.length > 0 ? errorLogs[0].msg : 'Lỗi kết nối CSDL';
+              Alert.error('Lưu CSDL Thất bại', 'Không thể lưu bản ghi vào CSDL. Lỗi: ' + firstErr);
+            }
+          }
+          // Nạp lại dữ liệu thực tế trực tiếp từ CSDL về Bảng Web
+          _loadData();
+        });
+      }
+    });
+  }
+
+  // Menu Tùy chọn bảng
         var tabulatorActionWrapper = document.createElement('div');
         tabulatorActionWrapper.className = 'tabulator-action-wrapper';
         tabulatorActionWrapper.style.cssText = 'position: relative; display: inline-flex; margin-left: auto; align-items: center;';
@@ -18622,70 +19728,50 @@ window.DynamicFormEngine = (function () {
           };
         }));
 
+        if (_hasPermission('ADD') || _hasPermission('EDIT') || _hasPermission('EXPORT')) {
+          tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Import dữ liệu Excel', function () {
+            _openExcelImportModal();
+          }));
+        }
+
         if (_hasPermission('EXPORT')) {
           tabulatorActionMenu.appendChild(createMenuItem('download', 'Xuất dữ liệu Excel', function () {
             if (window.tabulatorInstance) {
               try {
-                // Xuất Excel có style (Màu nền, chữ đậm cho tiêu đề, hiển thị đúng thứ tự kéo thả)
-                var columns = window.tabulatorInstance.getColumns().filter(function (c) {
-                  return c.isVisible() && c.getField();
-                });
-                var data = window.tabulatorInstance.getData('active');
-                var title = MODULE_CONFIG.PageTitle || "Danh_sach_du_lieu";
 
-                var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
-                html += '<head><meta charset="utf-8"></head><body>';
-                html += '<h3 style="font-family: Arial, sans-serif;">' + title + '</h3>';
-                html += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 13px;">';
-
-                function escapeHtml(text) {
-                  if (text == null) return '';
-                  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                }
-
-                // Tạo dòng Header với CSS inline
-                html += '<tr>';
-                columns.forEach(function (col) {
-                  var colTitle = col.getDefinition().title || '';
-                  html += '<th style="background-color: #f1f5f9; color: #1e293b; font-weight: bold; text-align: left; border: 1px solid #cbd5e1;">' + escapeHtml(colTitle) + '</th>';
-                });
-                html += '</tr>';
-
-                // Tạo các dòng Dữ liệu
-                data.forEach(function (row) {
-                  html += '<tr>';
-                  columns.forEach(function (col) {
-                    var field = col.getField();
-                    var val = row[field];
-
-                    // Map riêng cột PersonStatus sang chữ giống như UI đã xử lý
-                    if (field.toLowerCase() === 'personstatus') {
-                      val = row.PersonStatusName || row.personstatusname || val;
-                    }
-
-                    // Giữ định dạng chuỗi cho các số dễ bị Excel biến dạng (VD: Số điện thoại, CCCD)
-                    var valStr = escapeHtml(val);
-                    var tdStyle = 'border: 1px solid #e2e8f0; vertical-align: middle;';
-                    if (String(val).match(/^0[0-9]{8,11}$/)) {
-                      tdStyle += ' mso-number-format:"\\@";'; // Ép kiểu text cho số 0 ở đầu
-                    }
-
-                    html += '<td style="' + tdStyle + '">' + valStr + '</td>';
+                if (typeof XLSX !== 'undefined') {
+                  var columns = window.tabulatorInstance.getColumns().filter(function (c) {
+                    var f = c.getField();
+                    return c.isVisible() && f && f !== 'row_select' && f !== '__action__';
                   });
-                  html += '</tr>';
-                });
+                  var data = window.tabulatorInstance.getData('active');
+                  var title = MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormTitle || "Danh_sach_du_lieu";
 
-                html += '</table></body></html>';
+                  var aoa = [];
+                  var headerRow = columns.map(function (col) {
+                    return col.getDefinition().title || col.getField();
+                  });
+                  aoa.push(headerRow);
 
-                var blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = title + ".xls";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                  data.forEach(function (row) {
+                    var dataRow = columns.map(function (col) {
+                      var field = col.getField();
+                      var val = row[field];
+                      if (field && field.toLowerCase() === 'personstatus') {
+                        val = row.PersonStatusName || row.personstatusname || val;
+                      }
+                      return val != null ? val : '';
+                    });
+                    aoa.push(dataRow);
+                  });
+
+                  var wb = XLSX.utils.book_new();
+                  var ws = XLSX.utils.aoa_to_sheet(aoa);
+                  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+                  XLSX.writeFile(wb, title + ".xlsx");
+                } else {
+                  window.tabulatorInstance.download("xlsx", (MODULE_CONFIG.PageTitle || "Data") + ".xlsx", { sheetName: "Du_Lieu" });
+                }
               } catch (e) {
                 console.error("Lỗi xuất Excel tùy chỉnh:", e);
                 // Fallback lại cách cũ nếu có lỗi
@@ -19569,8 +20655,17 @@ window.DynamicFormEngine = (function () {
             var isFieldSyncLookup = Boolean(
               /^[A-Fa-f0-9]{64}$/.test(String(f.lookupKey || ''))
               && window.FieldSyncService
-              && typeof FieldSyncService.searchLookup === 'function'
+              && typeof FieldSyncService.createLookupDataSource === 'function'
             );
+            var fieldSyncSearch = isFieldSyncLookup
+              ? FieldSyncService.createLookupDataSource({
+                formName: MODULE_CONFIG.FormName,
+                lookupKey: f.lookupKey,
+                dependsOn: f.dependsOn,
+                getDependencyValues: function () { return rowData; },
+                pageSize: 30
+              })
+              : null;
 
             var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
             var maxCols = 4;
@@ -19601,13 +20696,7 @@ window.DynamicFormEngine = (function () {
 
             var searchApiCall = function (q, page) {
               if (isFieldSyncLookup) {
-                return FieldSyncService.searchLookup(MODULE_CONFIG.FormName, f.lookupKey, q, page, 30).then(function (options) {
-                  return {
-                    headers: ['Giá trị', 'Hiển thị'],
-                    data: options.map(function (item) { return [item.value, item.label]; }),
-                    colFilterIndex: 1
-                  };
-                });
+                return fieldSyncSearch(q, page);
               }
               var payload = Object.assign({}, fetchPayload);
               var isGateway = finalUrl.indexOf(_gateway()) > -1;
@@ -19689,6 +20778,7 @@ window.DynamicFormEngine = (function () {
               placeholder: '-- Chọn --',
               headers: ['Mã', 'Tên'],
               showAddNew: false,
+              enablePagination: isFieldSyncLookup,
               onSearch: searchApiCall,
               onChange: function (val) { },
               onSelect: function (row) {
@@ -22056,7 +23146,7 @@ window.DynamicFormEngine = (function () {
       } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
         inputEl = UIInput.createTime(field);
       } else if (/^[A-Fa-f0-9]{64}$/.test(String(field.lookupKey || ''))
-        && window.FieldSyncService && typeof FieldSyncService.searchLookup === 'function') {
+        && window.FieldSyncService && typeof FieldSyncService.createLookupDataSource === 'function') {
         var contractLookupWrapper = document.createElement('div');
         contractLookupWrapper.className = 'form-group';
         if (field.label) {
@@ -22071,20 +23161,20 @@ window.DynamicFormEngine = (function () {
         contractLookupValue.value = _hasContractValue(field.value) ? field.value : '';
         contractLookupWrapper.appendChild(contractLookupValue);
 
+        var contractLookupSearch = FieldSyncService.createLookupDataSource({
+          formName: MODULE_CONFIG.FormName,
+          lookupKey: field.lookupKey,
+          dependsOn: field.dependsOn,
+          getDependencyValues: function () { return currentModalFormState; },
+          pageSize: 30
+        });
         var contractLookupCombo = UIControls.createDataComboBox({
           placeholder: '-- Vui lòng chọn --',
-          headers: ['Giá trị', 'Hiển thị'],
+          headers: ['Mã', 'Tên'],
           disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
           showAddNew: false,
-          onSearch: function (q, page) {
-            return FieldSyncService.searchLookup(MODULE_CONFIG.FormName, field.lookupKey, q, page, 30).then(function (options) {
-              return {
-                headers: ['Giá trị', 'Hiển thị'],
-                data: options.map(function (option) { return [option.value, option.label]; }),
-                colFilterIndex: 1
-              };
-            });
-          },
+          enablePagination: true,
+          onSearch: contractLookupSearch,
           onChange: function (value) { contractLookupValue.value = value; },
           onSelect: function (row) {
             contractLookupValue.value = row[0];
@@ -22094,16 +23184,16 @@ window.DynamicFormEngine = (function () {
         var contractLookupDisplay = contractLookupCombo.querySelector('input.ui-input');
         if (contractLookupDisplay) contractLookupDisplay.value = _hasContractValue(field.value) ? field.value : '';
         if (_hasContractValue(field.value)) {
-          FieldSyncService.searchLookup(MODULE_CONFIG.FormName, field.lookupKey, String(field.value), 1, 30)
-            .then(function (options) {
-              var matched = options.find(function (option) { return String(option.value) === String(field.value); });
-              if (matched && contractLookupDisplay) contractLookupDisplay.value = matched.label;
+          contractLookupSearch(String(field.value), 1)
+            .then(function (result) {
+              var matched = result.data.find(function (option) { return String(option[0]) === String(field.value); });
+              if (matched && contractLookupDisplay) contractLookupDisplay.value = matched[1];
             })
             .catch(function () { /* Giữ giá trị thô nếu lookup tạm thời không tải được. */ });
         }
         contractLookupWrapper.appendChild(contractLookupCombo);
         inputEl = contractLookupWrapper;
-      } else if (field.renderRule === 'sl' || field.renderRule === 'select') {
+      } else if (field.renderRule === 'sl' || field.renderRule === 'select' || field.renderRule === 'combo' || field.renderRule === 'lookup') {
         var formGroupWrapper = document.createElement('div');
         formGroupWrapper.className = 'form-group';
 

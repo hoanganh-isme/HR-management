@@ -55,6 +55,7 @@
     "src/components/screen-capture/screen-capture.css",
     "src/components/responsive-data-renderer/responsive-data-renderer.css",
     "src/components/column-caption-editor/column-caption-editor.css",
+    "src/components/excel-import/excel-import.css",
     "src/css/modules/contract-document.css"
   ],
   "js": [
@@ -149,6 +150,7 @@
     "src/js/modules/hr/actions/timesheet-actions.js",
     "src/js/modules/hr/actions/shift-actions.js",
     "src/js/modules/hr/HRModuleRegistry.js",
+    "src/components/excel-import/ExcelImportModal.js",
     "src/js/core/DynamicFormEngine.js",
     "src/js/core/index.js",
     "src/js/core/router.js"

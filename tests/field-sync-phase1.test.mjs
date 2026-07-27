@@ -163,6 +163,41 @@ test('lookup V2 phụ thuộc giữ LookupKey và khai báo trường cha', () =
   assert.equal(schemas.grid[0].dependsOn, 'CompanyID');
 });
 
+test('lookup data source dùng chung chỉ gửi dependency đã khai báo và chuẩn hóa dữ liệu combobox', async () => {
+  const requests = [];
+  const staleKey = 'A'.repeat(64);
+  const currentKey = 'B'.repeat(64);
+  const window = runBrowserFiles(['src/js/services/FieldSyncService.js'], {
+    ERP_FIELD_SYNC_CONFIG: { enabled: true, shadowMode: false, pilotForms: ['WA_TestFrm'], metadataBaseUrl: 'http://metadata' },
+    ApiClient: {
+      post: async (url, body) => {
+        requests.push({ url, body });
+        return {
+          options: [{ value: 'CA01', label: 'Ca hành chính' }],
+          lookupKey: currentKey,
+          lookupAliases: { [staleKey]: currentKey }
+        };
+      }
+    },
+    AppSession: { getUserName: () => 'Admin', getBranchId: () => 'CN01' }
+  });
+  const search = window.FieldSyncService.createLookupDataSource({
+    formName: 'WA_TestFrm',
+    lookupKey: staleKey,
+    dependsOn: 'CompanyID',
+    getDependencyValues: () => ({ CompanyID: 'CT01', PasswordHash: 'secret' }),
+    pageSize: 30
+  });
+  const result = await search('hành chính', 1);
+  await search('', 1);
+
+  assert.deepEqual(Array.from(result.data[0]), ['CA01', 'Ca hành chính']);
+  assert.deepEqual({ ...requests[0].body.dependencies }, { CompanyID: 'CT01' });
+  assert.doesNotMatch(JSON.stringify(requests), /PasswordHash|secret/);
+  assert.match(requests[0].url, /\/lookups\/A{64}\/search$/);
+  assert.match(requests[1].url, /\/lookups\/B{64}\/search$/);
+});
+
 test('shadow mode giữ nguyên cả bốn runtime schema', () => {
   const window = runBrowserFiles(['src/js/services/FieldSyncService.js']);
   const legacy = [{ name: 'LegacyCode' }];

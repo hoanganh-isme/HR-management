@@ -1858,6 +1858,7 @@ BEGIN
         NV.PersonID,
         P.PersonName,
         P.PhongBan,
+        P.TitleName,
         P.BranchID,
         NV.GhiChu
     FROM dbo.HR_SapCaNhanVienTbl NV
