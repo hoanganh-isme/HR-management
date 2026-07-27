@@ -31,6 +31,9 @@ export function createFieldSyncConfig(documentConfig, env = process.env) {
         authCacheTtlMs: positiveInteger(env.FIELD_SYNC_AUTH_CACHE_TTL_MS, 60_000),
         authCacheMaxEntries: positiveInteger(env.FIELD_SYNC_AUTH_CACHE_MAX_ENTRIES, 1_000),
         requestTimeoutMs: positiveInteger(env.FIELD_SYNC_REQUEST_TIMEOUT_MS, 15_000),
+        maxConcurrentRequests: positiveInteger(env.FIELD_SYNC_MAX_CONCURRENT_REQUESTS, 4),
+        transientRetryCount: positiveInteger(env.FIELD_SYNC_TRANSIENT_RETRY_COUNT, 2),
+        transientRetryDelayMs: positiveInteger(env.FIELD_SYNC_TRANSIENT_RETRY_DELAY_MS, 150),
         aliases: FIELD_SYNC_FORM_ALIASES,
         migrationRegistry: FIELD_CONTRACT_MIGRATION_REGISTRY
     });

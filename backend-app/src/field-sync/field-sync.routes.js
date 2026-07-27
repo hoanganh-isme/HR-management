@@ -1,5 +1,5 @@
 import express from 'express';
-import { FIELD_CONTRACT_MIGRATION_REGISTRY } from './field-contract.registry.js';
+import { FIELD_CONTRACT_MIGRATION_REGISTRY, getRegisteredLookupContract } from './field-contract.registry.js';
 import { getPhase4JoinContract } from './phase4-join.registry.js';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
@@ -376,6 +376,26 @@ export function createFieldSyncRouter({ gateway, config, cache = new FieldSyncCa
                     params.LookupKey = refreshedLookupKey;
                     rows = await gateway.lookupSchema(params, context);
                     descriptor = normalizeLookupSchema(rows);
+                }
+
+                /*
+                 * Một số ERP rollout procedure tạo LookupKey và procedure đọc
+                 * LookupKey lệch phiên bản. Chỉ dùng contract allow-list đã audit
+                 * theo đúng form + field; tuyệt đối không suy đoán source từ tên.
+                 */
+                if (descriptor.mode === 'BLOCKED' && descriptor.diagnosticCode === 'LOOKUP_KEY_NOT_FOUND') {
+                    const registeredLookup = getRegisteredLookupContract(
+                        formName,
+                        lookupFields[0]?.name
+                    );
+                    if (registeredLookup) {
+                        descriptor = {
+                            mode: 'REGISTERED_API',
+                            registeredList: registeredLookup.registeredList,
+                            valueField: registeredLookup.valueField,
+                            displayField: registeredLookup.displayField
+                        };
+                    }
                 }
             }
             if (descriptor.mode === 'BLOCKED') {

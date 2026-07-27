@@ -4,7 +4,7 @@ import express from 'express';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
 import { createFieldSyncConfig } from './field-sync.config.js';
-import { FIELD_CONTRACT_MIGRATION_REGISTRY, getFieldContractMigration } from './field-contract.registry.js';
+import { FIELD_CONTRACT_MIGRATION_REGISTRY, getFieldContractMigration, getRegisteredLookupContract } from './field-contract.registry.js';
 import { createFieldSyncGateway, FieldSyncGatewayError } from './field-sync.gateway.js';
 import { classifyMobileFields, normalizeGridCompare, normalizeGridSchema, normalizeLookupSchema, normalizeRegisteredLookup, resolveRenderType } from './field-sync.resolver.js';
 import { createFieldSyncRouter } from './field-sync.routes.js';
@@ -371,6 +371,35 @@ test('gateway chỉ gửi wire contract cố định và giữ placeholder metad
     assert.deepEqual(Object.keys(sqlPayload).sort(), ['Func', 'JsonData', 'Keyword', 'Limit', 'List', 'Page', 'UserName'].sort());
 });
 
+test('gateway tự retry lỗi mạng nhất thời và giới hạn burst request', async () => {
+    let gatewayCalls = 0;
+    const http = {
+        post: async (url, data, options) => {
+            if (url.includes('API_UserInfo')) return { data: { UserName: 'Admin' } };
+            gatewayCalls += 1;
+            assert.equal(options.headers.Connection, 'close');
+            if (gatewayCalls === 1) throw { code: 'ECONNRESET' };
+            return { data: { records: [{ FieldName: 'ID' }] } };
+        }
+    };
+    const gateway = createFieldSyncGateway({
+        sqlGatewayUrl: 'http://sql/api/API_Gateway_Router',
+        authVerifyUrl: 'http://sql/api/API_UserInfo',
+        requestTimeoutMs: 100,
+        authCacheTtlMs: 1000,
+        transientRetryCount: 1,
+        transientRetryDelayMs: 1,
+        maxConcurrentRequests: 1
+    }, http);
+
+    const records = await gateway.gridSchema(
+        { FormName: 'WA_TestFrm' },
+        { userName: 'Admin', branchId: '', authorization: 'Bearer opaque' }
+    );
+    assert.deepEqual(records, [{ FieldName: 'ID' }]);
+    assert.equal(gatewayCalls, 2);
+});
+
 test('gateway không tin UserName trong auth envelope báo thất bại', async () => {
     const http = { post: async () => ({ data: { success: false, UserName: 'Admin' } }) };
     const gateway = createFieldSyncGateway({ sqlGatewayUrl: 'http://sql/api/API_Gateway_Router', authVerifyUrl: 'http://sql/api/API_UserInfo', requestTimeoutMs: 100, authCacheTtlMs: 1000 }, http);
@@ -650,6 +679,45 @@ test('HTTP lookup tự làm mới schema một lần khi metadata key trong cach
     assert.deepEqual(lookupKeys, [staleKey, currentKey]);
 });
 
+test('HTTP lookup ca dùng compatibility allow-list khi ERP chưa đồng bộ LookupKey V2', async (t) => {
+    const lookupKey = 'C'.repeat(64);
+    let registeredCalls = 0;
+    const gateway = {
+        async verifySession() {},
+        async gridSchema() {
+            return [{
+                FieldName: 'ShiftIDThu2',
+                Caption: 'Ca T2',
+                FieldOrdinal: 1,
+                SqlType: 'varchar(50)',
+                SourceKind: 'RESULT_SET',
+                TableName: 'HR_SapCaTbl',
+                PrimaryKey: 'SapCaID',
+                LookupKey: lookupKey
+            }];
+        },
+        async lookupSchema() {
+            return [{ LookupMode: 'BLOCKED', DiagnosticCode: 'LOOKUP_KEY_NOT_FOUND' }];
+        },
+        async registeredLookup(list) {
+            registeredCalls += 1;
+            assert.equal(list, 'API_HR_DropdownShifts');
+            return [{ ShiftID: 'HC', ShiftName: 'Hành chính' }];
+        }
+    };
+    const baseUrl = await startFieldSyncTestServer(t, gateway);
+    const response = await fetch(`${baseUrl}/lookups/${lookupKey}/search`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formName: 'WA_CaLamViecFrm', keyword: '', page: 1, pageSize: 30 })
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(body.options, [{ value: 'HC', label: 'Hành chính' }]);
+    assert.equal(registeredCalls, 1);
+});
+
 test('HTTP registered lookup chỉ trả hai cột đã đăng ký và fail-closed khi mismatch', async (t) => {
     const lookupKey = 'D'.repeat(64);
     const gateway = {
@@ -745,6 +813,12 @@ test('Phase 3 registry là allow-list duy nhất và alias backend được sinh
         contract.expectedPrimaryKey
     ]), expected);
     assert.equal(getFieldContractMigration('wa_chucdanhfrm')?.expectedPrimaryKey, 'ChucDanhChuyenMon');
+    assert.equal(
+        getRegisteredLookupContract('WA_CaLamViecFrm', 'shiftidthu2')?.registeredList,
+        'API_HR_DropdownShifts'
+    );
+    assert.equal(getRegisteredLookupContract('WA_CaLamViecFrm', 'UnknownField'), undefined);
+    assert.equal(getRegisteredLookupContract('WA_ChucDanhFrm', 'ShiftIDThu2'), undefined);
 
     const config = createFieldSyncConfig({ sqlApiBase: 'http://sql.example' }, {});
     assert.deepEqual(Object.entries(config.aliases), expected.map(([webFormName, erpFormId]) => [webFormName, erpFormId]));

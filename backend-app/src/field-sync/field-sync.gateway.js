@@ -3,6 +3,50 @@ import crypto from 'node:crypto';
 import { FIELD_SYNC_CONTRACTS } from './field-sync.config.js';
 
 const SAFE_REGISTERED_LIST = /^[A-Za-z0-9_]{1,50}$/;
+const TRANSIENT_NETWORK_CODES = new Set([
+    'ECONNABORTED',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'ERR_NETWORK',
+    'ETIMEDOUT'
+]);
+
+function positiveInteger(value, fallback) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sleep(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function createConcurrencyLimiter(limit) {
+    const queue = [];
+    let active = 0;
+
+    function drain() {
+        while (active < limit && queue.length) {
+            const item = queue.shift();
+            active += 1;
+            Promise.resolve()
+                .then(item.task)
+                .then(item.resolve, item.reject)
+                .finally(() => {
+                    active -= 1;
+                    drain();
+                });
+        }
+    }
+
+    return function schedule(task) {
+        return new Promise((resolve, reject) => {
+            queue.push({ task, resolve, reject });
+            drain();
+        });
+    };
+}
 
 export class FieldSyncGatewayError extends Error {
     constructor(message = 'Không thể đọc metadata ERP.', statusCode = 502, diagnosticCode = 'ERP_GATEWAY_ERROR', details = {}) {
@@ -60,6 +104,10 @@ function assertAuthSuccess(payload) {
 export function createFieldSyncGateway(config, httpClient = axios) {
     const authCache = new Map();
     const authInflight = new Map();
+    const maxConcurrentRequests = positiveInteger(config.maxConcurrentRequests, 4);
+    const transientRetryCount = Math.min(3, positiveInteger(config.transientRetryCount, 2));
+    const transientRetryDelayMs = Math.min(2_000, positiveInteger(config.transientRetryDelayMs, 150));
+    const scheduleGatewayRequest = createConcurrencyLimiter(maxConcurrentRequests);
     const authCacheMaxEntries = Number.isInteger(config.authCacheMaxEntries) && config.authCacheMaxEntries > 0
         ? config.authCacheMaxEntries
         : 1_000;
@@ -169,36 +217,54 @@ export function createFieldSyncGateway(config, httpClient = axios) {
             JsonData: JSON.stringify({ ...jsonData, BranchID: context.branchId, UserName: context.userName })
         };
 
-        try {
-            const response = await httpClient.post(config.sqlGatewayUrl, payload, {
-                timeout: config.requestTimeoutMs,
-                headers: {
-                    Authorization: context.authorization,
-                    Username: context.userName,
-                    BranchID: context.branchId
+        return scheduleGatewayRequest(async () => {
+            let attempt = 0;
+            while (true) {
+                try {
+                    const response = await httpClient.post(config.sqlGatewayUrl, payload, {
+                        timeout: config.requestTimeoutMs,
+                        headers: {
+                            Authorization: context.authorization,
+                            Username: context.userName,
+                            BranchID: context.branchId,
+                            // Avoid a stale keep-alive socket being reset by the ERP gateway.
+                            Connection: 'close'
+                        }
+                    });
+                    const body = response && response.data;
+                    const records = extractGatewayRecords(body);
+                    assertGatewaySuccess(body, records);
+                    return records;
+                } catch (error) {
+                    if (error instanceof FieldSyncGatewayError) throw error;
+                    const upstreamStatus = Number(error?.response?.status);
+                    const isTimeout = error?.code === 'ECONNABORTED'
+                        || error?.code === 'ETIMEDOUT'
+                        || /timeout/i.test(String(error?.message || ''));
+                    const isTransient = TRANSIENT_NETWORK_CODES.has(error?.code)
+                        || isTimeout
+                        || [502, 503, 504].includes(upstreamStatus);
+                    if (isTransient && attempt < transientRetryCount) {
+                        await sleep(transientRetryDelayMs * (2 ** attempt));
+                        attempt += 1;
+                        continue;
+                    }
+                    if (error && (error.response?.status === 401 || error.response?.status === 403)) {
+                        throw new FieldSyncGatewayError('Không có quyền đọc metadata ERP.', error.response.status, 'ERP_GATEWAY_AUTH_REJECTED');
+                    }
+                    if (Number.isInteger(upstreamStatus) && upstreamStatus >= 100 && upstreamStatus <= 599) {
+                        throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_HTTP_ERROR', { upstreamStatus });
+                    }
+                    if (isTimeout) {
+                        throw new FieldSyncGatewayError(undefined, 504, 'ERP_GATEWAY_TIMEOUT');
+                    }
+                    if (TRANSIENT_NETWORK_CODES.has(error?.code)) {
+                        throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_NETWORK');
+                    }
+                    throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_UNKNOWN');
                 }
-            });
-            const body = response && response.data;
-            const records = extractGatewayRecords(body);
-            assertGatewaySuccess(body, records);
-            return records;
-        } catch (error) {
-            if (error instanceof FieldSyncGatewayError) throw error;
-            if (error && (error.response?.status === 401 || error.response?.status === 403)) {
-                throw new FieldSyncGatewayError('Không có quyền đọc metadata ERP.', error.response.status, 'ERP_GATEWAY_AUTH_REJECTED');
             }
-            const upstreamStatus = Number(error?.response?.status);
-            if (Number.isInteger(upstreamStatus) && upstreamStatus >= 100 && upstreamStatus <= 599) {
-                throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_HTTP_ERROR', { upstreamStatus });
-            }
-            if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT' || /timeout/i.test(String(error?.message || ''))) {
-                throw new FieldSyncGatewayError(undefined, 504, 'ERP_GATEWAY_TIMEOUT');
-            }
-            if (['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ERR_NETWORK'].includes(error?.code)) {
-                throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_NETWORK');
-            }
-            throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_UNKNOWN');
-        }
+        });
     }
 
     return Object.freeze({
