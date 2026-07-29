@@ -79,6 +79,7 @@
     "src/js/services/PeriodManager.js",
     "src/js/services/PermissionsService.js",
     "src/js/services/FieldSyncService.js",
+    "src/js/services/FieldControlResolver.js",
     "src/js/core/EventBus.js",
     "src/js/core/KeyboardManager.js",
     "src/components/compare-badge/CompareBadge.js",

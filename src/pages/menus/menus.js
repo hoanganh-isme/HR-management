@@ -44,11 +44,11 @@ var MenusPage = (function () {
     if (!globalActions) return;
 
     globalActions.innerHTML = '';
-    
+
     if (typeof UIActionToolbar !== 'undefined') {
       var permKey = _getPermKey();
       var hasAdd = Permission.canAdd(permKey);
-      
+
       var toolbar = UIActionToolbar.create({
         onAdd: hasAdd ? function () { _openModal(false); } : 'DISABLED',
         onEdit: false,
@@ -66,13 +66,13 @@ var MenusPage = (function () {
           }
         ]
       });
-      
+
       // Override text for "Thêm"
       var btnAdd = toolbar.querySelector('.btn-primary, [title*="Thêm"]');
       if (btnAdd) {
-        btnAdd.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">add</span><span class="d-none d-sm-inline">Thêm Nhóm Cha</span>';
+        btnAdd.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">add</span><span class="d-none d-sm-inline">Thêm danh mục</span>';
       }
-      
+
       globalActions.appendChild(toolbar);
     }
   }
@@ -1036,9 +1036,9 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon-preview').textContent = menu.icon || 'label';
       $container.querySelector('#menu-is-disable').checked = (menu.isDisable == 1 || menu.isDisable === '1' || menu.isDisable === true);
       // V2 Config
-      var tabEl = $container.querySelector('#menu-tablename'); if(tabEl) tabEl.value = menu.tableName || '';
-      var pkEl = $container.querySelector('#menu-primarykey'); if(pkEl) pkEl.value = menu.primaryKey || '';
-      var delEl = $container.querySelector('#menu-allow-hard-delete'); if(delEl) delEl.checked = (menu.allowHardDelete == 1 || menu.allowHardDelete === true);
+      var tabEl = $container.querySelector('#menu-tablename'); if (tabEl) tabEl.value = menu.tableName || '';
+      var pkEl = $container.querySelector('#menu-primarykey'); if (pkEl) pkEl.value = menu.primaryKey || '';
+      var delEl = $container.querySelector('#menu-allow-hard-delete'); if (delEl) delEl.checked = (menu.allowHardDelete == 1 || menu.allowHardDelete === true);
     } else {
       title.textContent = 'Thêm mới Menu';
       isEditInp.value = '0';
@@ -1055,9 +1055,9 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon-preview').textContent = 'label';
       $container.querySelector('#menu-is-disable').checked = false;
       // V2 Config
-      var tabEl = $container.querySelector('#menu-tablename'); if(tabEl) tabEl.value = '';
-      var pkEl = $container.querySelector('#menu-primarykey'); if(pkEl) pkEl.value = '';
-      var delEl = $container.querySelector('#menu-allow-hard-delete'); if(delEl) delEl.checked = false;
+      var tabEl = $container.querySelector('#menu-tablename'); if (tabEl) tabEl.value = '';
+      var pkEl = $container.querySelector('#menu-primarykey'); if (pkEl) pkEl.value = '';
+      var delEl = $container.querySelector('#menu-allow-hard-delete'); if (delEl) delEl.checked = false;
     }
 
     modal.style.display = 'flex';

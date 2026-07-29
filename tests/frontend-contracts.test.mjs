@@ -139,6 +139,56 @@ test('ApiClient response normalizer accepts existing envelopes', () => {
   assert.deepEqual(normalize([{ id: 4 }]).records, [{ id: 4 }]);
 });
 
+test('AppSession supplies the authenticated actor when loading branches', async () => {
+  const values = new Map();
+  const localStorage = {
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(key, String(value)); },
+    removeItem(key) { values.delete(key); }
+  };
+  const window = { localStorage };
+  const context = vm.createContext({ window, console, Promise });
+  vm.runInContext(
+    fs.readFileSync(path.join(root, 'src/js/core/AppSession.js'), 'utf8'),
+    context,
+    { filename: 'src/js/core/AppSession.js' }
+  );
+
+  localStorage.setItem('pmql_user', JSON.stringify({
+    UserName: 'admin',
+    UserGroupID: 'admin',
+    BranchID: ''
+  }));
+
+  let adminPayload;
+  await window.AppSession.loadSystemBranches({
+    post(_endpoint, payload) {
+      adminPayload = payload;
+      return Promise.resolve({ records: [] });
+    }
+  }, '/api/API_Gateway_Router');
+
+  assert.equal(adminPayload.UserName, 'admin');
+  assert.equal(adminPayload.BranchID, '');
+
+  localStorage.setItem('pmql_user', JSON.stringify({
+    UserName: 'testweb',
+    UserGroupID: 'XEM',
+    BranchID: 'COBI,DONGDU'
+  }));
+
+  let limitedPayload;
+  await window.AppSession.loadSystemBranches({
+    post(_endpoint, payload) {
+      limitedPayload = payload;
+      return Promise.resolve({ records: [] });
+    }
+  }, '/api/API_Gateway_Router');
+
+  assert.equal(limitedPayload.UserName, 'testweb');
+  assert.equal(limitedPayload.BranchID, 'COBI,DONGDU');
+});
+
 test('DocumentExportPlugin carries the HR-neutral id and compatibility alias', () => {
   const source = fs.readFileSync(path.join(root, 'src/js/utils/DocumentExportPlugin.js'), 'utf8');
   assert.match(source, /documentId:\s*docId/);

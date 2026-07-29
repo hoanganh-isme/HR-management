@@ -1,4 +1,4 @@
-﻿USE [QLTiec]
+USE [QLTiec]
 GO
 
 /****** Object:  StoredProcedure [dbo].[API_XoaMenu] ******/
@@ -28,5 +28,6 @@ BEGIN
     -- 4. Xóa menu hiện tại
     DELETE FROM WA_Menu WHERE MenuID = @MenuID;
 
+    SELECT 0 AS [code], N'Xóa Menu thành công!' AS [msg];
 END
 GO

@@ -96,7 +96,7 @@ RETURN
         R.PermissionFormName,
         D.WritePolicy,
         D.BranchPolicy,
-        CONVERT(bit, 0) AS EnableView,
+        CONVERT(bit, CASE WHEN D.ViewProcedure IS NOT NULL THEN 1 ELSE 0 END) AS EnableView,
         CONVERT(bit, CASE WHEN D.IsReadOnly = 0 AND D.SaveProcedure IS NOT NULL THEN 1 ELSE 0 END)
             AS EnableSave,
         CONVERT(bit, CASE WHEN D.IsReadOnly = 0 AND D.DeleteProcedure IS NOT NULL THEN 1 ELSE 0 END)
@@ -107,7 +107,11 @@ RETURN
     INNER JOIN dbo.WA_FieldContractRegistry AS R
       ON R.WebFormName = D.WebFormName
     WHERE R.IsEnabled = 1
-      AND R.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      /*
+        Form cha phức tạp có thể tiếp tục ở runtime riêng, nhưng dataset con
+        đã được audit vẫn được phép cutover độc lập sang generic View V2.
+      */
+      AND R.RolloutStatus IN ('ACTIVE', 'SHADOW', 'DEFERRED')
       AND D.RolloutStatus IN ('ACTIVE', 'SHADOW')
       AND D.ExpectedTableName IS NOT NULL
       AND D.ExpectedPrimaryKey IS NOT NULL
@@ -150,7 +154,11 @@ BEGIN
         @ExpectedView sysname,
         @PermissionFormName varchar(100),
         @GlobalReferenceOnly bit,
-        @BranchPolicy varchar(40);
+        @BranchPolicy varchar(40),
+        @ScopeTable sysname = NULL,
+        @ScopeParentField sysname = NULL,
+        @ScopeChildField sysname = NULL,
+        @ScopeBranchColumn sysname = NULL;
 
     SELECT
         @ExpectedTable = R.ExpectedTableName,
@@ -165,6 +173,28 @@ BEGIN
 
     IF @ExpectedTable IS NULL OR @ExpectedView COLLATE DATABASE_DEFAULT <> OBJECT_NAME(@@PROCID) COLLATE DATABASE_DEFAULT
         THROW 53101, N'PHASE3_FORM_NOT_ALLOWLISTED_FOR_VIEW', 1;
+
+    /*
+      Dataset con thường không có BranchID. Lấy quan hệ cha/con từ registry
+      để giới hạn dữ liệu qua bảng cha thay vì tin vào PersonID do client gửi.
+    */
+    DECLARE @DatasetContractCount int = 0;
+
+    SELECT
+        @DatasetContractCount = COUNT(*),
+        @ScopeTable = MIN(CONVERT(sysname, ParentContract.ExpectedTableName)),
+        @ScopeParentField = MIN(CONVERT(sysname, Dataset.ParentField)),
+        @ScopeChildField = MIN(CONVERT(sysname, Dataset.ChildField))
+    FROM dbo.WA_FieldDatasetRegistry AS Dataset
+    INNER JOIN dbo.WA_FieldContractRegistry AS ParentContract
+        ON ParentContract.WebFormName = Dataset.WebFormName
+    WHERE Dataset.ApiList COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
+      AND Dataset.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      AND ParentContract.IsEnabled = 1
+      AND ParentContract.RolloutStatus IN ('ACTIVE', 'SHADOW', 'DEFERRED');
+
+    IF @DatasetContractCount > 1
+        THROW 53122, N'PHASE3_DATASET_CONTRACT_NOT_UNIQUE', 1;
 
     IF @UserName = ''
         THROW 53102, N'PHASE3_ACTOR_REQUIRED', 1;
@@ -273,6 +303,57 @@ BEGIN
     SET @BranchPolicy = UPPER(LTRIM(RTRIM(ISNULL(@BranchPolicy, 'AUTO_SCHEMA'))));
     IF @BranchPolicy = 'AUTO_SCHEMA'
         SET @BranchPolicy = CASE WHEN @BranchColumn IS NULL THEN 'GLOBAL_REFERENCE' ELSE 'BRANCH_SCOPED' END;
+
+    /*
+      Với dataset BRANCH_SCOPED không có cột chi nhánh trực tiếp, chứng minh
+      đầy đủ đường liên kết tới bảng cha có BranchID trước khi dựng câu SQL.
+    */
+    IF @BranchPolicy = 'BRANCH_SCOPED' AND @BranchColumn IS NULL
+    BEGIN
+        DECLARE @ScopeObjectID int = OBJECT_ID(N'dbo.' + @ScopeTable, N'U');
+
+        IF @DatasetContractCount <> 1
+           OR @ScopeObjectID IS NULL
+           OR NULLIF(LTRIM(RTRIM(@ScopeParentField)), '') IS NULL
+           OR NULLIF(LTRIM(RTRIM(@ScopeChildField)), '') IS NULL
+            THROW 53123, N'PHASE3_BRANCH_SCOPE_PARENT_CONTRACT_REQUIRED', 1;
+
+        IF NOT EXISTS
+        (
+            SELECT 1
+            FROM sys.columns AS ChildColumn
+            WHERE ChildColumn.object_id = @ObjectID
+              AND ChildColumn.name COLLATE DATABASE_DEFAULT = @ScopeChildField COLLATE DATABASE_DEFAULT
+        )
+            THROW 53124, N'PHASE3_BRANCH_SCOPE_CHILD_FIELD_NOT_FOUND', 1;
+
+        IF NOT EXISTS
+        (
+            SELECT 1
+            FROM sys.columns AS ParentColumn
+            WHERE ParentColumn.object_id = @ScopeObjectID
+              AND ParentColumn.name COLLATE DATABASE_DEFAULT = @ScopeParentField COLLATE DATABASE_DEFAULT
+        )
+            THROW 53125, N'PHASE3_BRANCH_SCOPE_PARENT_FIELD_NOT_FOUND', 1;
+
+        SELECT TOP (1)
+            @ScopeBranchColumn = ScopeColumn.name
+        FROM sys.columns AS ScopeColumn
+        WHERE ScopeColumn.object_id = @ScopeObjectID
+          AND LOWER(ScopeColumn.name) COLLATE DATABASE_DEFAULT
+              IN ('branchid', 'tenantid', 'companyid', 'donviid')
+        ORDER BY
+            CASE LOWER(ScopeColumn.name)
+                WHEN 'branchid' THEN 1
+                WHEN 'tenantid' THEN 2
+                WHEN 'companyid' THEN 3
+                ELSE 4
+            END,
+            ScopeColumn.column_id;
+
+        IF @ScopeBranchColumn IS NULL
+            THROW 53126, N'PHASE3_BRANCH_SCOPE_PARENT_COLUMN_NOT_FOUND', 1;
+    END;
 
     IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
        AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
@@ -462,6 +543,27 @@ BEGIN
                   WHERE LTRIM(RTRIM(AllowedBranch.[value])) <> ''''
                     AND LTRIM(RTRIM(AllowedBranch.[value])) COLLATE DATABASE_DEFAULT
                         = CONVERT(nvarchar(4000), T.' + QUOTENAME(@BranchColumn) + N') COLLATE DATABASE_DEFAULT
+              )
+          )';
+    ELSE IF @BranchPolicy = 'BRANCH_SCOPED' AND @ScopeBranchColumn IS NOT NULL
+        SET @BranchPredicate = N'
+          AND (
+              LOWER(@UserGroupID) = ''admin''
+              OR EXISTS (
+                  SELECT 1
+                  FROM dbo.' + QUOTENAME(@ScopeTable) + N' AS ScopeRow
+                  WHERE CONVERT(nvarchar(4000), ScopeRow.' + QUOTENAME(@ScopeParentField) + N')
+                            COLLATE DATABASE_DEFAULT
+                        = CONVERT(nvarchar(4000), T.' + QUOTENAME(@ScopeChildField) + N')
+                            COLLATE DATABASE_DEFAULT
+                    AND EXISTS (
+                        SELECT 1
+                        FROM STRING_SPLIT(@BranchID, '','') AS AllowedBranch
+                        WHERE LTRIM(RTRIM(AllowedBranch.[value])) <> ''''
+                          AND LTRIM(RTRIM(AllowedBranch.[value])) COLLATE DATABASE_DEFAULT
+                              = CONVERT(nvarchar(4000), ScopeRow.'
+                                  + QUOTENAME(@ScopeBranchColumn) + N') COLLATE DATABASE_DEFAULT
+                    )
               )
           )';
 

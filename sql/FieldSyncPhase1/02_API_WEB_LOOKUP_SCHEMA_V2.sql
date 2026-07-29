@@ -1,10 +1,18 @@
 /*
-  Lookup V2 chỉ trả danh sách tĩnh hoặc tên API View đã đăng ký.
-  Source dạng câu lệnh không bao giờ được thực thi hay trả về client.
+  Lookup V2 chỉ đọc registry mới:
+  - VALUE_LIST: danh sách tĩnh có kiểm soát.
+  - REGISTERED_API: tên route View đã đăng ký trong WA_API.
+  Không đọc SY_FrmDrdwTbl, không nhận và không thực thi raw SQL.
 */
 SET ANSI_NULLS ON;
 GO
 SET QUOTED_IDENTIFIER ON;
+GO
+
+IF OBJECT_ID(N'dbo.WA_FieldUiContractV2', N'U') IS NULL
+   OR OBJECT_ID(N'dbo.WA_LookupContractV2', N'U') IS NULL
+   OR OBJECT_ID(N'dbo.WA_LookupOptionV2', N'U') IS NULL
+    THROW 51100, N'LOOKUP_CONTRACT_V2_REGISTRY_NOT_INSTALLED', 1;
 GO
 
 IF OBJECT_ID(N'dbo.API_Web_LookupSchemaV2', N'P') IS NULL
@@ -24,88 +32,108 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    SET @WebFormName = LTRIM(RTRIM(ISNULL(@WebFormName, '')));
     SET @ERPFormID = LTRIM(RTRIM(ISNULL(NULLIF(@ERPFormID, ''), @WebFormName)));
+    SET @LookupKey = UPPER(LTRIM(RTRIM(ISNULL(@LookupKey, ''))));
     SET @Keyword = LTRIM(RTRIM(ISNULL(@Keyword, N'')));
     SET @Page = CASE WHEN ISNULL(@Page, 0) < 1 THEN 1 ELSE @Page END;
-    SET @PageSize = CASE WHEN ISNULL(@PageSize, 0) < 1 THEN 30 WHEN @PageSize > 100 THEN 100 ELSE @PageSize END;
+    SET @PageSize =
+        CASE
+            WHEN ISNULL(@PageSize, 0) < 1 THEN 30
+            WHEN @PageSize > 100 THEN 100
+            ELSE @PageSize
+        END;
 
-    DECLARE @UserGroupID varchar(50), @UserBranches varchar(max);
-    SELECT @UserGroupID = U.UserGroupID, @UserBranches = U.BranchID
+    IF @WebFormName = ''
+       OR LEN(@LookupKey) <> 64
+       OR @LookupKey LIKE '%[^0-9A-F]%'
+        THROW 51101, N'LOOKUP_CONTRACT_V2_REQUEST_INVALID', 1;
+
+    DECLARE
+        @UserGroupID varchar(50),
+        @UserBranches varchar(max);
+
+    SELECT
+        @UserGroupID = U.UserGroupID,
+        @UserBranches = U.BranchID
     FROM dbo.SY_User AS U
-    WHERE U.UserName = @UserName AND U.Disable = 0;
+    WHERE U.UserName = @UserName
+      AND U.Disable = 0;
 
     IF @UserGroupID IS NULL
-        THROW 51101, N'Người dùng không hợp lệ hoặc đã bị khóa.', 1;
+        THROW 51102, N'LOOKUP_CONTRACT_V2_ACTOR_INVALID', 1;
 
     IF LOWER(@UserGroupID) <> 'admin'
-       AND NOT EXISTS (
+       AND NOT EXISTS
+       (
             SELECT 1
             FROM dbo.WA_Menu AS M
             LEFT JOIN dbo.WA_UserGroupPermisstion AS P
-              ON P.MenuID = M.MenuID AND P.UserGroupID = @UserGroupID
+              ON P.MenuID = M.MenuID
+             AND P.UserGroupID = @UserGroupID
             WHERE M.FormName = @WebFormName
               AND ISNULL(M.isDisable, 0) = 0
-              AND (ISNULL(M.isNotCheckPermission, 0) = 1 OR ISNULL(P.IsRun, 0) = 1)
+              AND
+              (
+                  ISNULL(M.isNotCheckPermission, 0) = 1
+                  OR ISNULL(P.IsRun, 0) = 1
+              )
        )
-        THROW 51102, N'Không có quyền đọc lookup của form.', 1;
+        THROW 51103, N'LOOKUP_CONTRACT_V2_PERMISSION_DENIED', 1;
 
-    IF LOWER(@UserGroupID) <> 'admin' AND LTRIM(RTRIM(ISNULL(@UserBranches, ''))) <> ''
+    IF LOWER(@UserGroupID) <> 'admin'
+       AND LTRIM(RTRIM(ISNULL(@UserBranches, ''))) <> ''
     BEGIN
         IF LTRIM(RTRIM(ISNULL(@BranchID, ''))) = ''
-            THROW 51103, N'Thiếu ngữ cảnh chi nhánh.', 1;
-        IF EXISTS (
+            THROW 51104, N'LOOKUP_CONTRACT_V2_BRANCH_CONTEXT_REQUIRED', 1;
+
+        IF EXISTS
+        (
             SELECT 1
             FROM STRING_SPLIT(@BranchID, ',') AS Requested
             WHERE LTRIM(RTRIM(Requested.[value])) <> ''
-              AND NOT EXISTS (
-                    SELECT 1
-                    FROM STRING_SPLIT(@UserBranches, ',') AS Allowed
-                    WHERE LTRIM(RTRIM(Allowed.[value])) = LTRIM(RTRIM(Requested.[value]))
+              AND NOT EXISTS
+              (
+                  SELECT 1
+                  FROM STRING_SPLIT(@UserBranches, ',') AS Allowed
+                  WHERE LTRIM(RTRIM(Allowed.[value])) =
+                        LTRIM(RTRIM(Requested.[value]))
               )
         )
-            THROW 51104, N'Chi nhánh nằm ngoài phạm vi được cấp.', 1;
+            THROW 51105, N'LOOKUP_CONTRACT_V2_BRANCH_SCOPE_DENIED', 1;
     END;
 
     DECLARE
-        @Source nvarchar(max),
-        @LookupType varchar(10),
-        @ValueColumn varchar(50),
-        @DisplayColumn varchar(50),
-        @ResolvedKey varchar(64);
+        @LookupCode varchar(100),
+        @SourceType varchar(20),
+        @RegisteredList varchar(50),
+        @ValueColumn sysname,
+        @DisplayColumn sysname;
 
     SELECT TOP (1)
-        @Source = D.[Source],
-        @LookupType = D.[Type],
-        @ValueColumn = D.ValueColumn,
-        @DisplayColumn = D.DisplayColumn,
-        @ResolvedKey = CONVERT(varchar(64), HASHBYTES(
-            'SHA2_256',
-            UPPER(CONCAT(
-                LTRIM(RTRIM(CONVERT(varchar(100), D.FormID))),
-                '|',
-                LTRIM(RTRIM(CONVERT(varchar(128), D.ColumnID)))
-            ))
-        ), 2)
-    FROM dbo.SY_FrmDrdwTbl AS D
-    WHERE LOWER(LTRIM(RTRIM(ISNULL(D.FormID, '')))) IN (LOWER(@ERPFormID), LOWER(@WebFormName))
-      AND ISNULL(D.IsDisable, 0) = 0
-      AND (
-          /* Key V2 ổn định, không phụ thuộc khóa ngẫu nhiên UserAutoID của metadata. */
-          CONVERT(varchar(64), HASHBYTES(
-              'SHA2_256',
-              UPPER(CONCAT(
-                  LTRIM(RTRIM(CONVERT(varchar(100), D.FormID))),
-                  '|',
-                  LTRIM(RTRIM(CONVERT(varchar(128), D.ColumnID)))
-              ))
-          ), 2) = @LookupKey
-          /* Tương thích trong thời gian cache/client còn giữ key V1. */
-          OR CONVERT(varchar(64), HASHBYTES('SHA2_256', CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID)), 2) = @LookupKey
-          OR CONVERT(varchar(64), HASHBYTES('SHA2_256', UPPER(CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID))), 2) = @LookupKey
-      )
-    ORDER BY CASE WHEN LOWER(ISNULL(D.FormID, '')) = LOWER(@ERPFormID) THEN 1 ELSE 2 END, D.UserAutoID;
+        @LookupCode = L.LookupCode,
+        @SourceType = L.SourceType,
+        @RegisteredList = L.RegisteredList,
+        @ValueColumn = L.ValueColumn,
+        @DisplayColumn = L.DisplayColumn
+    FROM dbo.WA_FieldUiContractV2 AS U
+    INNER JOIN dbo.WA_LookupContractV2 AS L
+      ON L.LookupCode = U.LookupCode
+     AND L.IsEnabled = 1
+    WHERE U.WebFormName = @WebFormName
+      AND U.IsEnabled = 1
+      AND CONVERT
+      (
+          varchar(64),
+          HASHBYTES('SHA2_256', UPPER(LTRIM(RTRIM(L.LookupCode)))),
+          2
+      ) = @LookupKey
+    ORDER BY
+        CASE WHEN U.DatasetKey = 'MAIN' THEN 1 ELSE 2 END,
+        U.DatasetKey,
+        U.FieldName;
 
-    IF @ResolvedKey IS NULL
+    IF @LookupCode IS NULL
     BEGIN
         SELECT
             'BLOCKED' AS LookupMode,
@@ -114,57 +142,71 @@ BEGIN
             CAST(NULL AS nvarchar(500)) AS [Value],
             CAST(NULL AS nvarchar(500)) AS Display,
             CAST(NULL AS varchar(50)) AS RegisteredList,
+            CAST(NULL AS sysname) AS ValueColumn,
+            CAST(NULL AS sysname) AS DisplayColumn;
+        RETURN;
+    END;
+
+    IF @ValueColumn = ''
+       OR @DisplayColumn = ''
+       OR PATINDEX('%[^A-Za-z0-9_@$#]%', @ValueColumn COLLATE Latin1_General_100_BIN2) > 0
+       OR PATINDEX('%[^A-Za-z0-9_@$#]%', @DisplayColumn COLLATE Latin1_General_100_BIN2) > 0
+    BEGIN
+        SELECT
+            'BLOCKED' AS LookupMode,
+            CAST(1 AS bit) AS Blocked,
+            'LOOKUP_COLUMNS_NOT_CONFIGURED' AS DiagnosticCode,
+            CAST(NULL AS nvarchar(500)) AS [Value],
+            CAST(NULL AS nvarchar(500)) AS Display,
+            CAST(NULL AS varchar(50)) AS RegisteredList,
             @ValueColumn AS ValueColumn,
             @DisplayColumn AS DisplayColumn;
         RETURN;
     END;
 
-    IF UPPER(ISNULL(@LookupType, '')) = 'VALUELIST'
+    IF @SourceType = 'VALUE_LIST'
     BEGIN
-        DECLARE @Values table (Ordinal int IDENTITY(1, 1), Item nvarchar(500));
-        DECLARE @Work nvarchar(max) = ISNULL(@Source, N''), @Separator int, @Item nvarchar(500);
-
-        WHILE LEN(@Work) > 0 AND (SELECT COUNT(*) FROM @Values) < 500
-        BEGIN
-            SET @Separator = CHARINDEX(';', @Work);
-            IF @Separator = 0
-            BEGIN
-                SET @Item = LTRIM(RTRIM(@Work));
-                SET @Work = N'';
-            END
-            ELSE
-            BEGIN
-                SET @Item = LTRIM(RTRIM(LEFT(@Work, @Separator - 1)));
-                SET @Work = SUBSTRING(@Work, @Separator + 1, LEN(@Work));
-            END;
-            IF @Item <> N'' INSERT INTO @Values(Item) VALUES (@Item);
-        END;
-
         SELECT
             'VALUE_LIST' AS LookupMode,
             CAST(0 AS bit) AS Blocked,
             'OK' AS DiagnosticCode,
-            CASE WHEN CHARINDEX('|', V.Item) > 0 THEN LEFT(V.Item, CHARINDEX('|', V.Item) - 1) ELSE V.Item END AS [Value],
-            CASE WHEN CHARINDEX('|', V.Item) > 0 THEN SUBSTRING(V.Item, CHARINDEX('|', V.Item) + 1, LEN(V.Item)) ELSE V.Item END AS Display,
+            O.OptionValue AS [Value],
+            O.OptionLabel AS Display,
             CAST(NULL AS varchar(50)) AS RegisteredList,
             @ValueColumn AS ValueColumn,
             @DisplayColumn AS DisplayColumn
-        FROM @Values AS V
-        WHERE @Keyword = N'' OR V.Item LIKE N'%' + @Keyword + N'%'
-        ORDER BY V.Ordinal
-        OFFSET ((@Page - 1) * @PageSize) ROWS FETCH NEXT @PageSize ROWS ONLY;
+        FROM dbo.WA_LookupOptionV2 AS O
+        WHERE O.LookupCode = @LookupCode
+          AND O.IsEnabled = 1
+          AND
+          (
+              @Keyword = N''
+              OR O.OptionValue LIKE N'%' + @Keyword + N'%'
+              OR O.OptionLabel LIKE N'%' + @Keyword + N'%'
+          )
+        ORDER BY O.OrderNo, O.OptionLabel, O.OptionValue
+        OFFSET ((@Page - 1) * @PageSize) ROWS
+        FETCH NEXT @PageSize ROWS ONLY;
         RETURN;
     END;
 
-    DECLARE @RegisteredList varchar(50);
-    SELECT @RegisteredList = MIN(A.[list])
-    FROM dbo.WA_API AS A
-    WHERE LOWER(LTRIM(RTRIM(A.[func]))) = 'view'
-      AND LOWER(LTRIM(RTRIM(A.[list]))) = LOWER(LTRIM(RTRIM(@Source)))
-    GROUP BY A.[list]
-    HAVING COUNT(*) = 1;
-
-    IF @RegisteredList IS NOT NULL
+    IF @SourceType = 'REGISTERED_API'
+       AND EXISTS
+       (
+            SELECT 1
+            FROM dbo.WA_API AS A
+            WHERE LOWER(LTRIM(RTRIM(A.[func]))) = 'view'
+              AND A.[list] = @RegisteredList
+       )
+       AND NOT EXISTS
+       (
+            SELECT 1
+            FROM dbo.WA_API AS A
+            WHERE LOWER(LTRIM(RTRIM(A.[func]))) = 'view'
+              AND A.[list] = @RegisteredList
+            GROUP BY A.[list], LOWER(LTRIM(RTRIM(A.[func])))
+            HAVING COUNT(*) > 1
+       )
     BEGIN
         SELECT
             'REGISTERED_API' AS LookupMode,

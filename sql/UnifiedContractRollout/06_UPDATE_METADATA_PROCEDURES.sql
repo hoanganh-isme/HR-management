@@ -1,11 +1,14 @@
 /*
-  Cập nhật metadata Grid/JOIN. Các procedure nguồn đọc wrapper DB-backed,
-  caption/format/lookup vẫn lấy từ metadata ERP và không dùng SY_FormatFields.
+  Cập nhật metadata Grid/JOIN. Cấu hình caption/format/lookup đọc từ
+  WA_FieldUiContractV2 và WA_LookupContractV2; không đọc metadata desktop cũ.
 */
 IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
    OR OBJECT_ID(N'dbo.API_Phase4JoinRegistry', N'IF') IS NULL
    OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54300, N'FIELD_CONTRACT_DYNAMIC_WRAPPERS_NOT_INSTALLED', 1;
+IF OBJECT_ID(N'dbo.WA_FieldUiContractV2', N'U') IS NULL
+   OR OBJECT_ID(N'dbo.WA_LookupContractV2', N'U') IS NULL
+    THROW 54301, N'FIELD_UI_CONTRACT_V2_REGISTRY_NOT_INSTALLED', 1;
 GO
 
 /* ========================================================================= */
@@ -352,7 +355,7 @@ END;
             @RegisteredDelete AS RegisteredDeleteProcedure,
             @ResolvedDeleteMode AS DeleteMode,
             CAST('RESULT_SET' AS varchar(30)) AS SourceKind,
-            RF.FieldOrdinal,
+            COALESCE(ResultCaption.OrderNo, RF.FieldOrdinal) AS FieldOrdinal,
             CONVERT(varchar(128), RF.FieldName) AS FieldName,
             RF.SqlType,
             RF.IsNullable,
@@ -373,14 +376,25 @@ END;
                  AND ISNULL(PC.default_object_id, 0) = 0 THEN 1
                 ELSE 0
             END) AS IsRequiredOnInsert,
-            ResultFlags.CanQuery AS ShowInGrid,
-            ResultFlags.CanInsert AS ShowInAdd,
             CONVERT(bit, CASE
-                WHEN ResultFlags.CanUpdate = 1 OR ResultFlags.IsPrimaryKey = 1 THEN 1
+                WHEN ResultFlags.CanQuery = 1
+                 AND ISNULL(ResultCaption.ShowInGrid, 1) = 1 THEN 1
+                ELSE 0
+            END) AS ShowInGrid,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanInsert = 1
+                 AND ISNULL(ResultCaption.ShowInAdd, 1) = 1 THEN 1
+                ELSE 0
+            END) AS ShowInAdd,
+            CONVERT(bit, CASE
+                WHEN (ResultFlags.CanUpdate = 1 OR ResultFlags.IsPrimaryKey = 1)
+                 AND ISNULL(ResultCaption.ShowInEdit, 1) = 1 THEN 1
                 ELSE 0
             END) AS ShowInEdit,
             CONVERT(bit, CASE
-                WHEN ResultFlags.CanQuery = 1 AND ResultFilter.UserAutoID IS NOT NULL THEN 1
+                WHEN ResultFlags.CanQuery = 1
+                 AND ResultFilter.UserAutoID IS NOT NULL
+                 AND ISNULL(ResultCaption.ShowInFilter, 1) = 1 THEN 1
                 ELSE 0
             END) AS ShowInFilter,
             ResultFlags.CanInsert AS SupportsInsert,
@@ -401,6 +415,12 @@ END;
             ResultFormat.[Type] AS FormatType,
             CASE
                 WHEN ResultLookup.UserAutoID IS NOT NULL THEN 'lookup'
+                WHEN UPPER(ISNULL(ResultCaption.ControlType, '')) = 'TEXTAREA' THEN 'textarea'
+                WHEN UPPER(ISNULL(ResultCaption.ControlType, '')) = 'BOOLEAN' THEN 'boolean'
+                WHEN UPPER(ISNULL(ResultCaption.ControlType, '')) = 'DATE' THEN 'date'
+                WHEN UPPER(ISNULL(ResultCaption.ControlType, '')) = 'DATETIME' THEN 'datetime'
+                WHEN UPPER(ISNULL(ResultCaption.ControlType, '')) = 'TIME' THEN 'time'
+                WHEN UPPER(ISNULL(ResultCaption.ControlType, '')) IN ('NUMBER', 'MONEY') THEN 'number'
                 WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE 'bit%' THEN 'boolean'
                 WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'D' THEN 'date'
                 WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'DT' THEN 'datetime'
@@ -428,11 +448,7 @@ END;
             CASE WHEN ResultLookup.UserAutoID IS NULL THEN NULL ELSE
                 CONVERT(varchar(64), HASHBYTES(
                     'SHA2_256',
-                    UPPER(CONCAT(
-                        LTRIM(RTRIM(CONVERT(varchar(100), ResultLookup.FormID))),
-                        '|',
-                        LTRIM(RTRIM(CONVERT(varchar(128), ResultLookup.ColumnID)))
-                    ))
+                    UPPER(LTRIM(RTRIM(CONVERT(varchar(100), ResultLookup.LookupCode))))
                 ), 2)
             END AS LookupKey,
             ResultLookup.[Type] AS LookupType,
@@ -555,40 +571,74 @@ END;
         OUTER APPLY
         (
             SELECT TOP (1)
-                X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
-            FROM dbo.SY_FmtFldTbl AS X
-            WHERE X.FieldName COLLATE DATABASE_DEFAULT =
+                X.FormatID,
+                X.Caption AS CaptionVN,
+                CAST(NULL AS nvarchar(200)) AS CaptionEN,
+                X.Align AS AlignX,
+                X.MinWidth,
+                X.MaxWidth,
+                X.ControlType,
+                X.NumberDecimal,
+                X.FormatString,
+                X.MaskString,
+                X.MaxLength,
+                X.MinValue,
+                X.MaxValue,
+                X.OrderNo,
+                X.ShowInGrid,
+                X.ShowInAdd,
+                X.ShowInEdit,
+                X.ShowInFilter,
+                X.IsReadOnlyAdd,
+                X.IsReadOnlyEdit
+            FROM dbo.WA_FieldUiContractV2 AS X
+            WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
+                  @WebFormName COLLATE DATABASE_DEFAULT
+              AND X.DatasetKey COLLATE DATABASE_DEFAULT =
+                  'MAIN' COLLATE DATABASE_DEFAULT
+              AND X.IsEnabled = 1
+              AND X.FieldName COLLATE DATABASE_DEFAULT =
                   RF.FieldName COLLATE DATABASE_DEFAULT
-              AND (
-                  X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
-                  OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-                  OR X.FormName IS NULL
-                  OR LTRIM(RTRIM(X.FormName)) = ''
-              )
-            ORDER BY CASE
-                WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
-                WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
-                ELSE 3
-            END, X.AutoID
         ) AS ResultCaption
-        LEFT JOIN dbo.SY_FmatTbl AS ResultFormat
-          ON ResultFormat.FormatID COLLATE DATABASE_DEFAULT =
-             ResultCaption.FormatID COLLATE DATABASE_DEFAULT
+        OUTER APPLY
+        (
+            SELECT
+                ResultCaption.ControlType AS [Type],
+                ResultCaption.NumberDecimal,
+                ResultCaption.FormatString,
+                ResultCaption.MaskString,
+                ResultCaption.MaxLength,
+                ResultCaption.MinValue,
+                ResultCaption.MaxValue,
+                ResultCaption.AlignX AS Align
+        ) AS ResultFormat
         OUTER APPLY
         (
             SELECT TOP (1)
-                X.UserAutoID, X.FormID, X.ColumnID, X.[Type], X.ValueColumn,
-                X.DisplayColumn, X.ColumnArr, X.WidthArr, X.ParaRequireArr,
-                X.IsMultiSelect, X.ReloadType, X.IsDisable
-            FROM dbo.SY_FrmDrdwTbl AS X
-            WHERE X.ColumnID COLLATE DATABASE_DEFAULT =
+                U.LookupCode AS UserAutoID,
+                U.WebFormName AS FormID,
+                U.FieldName AS ColumnID,
+                L.SourceType AS [Type],
+                L.ValueColumn,
+                L.DisplayColumn,
+                L.DisplayColumns AS ColumnArr,
+                L.Widths AS WidthArr,
+                L.DependsOn AS ParaRequireArr,
+                L.IsMultiSelect,
+                L.ReloadMode AS ReloadType,
+                CONVERT(bit, 0) AS IsDisable,
+                U.LookupCode
+            FROM dbo.WA_FieldUiContractV2 AS U
+            INNER JOIN dbo.WA_LookupContractV2 AS L
+              ON L.LookupCode = U.LookupCode
+             AND L.IsEnabled = 1
+            WHERE U.WebFormName COLLATE DATABASE_DEFAULT =
+                  @WebFormName COLLATE DATABASE_DEFAULT
+              AND U.DatasetKey COLLATE DATABASE_DEFAULT =
+                  'MAIN' COLLATE DATABASE_DEFAULT
+              AND U.IsEnabled = 1
+              AND U.FieldName COLLATE DATABASE_DEFAULT =
                   RF.FieldName COLLATE DATABASE_DEFAULT
-              AND X.FormID COLLATE DATABASE_DEFAULT IN (@ERPFormID, @WebFormName)
-              AND ISNULL(X.IsDisable, 0) = 0
-            ORDER BY CASE
-                WHEN X.FormID COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
-                ELSE 2
-            END, X.UserAutoID
         ) AS ResultLookup
         OUTER APPLY
         (
@@ -610,7 +660,7 @@ END;
                 X.KeyID,
                 X.UserAutoID
         ) AS ResultFilter
-            ORDER BY RF.FieldOrdinal;
+            ORDER BY COALESCE(ResultCaption.OrderNo, RF.FieldOrdinal);
 
             RETURN;
         END;
@@ -631,7 +681,7 @@ END;
         @ResolvedDeleteMode AS DeleteMode,
         CAST(CASE WHEN @ResultSetFallback = 1
             THEN 'TABLE_FALLBACK' ELSE 'MAIN_TABLE' END AS varchar(30)) AS SourceKind,
-        C.column_id AS FieldOrdinal,
+        COALESCE(M.OrderNo, C.column_id) AS FieldOrdinal,
         CONVERT(varchar(128), C.name) AS FieldName,
         T.name + CASE
             WHEN T.name IN ('varchar', 'char', 'binary', 'varbinary')
@@ -657,11 +707,23 @@ END;
         Flags.IsDenied AS IsSensitiveOrDenied,
         CONVERT(bit, CASE
             WHEN Flags.CanInsert = 1 AND C.is_nullable = 0 AND C.default_object_id = 0 THEN 1 ELSE 0 END) AS IsRequiredOnInsert,
-        Flags.CanQuery AS ShowInGrid,
-        Flags.CanInsert AS ShowInAdd,
-        CONVERT(bit, CASE WHEN Flags.CanUpdate = 1 OR Flags.IsPrimaryKey = 1 THEN 1 ELSE 0 END) AS ShowInEdit,
         CONVERT(bit, CASE
-        WHEN Flags.CanQuery = 1 AND FilterCfg.UserAutoID IS NOT NULL THEN 1
+            WHEN Flags.CanQuery = 1 AND ISNULL(M.ShowInGrid, 1) = 1 THEN 1
+            ELSE 0
+        END) AS ShowInGrid,
+        CONVERT(bit, CASE
+            WHEN Flags.CanInsert = 1 AND ISNULL(M.ShowInAdd, 1) = 1 THEN 1
+            ELSE 0
+        END) AS ShowInAdd,
+        CONVERT(bit, CASE
+            WHEN (Flags.CanUpdate = 1 OR Flags.IsPrimaryKey = 1)
+             AND ISNULL(M.ShowInEdit, 1) = 1 THEN 1
+            ELSE 0
+        END) AS ShowInEdit,
+        CONVERT(bit, CASE
+        WHEN Flags.CanQuery = 1
+         AND FilterCfg.UserAutoID IS NOT NULL
+         AND ISNULL(M.ShowInFilter, 1) = 1 THEN 1
         ELSE 0
         END) AS ShowInFilter,
         Flags.CanInsert AS SupportsInsert,
@@ -674,6 +736,12 @@ END;
         F.[Type] AS FormatType,
         CASE
             WHEN D.UserAutoID IS NOT NULL THEN 'lookup'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'TEXTAREA' THEN 'textarea'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'BOOLEAN' THEN 'boolean'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'DATE' THEN 'date'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'DATETIME' THEN 'datetime'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'TIME' THEN 'time'
+            WHEN UPPER(ISNULL(M.ControlType, '')) IN ('NUMBER', 'MONEY') THEN 'number'
             WHEN T.name = 'bit' THEN 'boolean'
             WHEN UPPER(ISNULL(M.FormatID, '')) IN ('D') THEN 'date'
             WHEN UPPER(ISNULL(M.FormatID, '')) IN ('DT') THEN 'datetime'
@@ -701,11 +769,7 @@ END;
         CASE WHEN D.UserAutoID IS NULL THEN NULL ELSE
             CONVERT(varchar(64), HASHBYTES(
                 'SHA2_256',
-                UPPER(CONCAT(
-                    LTRIM(RTRIM(CONVERT(varchar(100), D.FormID))),
-                    '|',
-                    LTRIM(RTRIM(CONVERT(varchar(128), D.ColumnID)))
-                ))
+                UPPER(LTRIM(RTRIM(CONVERT(varchar(100), D.LookupCode))))
             ), 2)
         END AS LookupKey,
         D.[Type] AS LookupType,
@@ -783,54 +847,77 @@ END;
                 WHEN @EnableView = 1 AND Base.IsServerManaged = 0 AND Base.IsDenied = 0 THEN 1 ELSE 0 END) AS CanQuery
     ) AS Flags
     OUTER APPLY (
-        SELECT TOP (1) X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
-        FROM dbo.SY_FmtFldTbl AS X
-        WHERE X.FieldName COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
-          AND (
-              X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
-              OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-              OR X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = ''
-          )
-        ORDER BY CASE
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
-            ELSE 3 END,
-            X.AutoID
+        SELECT TOP (1)
+            X.FormatID,
+            X.Caption AS CaptionVN,
+            CAST(NULL AS nvarchar(200)) AS CaptionEN,
+            X.Align AS AlignX,
+            X.MinWidth,
+            X.MaxWidth,
+            X.ControlType,
+            X.NumberDecimal,
+            X.FormatString,
+            X.MaskString,
+            X.MaxLength,
+            X.MinValue,
+            X.MaxValue,
+            X.OrderNo,
+            X.ShowInGrid,
+            X.ShowInAdd,
+            X.ShowInEdit,
+            X.ShowInFilter,
+            X.IsReadOnlyAdd,
+            X.IsReadOnlyEdit
+        FROM dbo.WA_FieldUiContractV2 AS X
+        WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
+              @WebFormName COLLATE DATABASE_DEFAULT
+          AND X.DatasetKey COLLATE DATABASE_DEFAULT =
+              'MAIN' COLLATE DATABASE_DEFAULT
+          AND X.FieldName COLLATE DATABASE_DEFAULT =
+              C.name COLLATE DATABASE_DEFAULT
+          AND X.IsEnabled = 1
     ) AS M
-    LEFT JOIN dbo.SY_FmatTbl AS F
-      ON F.FormatID COLLATE DATABASE_DEFAULT =
-         M.FormatID COLLATE DATABASE_DEFAULT
+    OUTER APPLY
+    (
+        SELECT
+            M.ControlType AS [Type],
+            M.NumberDecimal,
+            M.FormatString,
+            M.MaskString,
+            M.MaxLength,
+            M.MinValue,
+            M.MaxValue,
+            M.AlignX AS Align
+    ) AS F
 
     OUTER APPLY
     (
         SELECT TOP (1)
-            X.UserAutoID,
-            X.FormID,
-            X.ColumnID,
-            X.[Type],
-            X.ValueColumn,
-            X.DisplayColumn,
-            X.ColumnArr,
-            X.WidthArr,
-            X.ParaRequireArr,
-            X.IsMultiSelect,
-            X.ReloadType,
-            X.IsDisable
-        FROM dbo.SY_FrmDrdwTbl AS X
+            U.LookupCode AS UserAutoID,
+            U.WebFormName AS FormID,
+            U.FieldName AS ColumnID,
+            L.SourceType AS [Type],
+            L.ValueColumn,
+            L.DisplayColumn,
+            L.DisplayColumns AS ColumnArr,
+            L.Widths AS WidthArr,
+            L.DependsOn AS ParaRequireArr,
+            L.IsMultiSelect,
+            L.ReloadMode AS ReloadType,
+            CONVERT(bit, 0) AS IsDisable,
+            U.LookupCode
+        FROM dbo.WA_FieldUiContractV2 AS U
+        INNER JOIN dbo.WA_LookupContractV2 AS L
+          ON L.LookupCode = U.LookupCode
+         AND L.IsEnabled = 1
         WHERE
-            X.ColumnID COLLATE DATABASE_DEFAULT =
+            U.WebFormName COLLATE DATABASE_DEFAULT =
+                @WebFormName COLLATE DATABASE_DEFAULT
+            AND U.DatasetKey COLLATE DATABASE_DEFAULT =
+                'MAIN' COLLATE DATABASE_DEFAULT
+            AND U.FieldName COLLATE DATABASE_DEFAULT =
                 C.name COLLATE DATABASE_DEFAULT
-            AND X.FormID COLLATE DATABASE_DEFAULT
-                IN (@ERPFormID, @WebFormName)
-            AND ISNULL(X.IsDisable, 0) = 0
-        ORDER BY
-            CASE
-                WHEN X.FormID COLLATE DATABASE_DEFAULT =
-                     @ERPFormID COLLATE DATABASE_DEFAULT
-                THEN 1
-                ELSE 2
-            END,
-            X.UserAutoID
+            AND U.IsEnabled = 1
     ) AS D
 
     OUTER APPLY
@@ -1364,7 +1451,7 @@ BEGIN
         @ExpectedDeleteProcedure AS RegisteredDeleteProcedure,
         CONVERT(bit, @ReadOnly) AS [ReadOnly],
         CAST('JOIN_RESULT_SET' AS varchar(40)) AS SourceKind,
-        RF.FieldOrdinal,
+        COALESCE(M.OrderNo, RF.FieldOrdinal) AS FieldOrdinal,
         CONVERT(varchar(128), RF.FieldName) AS FieldName,
         RF.SqlType,
         RF.IsNullable,
@@ -1379,6 +1466,12 @@ BEGIN
         F.[Type] AS FormatType,
         CASE
             WHEN D.UserAutoID IS NOT NULL THEN 'lookup'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'TEXTAREA' THEN 'textarea'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'BOOLEAN' THEN 'boolean'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'DATE' THEN 'date'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'DATETIME' THEN 'datetime'
+            WHEN UPPER(ISNULL(M.ControlType, '')) = 'TIME' THEN 'time'
+            WHEN UPPER(ISNULL(M.ControlType, '')) IN ('NUMBER', 'MONEY') THEN 'number'
             WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE 'bit%' THEN 'boolean'
             WHEN UPPER(ISNULL(M.FormatID, '')) = 'D' THEN 'date'
             WHEN UPPER(ISNULL(M.FormatID, '')) = 'DT' THEN 'datetime'
@@ -1405,7 +1498,16 @@ BEGIN
         M.MaxWidth,
         CASE
             WHEN D.UserAutoID IS NULL THEN NULL
-            ELSE CONVERT(varchar(64), HASHBYTES('SHA2_256', CONCAT(D.UserAutoID, '|', D.FormID, '|', D.ColumnID)), 2)
+            ELSE CONVERT
+            (
+                varchar(64),
+                HASHBYTES
+                (
+                    'SHA2_256',
+                    UPPER(LTRIM(RTRIM(CONVERT(varchar(100), D.LookupCode))))
+                ),
+                2
+            )
         END AS LookupKey,
         D.[Type] AS LookupType,
         D.ValueColumn AS LookupValueColumn,
@@ -1424,30 +1526,76 @@ BEGIN
      AND (RF.SourceTable IS NULL OR RF.SourceTable COLLATE DATABASE_DEFAULT = @ExpectedTable COLLATE DATABASE_DEFAULT)
     OUTER APPLY
     (
-        SELECT TOP (1) X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
-        FROM dbo.SY_FmtFldTbl AS X
-        WHERE X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
-          AND (X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-               OR X.FormName COLLATE DATABASE_DEFAULT = @ApiList COLLATE DATABASE_DEFAULT
-               OR X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '')
-        ORDER BY CASE
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 1
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @ApiList COLLATE DATABASE_DEFAULT THEN 2
-            ELSE 3 END, X.AutoID
+        SELECT TOP (1)
+            X.FormatID,
+            X.Caption AS CaptionVN,
+            CAST(NULL AS nvarchar(200)) AS CaptionEN,
+            X.Align AS AlignX,
+            X.MinWidth,
+            X.MaxWidth,
+            X.ControlType,
+            X.NumberDecimal,
+            X.FormatString,
+            X.MaskString,
+            X.MaxLength,
+            X.MinValue,
+            X.MaxValue,
+            X.OrderNo,
+            X.ShowInGrid,
+            X.ShowInAdd,
+            X.ShowInEdit,
+            X.ShowInFilter,
+            X.IsReadOnlyAdd,
+            X.IsReadOnlyEdit
+        FROM dbo.WA_FieldUiContractV2 AS X
+        WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
+              @WebFormName COLLATE DATABASE_DEFAULT
+          AND X.DatasetKey COLLATE DATABASE_DEFAULT =
+              @DetailKey COLLATE DATABASE_DEFAULT
+          AND X.FieldName COLLATE DATABASE_DEFAULT =
+              RF.FieldName COLLATE DATABASE_DEFAULT
+          AND X.IsEnabled = 1
     ) AS M
-    LEFT JOIN dbo.SY_FmatTbl AS F
-      ON F.FormatID COLLATE DATABASE_DEFAULT = M.FormatID COLLATE DATABASE_DEFAULT
+    OUTER APPLY
+    (
+        SELECT
+            M.ControlType AS [Type],
+            M.NumberDecimal,
+            M.FormatString,
+            M.MaskString,
+            M.MaxLength,
+            M.MinValue,
+            M.MaxValue,
+            M.AlignX AS Align
+    ) AS F
     OUTER APPLY
     (
         SELECT TOP (1)
-            X.UserAutoID, X.FormID, X.ColumnID, X.[Type], X.ValueColumn, X.DisplayColumn,
-            X.ColumnArr, X.WidthArr, X.ParaRequireArr, X.IsMultiSelect, X.ReloadType, X.IsDisable
-        FROM dbo.SY_FrmDrdwTbl AS X
-        WHERE X.ColumnID COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
-          AND X.FormID COLLATE DATABASE_DEFAULT IN (@WebFormName, @ApiList)
-          AND ISNULL(X.IsDisable, 0) = 0
-        ORDER BY CASE WHEN X.FormID COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 1 ELSE 2 END, X.UserAutoID
+            U.LookupCode AS UserAutoID,
+            U.WebFormName AS FormID,
+            U.FieldName AS ColumnID,
+            L.SourceType AS [Type],
+            L.ValueColumn,
+            L.DisplayColumn,
+            L.DisplayColumns AS ColumnArr,
+            L.Widths AS WidthArr,
+            L.DependsOn AS ParaRequireArr,
+            L.IsMultiSelect,
+            L.ReloadMode AS ReloadType,
+            CONVERT(bit, 0) AS IsDisable,
+            U.LookupCode
+        FROM dbo.WA_FieldUiContractV2 AS U
+        INNER JOIN dbo.WA_LookupContractV2 AS L
+          ON L.LookupCode = U.LookupCode
+         AND L.IsEnabled = 1
+        WHERE U.WebFormName COLLATE DATABASE_DEFAULT =
+              @WebFormName COLLATE DATABASE_DEFAULT
+          AND U.DatasetKey COLLATE DATABASE_DEFAULT =
+              @DetailKey COLLATE DATABASE_DEFAULT
+          AND U.FieldName COLLATE DATABASE_DEFAULT =
+              RF.FieldName COLLATE DATABASE_DEFAULT
+          AND U.IsEnabled = 1
     ) AS D
-    ORDER BY RF.FieldOrdinal;
+    ORDER BY COALESCE(M.OrderNo, RF.FieldOrdinal);
 END;
 GO

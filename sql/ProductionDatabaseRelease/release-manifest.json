@@ -1,0 +1,419 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "HRM_DB_CLEANUP_20260729",
+  "targetDatabaseDefault": "X26DIMTUTAC",
+  "releaseModeDefault": "PRODUCTION",
+  "schemaPackage": {
+    "pathUsedForAnalysis": "D:\\Schemadata.zip",
+    "sha256": "3ad0923ad3cbfcb68a6c72351e768af925fc1ee6d44376fd546c260eeb9d6dbc",
+    "originalEntry": "SchemaDataGoc.sql",
+    "testEntry": "Schemadatatest.sql"
+  },
+  "counts": {
+    "original": {
+      "Table": 57,
+      "View": 139,
+      "StoredProcedure": 165,
+      "ApiStoredProcedure": 87,
+      "Function": 0,
+      "Trigger": 0,
+      "Index": 0,
+      "Constraint": 0
+    },
+    "test": {
+      "Table": 63,
+      "View": 140,
+      "StoredProcedure": 217,
+      "ApiStoredProcedure": 139,
+      "Function": 0,
+      "Trigger": 0,
+      "Index": 0,
+      "Constraint": 0
+    }
+  },
+  "blockingIssues": [],
+  "decisionCounts": {
+    "COMPATIBILITY_KEEP": 3,
+    "DEPRECATE_NOT_DEPLOY": 1,
+    "KEEP_ORIGINAL": 55,
+    "KEEP_REPOSITORY": 45,
+    "KEEP_TEST": 5,
+    "MERGE_REQUIRED": 29,
+    "REVIEW_REQUIRED": 16
+  },
+  "files": {
+    "install": [
+      "sql/ProductionDatabaseRelease/source/00_Precheck/001_release_precheck.sql",
+      "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql",
+      "sql/ProductionDatabaseRelease/source/02_ConstraintsAndIndexes/001_safe_constraints_and_indexes.sql",
+      "sql/ProductionDatabaseRelease/source/03_Views/001_canonical_views.sql",
+      "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql",
+      "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql",
+      "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql",
+      "sql/ProductionDatabaseRelease/source/08_ExcelImport/001_excel_import_support.sql",
+      "sql/ProductionDatabaseRelease/source/09_DocumentsAndAttachments/001_document_attachment_decision.sql",
+      "sql/ProductionDatabaseRelease/source/10_EContract/001_econtract_decision.sql",
+      "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql",
+      "sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql",
+      "sql/ProductionDatabaseRelease/source/12_SystemSeeds/001_explicit_system_seed.sql",
+      "sql/ProductionDatabaseRelease/source/13_WaApiCutover/001_route_backup_and_cutover.sql",
+      "sql/ProductionDatabaseRelease/source/14_Verification/001_install_summary.sql"
+    ],
+    "verify": [
+      "sql/ProductionDatabaseRelease/source/14_Verification/002_verify_all.sql"
+    ],
+    "rollback": [
+      "sql/ProductionDatabaseRelease/source/15_Rollback/001_rollback_all.sql"
+    ],
+    "dropCandidates": [
+      "sql/ProductionDatabaseRelease/source/15_Rollback/002_drop_candidates_readonly.sql"
+    ]
+  },
+  "generated": {
+    "HRM_DATABASE_INSTALL_ALL.sql": {
+      "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_INSTALL_ALL.sql",
+      "sha256": "d1afbef9190738815ed1aceb1f127f9c3d5b2077daab566ed4380e12466425b6",
+      "bytes": 299647
+    },
+    "HRM_DATABASE_VERIFY_ALL.sql": {
+      "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_VERIFY_ALL.sql",
+      "sha256": "be00bce1a538816c3c44c9353b384d51bbd9733204f454b6f1100d9b0a35bedf",
+      "bytes": 26833
+    },
+    "HRM_DATABASE_ROLLBACK_ALL.sql": {
+      "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_ROLLBACK_ALL.sql",
+      "sha256": "207f84bd5f2c269e9d33fbe3b100fcdd0f9542f9d8d3c82bcc7e4eaf748c86ed",
+      "bytes": 2304
+    },
+    "HRM_DATABASE_DROP_CANDIDATES.sql": {
+      "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_DROP_CANDIDATES.sql",
+      "sha256": "bcb54a8d475f010777df158fa0e5d463fd9b480ba8932260b7512b6a1a1db849",
+      "bytes": 956
+    }
+  },
+  "sourceSha256": {
+    "sql/ProductionDatabaseRelease/source/00_Precheck/001_release_precheck.sql": "71011dfd9579eeaa942359c232818b8a4dbc7547236c3306be3884851a40be8f",
+    "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql": "8ab69a4cb437d9215ae096713144cf39a606a494ad3d175381fa4a1574ae2578",
+    "sql/ProductionDatabaseRelease/source/02_ConstraintsAndIndexes/001_safe_constraints_and_indexes.sql": "11fa920a4bb06588ec31b2a8d16e28c8c8f4109e867e7a394b04ce6b20d47b54",
+    "sql/ProductionDatabaseRelease/source/03_Views/001_canonical_views.sql": "58559440b9dbef56f9ba472b2b88ff32fff1d496ebd7b9cc13ca2a1570ec15f6",
+    "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql": "62922653939a652d58e124bfb585fbb60fde182fc5091ef4d0c3370b2b9d74fa",
+    "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql": "21dfcfbab78f02886188e7951f46f84307cc7aeef8869f34490610f41a966736",
+    "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql": "8627fe02aa5dbf6de994f1e54c1799919a881d60b74b72d967c0c64a73d59ad9",
+    "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql": "491d0837ed372d0d2c4c25e20ad3c83278419ccf8eeca6e16d3ffde3a4b30175",
+    "sql/ProductionDatabaseRelease/source/08_ExcelImport/001_excel_import_support.sql": "5b42b6b7fdc50b28f4484a2e86825817a5722e340290f48a4edad2a430ccc800",
+    "sql/ProductionDatabaseRelease/source/09_DocumentsAndAttachments/001_document_attachment_decision.sql": "703925ec53a4be3e14825f9a2c23b2544cba98c51596dbeda953e20ea8c72917",
+    "sql/ProductionDatabaseRelease/source/10_EContract/001_econtract_decision.sql": "f93eb51c0bf627f2c3ba11de74acebb70bb58036affd66afa91c76eebb2903f6",
+    "sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql": "e57d12e46aa9722bd08265f33d9670a8154777f9d7747271b9060cb767856f73",
+    "sql/ProductionDatabaseRelease/source/12_SystemSeeds/001_explicit_system_seed.sql": "1e5aca82b18958383589dcdf8fc378fd065d9604e97a699a089c482b628fc867",
+    "sql/ProductionDatabaseRelease/source/13_WaApiCutover/001_route_backup_and_cutover.sql": "8c661836caf3f9e9f14340a3e6ae10a75091245eb541f152de4a8d5ef9babd59",
+    "sql/ProductionDatabaseRelease/source/14_Verification/001_install_summary.sql": "6ac258c3ee00156e567da4d74f72eed4215ad3eaa3f673bef2e6f1aa7365d951",
+    "sql/ProductionDatabaseRelease/source/14_Verification/002_verify_all.sql": "9374c52ca53f7a42ba9ef90d1a4ce79df1bdcb5e379363ad27ab18913116ae23",
+    "sql/ProductionDatabaseRelease/source/15_Rollback/001_rollback_all.sql": "e88745a666c80e89bcaa807333df826b5e28a8de11f8afb90d9de5b312115cd8",
+    "sql/ProductionDatabaseRelease/source/15_Rollback/002_drop_candidates_readonly.sql": "09c76d52bea25e513372105694034e5608a4522f7d0cd28be9c71bf66b29db36"
+  },
+  "packageManifestSha256": "8292894fc7b82033ba8a8cfbb9790dc85271b220ddfee8b7087e97917b396535",
+  "canonicalObjectCount": 50,
+  "canonicalObjects": [
+    {
+      "type": "FUNCTION",
+      "schema": "dbo",
+      "name": "API_FieldMetadataContractRegistry",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql"
+    },
+    {
+      "type": "FUNCTION",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_AuthorizedBranches",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql"
+    },
+    {
+      "type": "FUNCTION",
+      "schema": "dbo",
+      "name": "API_Phase3SimpleCrudRegistry",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql"
+    },
+    {
+      "type": "FUNCTION",
+      "schema": "dbo",
+      "name": "API_Phase4JoinRegistry",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql"
+    },
+    {
+      "type": "FUNCTION",
+      "schema": "dbo",
+      "name": "API_Web_GroupFormPermissionV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql"
+    },
+    {
+      "type": "INDEX",
+      "schema": "dbo",
+      "name": "IX_WA_FieldContractRouteBackup_FormTime",
+      "parentName": "WA_FieldContractRouteBackup",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_CandidateAttach_SaveAvatar",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_ComboPersonStatus",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_DanhSachChucDanh",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_Attach",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_Attach_Save",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_ChiTiet",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_LoaiHD",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_NamLap",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Birthdays",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_ContractsExpiring",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Demographics",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Department",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_GetBranches",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_OverviewToday",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Payroll",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep_Attach",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep_Attach_Save",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep_ChiTiet",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_KinhPhiCongDoan",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_LayQuyenCuaToi",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_LuuDong_V2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_LuuThuTuMenu",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_NguoiDungFrm",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_NguoiDungNhomFrm",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_PersonAttach_SaveAvatar",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_TruyVanDong_V2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_CutoverSafeFieldContractsV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_DiscoverFieldContractCandidatesV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_FieldContractResolveV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_GridFieldCompareV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_GridFieldSchemaV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_JoinFieldSchemaV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_LookupSchemaV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_RollbackFieldContractV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_SeedSafeFieldContractsV2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_Web_UpdateFieldFormat",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_XoaDong_V2",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_XoaTruongGiaoDien",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "TABLE",
+      "schema": "dbo",
+      "name": "WA_DatabaseReleaseHistory",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql"
+    },
+    {
+      "type": "TABLE",
+      "schema": "dbo",
+      "name": "WA_FieldContractRegistry",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql"
+    },
+    {
+      "type": "TABLE",
+      "schema": "dbo",
+      "name": "WA_FieldContractRouteBackup",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql"
+    },
+    {
+      "type": "TABLE",
+      "schema": "dbo",
+      "name": "WA_FieldDatasetRegistry",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql"
+    }
+  ]
+}

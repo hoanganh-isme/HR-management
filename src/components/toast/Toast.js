@@ -15,7 +15,11 @@ var UIToast = (function () {
     var normalizedType = String(type || 'success').trim().toLowerCase();
     var config = TYPE_CONFIG[normalizedType] || TYPE_CONFIG.info;
     if (!window.Alert || typeof Alert[config.method] !== 'function') return null;
-    return Alert[config.method](config.title, String(message || ''), duration);
+    var t = Alert[config.method](config.title, String(message || ''), duration);
+    if (t && typeof t.close !== 'function') {
+      t.close = function () { hide(t); };
+    }
+    return t;
   }
 
   function hide(notification) {

@@ -539,6 +539,7 @@ window.DynamicFormEngine = (function () {
     detailManager = window.DynamicDetailManager ? DynamicDetailManager.create({
       moduleConfig: MODULE_CONFIG,
       currentUser: _currentUser,
+      currentBranch: _currentBranchId,
       getDictionary: function () { return globalDictionary; }
     }) : null;
 
@@ -2395,16 +2396,13 @@ window.DynamicFormEngine = (function () {
             var cellValue = cell.getValue();
             var rowData = cell.getRow().getData();
             var isFieldSyncLookup = Boolean(
-              /^[A-Fa-f0-9]{64}$/.test(String(f.lookupKey || ''))
-              && window.FieldSyncService
-              && typeof FieldSyncService.createLookupDataSource === 'function'
+              window.FieldControlResolver
+              && FieldControlResolver.isContractLookup(f)
             );
             var fieldSyncSearch = isFieldSyncLookup
-              ? FieldSyncService.createLookupDataSource({
+              ? FieldControlResolver.createLookupSearch(f, {
                 formName: MODULE_CONFIG.FormName,
-                lookupKey: f.lookupKey,
-                dependsOn: f.dependsOn,
-                getDependencyValues: function () { return rowData; },
+                getValues: function () { return rowData; },
                 pageSize: 30
               })
               : null;
@@ -3737,7 +3735,15 @@ window.DynamicFormEngine = (function () {
         var pkValKV = row[pkFieldKV] || '';
         var filterKV = {};
         filterKV[tabDef.filterField || pkFieldKV] = pkValKV;
-        var payloadKV = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterKV) };
+        var payloadKV = {
+          List: tabDef.api,
+          Func: 'View',
+          Limit: 500,
+          JsonData: JSON.stringify(filterKV),
+          UserName: _currentUser(),
+          User: _currentUser(),
+          BranchID: _currentBranchId()
+        };
         var MONEY_KV = ['MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'LuongCoBan', 'MucDong'];
         var DATE_KV = ['NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayHetHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'NgayThayDoi', 'NgayCapNhat', 'FromDate', 'ToDate', 'LogDate', 'GiamTruTuThang', 'GiamTruDenThang'];
 
@@ -3810,7 +3816,15 @@ window.DynamicFormEngine = (function () {
         var pkVal = row[pkField] || '';
         var filterData = {};
         filterData[tabDef.filterField || pkField] = pkVal;
-        var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
+        var payload = {
+          List: tabDef.api,
+          Func: 'View',
+          Limit: 500,
+          JsonData: JSON.stringify(filterData),
+          UserName: _currentUser(),
+          User: _currentUser(),
+          BranchID: _currentBranchId()
+        };
 
         ApiClient.post(MODULE_CONFIG.ApiSearch || _gateway(), payload).then(function (res) {
           var data = res.list || res.records || [];
@@ -4887,8 +4901,10 @@ window.DynamicFormEngine = (function () {
         inputEl = UIInput.createDate(field);
       } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
         inputEl = UIInput.createTime(field);
-      } else if (/^[A-Fa-f0-9]{64}$/.test(String(field.lookupKey || ''))
-        && window.FieldSyncService && typeof FieldSyncService.createLookupDataSource === 'function') {
+      } else if (
+        window.FieldControlResolver
+        && FieldControlResolver.isContractLookup(field)
+      ) {
         var contractLookupWrapper = document.createElement('div');
         contractLookupWrapper.className = 'form-group';
         if (field.label) {
@@ -4903,36 +4919,16 @@ window.DynamicFormEngine = (function () {
         contractLookupValue.value = _hasContractValue(field.value) ? field.value : '';
         contractLookupWrapper.appendChild(contractLookupValue);
 
-        var contractLookupSearch = FieldSyncService.createLookupDataSource({
+        var contractLookupCombo = FieldControlResolver.createCombo(field, {
           formName: MODULE_CONFIG.FormName,
-          lookupKey: field.lookupKey,
-          dependsOn: field.dependsOn,
-          getDependencyValues: function () { return currentModalFormState; },
-          pageSize: 30
-        });
-        var contractLookupCombo = UIControls.createDataComboBox({
-          placeholder: '-- Vui lòng chọn --',
-          headers: ['Mã', 'Tên'],
+          getValues: function () { return currentModalFormState; },
+          hiddenInput: contractLookupValue,
+          value: field.value,
           disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
-          showAddNew: false,
-          enablePagination: true,
-          onSearch: contractLookupSearch,
-          onChange: function (value) { contractLookupValue.value = value; },
-          onSelect: function (row) {
-            contractLookupValue.value = row[0];
-            contractLookupValue.dispatchEvent(new Event('change', { bubbles: true }));
+          onSelect: function (value) {
+            currentModalFormState[field.name] = value;
           }
         });
-        var contractLookupDisplay = contractLookupCombo.querySelector('input.ui-input');
-        if (contractLookupDisplay) contractLookupDisplay.value = _hasContractValue(field.value) ? field.value : '';
-        if (_hasContractValue(field.value)) {
-          contractLookupSearch(String(field.value), 1)
-            .then(function (result) {
-              var matched = result.data.find(function (option) { return String(option[0]) === String(field.value); });
-              if (matched && contractLookupDisplay) contractLookupDisplay.value = matched[1];
-            })
-            .catch(function () { /* Giữ giá trị thô nếu lookup tạm thời không tải được. */ });
-        }
         contractLookupWrapper.appendChild(contractLookupCombo);
         inputEl = contractLookupWrapper;
       } else if (field.renderRule === 'sl' || field.renderRule === 'select' || field.renderRule === 'combo' || field.renderRule === 'lookup') {

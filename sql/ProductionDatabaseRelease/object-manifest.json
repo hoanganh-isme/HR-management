@@ -1,0 +1,1074 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "HRM_DB_CLEANUP_20260729",
+  "changedSameNameCount": 137,
+  "blockingIssues": [],
+  "deployedObjects": [
+    {
+      "deploymentOrder": 1,
+      "objectType": "Table",
+      "schema": "dbo",
+      "name": "WA_FieldContractRegistry",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/01_CREATE_CONTROL_REGISTRY.sql",
+      "sha256": "0771e0cfdb77d8331e8554ca28ca058be5588c0f11aa7873e6d4c00bee658b90",
+      "semanticSha256": "394f51977f4ffa258e3f847ebc3702f4d7cd7ff24e9a14bdec8260727dc3c168",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 2,
+      "objectType": "Table",
+      "schema": "dbo",
+      "name": "WA_FieldContractRouteBackup",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/01_CREATE_CONTROL_REGISTRY.sql",
+      "sha256": "9cf2bb2e8341986144cdbd0817385dd49e55b20529de4b54872ab0956d706892",
+      "semanticSha256": "df3c27da909ead58d69ce309d0663ccd17ed4bad5d993fd83e3d71320bfa1ef2",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 3,
+      "objectType": "Table",
+      "schema": "dbo",
+      "name": "WA_FieldDatasetRegistry",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/01_CREATE_CONTROL_REGISTRY.sql",
+      "sha256": "1067a84cf9013f7ab6a1ca4a67942e673a434a8e9a845cbcac06f940686bd3d0",
+      "semanticSha256": "c119eaa21a07da3662a839989800dc870846cfde3ec9ae5234cd7f0bbbfe7e98",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 4,
+      "objectType": "Function",
+      "schema": "dbo",
+      "name": "API_FieldMetadataContractRegistry",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/02_CREATE_DYNAMIC_REGISTRY_WRAPPERS.sql",
+      "sha256": "40d2a0dd7ed4d82169b647ebc35de17846ea5e72fe028f54c286c725f4782c58",
+      "semanticSha256": "2f99a5d1cc71f9d390451b1648493af6f401e7b17701949c20e9d0ae60ee4fb3",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 5,
+      "objectType": "Function",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_AuthorizedBranches",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "bf16d00a397a2143e5bbe8c5047958ce84e34ef63cc8d25ca3d6a22e7ff41b9f",
+      "semanticSha256": "eb97afd12284a85b4b13e89dece77cdcbe8e16a7d26a0971e47b6561e3cf6bde",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 6,
+      "objectType": "Function",
+      "schema": "dbo",
+      "name": "API_Phase3SimpleCrudRegistry",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/07_UPDATE_GENERIC_VIEW_V2.sql",
+      "sha256": "d7daf7fd2360faba26dcc999811bdca3c85c15c0d11e9346469148387e593b91",
+      "semanticSha256": "9b7dd22485250bcae68f674c04972e9db129aa0ebc29bf0ef31e5fe6c8d71160",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 7,
+      "objectType": "Function",
+      "schema": "dbo",
+      "name": "API_Phase4JoinRegistry",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/02_CREATE_DYNAMIC_REGISTRY_WRAPPERS.sql",
+      "sha256": "8a7d64698bf9d71323706ba093539d0b3da9b432ca6e833b9f76109da14d0109",
+      "semanticSha256": "d0acdada8d7851a3b82709d82ce7f06061a7c670e9efa60d7ff8cf1794c8870e",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 8,
+      "objectType": "Function",
+      "schema": "dbo",
+      "name": "API_Web_GroupFormPermissionV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/02_CREATE_DYNAMIC_REGISTRY_WRAPPERS.sql",
+      "sha256": "1ac2559b58d7490b5cca3e363248068f1aa31c6c53dfff9f8c5d4f9c347d06d9",
+      "semanticSha256": "4d541e71ed3625f28a5555cd5be0383c88c6dc87c50dfe56977232bde74d04da",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 9,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_ComboPersonStatus",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/API_ComboPersonStatus.sql",
+      "sha256": "4eddaed9613fa61f1d0026effc395a7c174a7acad4c5e539abb356926eb16df3",
+      "semanticSha256": "fda688e5f9d163033461256b33a1a60c77611a5b6484525485fa09394139f523",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 10,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_DanhSachChucDanh",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_DanhSachChucDanh.sql",
+      "sha256": "793f0c16b500fcfb3cbabd8d715335772d66b5a1fc65fa653e9660583a71a5f7",
+      "semanticSha256": "42d4b4f8bfaeb20b7580bc74bfce2cf175f116d27c71bb5eddadc5f3c66ad454",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 11,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_Attach",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_HopDongLaoDong_Attach.sql",
+      "sha256": "49b7d5ba7024afaf96ac4f74b736da568e9dac0fed09b232452cb89656102150",
+      "semanticSha256": "8f34f2b206e9321f08276f44656fac4824084544d0ebf9442c30270d74ebb2b1",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 12,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_ChiTiet",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_HopDongLaoDong_ChiTiet.sql",
+      "sha256": "1634b5a619d897400105f688606fbdac8cfebe42b57191124ef775e3aff329c9",
+      "semanticSha256": "b94be1d7784702bc12b57f1fc03d43112159ecd277926d723ae99eb2d99930c6",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 13,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_LoaiHD",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_HopDongLaoDong_LoaiHD.sql",
+      "sha256": "43e85c91229fe7b0f9999b6e5bd503ea752129097abb5edb04c06940e4a1217e",
+      "semanticSha256": "7d513ae46b496fbfa73ec5912fbb0c5154ef0f104fda49981561d61dec94d337",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 14,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_NamLap",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_HopDongLaoDong_NamLap.sql",
+      "sha256": "42b3db2c2bf6a21a57c9addf9e8aaff73fc04d94a1e056f0cafb361763903fdf",
+      "semanticSha256": "720ef8c0b5048a652b5b73300726e93cc55b1fbebd62e145d6d192265c805666",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 15,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Birthdays",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "31f7504d7db923620fc4c717bdf5aeffe3c9ee81aae64f9603ee0803663a5599",
+      "semanticSha256": "e2471be29ffb976fbfc9ee82bd279e82107fec438a8fae95f2ed705206a28ae0",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 16,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_ContractsExpiring",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "16b99e2ea0e07831f76b0aee19838081fb0a476f6a79f3882a0bb2069caa6b63",
+      "semanticSha256": "00510f7f3ca0ee5826fca5d73560d07fae77490acaf7535bf44e8aea65b512b0",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 17,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Demographics",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "20289539b9e847992fc284bf37fdf7e3f9e2472b054d9fc817e61076da531da3",
+      "semanticSha256": "d85ba9402116d46a4a6e3ab0e9bc2d60874769bd982d363da78c9ef7864352c5",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 18,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Department",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "f5edb07a8a6b802e253c0679cf4746c4d51e0f44b68af9d8b483dbfb4968a310",
+      "semanticSha256": "2e6b9bcc9f62b3f3853466dfffc5da898c79aed674b154cd01b54e1f32106d3f",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 19,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_GetBranches",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "f847c2aa18cb9d7fbfa6b9758389a8c4af32c7062fceeee565205949b99fef7e",
+      "semanticSha256": "4e7aa94d907843832444ecac31c4a9e7ad93540aa67f50662d14fd6997917a93",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 20,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_OverviewToday",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "eec6b3612c34b266c622b880e634d0c61b64728c1edb98c1f20e394102a76687",
+      "semanticSha256": "a06b1849c0fef147b7c188eff58dac4b8a1abb67bf0407ec045b0e32217693c9",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 21,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_Dashboard_Payroll",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_Dashboard_MultiTemplate.sql",
+      "sha256": "971c974768e48f52a678237702a310d97cc58f8c12f0871f5d68fe744c50c21c",
+      "semanticSha256": "6ffb50218163a3f304c7dea5de087aefa5f3db70838eb0fb3d69623e2c637b25",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 22,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep_Attach",
+      "canonicalSource": "DB_TEST",
+      "canonicalInput": "Schemadatatest.sql",
+      "sha256": "83d6bf109b7c8aa01aae2c22577234864cc8d375f383b5026fcced3f9e63bc7c",
+      "semanticSha256": "247c7350ca9bb957ebbd2b6fa443e2dd387d443ffc59c1af21153eebf54f5e74",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 23,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep_Attach_Save",
+      "canonicalSource": "DB_TEST",
+      "canonicalInput": "Schemadatatest.sql",
+      "sha256": "b203681be66347dd474d77071a4d920c4ebcbd479f2d7a0ab5165e0e0de655bb",
+      "semanticSha256": "d04213503e85f88523dff214d75869c2883fd7a9d92122be81b82497b348d405",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 24,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep_ChiTiet",
+      "canonicalSource": "DB_TEST",
+      "canonicalInput": "Schemadatatest.sql",
+      "sha256": "b26b59d05ab511e3ca9c1250a404aca83ccdd950923a1ef1a4c0bb000f566e1d",
+      "semanticSha256": "05d06e90fb0271849ac40f4e55b4dc1508d6a2b2ede7544cc537b4a47cdaf897",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 25,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_LayQuyenCuaToi",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/API_LayQuyenCuaToi.sql",
+      "sha256": "9bced7b94e0e4bd942ba32c84f5320404f474af59e07f02b37f41d8dc827cfb6",
+      "semanticSha256": "4dea50d722937a54800bf4819ae8911d92ccaea7eaacc2dda7c64b9a1d7953b8",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 26,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_LuuDong_V2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/08_UPDATE_SAVE_V2.sql",
+      "sha256": "af2218f43a4f854caa62201e1b1be60692951a9b52776d5b2f8737795e23de1f",
+      "semanticSha256": "ad065a20de99349cd23ab5246d1ee8bacf61295587f8f79e4a1328889c361ef6",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 27,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_LuuThuTuMenu",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/API_LuuThuTuMenu.sql",
+      "sha256": "f19d252dcbaf297efc7b0a09074e925cf81a44586d3d26b05632d800a0a12ac1",
+      "semanticSha256": "7755b6c8be728d8f13bacbd5d1504267de7dd6a391b22239d5e75177ff3dbd8d",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 28,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_TruyVanDong_V2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/07_UPDATE_GENERIC_VIEW_V2.sql",
+      "sha256": "cc05d505f78a2f2c3fb8b7fc2b1360f7096c0988b15f88f1e3619ac22078212e",
+      "semanticSha256": "bc90964a10693d25cdedc88c6ee6eee741d609f1462f04410457cf451edce29e",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 29,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_CutoverSafeFieldContractsV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/10_CUTOVER_SAFE_FORMS.sql",
+      "sha256": "0e16ca7e19e5b3322107a6851d93caa8866120ee0244e529892b829d6af32ffa",
+      "semanticSha256": "a7103319e9da4b741a886a5694425fd65f16e2716f184fd09dd11a1696f3b524",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 30,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_DiscoverFieldContractCandidatesV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/03_CREATE_DISCOVERY_PROCEDURES.sql",
+      "sha256": "6eacecb4b77cce22cdf2ef04872d8cb86e9c94b6133ccff04c34f4f3f2ebc303",
+      "semanticSha256": "1842f4363fdb9063e2bedfc2481e4daf03506502217c0cac48e67fd127f1b45c",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 31,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_FieldContractResolveV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/02_CREATE_DYNAMIC_REGISTRY_WRAPPERS.sql",
+      "sha256": "884d91384245d42bffacac10a346e3240bf7b53a14dbf64305c575a5dd4339ba",
+      "semanticSha256": "05a5cfc4580ae638cd5b80878b1654812720ccf70c677e0e2bf23074c37f4ffa",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 32,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_GridFieldCompareV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/FieldSyncPhase1/03_API_WEB_GRID_FIELD_COMPARE_V2.sql",
+      "sha256": "6bbbf464b555433ab113893e51342089c9918c26cd3c77621dc22452d3074e17",
+      "semanticSha256": "c224a57e179bbeea4e74a69aa0921ec674a9d163f136ea1e4e16a4c272ce897f",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 33,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_GridFieldSchemaV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/06_UPDATE_METADATA_PROCEDURES.sql",
+      "sha256": "a5afbf78f9dc55f186d7deb426d1dc6e30ae2a2e94206404e74312caa1d6b33a",
+      "semanticSha256": "f60b28a5d6fa46fe5f616a8450abc6962528ba866d43959a289c4a1196decd76",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 34,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_JoinFieldSchemaV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/06_UPDATE_METADATA_PROCEDURES.sql",
+      "sha256": "ca4ef6afc34361ab447d83ee82a3c75f734a6287cd8fd5ec1d331f8372c86682",
+      "semanticSha256": "b5888cfc3bcdfa68f38e09e43e8adb57eb234b01e401b39078280f06c491580f",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 35,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_LookupSchemaV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/FieldSyncPhase1/02_API_WEB_LOOKUP_SCHEMA_V2.sql",
+      "sha256": "19547681dde79d0a0ef55f1f45bed99635fa6d9e77cedb076313ae23591d4f41",
+      "semanticSha256": "09fa4af4fe8bcf89c4123a78764d56ebc37902e97d728c0559beeac035a715de",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 36,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_RollbackFieldContractV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/12_ROLLBACK_MASS_ROLLOUT.sql",
+      "sha256": "25c43e804accb7aa3a072473994b0b297ffd250cb15b07e6749a236ac7ec195f",
+      "semanticSha256": "64f984040f21635dfb3dc54ec8d4b95bb315da744d8e266df0cec2673754655d",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 37,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_SeedSafeFieldContractsV2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/03_CREATE_DISCOVERY_PROCEDURES.sql",
+      "sha256": "66601b1463362362af44865cabf7cb640abfc8ad6ed073cc540ddc04239fd4b1",
+      "semanticSha256": "82b5da3c3fd9268df791c6c27b015197f2ce99512bfc63addc3daa363b265b4a",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 38,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_Web_UpdateFieldFormat",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/FieldSyncPhase1/02_CREATE_UPDATE_FIELD_FORMAT_PROC.sql",
+      "sha256": "09249a7251c8de9812e7417358a6275f039f13e4721b2666098ce8f257e79c9c",
+      "semanticSha256": "2b329fb8e7f81a6a0b9ed6f31a9aae7ca451d500bf96794eb558d72ddf9663a0",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 39,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_XoaDong_V2",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/UnifiedContractRollout/09_UPDATE_DELETE_V2.sql",
+      "sha256": "6f3a525c80a20b8bc352e26c7368e2298e47801b1bf591a85ea721d51eba8b53",
+      "semanticSha256": "d28db591f8727cac2b47c9a6914724a4cb40e5c4cc7125fd3564220a6a357724",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 40,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_XoaTruongGiaoDien",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/API_XoaTruongGiaoDien.sql",
+      "sha256": "873ba0f10518d0deee65fc69e5927cb4d8f1289c63ab12879f269c028606086f",
+      "semanticSha256": "b9d25b765727179c2e459bc1f2d70bf90ad8365a6543386c24e638812fcd4fb1",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 41,
+      "objectType": "Table",
+      "schema": "dbo",
+      "name": "WA_DatabaseReleaseHistory",
+      "canonicalSource": "REPOSITORY_RELEASE_CONTROL",
+      "canonicalInput": "sql/ProductionDatabaseRelease/source/01_Tables/001_control_tables.sql",
+      "sha256": null,
+      "semanticSha256": null,
+      "rollbackSource": "KEEP_TABLE_MANUAL_CLEANUP_OPTIONAL"
+    },
+    {
+      "deploymentOrder": 42,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_CandidateAttach_SaveAvatar",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_UngVienAttach.sql",
+      "sha256": "b3e2c10d6c553c852f43d8aa3672deebf75e8138a42451bb843dec4939eeb3a6",
+      "semanticSha256": "8b88b8fd86a18cc7ac8736e74a82103e10b517bae555642a45b6df36b9d91e5a",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 43,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_PersonAttach_SaveAvatar",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_HoSoNhanVien.sql",
+      "sha256": "7c2db2c2003c734eb955a0760b72687199235eb5458e4b454ca5c8347b1a4ee8",
+      "semanticSha256": "6730c61347f7e8b72a450ea30bf605385a4ad606d7929c0201de3358eecdb1f5",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 44,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_HopDongLaoDong.sql",
+      "sha256": "2c7b81c396768c9eafef5bce727a11ce0c82d2c1f79aeb5adaafa71dac715692",
+      "semanticSha256": "d14a6ec1d71e7c0be04f10f0877c68d0fd77f61676d6fb756de2a48374f64b21",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 45,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HopDongLaoDong_Attach_Save",
+      "canonicalSource": "DB_TEST",
+      "canonicalInput": "Schemadatatest.sql",
+      "sha256": "54bbd099f574f504e6bc32a5fcebc9809cc4c09c831c2c3382b3468971f215bc",
+      "semanticSha256": "bdc7391349f478b0941baf993b9a9455739805a9d388d69ea8c62e5e822dc6b3",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 46,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_HR_NghiPhep",
+      "canonicalSource": "DB_TEST",
+      "canonicalInput": "Schemadatatest.sql",
+      "sha256": "1ec8c877df92f4490ce87a59f32befed517339132a0c062cbd3122651c0c98ac",
+      "semanticSha256": "81ba5b93a5c6b1d0e7bbf63158913b5b18646adf5fe557b3c763eddb4c999a30",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 47,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_KinhPhiCongDoan",
+      "canonicalSource": "MERGED_REPOSITORY_WITH_TEST_ROUTE_CONTRACT",
+      "canonicalInput": "sql/API/APINEW/API_KinhPhiCongDoan.sql + Schemadatatest.sql",
+      "sha256": "eb8d716aa9cc7a8164e30c9df0cb5e4fd4da70179851847d1cd2957cbdcb5d3c",
+      "semanticSha256": "364c2eb031e2b17baacd3cd1111335fdefc874a3575e4b891290a4aab1471d69",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 48,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_NguoiDungFrm",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_NguoiDungFrm.sql",
+      "sha256": "4f244417e2f14c6f3901d5474e1f8ba0c5c63311f9a5aa2d132a3962d0f68bd1",
+      "semanticSha256": "5cce3f467bbeea97ad52a152f145a65682c455176945f6e06eca08abe04be9bf",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    },
+    {
+      "deploymentOrder": 49,
+      "objectType": "StoredProcedure",
+      "schema": "dbo",
+      "name": "API_NguoiDungNhomFrm",
+      "canonicalSource": "REPOSITORY",
+      "canonicalInput": "sql/API/APINEW/API_NguoiDungNhomFrm.sql",
+      "sha256": "7671b18b781c2b030f757de07b40d20b1896a7c5e0d6e05a869d9aefa6d4c2f2",
+      "semanticSha256": "79ec316d9923ddd4a3b56fbc4d39c3bb08c92649d09e243994a71903c51e329d",
+      "rollbackSource": "DISABLE_ROUTE_KEEP_OBJECT"
+    }
+  ],
+  "retainedCompatibility": [
+    "API_TruyVanDong",
+    "API_LuuDong",
+    "API_XoaDong"
+  ],
+  "nonDeployedReview": [
+    {
+      "name": "API_BangChamCongTongHop",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BangPhuCap",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BangPhuCap_Detail",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_BangThamSo",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BangThueTNCN",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BangThueTNCN_V2",
+      "decision": "DEPRECATE_NOT_DEPLOY",
+      "reason": "Prototype V2 đã được generic API_TruyVanDong_V2 thay thế; không deploy và chưa drop."
+    },
+    {
+      "name": "API_BaoCaoChamCong",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BaoCaoChamCongChiTiet",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BaoCaoChamCongTongHop",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BaoCaoLuong",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BaoCaoNghiPhepReportStp",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BaoCaoNhanSuReportStp",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BaoHiem",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_BaoHiem_Detail",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_BaoHiem_PersonLookup",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "API bảo hiểm original-only thuộc nghiệp vụ deferred; không suy diễn thay thế theo tên gần giống."
+    },
+    {
+      "name": "API_CaLamViec",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_CaLamViec_ChiTiet",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_CaLamViec_NhanVien",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_ComboFormatID",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Repository có definition nhưng không có bằng chứng runtime active."
+    },
+    {
+      "name": "API_ComboFormPosition",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Repository có definition nhưng không có bằng chứng runtime active."
+    },
+    {
+      "name": "API_DangKyFormWeb",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_DanhSachBangCap",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachBenhVien",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachBoPhan",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachCaLamViec",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachCaLamViecChiNhanh",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_DanhSachChiNhanh",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_DanhSachChucVu",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_DanhSachCongViec",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachDanToc",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachHinhThucNghi",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_DanhSachHocVan",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachLoaiHD",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachMenu",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachNganHang",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachNgheNghiep",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachQuocGia",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachTinhThanh",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachTonGiao",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachToNhom",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DanhSachTruongGiaoDien",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_DanhSachViTri",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_DongBoQuyenTruyCap",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_DongBoTruongGiaoDien",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_Gateway_Router",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_HopDongLaoDong_Attach_File",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_HopDongLaoDong_Attach_Metadata",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_HopDongLaoDong_NhanVienChuaCoHD",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Repository có definition nhưng không có bằng chứng runtime active."
+    },
+    {
+      "name": "API_HoSoNhanVien",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T1_Luong",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T2_PhuCap",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T3_KTKL",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T4_NghiPhep",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T5_GiaCanh",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T6_HopDong",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_HoSoNhanVien_T7_CongTac",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T8_CongViec",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVien_T9_GiayTo",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_HoSoNhanVienIn",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_HoSoNhanVienQuit",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_HR_DropdownShifts",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_HR_NghiPhep_Attach_File",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_HR_NghiPhep_Attach_Metadata",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_KinhPhiCongDoan_PersonList",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_LayCacTruongGiaoDien",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LayDanhSachMenuTatCa",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LayDanhSachNhom",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LayGiaTriSetup",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LayMenuTheoNhomQuyen",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LayPhienBanQuyen",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LayQuyenNhomDayDu",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LuongKhoan",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_LuuCauHinhForm",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Repository có definition nhưng không có bằng chứng runtime active."
+    },
+    {
+      "name": "API_LuuDong",
+      "decision": "COMPATIBILITY_KEEP",
+      "reason": "API legacy còn cần cho form chưa migrate và rollback; release không được xóa."
+    },
+    {
+      "name": "API_LuuHopDong",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Repository có definition nhưng không có bằng chứng runtime active."
+    },
+    {
+      "name": "API_LuuMenu",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LuuQuyenCuaNhom",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_LuuQuyenToan",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Repository có definition nhưng không có bằng chứng runtime active."
+    },
+    {
+      "name": "API_LuuTaiKhoan",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Repository có definition nhưng không có bằng chứng runtime active."
+    },
+    {
+      "name": "API_LuuTruongGiaoDien",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_Payroll",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_Payroll_Detail",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_PersonFull_T1_Salary",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_PersonFull_T2_Allowance",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_PersonFull_T3_KTKL",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_PersonFull_T4_NghiPhep",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_PersonFull_T5_Relation",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_PersonFull_T6_HopDong",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_PersonFull_T7_CongTac",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_PersonFull_T8_Log",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_PersonFull_T9_GiayTo",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Object production giữ nguyên; không có bằng chứng an toàn để thay hoặc xóa."
+    },
+    {
+      "name": "API_QuanLyNghiLe",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_QuanLyNghiPhepNam",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_QuanLyNghiPhepNam_ChiTiet",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_QuanLyUngVien",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    },
+    {
+      "name": "API_QuanLyUngVien_ChungChi",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_QuanLyUngVien_HocVan",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_QuanLyUngVien_KinhNghiem",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_QuanLyUngVien_PhongVan",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_TheoDoiTaiNguyenFormWeb",
+      "decision": "REVIEW_REQUIRED",
+      "reason": "Object test-only chưa có đủ bằng chứng để đưa vào production."
+    },
+    {
+      "name": "API_TruyVanDong",
+      "decision": "COMPATIBILITY_KEEP",
+      "reason": "API legacy còn cần cho form chưa migrate và rollback; release không được xóa."
+    },
+    {
+      "name": "API_XoaDong",
+      "decision": "COMPATIBILITY_KEEP",
+      "reason": "API legacy còn cần cho form chưa migrate và rollback; release không được xóa."
+    },
+    {
+      "name": "API_XoaMenu",
+      "decision": "MERGE_REQUIRED",
+      "reason": "Business API đang có caller và definition DB gốc/test/repository khác nhau; giữ production, không tự ALTER."
+    },
+    {
+      "name": "API_XuLyChamCongHangNgay",
+      "decision": "KEEP_ORIGINAL",
+      "reason": "Business/ERP object giữ definition production; bản test khác chỉ là bằng chứng để review."
+    }
+  ]
+}

@@ -155,5 +155,7 @@ BEGIN
             VALUES ('admin', @MenuID, 1, 1, 1, 1);
         END
     END
+
+    SELECT 0 AS [code], N'Lưu Menu thành công!' AS [msg];
 END
 GO

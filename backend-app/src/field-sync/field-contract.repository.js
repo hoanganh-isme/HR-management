@@ -1,8 +1,5 @@
 import { FieldSyncCache } from './field-sync.cache.js';
-import {
-    getFieldContractMigration,
-    getRegisteredLookupContract
-} from './field-contract.registry.js';
+import { getFieldContractMigration } from './field-contract.registry.js';
 import { getPhase4JoinContract } from './phase4-join.registry.js';
 import { FieldSyncGatewayError } from './field-sync.gateway.js';
 
@@ -298,7 +295,6 @@ export function createFieldContractRepository({
     return Object.freeze({
         resolveContract,
         resolveDataset,
-        invalidate,
-        getRegisteredLookupContract
+        invalidate
     });
 }

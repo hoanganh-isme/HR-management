@@ -148,7 +148,7 @@ RETURN
         R.PermissionFormName,
         D.WritePolicy,
         D.BranchPolicy,
-        CONVERT(bit, 0) AS EnableView,
+        CONVERT(bit, CASE WHEN D.ViewProcedure IS NOT NULL THEN 1 ELSE 0 END) AS EnableView,
         CONVERT(bit, CASE WHEN D.IsReadOnly = 0 AND D.SaveProcedure IS NOT NULL THEN 1 ELSE 0 END)
             AS EnableSave,
         CONVERT(bit, CASE WHEN D.IsReadOnly = 0 AND D.DeleteProcedure IS NOT NULL THEN 1 ELSE 0 END)
@@ -159,7 +159,11 @@ RETURN
     INNER JOIN dbo.WA_FieldContractRegistry AS R
       ON R.WebFormName = D.WebFormName
     WHERE R.IsEnabled = 1
-      AND R.RolloutStatus IN ('ACTIVE', 'SHADOW')
+      /*
+        Form cha phức tạp có thể tiếp tục ở runtime riêng, nhưng dataset con
+        đã được audit vẫn được phép cutover độc lập sang generic View V2.
+      */
+      AND R.RolloutStatus IN ('ACTIVE', 'SHADOW', 'DEFERRED')
       AND D.RolloutStatus IN ('ACTIVE', 'SHADOW')
       AND D.ExpectedTableName IS NOT NULL
       AND D.ExpectedPrimaryKey IS NOT NULL

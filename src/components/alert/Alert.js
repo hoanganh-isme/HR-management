@@ -67,6 +67,10 @@ var Alert = (function () {
       removeToast(toast);
     }, duration);
 
+    toast.close = function() {
+      removeToast(toast);
+    };
+
     return toast;
   }
 

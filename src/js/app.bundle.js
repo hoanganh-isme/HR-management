@@ -329,9 +329,22 @@ window.AppSession = (function () {
     return readJSON(window.localStorage, KEYS.systemBranches, []) || [];
   }
 
+  function withActorContext(payload) {
+    var request = Object.assign({}, payload || {});
+    request.UserName = getUserName();
+    request.BranchID = getBranchId();
+    return request;
+  }
+
   function loadSystemBranches(apiClient, endpoint) {
     if (!apiClient || typeof apiClient.post !== 'function') return Promise.resolve(getBranches());
-    return apiClient.post(endpoint, { List: 'CF_BranchListFrm', FormName: 'CF_BranchListFrm', Func: 'View', Limit: 1000 }).then(function (response) {
+    var payload = withActorContext({
+      List: 'CF_BranchListFrm',
+      FormName: 'CF_BranchListFrm',
+      Func: 'View',
+      Limit: 1000
+    });
+    return apiClient.post(endpoint, payload).then(function (response) {
       var branches = Array.isArray(response) ? response : (response.data || response.list || response.records || []);
       setJSON(window.localStorage, KEYS.systemBranches, branches);
       return branches;
@@ -357,6 +370,7 @@ window.AppSession = (function () {
     isAdmin: isAdmin,
     getBranchId: getBranchId,
     getBranches: getBranches,
+    withActorContext: withActorContext,
     loadSystemBranches: loadSystemBranches
   });
 })();
@@ -1678,7 +1692,12 @@ var MenusService = (function () {
 
   function _currentGroupId() {
     var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var rawGroup = u.UserGroupID || u.userGroupID || u.GroupID || u.groupID || u.GroupUser || u.Group || u.NhomQuyen || 'admin';
+    var grpStr = String(rawGroup).trim();
+    if (grpStr.toLowerCase().indexOf('quản trị') !== -1 || grpStr.toLowerCase() === 'admin') {
+      return 'admin';
+    }
+    return grpStr;
   }
 
   /**
@@ -1844,7 +1863,12 @@ var PermissionsService = (function () {
 
   function _currentGroupId() {
     var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var rawGroup = u.UserGroupID || u.userGroupID || u.GroupID || u.groupID || u.GroupUser || u.Group || u.NhomQuyen || 'admin';
+    var grpStr = String(rawGroup).trim();
+    if (grpStr.toLowerCase().indexOf('quản trị') !== -1 || grpStr.toLowerCase() === 'admin') {
+      return 'admin';
+    }
+    return grpStr;
   }
 
   /**
@@ -2349,13 +2373,14 @@ window.FieldSyncService = (function (global) {
     }
     if (Object.keys(fieldNames).some(function (fieldKey) { return !comparedFields[fieldKey]; })) return false;
 
-    var lookupKeys = Object.create(null);
+    var lookupFields = Object.create(null);
     for (var k = 0; k < schema.lookups.length; k++) {
       var lookup = schema.lookups[k] || {};
       if (lookup.disabled === true) continue;
       var lookupKey = String(lookup.key || '').toLowerCase();
-      if (!/^[a-f0-9]{64}$/.test(lookupKey) || lookupKeys[lookupKey] || !fieldNames[normalizeName(lookup.fieldName)]) return false;
-      lookupKeys[lookupKey] = true;
+      var lookupField = normalizeName(lookup.fieldName);
+      if (!/^[a-f0-9]{64}$/.test(lookupKey) || lookupFields[lookupField] || !fieldNames[lookupField]) return false;
+      lookupFields[lookupField] = true;
     }
     return true;
   }
@@ -3108,7 +3133,9 @@ window.FieldSyncService = (function (global) {
     var code = String(data.code || safeError.code || 'LOOKUP_LOAD_FAILED').trim().toUpperCase();
     var messages = {
       LOOKUP_KEY_NOT_FOUND: 'Danh mục chưa được đồng bộ. Vui lòng liên hệ quản trị viên.',
+      LOOKUP_CONTRACT_NOT_FOUND: 'Danh mục không thuộc contract hiện tại. Vui lòng liên hệ quản trị viên.',
       LOOKUP_CONTRACT_NOT_UNIQUE: 'Cấu hình danh mục chưa đồng nhất. Vui lòng liên hệ quản trị viên.',
+      LOOKUP_DEPENDENCY_CONFLICT: 'Các field dùng chung danh mục có dependency không đồng nhất.',
       LOOKUP_SOURCE_NOT_REGISTERED: 'Nguồn danh mục chưa được đăng ký.',
       LOOKUP_COLUMNS_NOT_CONFIGURED: 'Danh mục chưa cấu hình đủ cột mã và tên.',
       LOOKUP_COLUMNS_MISMATCH: 'Dữ liệu danh mục không khớp cấu hình.',
@@ -3134,7 +3161,7 @@ window.FieldSyncService = (function (global) {
     return result;
   }
 
-  function searchLookup(formName, lookupKey, keyword, page, pageSize, dependencies) {
+  function searchLookup(formName, lookupKey, keyword, page, pageSize, dependencies, detailKey) {
     var requestedLookupKey = String(lookupKey || '');
     var aliasPrefix = stateKey(formName) + '|';
     var aliasKey = aliasPrefix + requestedLookupKey.toLowerCase();
@@ -3150,7 +3177,10 @@ window.FieldSyncService = (function (global) {
       keyword: String(keyword || '').slice(0, 200),
       page: Math.max(1, Number(page) || 1),
       pageSize: Math.min(100, Math.max(1, Number(pageSize) || 30)),
-      dependencies: lookupDependencies(dependencies)
+      dependencies: lookupDependencies(dependencies),
+      detailKey: /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(String(detailKey || '').trim())
+        ? String(detailKey).trim()
+        : ''
     }, { headers: requestHeaders(), logoutOnUnauthorized: false }).then(function (response) {
       var resolvedLookupKey = String(response && response.lookupKey || '');
       if (/^[A-Fa-f0-9]{64}$/.test(resolvedLookupKey)) {
@@ -3185,7 +3215,8 @@ window.FieldSyncService = (function (global) {
         keyword,
         page,
         pageSize,
-        dependencies
+        dependencies,
+        settings.detailKey
       ).then(function (optionsList) {
         return {
           headers: [settings.valueHeader || 'Mã', settings.displayHeader || 'Tên'],
@@ -3350,6 +3381,107 @@ window.FieldSyncService = (function (global) {
     clearCache: clearCache
   });
 })(window);
+
+/* --- FieldControlResolver.js --- */
+/**
+ * Resolver điều khiển field dùng chung cho form chính, wizard và detail.
+ * Client chỉ dùng lookupKey từ Field Contract V2; nguồn dữ liệu thật được
+ * backend giải quyết và kiểm tra quyền/chi nhánh.
+ */
+window.FieldControlResolver = (function () {
+  var SAFE_LOOKUP_KEY = /^[A-Fa-f0-9]{64}$/;
+
+  function lookupOf(field) {
+    var nested = field && field.lookup && typeof field.lookup === 'object'
+      ? field.lookup
+      : {};
+    return {
+      key: String(field && field.lookupKey || nested.key || ''),
+      dependsOn: field && field.dependsOn !== undefined
+        ? field.dependsOn
+        : (Array.isArray(nested.dependsOn) ? nested.dependsOn : [])
+    };
+  }
+
+  function isContractLookup(field) {
+    var lookup = lookupOf(field);
+    return Boolean(
+      field
+      && SAFE_LOOKUP_KEY.test(lookup.key)
+      && window.FieldSyncService
+      && typeof FieldSyncService.createLookupDataSource === 'function'
+    );
+  }
+
+  function createLookupSearch(field, options) {
+    if (!isContractLookup(field)) return null;
+
+    var settings = options || {};
+    var lookup = lookupOf(field);
+    return FieldSyncService.createLookupDataSource({
+      formName: settings.formName,
+      detailKey: settings.detailKey,
+      lookupKey: lookup.key,
+      dependsOn: lookup.dependsOn,
+      getDependencyValues: settings.getValues,
+      dependencyValues: settings.values,
+      pageSize: settings.pageSize || 30,
+      valueHeader: settings.valueHeader || 'Mã',
+      displayHeader: settings.displayHeader || 'Tên',
+      forceMultiColumn: settings.forceMultiColumn === true
+    });
+  }
+
+  function createCombo(field, options) {
+    var settings = options || {};
+    var search = createLookupSearch(field, settings);
+    if (!search || !window.UIControls || typeof UIControls.createDataComboBox !== 'function') {
+      return null;
+    }
+
+    var hiddenInput = settings.hiddenInput;
+    var currentValue = settings.value === undefined || settings.value === null
+      ? ''
+      : String(settings.value);
+    var combo = UIControls.createDataComboBox({
+      placeholder: settings.placeholder || '-- Vui lòng chọn --',
+      headers: [settings.valueHeader || 'Mã', settings.displayHeader || 'Tên'],
+      colFilterIndex: 1,
+      forceMultiColumn: false,
+      disabled: settings.disabled === true,
+      showAddNew: false,
+      onSearch: search,
+      onSelect: function (row) {
+        var value = Array.isArray(row) && row[0] !== undefined ? row[0] : '';
+        if (hiddenInput) hiddenInput.value = value;
+        if (typeof settings.onSelect === 'function') settings.onSelect(value, row);
+        if (hiddenInput) hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    if (currentValue) {
+      var displayInput = combo.querySelector && combo.querySelector('input.ui-input');
+      if (displayInput) displayInput.value = currentValue;
+      search(currentValue, 1).then(function (result) {
+        var rows = result && Array.isArray(result.data) ? result.data : [];
+        var matched = rows.find(function (row) {
+          return String(row[0]) === currentValue;
+        });
+        if (matched && displayInput) displayInput.value = matched[1];
+      }).catch(function (error) {
+        console.warn('[FieldControlResolver] Không tải được nhãn lookup:', error);
+      });
+    }
+
+    return combo;
+  }
+
+  return Object.freeze({
+    isContractLookup: isContractLookup,
+    createLookupSearch: createLookupSearch,
+    createCombo: createCombo
+  });
+})();
 
 /* --- EventBus.js --- */
 /**
@@ -6698,6 +6830,10 @@ var Alert = (function () {
     setTimeout(function() {
       removeToast(toast);
     }, duration);
+
+    toast.close = function() {
+      removeToast(toast);
+    };
 
     return toast;
   }
@@ -11623,7 +11759,11 @@ var UIToast = (function () {
     var normalizedType = String(type || 'success').trim().toLowerCase();
     var config = TYPE_CONFIG[normalizedType] || TYPE_CONFIG.info;
     if (!window.Alert || typeof Alert[config.method] !== 'function') return null;
-    return Alert[config.method](config.title, String(message || ''), duration);
+    var t = Alert[config.method](config.title, String(message || ''), duration);
+    if (t && typeof t.close !== 'function') {
+      t.close = function () { hide(t); };
+    }
+    return t;
   }
 
   function hide(notification) {
@@ -13097,6 +13237,14 @@ var WizardForm = (function () {
       /* ── Slide animation ─────────────────────────────────────────── */
       '.wz-body .wz-step-content { animation:wz-slidein 0.22s cubic-bezier(0.16,1,0.3,1); }',
 
+      /* ── Avatar Layout ───────────────────────────────────────────── */
+      '.wz-step-body-wrapper { display:flex; gap:24px; align-items:flex-start; margin-top:16px; }',
+      '.wz-avatar-col { width:180px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
+      '.wz-avatar-frame { width:150px; height:150px; border-radius:50%; overflow:hidden; border:4px solid var(--color-primary,#4338ca); box-shadow:0 6px 16px rgba(67,56,202,0.16); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:transform 0.2s ease; }',
+      '.wz-avatar-frame:hover { transform:scale(1.05); }',
+      '.wz-avatar-btn { border-radius:16px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
+      '.wz-avatar-btn:hover { background-color:var(--color-primary,#4338ca); color:#fff; }',
+
       /* ── Empty state ────────────────────────────────────────────── */
       '.wz-no-branch { text-align:center; padding:32px 20px; color:var(--color-text-secondary); }',
       '.wz-no-branch .material-symbols-outlined { font-size:40px; display:block; margin-bottom:8px; opacity:0.4; }',
@@ -13104,7 +13252,10 @@ var WizardForm = (function () {
       /* ── Form group compact ─────────────────────────────────────── */
       '.wz-fields-grid .form-group { margin-bottom:0; width:100% !important; }',
       '.wz-fields-grid > div { width:100% !important; min-width:0; }',
-      '.wz-fields-grid .form-control, .wz-fields-grid input, .wz-fields-grid select, .wz-fields-grid textarea { width:100% !important; box-sizing:border-box; }',
+      '.wz-fields-grid .form-control, .wz-fields-grid input:not([type="checkbox"]):not([type="radio"]):not(.modern-checkbox), .wz-fields-grid select, .wz-fields-grid textarea { width:100% !important; box-sizing:border-box; }',
+      '.wz-fields-grid .modern-checkbox-wrapper { width:auto !important; display:inline-flex !important; align-items:center !important; gap:8px !important; margin-top:22px; padding:6px 12px; border-radius:8px; background:rgba(0,0,0,0.02); border:1px solid var(--color-border,#e2e8f0); cursor:pointer; }',
+      '.wz-fields-grid .modern-checkbox-wrapper:hover { background:rgba(79,70,229,0.06); border-color:var(--color-primary,#4f46e5); }',
+      '.wz-fields-grid .modern-checkbox-wrapper label { margin:0 !important; font-size:13.5px !important; font-weight:600 !important; color:var(--color-text,#1e293b) !important; cursor:pointer !important; white-space:nowrap !important; }',
       '.wz-fields-grid .combo-box-wrapper, .wz-fields-grid .select2-container { width:100% !important; }',
 
       /* ── Avatar Layout ───────────────────────────────────────────── */
@@ -13872,17 +14023,6 @@ var WizardForm = (function () {
           }, 0);
         }
 
-        // --- Custom override cho Giới Tính và Trạng Thái ---
-        if (fn === 'GioiTinh') {
-          field.renderRule = 'sl';
-          field.dataSource = 'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác';
-        }
-        if (fn === 'PersonStatus') {
-          field.renderRule = 'sl';
-          field.dataSource = 'API_ComboPersonStatus';
-        }
-        // ----------------------------------------------------
-
         var inputEl;
         if (field.renderRule === 'sw' || field.renderRule === 'boolean') {
           inputEl = UIInput.createSwitch(field);
@@ -13890,7 +14030,15 @@ var WizardForm = (function () {
           inputEl = UIInput.createDate(field);
         } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
           inputEl = UIInput.createTime(field);
-        } else if (field.renderRule === 'sl' || field.renderRule === 'select') {
+        } else if (
+          field.renderRule === 'sl'
+          || field.renderRule === 'select'
+          || field.renderRule === 'combo'
+          || (
+            window.FieldControlResolver
+            && FieldControlResolver.isContractLookup(field)
+          )
+        ) {
           inputEl = _buildSelectField(field);
         } else if (field.renderRule === 'ta' || field.renderRule === 'textarea') {
           inputEl = UIInput.createTextarea ? UIInput.createTextarea(field) : UIInput.createText(field);
@@ -13945,6 +14093,20 @@ var WizardForm = (function () {
       hiddenIn.name = field.name;
       hiddenIn.value = field.value || '';
       fgw.appendChild(hiddenIn);
+
+      var contractCombo = window.FieldControlResolver
+        && FieldControlResolver.createCombo(field, {
+          formName: moduleConfig.FormName,
+          getValues: function () { return formState; },
+          hiddenInput: hiddenIn,
+          value: field.value,
+          disabled: field.readOnly === true,
+          onSelect: function (value) { formState[field.name] = value; }
+        });
+      if (contractCombo) {
+        fgw.appendChild(contractCombo);
+        return fgw;
+      }
 
       var ds = field.dataSource || '';
       if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
@@ -14690,9 +14852,6 @@ var WizardForm = (function () {
           }, 0);
         }
 
-        if (fn === 'GioiTinh') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'; }
-        if (fn === 'PersonStatus') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'API_ComboPersonStatus'; }
-
         var inputEl;
         if (fCopy.renderRule === 'sw' || fCopy.renderRule === 'boolean') {
           inputEl = UIInput.createSwitch(fCopy);
@@ -14700,7 +14859,15 @@ var WizardForm = (function () {
           inputEl = UIInput.createDate(fCopy);
         } else if (fCopy.renderRule === 'tm' || fCopy.renderRule === 'time') {
           inputEl = UIInput.createTime(fCopy);
-        } else if (fCopy.renderRule === 'sl' || fCopy.renderRule === 'select') {
+        } else if (
+          fCopy.renderRule === 'sl'
+          || fCopy.renderRule === 'select'
+          || fCopy.renderRule === 'combo'
+          || (
+            window.FieldControlResolver
+            && FieldControlResolver.isContractLookup(fCopy)
+          )
+        ) {
           inputEl = _buildSelectFieldEdit(fCopy);
         } else if (fCopy.renderRule === 'ta' || fCopy.renderRule === 'textarea') {
           inputEl = UIInput.createTextarea ? UIInput.createTextarea(fCopy) : UIInput.createText(fCopy);
@@ -14738,6 +14905,20 @@ var WizardForm = (function () {
       hiddenIn.name = field.name;
       hiddenIn.value = field.value || '';
       fgw.appendChild(hiddenIn);
+
+      var contractCombo = window.FieldControlResolver
+        && FieldControlResolver.createCombo(field, {
+          formName: moduleConfig.FormName,
+          getValues: function () { return formState; },
+          hiddenInput: hiddenIn,
+          value: field.value,
+          disabled: field.readOnly === true,
+          onSelect: function (value) { formState[field.name] = value; }
+        });
+      if (contractCombo) {
+        fgw.appendChild(contractCombo);
+        return fgw;
+      }
 
       var ds = field.dataSource || '';
       if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
@@ -15036,11 +15217,20 @@ window.DynamicDetailManager = (function () {
       var filterKey = tabDef.filterField || masterKey;
       var filter = {};
       filter[filterKey] = row && row[masterKey] || '';
-      return api.post(moduleConfig.ApiSearch || gateway, { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filter) });
+      return api.post(moduleConfig.ApiSearch || gateway, {
+        List: tabDef.api,
+        Func: 'View',
+        Limit: 500,
+        JsonData: JSON.stringify(filter),
+        UserName: currentUser(),
+        User: currentUser(),
+        BranchID: currentBranch()
+      });
     }
 
     function renderEditableGrid(tabDef, panel, row, isViewMode) {
       panel.innerHTML = '';
+      var contractFields = joinFieldMap(joinFieldsOf(panel._joinSchema));
       var wrap = document.createElement('div');
       wrap.style.cssText = 'overflow-x:auto;border:1px solid var(--color-border);border-radius:8px;margin-bottom:12px;background:var(--color-surface);';
       var table = document.createElement('table');
@@ -15074,6 +15264,26 @@ window.DynamicDetailManager = (function () {
 
         keys.forEach(function (fieldName) {
           var td = cells[fieldName];
+          var contractField = contractFields[String(fieldName).toLowerCase()] || null;
+          var contractCombo = window.FieldControlResolver
+            && contractField
+            && FieldControlResolver.createCombo(contractField, {
+              formName: moduleConfig.FormName,
+              detailKey: tabDef.joinContractKey,
+              getValues: function () { return currentRow; },
+              value: currentRow[fieldName],
+              disabled: isViewMode || readonly.indexOf(fieldName) >= 0,
+              placeholder: 'Chọn...',
+              onSelect: function (value) {
+                currentRow[fieldName] = value;
+              }
+            });
+          if (contractCombo) {
+            contractCombo.style.width = '160px';
+            td.appendChild(contractCombo);
+            return;
+          }
+
           var lookup = tabDef.lookupConfig && tabDef.lookupConfig[fieldName];
           if (lookup && window.UIControls && typeof UIControls.createDataComboBox === 'function') {
             var combo = UIControls.createDataComboBox({
@@ -16380,12 +16590,20 @@ window.DynamicAttachmentManager = (function () {
               var loadingMsg = null;
               if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
 
+              var _closeMsg = function (msg) {
+                if (!msg) return;
+                if (typeof msg.close === 'function') msg.close();
+                else if (typeof UIToast !== 'undefined' && typeof UIToast.hide === 'function') UIToast.hide(msg);
+                else if (typeof Alert !== 'undefined' && typeof Alert.hide === 'function') Alert.hide(msg);
+                else if (typeof msg.remove === 'function') msg.remove();
+              };
+
               ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, {
                 List: 'HR_PersonTbl',
                 Func: 'View',
                 Keyword: ''
               }).then(function (res) {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 var rawList = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
                 var dataList = rawList.map(function (r) {
                   if (Array.isArray(r)) {
@@ -16395,7 +16613,7 @@ window.DynamicAttachmentManager = (function () {
                 });
                 _showNhanVienModal(dataList, ctx);
               }).catch(function () {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách nhân viên', 'error');
               });
 
@@ -16733,12 +16951,20 @@ window.DynamicAttachmentManager = (function () {
               var loadingMsg = null;
               if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
 
+              var _closeMsg = function (msg) {
+                if (!msg) return;
+                if (typeof msg.close === 'function') msg.close();
+                else if (typeof UIToast !== 'undefined' && typeof UIToast.hide === 'function') UIToast.hide(msg);
+                else if (typeof Alert !== 'undefined' && typeof Alert.hide === 'function') Alert.hide(msg);
+                else if (typeof msg.remove === 'function') msg.remove();
+              };
+
               ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, lookupPayload).then(function (res) {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 var dataList = res.list || res.records || [];
                 _showMultiSelectModal(dataList, ctx);
               }).catch(function (err) {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
                 else alert('Lỗi khi tải danh sách');
               });
@@ -17097,8 +17323,16 @@ window.DynamicAttachmentManager = (function () {
               var loadingMsg = null;
               if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách phụ cấp...', 'info', 0);
 
+              var _closeMsg = function (msg) {
+                if (!msg) return;
+                if (typeof msg.close === 'function') msg.close();
+                else if (typeof UIToast !== 'undefined' && typeof UIToast.hide === 'function') UIToast.hide(msg);
+                else if (typeof Alert !== 'undefined' && typeof Alert.hide === 'function') Alert.hide(msg);
+                else if (typeof msg.remove === 'function') msg.remove();
+              };
+
               ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, lookupPayload).then(function (res) {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 var dataList = res.list || res.records || [];
                 UIControls.utils.showMultiSelectGridModal({
                   title: 'Chọn phụ cấp',
@@ -17120,7 +17354,7 @@ window.DynamicAttachmentManager = (function () {
                   }
                 });
               }).catch(function (err) {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
                 else alert('Lỗi khi tải danh sách');
               });
@@ -19513,6 +19747,7 @@ window.DynamicFormEngine = (function () {
     detailManager = window.DynamicDetailManager ? DynamicDetailManager.create({
       moduleConfig: MODULE_CONFIG,
       currentUser: _currentUser,
+      currentBranch: _currentBranchId,
       getDictionary: function () { return globalDictionary; }
     }) : null;
 
@@ -21369,16 +21604,13 @@ window.DynamicFormEngine = (function () {
             var cellValue = cell.getValue();
             var rowData = cell.getRow().getData();
             var isFieldSyncLookup = Boolean(
-              /^[A-Fa-f0-9]{64}$/.test(String(f.lookupKey || ''))
-              && window.FieldSyncService
-              && typeof FieldSyncService.createLookupDataSource === 'function'
+              window.FieldControlResolver
+              && FieldControlResolver.isContractLookup(f)
             );
             var fieldSyncSearch = isFieldSyncLookup
-              ? FieldSyncService.createLookupDataSource({
+              ? FieldControlResolver.createLookupSearch(f, {
                 formName: MODULE_CONFIG.FormName,
-                lookupKey: f.lookupKey,
-                dependsOn: f.dependsOn,
-                getDependencyValues: function () { return rowData; },
+                getValues: function () { return rowData; },
                 pageSize: 30
               })
               : null;
@@ -22711,7 +22943,15 @@ window.DynamicFormEngine = (function () {
         var pkValKV = row[pkFieldKV] || '';
         var filterKV = {};
         filterKV[tabDef.filterField || pkFieldKV] = pkValKV;
-        var payloadKV = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterKV) };
+        var payloadKV = {
+          List: tabDef.api,
+          Func: 'View',
+          Limit: 500,
+          JsonData: JSON.stringify(filterKV),
+          UserName: _currentUser(),
+          User: _currentUser(),
+          BranchID: _currentBranchId()
+        };
         var MONEY_KV = ['MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'LuongCoBan', 'MucDong'];
         var DATE_KV = ['NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayHetHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'NgayThayDoi', 'NgayCapNhat', 'FromDate', 'ToDate', 'LogDate', 'GiamTruTuThang', 'GiamTruDenThang'];
 
@@ -22784,7 +23024,15 @@ window.DynamicFormEngine = (function () {
         var pkVal = row[pkField] || '';
         var filterData = {};
         filterData[tabDef.filterField || pkField] = pkVal;
-        var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
+        var payload = {
+          List: tabDef.api,
+          Func: 'View',
+          Limit: 500,
+          JsonData: JSON.stringify(filterData),
+          UserName: _currentUser(),
+          User: _currentUser(),
+          BranchID: _currentBranchId()
+        };
 
         ApiClient.post(MODULE_CONFIG.ApiSearch || _gateway(), payload).then(function (res) {
           var data = res.list || res.records || [];
@@ -23861,8 +24109,10 @@ window.DynamicFormEngine = (function () {
         inputEl = UIInput.createDate(field);
       } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
         inputEl = UIInput.createTime(field);
-      } else if (/^[A-Fa-f0-9]{64}$/.test(String(field.lookupKey || ''))
-        && window.FieldSyncService && typeof FieldSyncService.createLookupDataSource === 'function') {
+      } else if (
+        window.FieldControlResolver
+        && FieldControlResolver.isContractLookup(field)
+      ) {
         var contractLookupWrapper = document.createElement('div');
         contractLookupWrapper.className = 'form-group';
         if (field.label) {
@@ -23877,36 +24127,16 @@ window.DynamicFormEngine = (function () {
         contractLookupValue.value = _hasContractValue(field.value) ? field.value : '';
         contractLookupWrapper.appendChild(contractLookupValue);
 
-        var contractLookupSearch = FieldSyncService.createLookupDataSource({
+        var contractLookupCombo = FieldControlResolver.createCombo(field, {
           formName: MODULE_CONFIG.FormName,
-          lookupKey: field.lookupKey,
-          dependsOn: field.dependsOn,
-          getDependencyValues: function () { return currentModalFormState; },
-          pageSize: 30
-        });
-        var contractLookupCombo = UIControls.createDataComboBox({
-          placeholder: '-- Vui lòng chọn --',
-          headers: ['Mã', 'Tên'],
+          getValues: function () { return currentModalFormState; },
+          hiddenInput: contractLookupValue,
+          value: field.value,
           disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
-          showAddNew: false,
-          enablePagination: true,
-          onSearch: contractLookupSearch,
-          onChange: function (value) { contractLookupValue.value = value; },
-          onSelect: function (row) {
-            contractLookupValue.value = row[0];
-            contractLookupValue.dispatchEvent(new Event('change', { bubbles: true }));
+          onSelect: function (value) {
+            currentModalFormState[field.name] = value;
           }
         });
-        var contractLookupDisplay = contractLookupCombo.querySelector('input.ui-input');
-        if (contractLookupDisplay) contractLookupDisplay.value = _hasContractValue(field.value) ? field.value : '';
-        if (_hasContractValue(field.value)) {
-          contractLookupSearch(String(field.value), 1)
-            .then(function (result) {
-              var matched = result.data.find(function (option) { return String(option[0]) === String(field.value); });
-              if (matched && contractLookupDisplay) contractLookupDisplay.value = matched[1];
-            })
-            .catch(function () { /* Giữ giá trị thô nếu lookup tạm thời không tải được. */ });
-        }
         contractLookupWrapper.appendChild(contractLookupCombo);
         inputEl = contractLookupWrapper;
       } else if (field.renderRule === 'sl' || field.renderRule === 'select' || field.renderRule === 'combo' || field.renderRule === 'lookup') {

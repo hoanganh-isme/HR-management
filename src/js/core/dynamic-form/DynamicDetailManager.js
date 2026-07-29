@@ -114,11 +114,20 @@ window.DynamicDetailManager = (function () {
       var filterKey = tabDef.filterField || masterKey;
       var filter = {};
       filter[filterKey] = row && row[masterKey] || '';
-      return api.post(moduleConfig.ApiSearch || gateway, { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filter) });
+      return api.post(moduleConfig.ApiSearch || gateway, {
+        List: tabDef.api,
+        Func: 'View',
+        Limit: 500,
+        JsonData: JSON.stringify(filter),
+        UserName: currentUser(),
+        User: currentUser(),
+        BranchID: currentBranch()
+      });
     }
 
     function renderEditableGrid(tabDef, panel, row, isViewMode) {
       panel.innerHTML = '';
+      var contractFields = joinFieldMap(joinFieldsOf(panel._joinSchema));
       var wrap = document.createElement('div');
       wrap.style.cssText = 'overflow-x:auto;border:1px solid var(--color-border);border-radius:8px;margin-bottom:12px;background:var(--color-surface);';
       var table = document.createElement('table');
@@ -152,6 +161,26 @@ window.DynamicDetailManager = (function () {
 
         keys.forEach(function (fieldName) {
           var td = cells[fieldName];
+          var contractField = contractFields[String(fieldName).toLowerCase()] || null;
+          var contractCombo = window.FieldControlResolver
+            && contractField
+            && FieldControlResolver.createCombo(contractField, {
+              formName: moduleConfig.FormName,
+              detailKey: tabDef.joinContractKey,
+              getValues: function () { return currentRow; },
+              value: currentRow[fieldName],
+              disabled: isViewMode || readonly.indexOf(fieldName) >= 0,
+              placeholder: 'Chọn...',
+              onSelect: function (value) {
+                currentRow[fieldName] = value;
+              }
+            });
+          if (contractCombo) {
+            contractCombo.style.width = '160px';
+            td.appendChild(contractCombo);
+            return;
+          }
+
           var lookup = tabDef.lookupConfig && tabDef.lookupConfig[fieldName];
           if (lookup && window.UIControls && typeof UIControls.createDataComboBox === 'function') {
             var combo = UIControls.createDataComboBox({

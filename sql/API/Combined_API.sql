@@ -3154,462 +3154,247 @@ GO
 
 GO
 
+/*
+  Hồ sơ nhân viên tổng hợp.
 
--- =========================================================================
--- 1. Master API: Danh sÃƒÂ¡ch nhÃƒÂ¢n viÃƒÂªn tÃ¡Â»â€¢ng hÃ¡Â»Â£p
--- EXEC dbo.API_HoSoNhanVien @Keyword = '', @BranchID = '', @PhongBan = ''
--- =========================================================================
+  - Danh sách chính đọc trực tiếp từ HR_PersonView giống cấu hình ERP desktop.
+  - Các tab chi tiết chỉ đăng ký bảng vật lý; việc đọc dùng chung
+    API_TruyVanDong_V2 và được cutover bằng script trong sql/Deploy.
+  - File này không đăng ký route vào WA_API.
+*/
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
 CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVien
 (
-    @Keyword           NVARCHAR(200) = '',
-    @BranchID          NVARCHAR(MAX) = '',
-    @PhongBan          NVARCHAR(50)  = '',
-    @NamLap            INT           = NULL,
-    @LoaiHD            NVARCHAR(50)  = '',
-    @PersonStatusName  NVARCHAR(100) = '', -- ThÃƒÂªm tham sÃ¡Â»â€˜ nhÃ¡ÂºÂ­n TÃƒÂªn trÃ¡ÂºÂ¡ng thÃƒÂ¡i tÃ¡Â»Â« UI
-    @PersonStatus      NVARCHAR(50)  = ''
+    @Keyword          nvarchar(200) = N'',
+    @BranchID         nvarchar(max) = N'',
+    @PhongBan         nvarchar(50)  = N'',
+    @NamLap           nvarchar(50)  = N'',
+    @LoaiHD           nvarchar(50)  = N'',
+    @PersonStatusName nvarchar(100) = N'',
+    @PersonStatus     nvarchar(50)  = N'',
+    @UserName         varchar(100)  = ''
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
-        P.PersonID,
-        P.PersonName,
-        P.PhongBan,
-        P.TitleName,            -- ChÃ¡Â»Â©c vÃ¡Â»Â¥
-        P.ChucDanhChuyenMon,    -- ChÃ¡Â»Â©c danh chuyÃƒÂªn mÃƒÂ´n
-        P.NgaySinh,             -- NgÃƒÂ y sinh
-        P.CMND,                 -- CCCD
-        P.DiaChiThuongTru,      -- Ã„ÂÃ¡Â»â€¹a chÃ¡Â»â€° thÃ†Â°Ã¡Â»Âng trÃƒÂº
-        P.NgayVaoLam,           -- NgÃƒÂ y nhÃ¡ÂºÂ­n viÃ¡Â»â€¡c
-        P.BranchID,
-        P.NgayHopDong,
-        P.NationName,
-        P.SoHopDong,
-        P.DienThoai,
-        P.PersonStatus,
-        P.NewPersonID,
-        P.CardNo,
-        P.ProvineName,
-        P.DiaChiHienNay,
-        P.Quanly,
-        P.NgayThuViec,
-        P.BankHolder,
-        P.BankAccountNo,
-        P.BankName,
-        P.BankLocation,
-        P.SocialID,
-        P.SocialDate,
-        P.NgayKetThucBH,
-        P.ShiftID,
-        P.SoTheBHYT,
-        P.ThoiGianHuongBHYT,
-        P.NoiDangKyBHYT,
-        P.ChamCong,
-        P.LoaiHopDong,
-        P.NgayHetHopDong,
-        P.NguoiLienHe,
-        P.MoiQuanHe,
-        P.NguoiLienHeSoDT,
-        P.GioiTinh,
-        P.HonNhan,
-        P.CMNDNgayCap,
-        P.CMNDNoiCap,
-        P.NoiSinh,
-        P.PeoplesName,
-        P.ReligionName,
-        P.Email,
-        P.EducationName,
-        P.Nationality,
-        P.JobName,
-        P.CareerName,
-        P.HospitalName,
-        P.MaNVChamCong,
-        P.PersonName2,
-        P.PostionName,
-        P.NgayNghiViec,
-        P.WorkingGroupName,
-        P.DungCuLamViec,
-        P.GhiChu,
-        P.LocationID,
-        P.NgayDuKienTV,
-        P.UserCreate,
-        P.UserUpdate,
-        P.DateUpdate,
-        P.DateCreate,
-        P.DiaChiTamTru,
-        P.isTaiTuyen,
-        S.PersonStatusName,
-        HD.LoaiHD,
-        YEAR(P.NgayVaoLam) AS NamLap,
-        PA.FileName,
-        NULL AS Content -- Removed PA.Content to drastically improve load time
-    FROM dbo.HR_PersonTbl P
-    LEFT JOIN dbo.HR_PersonStatusTbl S 
-        ON P.PersonStatus = S.PersonStatus
-    OUTER APPLY (
-        SELECT TOP 1 FileName
-        FROM dbo.HR_PersonAttachTbl
-        WHERE PersonID = P.PersonID
-        ORDER BY UserAutoID DESC
-    ) PA
-    OUTER APPLY (
-        SELECT TOP 1 LoaiHD
-        FROM dbo.HR_HopDongTbl
-        WHERE PersonID = P.PersonID
-        ORDER BY NgayKyHopDong DESC
-    ) HD
-    WHERE 
-        -- BÃ¡Â»â„¢ lÃ¡Â»Âc tÃ¡Â»Â« khoÃƒÂ¡ (Keyword)
-        (@Keyword IS NULL OR @Keyword = ''
-         OR P.PersonName LIKE N'%' + @Keyword + '%'
-         OR P.PersonID   LIKE N'%' + @Keyword + '%'
-         OR P.DienThoai  LIKE N'%' + @Keyword + '%')
-        
-        -- BÃ¡Â»â„¢ lÃ¡Â»Âc chi nhÃƒÂ¡nh (BranchID)
-        AND (@BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
+    SET @Keyword = LTRIM(RTRIM(ISNULL(@Keyword, N'')));
+    SET @BranchID = LTRIM(RTRIM(ISNULL(@BranchID, N'')));
+    SET @PhongBan = LTRIM(RTRIM(ISNULL(@PhongBan, N'')));
+    SET @NamLap = LTRIM(RTRIM(ISNULL(@NamLap, N'')));
+    SET @LoaiHD = LTRIM(RTRIM(ISNULL(@LoaiHD, N'')));
+    SET @PersonStatusName = LTRIM(RTRIM(ISNULL(@PersonStatusName, N'')));
+    SET @PersonStatus = LTRIM(RTRIM(ISNULL(@PersonStatus, N'')));
+    SET @UserName = LTRIM(RTRIM(ISNULL(@UserName, '')));
 
-        -- BÃ¡Â»â„¢ lÃ¡Â»Âc bÃ¡Â»â„¢ phÃ¡ÂºÂ­n (PhongBan)
-        AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
-        
-        -- BÃ¡Â»â„¢ lÃ¡Â»Âc nÃ„Æ’m lÃ¡ÂºÂ­p
-        AND (@NamLap IS NULL OR YEAR(ISNULL(P.NgaySinh, '1900-01-01')) = @NamLap OR YEAR(ISNULL(P.NgayVaoLam, '1900-01-01')) = @NamLap)
-        
-        -- BÃ¡Â»â„¢ lÃ¡Â»Âc loÃ¡ÂºÂ¡i hÃ¡Â»Â£p Ã„â€˜Ã¡Â»â€œng (LoaiHD tÃ¡Â»Â« HR_HopDongTbl)
-        AND (@LoaiHD = '' OR HD.LoaiHD LIKE N'%' + @LoaiHD + '%')
-        
-        -- BÃ¡Â»â„¢ lÃ¡Â»Âc trÃ¡ÂºÂ¡ng thÃƒÂ¡i nhÃƒÂ¢n sÃ¡Â»Â± (theo tÃƒÂªn hiÃ¡Â»Æ’n thÃ¡Â»â€¹ trÃƒÂªn UI hoÃ¡ÂºÂ·c mÃƒÂ£ trÃ¡ÂºÂ¡ng thÃƒÂ¡i)
-        AND (@PersonStatusName = '' OR S.PersonStatusName = @PersonStatusName)
-        AND (@PersonStatus = '' OR P.PersonStatus = @PersonStatus)
-        
-    ORDER BY P.PersonID DESC;
-END
+    IF @UserName = ''
+        THROW 51470, N'PERSON_VIEW_ACTOR_REQUIRED', 1;
+
+    DECLARE
+        @UserGroupID varchar(50),
+        @AllowedBranches nvarchar(max);
+
+    SELECT
+        @UserGroupID = [User].UserGroupID,
+        @AllowedBranches = LTRIM(RTRIM(ISNULL([User].BranchID, N'')))
+    FROM dbo.SY_User AS [User]
+    WHERE [User].UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
+      AND ISNULL([User].Disable, 0) = 0;
+
+    IF @UserGroupID IS NULL
+        THROW 51471, N'PERSON_VIEW_ACTOR_INVALID_OR_DISABLED', 1;
+
+    IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
+    BEGIN
+        IF @AllowedBranches = N''
+            THROW 51472, N'PERSON_VIEW_BRANCH_CONTEXT_REQUIRED', 1;
+
+        IF @BranchID = N''
+            SET @BranchID = @AllowedBranches;
+
+        IF EXISTS
+        (
+            SELECT 1
+            FROM STRING_SPLIT(@BranchID, N',') AS RequestedBranch
+            WHERE LTRIM(RTRIM(RequestedBranch.[value])) <> N''
+              AND NOT EXISTS
+              (
+                  SELECT 1
+                  FROM STRING_SPLIT(@AllowedBranches, N',') AS AllowedBranch
+                  WHERE LTRIM(RTRIM(AllowedBranch.[value])) COLLATE DATABASE_DEFAULT
+                      = LTRIM(RTRIM(RequestedBranch.[value])) COLLATE DATABASE_DEFAULT
+              )
+        )
+            THROW 51473, N'PERSON_VIEW_BRANCH_CONTEXT_DENIED', 1;
+    END;
+
+    /*
+      Giữ đúng read model của ERP desktop:
+          SELECT TOP (1000) HR_PersonView.*
+          FROM HR_PersonView
+    */
+    SELECT TOP (1000)
+        HR_PersonView.*
+    FROM dbo.HR_PersonView
+    WHERE
+        (
+            @Keyword = N''
+            OR HR_PersonView.PersonName LIKE N'%' + @Keyword + N'%'
+            OR HR_PersonView.PersonID LIKE N'%' + @Keyword + N'%'
+            OR HR_PersonView.DienThoai LIKE N'%' + @Keyword + N'%'
+        )
+        AND
+        (
+            (LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT = 'admin' COLLATE DATABASE_DEFAULT
+             AND @BranchID = N'')
+            OR EXISTS
+            (
+                SELECT 1
+                FROM STRING_SPLIT(@BranchID, N',') AS AllowedBranch
+                WHERE LTRIM(RTRIM(AllowedBranch.[value])) COLLATE DATABASE_DEFAULT
+                    = LTRIM(RTRIM(HR_PersonView.BranchID)) COLLATE DATABASE_DEFAULT
+            )
+        )
+        AND (@PhongBan = N'' OR HR_PersonView.PhongBan = @PhongBan)
+        AND
+        (
+            @NamLap = N''
+            OR CONVERT(nvarchar(50), HR_PersonView.NamLap) = @NamLap
+        )
+        AND (@LoaiHD = N'' OR HR_PersonView.LoaiHD LIKE N'%' + @LoaiHD + N'%')
+        AND
+        (
+            @PersonStatusName = N''
+            OR EXISTS
+            (
+                SELECT 1
+                FROM dbo.HR_PersonStatusTbl AS PersonStatus
+                WHERE PersonStatus.PersonStatus = HR_PersonView.PersonStatus
+                  AND PersonStatus.PersonStatusName = @PersonStatusName
+            )
+        )
+        AND
+        (
+            @PersonStatus = N''
+            OR CONVERT(nvarchar(50), HR_PersonView.PersonStatus) = @PersonStatus
+        )
+    ORDER BY HR_PersonView.PersonID DESC;
+END;
 GO
--- =========================================================================
--- 2. Detail API Tab 1: QuÃƒÂ¡ trÃƒÂ¬nh lÃƒÂ m viÃ¡Â»â€¡c vÃƒÂ  lÃ†Â°Ã†Â¡ng (HR_PersonSalaryTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T1_Salary
+
+/*
+  Đăng ký bảng vật lý cho các tab chi tiết.
+  Không xóa rồi chèn lại để tránh làm mất cấu hình ngoài phạm vi module.
+*/
+DECLARE @DetailForms table
 (
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-       *
-    FROM dbo.HR_PersonSalaryTbl
-    WHERE PersonID = @PersonID
-END
-GO
-
--- =========================================================================
--- 4. Detail API Tab 3: Khen thÃ†Â°Ã¡Â»Å¸ng - KÃ¡Â»Â· luÃ¡ÂºÂ­t (HR_PersonKTKLTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T3_KTKL
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        UserAutoID,
-        PersonID,
-        NoiDungKTKL,
-        GhiChu
-    FROM dbo.HR_PersonKTKLTbl
-    WHERE PersonID = @PersonID;
-END
-GO
-
--- =========================================================================
--- 5. Detail API Tab 4: Khai bÃƒÂ¡o phÃƒÂ©p nÃ„Æ’m (HR_PersonNghiPhepTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T4_NghiPhep
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        UserAutoID,
-        PersonID,
-        Nam,
-        SoNgay,
-        PhepThamNien,
-        SoNgayDaSuDung,
-        SoNgayConLai,
-        PhepTonNamTruoc,
-        SoNgayPhepTet,
-        SoNgayPhepOm,
-        NgayCapNhat,
-        GhiChu
-    FROM dbo.HR_PersonNghiPhepTbl
-    WHERE PersonID = @PersonID
-    ORDER BY Nam DESC;
-END
-GO
-
--- =========================================================================
--- 6. Detail API Tab 5: Gia cÃ¡ÂºÂ£nh & MÃ¡Â»â€˜i liÃƒÂªn hÃ¡Â»â€¡ (HR_PersonRelationTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T5_Relation
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        UserAutoID,
-        PersonID,
-        RelationID,
-        PersonRelationName,
-        NgaySinh,
-        DiaChiThuongTru,
-        DiaChiHienNay,
-        IsNguoiPhuThuoc,
-        GiamTruTuThang,
-        GiamTruDenThang
-    FROM dbo.HR_PersonRelationTbl
-    WHERE PersonID = @PersonID;
-END
-GO
-
--- =========================================================================
--- 7. Detail API Tab 6: LÃ¡Â»â€¹ch sÃ¡Â»Â­ hÃ¡Â»Â£p Ã„â€˜Ã¡Â»â€œng (HR_HopDongTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T6_HopDong
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        MaHopDong,
-        PersonID,
-        PersonName,
-        NgayKyHopDong,
-        NgayCoHieuLuc,
-        NgayHetHieuLuc,
-        LoaiHopDong,
-        LuongCoBan,
-        MucDong,
-        NoiDung
-    FROM dbo.HR_HopDongTbl
-    WHERE PersonID = @PersonID
-    ORDER BY NgayKyHopDong DESC;
-END
-GO
-
--- =========================================================================
--- 8. Detail API Tab 7: LÃ¡Â»â€¹ch sÃ¡Â»Â­ cÃƒÂ´ng tÃƒÂ¡c (HR_LichSuCongTacTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T7_CongTac
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        UserAutoID,
-        PersonID,
-        PhongBan,
-        TitleName,
-        PostionName,
-        Quanly,
-        ShiftID,
-        NgayThayDoi,
-        UserName
-    FROM dbo.HR_LichSuCongTacTbl
-    WHERE PersonID = @PersonID
-    ORDER BY NgayThayDoi DESC;
-END
-GO
-
--- =========================================================================
--- 9. Detail API Tab 8: LÃ¡Â»â€¹ch sÃ¡Â»Â­ cÃƒÂ´ng viÃ¡Â»â€¡c (HR_PersonLogTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T8_Log
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        UserAutoID,
-        PersonID,
-        UserName,
-        LogDate,
-        BranchID,
-        StatusID,
-        Notes
-    FROM dbo.HR_PersonLogTbl
-    WHERE PersonID = @PersonID
-    ORDER BY LogDate DESC;
-END
-GO
-
--- =========================================================================
--- 10. Detail API Tab 9: GiÃ¡ÂºÂ¥y tÃ¡Â»Â (HR_PersonGiayToTbl)
--- =========================================================================
-CREATE OR ALTER PROCEDURE dbo.API_PersonFull_T9_GiayTo
-(
-    @PersonID NVARCHAR(50) = ''
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        DocumentID,
-        PersonID,
-        LoaiGiayTo,
-        TuNgay,
-        DenNgay,
-        Notes
-    FROM dbo.HR_PersonGiayToTbl
-    WHERE PersonID = @PersonID
-    ORDER BY DocumentID DESC;
-END
-GO
-
--- =========================================================================
--- Ã„ÂÃ„Æ’ng kÃƒÂ½ cÃƒÂ¡c API nÃƒÂ y vÃƒÂ o bÃ¡ÂºÂ£ng WA_API
--- =========================================================================
-DELETE FROM dbo.WA_API WHERE list = 'WA_PersonFullFrm';
-DELETE FROM dbo.WA_API WHERE list LIKE 'API_PersonFull_T%';
-GO
-
-INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES 
-('WA_PersonFullFrm', 'View', 'API_HoSoNhanVien', '@Keyword=N''{Keyword}'', @BranchID=N''{BranchID}'', @PhongBan=N''{PhongBan}'', @NamLap=N''{NamLap}'', @LoaiHD=N''{LoaiHD}'', @PersonStatus=N''{PersonStatus}'''),
-('WA_PersonFullFrm', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('WA_PersonFullFrm', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T1_Salary',    'View', 'API_PersonFull_T1_Salary',    '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T2_Allowance', 'View', 'API_PersonFull_T2_Allowance', '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T3_KTKL',      'View', 'API_PersonFull_T3_KTKL',      '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T4_NghiPhep',  'View', 'API_PersonFull_T4_NghiPhep',  '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T5_Relation',  'View', 'API_PersonFull_T5_Relation',  '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T6_HopDong',   'View', 'API_PersonFull_T6_HopDong',   '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T7_CongTac',   'View', 'API_PersonFull_T7_CongTac',   '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T8_Log',       'View', 'API_PersonFull_T8_Log',       '@PersonID=N''{PersonID}'''),
-('API_PersonFull_T9_GiayTo',    'View', 'API_PersonFull_T9_GiayTo',    '@PersonID=N''{PersonID}''');
-GO
-
--- 1. Ã„ÂÃ„Æ’ng kÃƒÂ½ cÃƒÂ¡c Detail API lÃƒÂ m danh sÃƒÂ¡ch (List) trong SY_FrmLstTbl
-DELETE FROM dbo.SY_FrmLstTbl WHERE FormID IN (
-    'API_PersonFull_T1_Salary',
-    'API_PersonFull_T2_Allowance',
-    'API_PersonFull_T3_KTKL',
-    'API_PersonFull_T4_NghiPhep',
-    'API_PersonFull_T5_Relation',
-    'API_PersonFull_T6_HopDong',
-    'API_PersonFull_T7_CongTac',
-    'API_PersonFull_T8_Log',
-    'API_PersonFull_T9_GiayTo'
+    FormID varchar(100) NOT NULL PRIMARY KEY,
+    FormType varchar(50) NOT NULL,
+    CaptionVN nvarchar(200) NOT NULL,
+    CaptionEN nvarchar(200) NOT NULL,
+    TableName sysname NOT NULL,
+    PrimaryKey sysname NOT NULL
 );
 
-INSERT INTO dbo.SY_FrmLstTbl ([FormID], [FormType], [CaptionVN], [CaptionEN], [TableName], [PrimaryKey])
-VALUES 
-('API_PersonFull_T1_Salary', 'LIST', N'QuÃƒÂ¡ trÃƒÂ¬nh lÃ†Â°Ã†Â¡ng', 'Salary', 'HR_PersonSalaryTbl', 'UserAutoID'),
-('API_PersonFull_T2_Allowance', 'LIST', N'PhÃ¡Â»Â¥ cÃ¡ÂºÂ¥p', 'Allowance', 'HR_PersonAllowanceTbl', 'UserAutoID'),
-('API_PersonFull_T3_KTKL', 'LIST', N'Khen thÃ†Â°Ã¡Â»Å¸ng kÃ¡Â»Â· luÃ¡ÂºÂ­t', 'KTKL', 'HR_PersonKTKLTbl', 'UserAutoID'),
-('API_PersonFull_T4_NghiPhep', 'LIST', N'NghÃ¡Â»â€° phÃƒÂ©p', 'Leave', 'HR_PersonNghiPhepTbl', 'UserAutoID'),
-('API_PersonFull_T5_Relation', 'LIST', N'Gia cÃ¡ÂºÂ£nh', 'Relation', 'HR_PersonRelationTbl', 'RelationID'),
-('API_PersonFull_T6_HopDong', 'LIST', N'HÃ¡Â»Â£p Ã„â€˜Ã¡Â»â€œng', 'Contract', 'HR_HopDongTbl', 'MaHopDong'),
-('API_PersonFull_T7_CongTac', 'LIST', N'CÃƒÂ´ng tÃƒÂ¡c', 'Work history', 'HR_LichSuCongTacTbl', 'UserAutoID'),
-('API_PersonFull_T8_Log', 'LIST', N'Log', 'Log', 'HR_LichSuCongViecTbl', 'UserAutoID'),
-('API_PersonFull_T9_GiayTo', 'LIST', N'GiÃ¡ÂºÂ¥y tÃ¡Â»Â', 'Document', 'HR_GiayToTbl', 'DocumentID');
+INSERT INTO @DetailForms
+    (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
+VALUES
+    ('API_PersonFull_T1_Salary',    'LIST', N'Quá trình lương',       N'Salary',       N'HR_PersonSalaryTbl',    N'UserAutoID'),
+    ('API_PersonFull_T2_Allowance', 'LIST', N'Phụ cấp',               N'Allowance',    N'HR_PersonAllowanceTbl', N'UserAutoID'),
+    ('API_PersonFull_T3_KTKL',      'LIST', N'Khen thưởng - Kỷ luật', N'Reward',       N'HR_PersonKTKLTbl',      N'UserAutoID'),
+    ('API_PersonFull_T4_NghiPhep',  'LIST', N'Nghỉ phép',             N'Leave',        N'HR_PersonNghiPhepTbl',  N'UserAutoID'),
+    ('API_PersonFull_T5_Relation',  'LIST', N'Gia cảnh',              N'Relation',     N'HR_PersonRelationTbl',  N'UserAutoID'),
+    ('API_PersonFull_T6_HopDong',   'LIST', N'Hợp đồng',              N'Contract',     N'HR_HopDongTbl',         N'MaHopDong'),
+    ('API_PersonFull_T7_CongTac',   'LIST', N'Công tác',              N'Work history', N'HR_LichSuCongTacTbl',   N'UserAutoID'),
+    ('API_PersonFull_T8_Log',       'LIST', N'Lịch sử công việc',     N'Work log',     N'HR_PersonLogTbl',       N'UserAutoID'),
+    ('API_PersonFull_T9_GiayTo',    'LIST', N'Giấy tờ',               N'Document',     N'HR_PersonGiayToTbl',    N'DocumentID');
+
+UPDATE RegisteredForm
+SET
+    RegisteredForm.FormType = SourceForm.FormType,
+    RegisteredForm.CaptionVN = SourceForm.CaptionVN,
+    RegisteredForm.CaptionEN = SourceForm.CaptionEN,
+    RegisteredForm.TableName = SourceForm.TableName,
+    RegisteredForm.PrimaryKey = SourceForm.PrimaryKey
+FROM dbo.SY_FrmLstTbl AS RegisteredForm
+INNER JOIN @DetailForms AS SourceForm
+    ON SourceForm.FormID = RegisteredForm.FormID;
+
+INSERT INTO dbo.SY_FrmLstTbl
+    (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
+SELECT
+    SourceForm.FormID,
+    SourceForm.FormType,
+    SourceForm.CaptionVN,
+    SourceForm.CaptionEN,
+    SourceForm.TableName,
+    SourceForm.PrimaryKey
+FROM @DetailForms AS SourceForm
+WHERE NOT EXISTS
+(
+    SELECT 1
+    FROM dbo.SY_FrmLstTbl AS RegisteredForm
+    WHERE RegisteredForm.FormID = SourceForm.FormID
+);
 GO
 
--- 2. Ã„ÂÃ„Æ’ng kÃƒÂ½ Save/Delete trong WA_API
-INSERT INTO dbo.WA_API (list, func, [SQL], Para)
-VALUES 
-('API_PersonFull_T1_Salary', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T1_Salary', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T2_Allowance', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T2_Allowance', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T3_KTKL', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T3_KTKL', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T4_NghiPhep', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T4_NghiPhep', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T5_Relation', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T5_Relation', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T6_HopDong', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T6_HopDong', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T7_CongTac', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T7_CongTac', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T8_Log', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T8_Log', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-
-('API_PersonFull_T9_GiayTo', 'Save', 'API_LuuDong', '@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
-('API_PersonFull_T9_GiayTo', 'Delete', 'API_XoaDong', '@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}''');
-GO
-
-
-
-CREATE OR ALTER PROCEDURE [dbo].[API_PersonAttach_SaveAvatar]
-    @List VARCHAR(50),
-    @Data NVARCHAR(MAX),
-    @UserName VARCHAR(50)
+CREATE OR ALTER PROCEDURE dbo.API_PersonAttach_SaveAvatar
+    @List varchar(50),
+    @Data nvarchar(max),
+    @UserName varchar(50)
 AS
 BEGIN
     SET NOCOUNT ON;
-    BEGIN TRY
-        -- TrÃƒÂ­ch xuÃ¡ÂºÂ¥t PersonID hoÃ¡ÂºÂ·c CandidateID tÃ¡Â»Â« chuÃ¡Â»â€”i JSON
-        DECLARE @PersonID VARCHAR(50) = JSON_VALUE(@Data, '$.PersonID');
-        DECLARE @CandidateID VARCHAR(50) = JSON_VALUE(@Data, '$.CandidateID');
-        DECLARE @FileType INT = CAST(JSON_VALUE(@Data, '$.FileType') AS INT);
-        
-        DECLARE @TargetID VARCHAR(50) = ISNULL(@PersonID, @CandidateID);
-        
-        IF @TargetID IS NULL OR @TargetID = ''
-        BEGIN
-            SELECT -1 AS code, N'LÃ¡Â»â€”i: KhÃƒÂ´ng tÃƒÂ¬m thÃ¡ÂºÂ¥y mÃƒÂ£ nhÃƒÂ¢n viÃƒÂªn/Ã¡Â»Â©ng viÃƒÂªn!' AS msg;
-            RETURN;
-        END
 
-        -- NÃ¡ÂºÂ¿u lÃƒÂ  tÃ¡ÂºÂ£i Ã¡ÂºÂ£nh Ã„â€˜Ã¡ÂºÂ¡i diÃ¡Â»â€¡n (FileType = 1) -> TÃƒÂ¬m ID Ã¡ÂºÂ£nh cÃ…Â© Ã„â€˜Ã¡Â»Æ’ ghi Ã„â€˜ÃƒÂ¨ (UPDATE)
-        IF @FileType = 1 
+    BEGIN TRY
+        DECLARE @PersonID varchar(50) = JSON_VALUE(@Data, '$.PersonID');
+        DECLARE @CandidateID varchar(50) = JSON_VALUE(@Data, '$.CandidateID');
+        DECLARE @FileType int = TRY_CONVERT(int, JSON_VALUE(@Data, '$.FileType'));
+        DECLARE @TargetID varchar(50) = COALESCE(NULLIF(@PersonID, ''), NULLIF(@CandidateID, ''));
+
+        IF @TargetID IS NULL
         BEGIN
-            DECLARE @ExistingID VARCHAR(50);
-            SELECT TOP 1 @ExistingID = UserAutoID 
-            FROM HR_PersonAttachTbl 
-            WHERE (PersonID = @TargetID) AND FileType = 1;
+            SELECT -1 AS code, N'Không tìm thấy mã nhân viên hoặc ứng viên.' AS msg;
+            RETURN;
+        END;
+
+        /* Ảnh đại diện chỉ có một bản ghi cho mỗi nhân viên/ứng viên. */
+        IF @FileType = 1
+        BEGIN
+            DECLARE @ExistingID varchar(50);
+
+            SELECT TOP (1)
+                @ExistingID = Attachment.UserAutoID
+            FROM dbo.HR_PersonAttachTbl AS Attachment
+            WHERE Attachment.PersonID = @TargetID
+              AND Attachment.FileType = 1
+            ORDER BY Attachment.UserAutoID DESC;
 
             IF @ExistingID IS NOT NULL
             BEGIN
-                -- NÃ¡ÂºÂ¿u Ã„â€˜ÃƒÂ£ tÃ¡Â»â€œn tÃ¡ÂºÂ¡i Ã¡ÂºÂ£nh -> BÃ†Â¡m UserAutoID vÃƒÂ o JSON vÃƒÂ  Ã„â€˜Ã¡Â»â€¢i IsEdit = 1
                 SET @Data = JSON_MODIFY(@Data, '$.UserAutoID', @ExistingID);
                 SET @Data = JSON_MODIFY(@Data, '$.IsEdit', 1);
-            END
-        END
-        
-        -- UÃ¡Â»Â· quyÃ¡Â»Ân lÃ¡ÂºÂ¡i cho hÃƒÂ m lÃƒÂµi API_LuuDong xÃ¡Â»Â­ lÃƒÂ½ JSON chuÃ¡ÂºÂ©n
-        EXEC API_LuuDong @List = @List, @Data = @Data, @UserName = @UserName;
-        
+            END;
+        END;
+
+        /*
+          File đính kèm chứa dữ liệu nhị phân nên tiếp tục đi qua API chuyên biệt.
+          Không chuyển payload này sang generic mutation V2.
+        */
+        EXEC dbo.API_LuuDong
+            @List = @List,
+            @Data = @Data,
+            @UserName = @UserName;
     END TRY
     BEGIN CATCH
         SELECT -1 AS code, ERROR_MESSAGE() AS msg;
-    END CATCH
-END
+    END CATCH;
+END;
 GO
-GO
-
-GO
-
 
 CREATE OR ALTER PROCEDURE [dbo].[API_HR_BangThamSo_Lookup]
     @Keyword NVARCHAR(MAX) = N''
@@ -4742,22 +4527,15 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
-        PersonStatus AS [MÃ£],
-        PersonStatusName AS [TÃªn]
+    SELECT
+        PersonStatus,
+        PersonStatusName
     FROM dbo.HR_PersonStatusTbl
     WHERE (@Keyword = '' OR PersonStatusName LIKE N'%' + @Keyword + '%')
     ORDER BY PersonStatus ASC;
 END
 GO
 
--- Lá»‡nh Ä‘á»ƒ thÃªm API nÃ y vÃ o báº£ng WA_API Ä‘á»ƒ Frontend cÃ³ thá»ƒ gá»i Ä‘Æ°á»£c
-IF NOT EXISTS (SELECT 1 FROM WA_API WHERE list = 'API_ComboPersonStatus' AND func = 'View')
-BEGIN
-    INSERT INTO WA_API (list, func, SQL, Para)
-    VALUES ('API_ComboPersonStatus', 'View', 'API_ComboPersonStatus', '@Keyword=''{Keyword}'', @UserName=''{UserName}''');
-END
-GO
 
 GO
 

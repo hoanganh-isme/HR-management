@@ -12,7 +12,12 @@ var PermissionsService = (function () {
 
   function _currentGroupId() {
     var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var rawGroup = u.UserGroupID || u.userGroupID || u.GroupID || u.groupID || u.GroupUser || u.Group || u.NhomQuyen || 'admin';
+    var grpStr = String(rawGroup).trim();
+    if (grpStr.toLowerCase().indexOf('quản trị') !== -1 || grpStr.toLowerCase() === 'admin') {
+      return 'admin';
+    }
+    return grpStr;
   }
 
   /**

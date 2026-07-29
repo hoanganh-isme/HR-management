@@ -427,12 +427,49 @@ export function createFieldSyncRouter({
             const keyword = String(req.body?.keyword || '').trim().slice(0, 200);
             const page = Math.max(1, Math.trunc(Number(req.body?.page) || 1));
             const pageSize = Math.min(100, Math.max(1, Math.trunc(Number(req.body?.pageSize) || 30)));
-            const schemaKey = cacheKey('schema', context, formName, erpFormName);
+            const requestedDetailKey = String(req.body?.detailKey || '').trim();
+            const detailContract = requestedDetailKey
+                ? await resolveDbJoinContract(
+                    repository,
+                    context,
+                    formName,
+                    requestedDetailKey
+                )
+                : null;
+            const schemaKey = detailContract
+                ? cacheKey(
+                    'join-schema',
+                    context,
+                    formName,
+                    detailContract.detailKey + '|' + detailContract.apiList
+                )
+                : cacheKey('schema', context, formName, erpFormName);
             let schema = cache.get(schemaKey);
             if (!schema) {
-                const schemaRows = await gateway.gridSchema({ FormName: formName, ERPFormID: erpFormName }, context);
-                schema = normalizeGridSchema(schemaRows, formName, erpFormName);
-                assertSchemaMatchesContract(schema, names.contract);
+                if (detailContract) {
+                    const schemaRows = await gateway.joinSchema(
+                        {
+                            FormName: formName,
+                            DetailKey: detailContract.detailKey
+                        },
+                        context
+                    );
+                    schema = normalizeJoinSchema(
+                        schemaRows,
+                        formName,
+                        detailContract.detailKey
+                    );
+                    if (detailContract.rolloutStatus === 'ACTIVE') {
+                        assertJoinSchemaMatchesContract(schema, detailContract);
+                    }
+                } else {
+                    const schemaRows = await gateway.gridSchema(
+                        { FormName: formName, ERPFormID: erpFormName },
+                        context
+                    );
+                    schema = normalizeGridSchema(schemaRows, formName, erpFormName);
+                    assertSchemaMatchesContract(schema, names.contract);
+                }
                 schema = cache.set(schemaKey, schema);
             }
             const lookupFields = (schema.fields || []).filter((field) => (
@@ -440,10 +477,27 @@ export function createFieldSyncRouter({
                 && field.lookup.disabled !== true
                 && String(field.lookup.key || '').toLowerCase() === lookupKey.toLowerCase()
             ));
-            if (lookupFields.length !== 1) {
+            if (lookupFields.length === 0) {
                 throw contractError(
-                    'LookupKey không ánh xạ duy nhất tới Unified Field Contract.',
-                    'LOOKUP_CONTRACT_NOT_UNIQUE'
+                    'LookupKey không thuộc Unified Field Contract của form.',
+                    'LOOKUP_CONTRACT_NOT_FOUND'
+                );
+            }
+            const dependencySignatures = new Set(
+                lookupFields.map((field) => (
+                    Array.isArray(field.lookup.dependsOn)
+                        ? field.lookup.dependsOn
+                            .map((name) => String(name || '').trim().toLowerCase())
+                            .filter(Boolean)
+                            .sort()
+                            .join('|')
+                        : ''
+                ))
+            );
+            if (dependencySignatures.size !== 1) {
+                throw contractError(
+                    'Các field dùng chung LookupKey có dependency không đồng nhất.',
+                    'LOOKUP_DEPENDENCY_CONFLICT'
                 );
             }
             const dependencyValues = normalizeLookupDependencies(
@@ -459,18 +513,37 @@ export function createFieldSyncRouter({
             let rows = await gateway.lookupSchema(params, context);
             let descriptor = normalizeLookupSchema(rows);
             /*
-             * LookupKey V1 từng phụ thuộc UserAutoID của metadata. Nếu dòng
-             * SY_FrmDrdwTbl được tạo lại trong lúc schema còn cache, client sẽ
-             * gửi key cũ. Làm mới schema đúng một lần và ánh xạ bằng field đã
-             * được contract xác nhận, không đoán Source hay tên API.
+             * Khi quản trị viên đổi LookupCode, client có thể còn giữ schema cũ
+             * trong cache. Làm mới schema đúng một lần và ánh xạ theo field đã
+             * được contract xác nhận; không suy đoán source hay tên API.
              */
             if (descriptor.mode === 'BLOCKED' && descriptor.diagnosticCode === 'LOOKUP_KEY_NOT_FOUND') {
-                const refreshedRows = await gateway.gridSchema(
-                    { FormName: formName, ERPFormID: erpFormName },
-                    context
-                );
-                const refreshedSchema = normalizeGridSchema(refreshedRows, formName, erpFormName);
-                assertSchemaMatchesContract(refreshedSchema, names.contract);
+                const refreshedRows = detailContract
+                    ? await gateway.joinSchema(
+                        {
+                            FormName: formName,
+                            DetailKey: detailContract.detailKey
+                        },
+                        context
+                    )
+                    : await gateway.gridSchema(
+                        { FormName: formName, ERPFormID: erpFormName },
+                        context
+                    );
+                const refreshedSchema = detailContract
+                    ? normalizeJoinSchema(
+                        refreshedRows,
+                        formName,
+                        detailContract.detailKey
+                    )
+                    : normalizeGridSchema(refreshedRows, formName, erpFormName);
+                if (detailContract) {
+                    if (detailContract.rolloutStatus === 'ACTIVE') {
+                        assertJoinSchemaMatchesContract(refreshedSchema, detailContract);
+                    }
+                } else {
+                    assertSchemaMatchesContract(refreshedSchema, names.contract);
+                }
                 cache.set(schemaKey, refreshedSchema);
 
                 const refreshedByField = new Map(
@@ -503,25 +576,6 @@ export function createFieldSyncRouter({
                     descriptor = normalizeLookupSchema(rows);
                 }
 
-                /*
-                 * Một số ERP rollout procedure tạo LookupKey và procedure đọc
-                 * LookupKey lệch phiên bản. Chỉ dùng contract allow-list đã audit
-                 * theo đúng form + field; tuyệt đối không suy đoán source từ tên.
-                 */
-                if (descriptor.mode === 'BLOCKED' && descriptor.diagnosticCode === 'LOOKUP_KEY_NOT_FOUND') {
-                    const registeredLookup = repository.getRegisteredLookupContract(
-                        formName,
-                        lookupFields[0]?.name
-                    );
-                    if (registeredLookup) {
-                        descriptor = {
-                            mode: 'REGISTERED_API',
-                            registeredList: registeredLookup.registeredList,
-                            valueField: registeredLookup.valueField,
-                            displayField: registeredLookup.displayField
-                        };
-                    }
-                }
             }
             if (descriptor.mode === 'BLOCKED') {
                 return res.status(409).json({ success: false, code: descriptor.diagnosticCode, message: 'Lookup này chưa có nguồn đọc an toàn được đăng ký.' });

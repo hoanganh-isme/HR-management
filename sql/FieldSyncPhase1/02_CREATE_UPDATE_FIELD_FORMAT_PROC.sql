@@ -1,11 +1,14 @@
 /*
-  Procedure cập nhật tiêu đề và định dạng cột vào SY_FmtFldTbl
-  Hỗ trợ cập nhật CaptionVN, CaptionEN, CaptionCH, FormatID, AlignX, MinWidth, MaxWidth
-  Bao bọc TRY...CATCH chống crash IIS socket và cắt chuỗi an toàn với LEFT(...) tránh lỗi String or binary data would be truncated.
+  Cập nhật caption/format của Field UI Contract V2.
+  Procedure không đọc hoặc ghi SY_FmtFldTbl và chỉ cho phép admin cấu hình.
 */
 SET ANSI_NULLS ON;
 GO
 SET QUOTED_IDENTIFIER ON;
+GO
+
+IF OBJECT_ID(N'dbo.WA_FieldUiContractV2', N'U') IS NULL
+    THROW 51120, N'FIELD_UI_CONTRACT_V2_REGISTRY_NOT_INSTALLED', 1;
 GO
 
 IF OBJECT_ID(N'dbo.API_Web_UpdateFieldFormat', N'P') IS NULL
@@ -28,113 +31,133 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    BEGIN TRY
-        SET @WebFormName = LEFT(LTRIM(RTRIM(ISNULL(@WebFormName, ''))), 100);
-        SET @FieldName = LEFT(LTRIM(RTRIM(ISNULL(@FieldName, ''))), 128);
-        SET @CaptionVN = LEFT(LTRIM(RTRIM(ISNULL(@CaptionVN, ''))), 250);
-        SET @CaptionEN = LEFT(LTRIM(RTRIM(ISNULL(@CaptionEN, ''))), 250);
-        SET @CaptionCH = LEFT(LTRIM(RTRIM(ISNULL(@CaptionCH, ''))), 250);
-        SET @FormatID = LEFT(LTRIM(RTRIM(ISNULL(@FormatID, ''))), 50);
-        
-        -- Chuẩn hóa AlignX về dạng R / L / C hoặc cắt max 10 ký tự
-        DECLARE @RawAlign varchar(10) = LTRIM(RTRIM(ISNULL(@AlignX, '')));
-        IF LOWER(@RawAlign) IN ('right', 'r', 'phải') SET @AlignX = 'R';
-        ELSE IF LOWER(@RawAlign) IN ('left', 'l', 'trái') SET @AlignX = 'L';
-        ELSE IF LOWER(@RawAlign) IN ('center', 'c', 'giữa') SET @AlignX = 'C';
-        ELSE SET @AlignX = LEFT(@RawAlign, 10);
+    SET @WebFormName = LEFT(LTRIM(RTRIM(ISNULL(@WebFormName, ''))), 100);
+    SET @FieldName = LEFT(LTRIM(RTRIM(ISNULL(@FieldName, ''))), 128);
+    SET @CaptionVN = LEFT(LTRIM(RTRIM(ISNULL(@CaptionVN, N''))), 200);
+    SET @CaptionEN = LEFT(LTRIM(RTRIM(ISNULL(@CaptionEN, N''))), 200);
+    SET @CaptionCH = LEFT(LTRIM(RTRIM(ISNULL(@CaptionCH, N''))), 200);
+    SET @FormatID = LEFT(LTRIM(RTRIM(ISNULL(@FormatID, ''))), 20);
+    SET @UserName = LEFT(LTRIM(RTRIM(ISNULL(@UserName, ''))), 100);
 
-        SET @MinWidth = ISNULL(@MinWidth, 0);
-        SET @MaxWidth = ISNULL(@MaxWidth, 0);
+    IF @WebFormName = ''
+       OR @FieldName = ''
+       OR @FieldName LIKE '%[^A-Za-z0-9_@$#]%'
+        THROW 51121, N'FIELD_UI_CONTRACT_V2_REQUEST_INVALID', 1;
 
-        IF @FieldName = ''
-        BEGIN
-            SELECT CAST(0 AS bit) AS Success, N'Tên trường (FieldName) không được để trống.' AS Message;
-            RETURN;
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.SY_User AS Actor
+        WHERE Actor.UserName = @UserName
+          AND Actor.Disable = 0
+          AND LOWER(LTRIM(RTRIM(Actor.UserGroupID))) = 'admin'
+    )
+        THROW 51122, N'FIELD_UI_CONTRACT_V2_ADMIN_REQUIRED', 1;
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.WA_FieldContractRegistry AS Contract
+        WHERE Contract.WebFormName = @WebFormName
+          AND Contract.IsEnabled = 1
+    )
+        THROW 51123, N'FIELD_UI_CONTRACT_V2_FORM_NOT_REGISTERED', 1;
+
+    DECLARE @Caption nvarchar(200) =
+        COALESCE
+        (
+            NULLIF(@CaptionVN, N''),
+            NULLIF(@CaptionEN, N''),
+            NULLIF(@CaptionCH, N'')
+        );
+    DECLARE @NormalizedAlign varchar(20) =
+        CASE
+            WHEN LOWER(LTRIM(RTRIM(ISNULL(@AlignX, '')))) IN ('right', 'r', 'phải') THEN 'R'
+            WHEN LOWER(LTRIM(RTRIM(ISNULL(@AlignX, '')))) IN ('left', 'l', 'trái') THEN 'L'
+            WHEN LOWER(LTRIM(RTRIM(ISNULL(@AlignX, '')))) IN ('center', 'c', 'giữa') THEN 'C'
+            ELSE NULL
         END;
+    DECLARE @NormalizedMinWidth int =
+        CASE WHEN ISNULL(@MinWidth, 0) > 0 THEN @MinWidth ELSE NULL END;
+    DECLARE @NormalizedMaxWidth int =
+        CASE WHEN ISNULL(@MaxWidth, 0) > 0 THEN @MaxWidth ELSE NULL END;
 
-        -- 1. Ưu tiên UPDATE nếu tồn tại bản ghi khớp cả FormName lẫn FieldName
-        IF EXISTS (
-            SELECT 1 
-            FROM dbo.SY_FmtFldTbl 
-            WHERE LOWER(FieldName) = LOWER(@FieldName) 
-              AND LOWER(ISNULL(FormName, '')) = LOWER(@WebFormName)
-        )
+    IF @NormalizedMinWidth IS NOT NULL
+       AND @NormalizedMaxWidth IS NOT NULL
+       AND @NormalizedMinWidth > @NormalizedMaxWidth
+        THROW 51124, N'FIELD_UI_CONTRACT_V2_WIDTH_INVALID', 1;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        UPDATE dbo.WA_FieldUiContractV2
+        SET
+            Caption = COALESCE(@Caption, Caption),
+            FormatID = NULLIF(@FormatID, ''),
+            Align = @NormalizedAlign,
+            MinWidth = @NormalizedMinWidth,
+            MaxWidth = @NormalizedMaxWidth,
+            IsEnabled = 1,
+            SchemaVersion = SchemaVersion + 1,
+            UpdatedAt = SYSUTCDATETIME(),
+            UpdatedBy = @UserName
+        WHERE WebFormName = @WebFormName
+          AND DatasetKey = 'MAIN'
+          AND FieldName = @FieldName;
+
+        IF @@ROWCOUNT = 0
         BEGIN
-            UPDATE dbo.SY_FmtFldTbl
-            SET CaptionVN = CASE WHEN @CaptionVN <> '' THEN @CaptionVN ELSE CaptionVN END,
-                CaptionEN = CASE WHEN @CaptionEN <> '' THEN @CaptionEN ELSE CaptionEN END,
-                CaptionCH = CASE WHEN @CaptionCH <> '' THEN @CaptionCH ELSE CaptionCH END,
-                FormatID = @FormatID,
-                AlignX = @AlignX,
-                MinWidth = @MinWidth,
-                MaxWidth = @MaxWidth
-            WHERE LOWER(FieldName) = LOWER(@FieldName)
-              AND LOWER(ISNULL(FormName, '')) = LOWER(@WebFormName);
-        END
-        -- 2. Ngược lại UPDATE nếu tồn tại bản ghi chung (FormName IS NULL hoặc rỗng)
-        ELSE IF EXISTS (
-            SELECT 1 
-            FROM dbo.SY_FmtFldTbl 
-            WHERE LOWER(FieldName) = LOWER(@FieldName)
-              AND (FormName IS NULL OR LTRIM(RTRIM(FormName)) = '')
-        )
-        BEGIN
-            UPDATE dbo.SY_FmtFldTbl
-            SET CaptionVN = CASE WHEN @CaptionVN <> '' THEN @CaptionVN ELSE CaptionVN END,
-                CaptionEN = CASE WHEN @CaptionEN <> '' THEN @CaptionEN ELSE CaptionEN END,
-                CaptionCH = CASE WHEN @CaptionCH <> '' THEN @CaptionCH ELSE CaptionCH END,
-                FormatID = @FormatID,
-                AlignX = @AlignX,
-                MinWidth = @MinWidth,
-                MaxWidth = @MaxWidth
-            WHERE LOWER(FieldName) = LOWER(@FieldName)
-              AND (FormName IS NULL OR LTRIM(RTRIM(FormName)) = '');
-        END
-        -- 3. Cập nhật bất kỳ bản ghi nào theo FieldName
-        ELSE IF EXISTS (
-            SELECT 1 
-            FROM dbo.SY_FmtFldTbl 
-            WHERE LOWER(FieldName) = LOWER(@FieldName)
-        )
-        BEGIN
-            UPDATE dbo.SY_FmtFldTbl
-            SET CaptionVN = CASE WHEN @CaptionVN <> '' THEN @CaptionVN ELSE CaptionVN END,
-                CaptionEN = CASE WHEN @CaptionEN <> '' THEN @CaptionEN ELSE CaptionEN END,
-                CaptionCH = CASE WHEN @CaptionCH <> '' THEN @CaptionCH ELSE CaptionCH END,
-                FormatID = @FormatID,
-                AlignX = @AlignX,
-                MinWidth = @MinWidth,
-                MaxWidth = @MaxWidth
-            WHERE LOWER(FieldName) = LOWER(@FieldName);
-        END
-        -- 4. Nếu chưa từng có, INSERT bản ghi mới
-        ELSE
-        BEGIN
-            INSERT INTO dbo.SY_FmtFldTbl (
-                FormName, FieldName, CaptionVN, CaptionEN, CaptionCH, FormatID, AlignX, MinWidth, MaxWidth
+            INSERT INTO dbo.WA_FieldUiContractV2
+            (
+                WebFormName,
+                DatasetKey,
+                FieldName,
+                Caption,
+                FormatID,
+                Align,
+                MinWidth,
+                MaxWidth,
+                IsEnabled,
+                SchemaVersion,
+                CreatedBy,
+                UpdatedBy
             )
-            VALUES (
-                NULLIF(@WebFormName, ''), @FieldName, @CaptionVN, @CaptionEN, @CaptionCH, @FormatID, @AlignX, @MinWidth, @MaxWidth
+            VALUES
+            (
+                @WebFormName,
+                'MAIN',
+                @FieldName,
+                @Caption,
+                NULLIF(@FormatID, ''),
+                @NormalizedAlign,
+                @NormalizedMinWidth,
+                @NormalizedMaxWidth,
+                1,
+                1,
+                @UserName,
+                @UserName
             );
         END;
 
-        SELECT 
+        COMMIT TRANSACTION;
+
+        SELECT
             CAST(1 AS bit) AS Success,
-            N'Đã cập nhật tiêu đề và định dạng cột thành công.' AS Message,
+            N'Đã cập nhật Field UI Contract V2.' AS Message,
+            @WebFormName AS WebFormName,
             @FieldName AS FieldName,
-            @CaptionVN AS CaptionVN,
+            @Caption AS CaptionVN,
             @CaptionEN AS CaptionEN,
             @CaptionCH AS CaptionCH,
-            @FormatID AS FormatID,
-            @AlignX AS AlignX,
-            @MinWidth AS MinWidth,
-            @MaxWidth AS MaxWidth;
+            NULLIF(@FormatID, '') AS FormatID,
+            @NormalizedAlign AS AlignX,
+            @NormalizedMinWidth AS MinWidth,
+            @NormalizedMaxWidth AS MaxWidth;
     END TRY
     BEGIN CATCH
-        SELECT 
-            CAST(0 AS bit) AS Success,
-            ERROR_MESSAGE() AS Message,
-            @FieldName AS FieldName;
+        IF XACT_STATE() <> 0
+            ROLLBACK TRANSACTION;
+        THROW;
     END CATCH;
 END;
 GO

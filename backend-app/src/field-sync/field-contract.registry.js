@@ -7,13 +7,6 @@ function freezeContract(contract) {
     return Object.freeze({ ...contract });
 }
 
-function freezeLookupContract(contract) {
-    return Object.freeze({
-        ...contract,
-        fieldNames: Object.freeze(Array.isArray(contract.fieldNames) ? contract.fieldNames.slice() : [])
-    });
-}
-
 const INSERT_ONLY_BULK_IMPORT = Object.freeze({
     importEnabled: true,
     importMode: 'INSERT_ONLY',
@@ -136,28 +129,7 @@ export const FIELD_CONTRACT_MIGRATION_REGISTRY = Object.freeze([
         permissionFormName: 'WA_CaLamViecFrm',
         writePolicy: 'SAFE_TABLE_COLUMNS',
         // SQL resolves AUTO_SCHEMA to GLOBAL_REFERENCE/BRANCH_SCOPED.
-        branchPolicy: 'AUTO_SCHEMA',
-        /*
-         * Compatibility allow-list while ERP environments roll out LookupSchema
-         * V2 independently. Runtime code resolves this declarative contract by
-         * form + field; it never guesses a source from a field-name pattern.
-         */
-        registeredLookups: Object.freeze([
-            freezeLookupContract({
-                fieldNames: [
-                    'ShiftIDThu2',
-                    'ShiftIDThu3',
-                    'ShiftIDThu4',
-                    'ShiftIDThu5',
-                    'ShiftIDThu6',
-                    'ShiftIDThu7',
-                    'ShiftIDChuNhat'
-                ],
-                registeredList: 'API_HR_DropdownShifts',
-                valueField: 'ShiftID',
-                displayField: 'ShiftName'
-            })
-        ])
+        branchPolicy: 'AUTO_SCHEMA'
     })
 ]);
 
@@ -173,11 +145,10 @@ export function listFieldContractMigrations() {
     return FIELD_CONTRACT_MIGRATION_REGISTRY.slice();
 }
 
-export function getRegisteredLookupContract(webFormName, fieldName) {
-    const contract = getFieldContractMigration(webFormName);
-    const normalizedField = String(fieldName || '').trim().toLowerCase();
-    if (!contract || !normalizedField) return undefined;
-    return (contract.registeredLookups || []).find((lookup) => (
-        lookup.fieldNames.some((name) => String(name).toLowerCase() === normalizedField)
-    ));
+/**
+ * @deprecated Lookup runtime đã chuyển hoàn toàn sang registry V2 trong DB.
+ * Giữ hàm rỗng để không phá vỡ import của mã tích hợp cũ.
+ */
+export function getRegisteredLookupContract() {
+    return undefined;
 }
