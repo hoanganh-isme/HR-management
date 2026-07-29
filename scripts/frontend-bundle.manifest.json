@@ -73,6 +73,7 @@
     "src/js/utils/FormatUtils.js",
     "src/js/utils/UITooltip.js",
     "src/js/utils/PrintUtils.js",
+    "src/js/utils/TableColumnLayout.js",
     "src/js/services/SystemDataService.js",
     "src/js/services/MenusService.js",
     "src/js/services/PeriodManager.js",

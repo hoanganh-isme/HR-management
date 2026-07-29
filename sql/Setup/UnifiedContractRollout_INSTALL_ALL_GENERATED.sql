@@ -5,6 +5,8 @@
 /*
   Installer SQLCMD cho Unified Contract Rollout.
   File 10 chỉ cài procedure cutover; không tự cutover trước khi review verify.
+  Sau khi rà kết quả file 11, chạy riêng file
+  13_APPLY_REVIEWED_SAFE_CUTOVER.sql để áp dụng route V2 cho các contract đủ điều kiện.
 */
 
 /* ===== BẮT ĐẦU sql/UnifiedContractRollout/00_PRECHECK_MASS_ROLLOUT.sql ===== */
@@ -47,7 +49,10 @@ BEGIN
     LEFT JOIN dbo.SY_FrmLstTbl AS L
       ON L.FormID COLLATE DATABASE_DEFAULT = M.FormName COLLATE DATABASE_DEFAULT
     WHERE NULLIF(LTRIM(RTRIM(M.FormName)), '') IS NOT NULL
-      AND LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+      AND (
+          LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+          OR LTRIM(RTRIM(M.FormName)) LIKE '%Report'
+      )
     GROUP BY M.FormName
     ORDER BY M.FormName;
 END;
@@ -221,7 +226,60 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 IF OBJECT_ID(N'dbo.WA_FieldContractRegistry', N'U') IS NULL
+   OR OBJECT_ID(N'dbo.WA_API', N'U') IS NULL
     THROW 54000, N'FIELD_CONTRACT_CONTROL_REGISTRY_NOT_INSTALLED', 1;
+GO
+
+/*
+  Quyền hiệu lực phải dùng đúng nguồn mà web Phân quyền đang quản lý:
+  WA_UserGroupPermisstion. Không trộn WA_UserPermisstion vì frontend hiện
+  không đọc bảng override này và hai nguồn có thể cho kết quả trái nhau.
+*/
+IF OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
+    EXEC(N'CREATE FUNCTION dbo.API_Web_GroupFormPermissionV2
+    (
+        @UserGroupID varchar(50),
+        @PermissionFormName varchar(100)
+    )
+    RETURNS TABLE AS RETURN
+    (
+        SELECT CAST(NULL AS varchar(50)) AS MenuID WHERE 1 = 0
+    );');
+GO
+
+ALTER FUNCTION dbo.API_Web_GroupFormPermissionV2
+(
+    @UserGroupID varchar(50),
+    @PermissionFormName varchar(100)
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT
+        M.MenuID,
+        CONVERT(bit, ISNULL(M.isNotCheckPermission, 0)) AS SkipPermission,
+        CONVERT(bit, ISNULL(P.IsRun, 0)) AS CanView,
+        CONVERT(bit, ISNULL(P.IsAdd, 0)) AS CanAdd,
+        CONVERT(bit, ISNULL(P.IsUpdate, 0)) AS CanEdit,
+        CONVERT(bit, ISNULL(P.IsDelete, 0)) AS CanDelete
+    FROM
+    (
+        SELECT TOP (1)
+            Menu.MenuID,
+            Menu.isNotCheckPermission
+        FROM dbo.WA_Menu AS Menu
+        WHERE Menu.FormName COLLATE DATABASE_DEFAULT =
+              @PermissionFormName COLLATE DATABASE_DEFAULT
+          AND ISNULL(Menu.isDisable, 0) = 0
+        ORDER BY Menu.MenuID
+    ) AS M
+    LEFT JOIN dbo.WA_UserGroupPermisstion AS P
+      ON P.UserGroupID COLLATE DATABASE_DEFAULT =
+         @UserGroupID COLLATE DATABASE_DEFAULT
+     AND P.MenuID COLLATE DATABASE_DEFAULT =
+         M.MenuID COLLATE DATABASE_DEFAULT
+);
 GO
 
 IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
@@ -326,6 +384,87 @@ RETURN
 );
 GO
 
+/*
+  Wrapper metadata độc lập với trạng thái cutover nghiệp vụ.
+  ACTIVE dùng V2 toàn phần; SHADOW/DEFERRED/BLOCKED vẫn lấy schema V2 nhưng
+  giữ nguyên View/Save/Delete đang đăng ký trong WA_API.
+*/
+IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
+    EXEC(N'CREATE FUNCTION dbo.API_FieldMetadataContractRegistry()
+        RETURNS TABLE AS RETURN
+        (SELECT CAST(NULL AS varchar(100)) AS WebFormName WHERE 1 = 0);');
+GO
+
+ALTER FUNCTION dbo.API_FieldMetadataContractRegistry()
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT
+        R.WebFormName,
+        R.ERPFormID,
+        R.ExpectedTableName,
+        R.ExpectedPrimaryKey,
+        R.ContractType,
+        CONVERT(sysname, CurrentRoutes.ViewProcedure) AS OldView,
+        CONVERT(sysname, CurrentRoutes.ViewProcedure) AS ViewV2,
+        CONVERT(sysname, CurrentRoutes.SaveProcedure) AS OldSave,
+        CONVERT(sysname, CurrentRoutes.SaveProcedure) AS SaveV2,
+        CONVERT(sysname, CurrentRoutes.DeleteProcedure) AS OldDelete,
+        CONVERT(sysname, CurrentRoutes.DeleteProcedure) AS DeleteV2,
+        R.PermissionFormName,
+        R.WritePolicy,
+        CASE
+            WHEN R.BranchPolicy <> 'AUTO_SCHEMA' THEN R.BranchPolicy
+            WHEN EXISTS
+            (
+                SELECT 1
+                FROM sys.columns AS C
+                WHERE C.object_id = OBJECT_ID(N'dbo.' + R.ExpectedTableName, N'U')
+                  AND LOWER(C.name) COLLATE DATABASE_DEFAULT
+                      IN ('branchid', 'tenantid', 'companyid', 'donviid')
+            ) THEN CONVERT(varchar(40), 'BRANCH_SCOPED')
+            ELSE CONVERT(varchar(40), 'GLOBAL_REFERENCE')
+        END AS BranchPolicy,
+        CONVERT(bit, CASE WHEN CurrentRoutes.ViewRouteCount = 1 THEN 1 ELSE 0 END) AS EnableView,
+        CONVERT(bit, CASE
+            WHEN R.ContractType <> 'READ_ONLY' AND CurrentRoutes.SaveRouteCount = 1 THEN 1
+            ELSE 0
+        END) AS EnableSave,
+        CONVERT(bit, CASE
+            WHEN R.ContractType <> 'READ_ONLY' AND CurrentRoutes.DeleteRouteCount = 1 THEN 1
+            ELSE 0
+        END) AS EnableDelete,
+        R.DeletePolicy,
+        CONVERT(bit, CASE WHEN R.BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' THEN 1 ELSE 0 END)
+            AS GlobalReferenceOnly
+    FROM dbo.WA_FieldContractRegistry AS R
+    OUTER APPLY
+    (
+        SELECT
+            SUM(CASE WHEN A.[func] = 'View' THEN 1 ELSE 0 END) AS ViewRouteCount,
+            SUM(CASE WHEN A.[func] = 'Save' THEN 1 ELSE 0 END) AS SaveRouteCount,
+            SUM(CASE WHEN A.[func] = 'Delete' THEN 1 ELSE 0 END) AS DeleteRouteCount,
+            MIN(CASE WHEN A.[func] = 'View'
+                THEN CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)) END) AS ViewProcedure,
+            MIN(CASE WHEN A.[func] = 'Save'
+                THEN CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)) END) AS SaveProcedure,
+            MIN(CASE WHEN A.[func] = 'Delete'
+                THEN CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)) END) AS DeleteProcedure
+        FROM dbo.WA_API AS A
+        WHERE A.[list] COLLATE DATABASE_DEFAULT =
+              ISNULL(NULLIF(R.ViewList, ''), R.WebFormName) COLLATE DATABASE_DEFAULT
+          AND A.[func] IN ('View', 'Save', 'Delete')
+    ) AS CurrentRoutes
+    WHERE R.IsEnabled = 1
+      AND R.ExpectedTableName IS NOT NULL
+      AND R.ExpectedPrimaryKey IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(R.ERPFormID)), '') IS NOT NULL
+      AND R.ERPFormID <> 'ERP_FORM_ALIAS_REQUIRES_REVIEW'
+      AND (R.WebFormName LIKE '%Frm' OR R.WebFormName LIKE '%Report')
+);
+GO
+
 IF OBJECT_ID(N'dbo.API_Phase4JoinRegistry', N'IF') IS NULL
     EXEC(N'CREATE FUNCTION dbo.API_Phase4JoinRegistry()
         RETURNS TABLE AS RETURN
@@ -358,6 +497,7 @@ RETURN
             ELSE D.DeleteProcedure END) AS ExpectedDeleteProcedure,
         D.ExpectedTableName,
         D.ExpectedPrimaryKey,
+        R.PermissionFormName,
         D.IsReadOnly,
         CONVERT(bit, 1) AS EnableMetadata
     FROM dbo.WA_FieldDatasetRegistry AS D
@@ -521,21 +661,30 @@ BEGIN
         SELECT CONVERT(varchar(100), LTRIM(RTRIM(M.FormName))) AS WebFormName
         FROM dbo.WA_Menu AS M
         WHERE NULLIF(LTRIM(RTRIM(M.FormName)), '') IS NOT NULL
-          AND LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+          AND (
+              LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+              OR LTRIM(RTRIM(M.FormName)) LIKE '%Report'
+          )
 
         UNION
 
         SELECT CONVERT(varchar(100), LTRIM(RTRIM(L.FormID)))
         FROM dbo.SY_FrmLstTbl AS L
         WHERE NULLIF(LTRIM(RTRIM(L.FormID)), '') IS NOT NULL
-          AND LTRIM(RTRIM(L.FormID)) LIKE '%Frm'
+          AND (
+              LTRIM(RTRIM(L.FormID)) LIKE '%Frm'
+              OR LTRIM(RTRIM(L.FormID)) LIKE '%Report'
+          )
 
         UNION
 
         SELECT CONVERT(varchar(100), LTRIM(RTRIM(A.[list])))
         FROM dbo.WA_API AS A
         WHERE NULLIF(LTRIM(RTRIM(A.[list])), '') IS NOT NULL
-          AND LTRIM(RTRIM(A.[list])) LIKE '%Frm'
+          AND (
+              LTRIM(RTRIM(A.[list])) LIKE '%Frm'
+              OR LTRIM(RTRIM(A.[list])) LIKE '%Report'
+          )
     ),
     FormRegistration AS
     (
@@ -687,6 +836,11 @@ BEGIN
                   OR D.ViewProcedureObjectID IS NULL
                   OR D.ERPFormID IS NULL THEN 'BLOCKED'
                 WHEN D.SaveRouteCount > 1 OR D.DeleteRouteCount > 1 THEN 'BLOCKED'
+                WHEN D.WebFormName LIKE '%Report'
+                 AND D.ResultSetDescribable = 1
+                 AND D.SaveRouteCount = 0
+                 AND D.DeleteRouteCount = 0 THEN 'READ_ONLY'
+                WHEN D.WebFormName LIKE '%Report' THEN 'BLOCKED'
                 WHEN (D.SaveRouteCount = 1
                       AND D.SaveProcedure NOT IN (N'API_LuuDong', N'API_LuuDong_V2'))
                   OR (D.DeleteRouteCount = 1
@@ -747,7 +901,9 @@ BEGIN
             WHEN C.PrimaryKeyUnique = 0 THEN 'PRIMARY_KEY_NOT_UNIQUE'
             WHEN C.ViewRouteCount <> 1 THEN 'VIEW_ROUTE_NOT_UNIQUE'
             WHEN C.ViewProcedureObjectID IS NULL THEN 'VIEW_PROCEDURE_NOT_FOUND'
+            WHEN C.ResultSetDescribable = 0 THEN 'VIEW_RESULTSET_NOT_DESCRIBABLE'
             WHEN C.SaveRouteCount > 1 OR C.DeleteRouteCount > 1 THEN 'MUTATION_ROUTE_NOT_UNIQUE'
+            WHEN C.SuggestedContractType = 'READ_ONLY' THEN 'REPORT_READ_ONLY_METADATA_READY'
             WHEN C.SaveRouteCount <> 1 OR C.DeleteRouteCount <> 1
                 THEN 'CRUD_MUTATION_ROUTE_MISSING'
             WHEN C.SuggestedContractType = 'COMPLEX_DEFERRED' THEN 'CUSTOM_MUTATION_REQUIRES_AUDIT'
@@ -850,9 +1006,10 @@ BEGIN
           );
 
         /*
-          Chỉ làm mới bản ghi vẫn hoàn toàn do discovery sở hữu. Có thể hạ
-          contract không còn an toàn, nhưng không sửa policy, không đụng bản ghi
-          quản trị viên đã cập nhật và không tự nâng DEFERRED/BLOCKED.
+          Chỉ làm mới bản ghi vẫn hoàn toàn do discovery sở hữu. Kết quả được
+          tính lại từ schema và route hiện tại nên contract cũ từng DEFERRED hoặc
+          BLOCKED có thể chuyển sang SHADOW sau khi nguyên nhân đã được xử lý.
+          Bản ghi do quản trị viên sửa thủ công vẫn không bị ghi đè.
         */
         UPDATE R
         SET ContractType = C.SuggestedContractType,
@@ -874,26 +1031,7 @@ BEGIN
         INNER JOIN @Candidates AS C
           ON C.WebFormName = R.WebFormName
         WHERE R.CreatedBy = 'SYSTEM_DISCOVERY'
-          AND R.UpdatedBy = 'SYSTEM_DISCOVERY'
-          AND R.RolloutStatus NOT IN ('DEFERRED', 'BLOCKED');
-
-        /* Report chỉ xem/in bằng runtime legacy, không thuộc Unified CRUD. */
-        UPDATE dbo.WA_FieldContractRegistry
-        SET RolloutStatus = 'DEFERRED',
-            RolloutReason = N'REPORT_LEGACY_VIEW_PRINT_ONLY',
-            UpdatedAt = SYSUTCDATETIME(),
-            UpdatedBy = @UserName
-        WHERE WebFormName LIKE '%Report'
-          AND RolloutStatus <> 'DEFERRED';
-
-        UPDATE D
-        SET RolloutStatus = 'DEFERRED',
-            RolloutReason = N'REPORT_LEGACY_VIEW_PRINT_ONLY',
-            UpdatedAt = SYSUTCDATETIME(),
-            UpdatedBy = @UserName
-        FROM dbo.WA_FieldDatasetRegistry AS D
-        WHERE D.WebFormName LIKE '%Report'
-          AND D.RolloutStatus <> 'DEFERRED';
+          AND R.UpdatedBy IN ('SYSTEM_DISCOVERY', @UserName);
 
         COMMIT TRANSACTION;
     END TRY
@@ -914,7 +1052,7 @@ GO
 
 /* ===== BẮT ĐẦU sql/UnifiedContractRollout/04_SEED_EXISTING_CONFIRMED_CONTRACTS.sql ===== */
 /*
-  Seed idempotent cho năm form và hai dataset đã được audit ở các phase trước.
+  Seed idempotent cho sáu form và hai dataset đã được audit ở các phase trước.
   Chỉ cập nhật lại bản ghi còn do seed sở hữu, không ghi đè quyết định manual.
 */
 SET NOCOUNT ON;
@@ -985,6 +1123,14 @@ BEGIN TRY
             'SHADOW', N'CONFIRMED_PHASE3_READY_FOR_CUTOVER'
         ),
         (
+            'CF_BranchListFrm', 'CF_BranchListFrm', 'CF_BranchListFrm',
+            'SIMPLE_TABLE', N'CF_BranchTbl', N'BranchID',
+            'CF_BranchListFrm', N'API_TruyVanDong_V2',
+            N'API_LuuDong_V2', N'API_XoaDong_V2',
+            'SAFE_TABLE_COLUMNS', 'BRANCH_SCOPED', 'AUTO_SCHEMA',
+            'SHADOW', N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER'
+        ),
+        (
             'WA_CaLamViecFrm', 'WA_CaLamViecFrm', 'WA_CaLamViecFrm',
             'MASTER_DETAIL_SIMPLE', N'HR_SapCaTbl', N'SapCaID',
             'WA_CaLamViecFrm', N'API_TruyVanDong_V2',
@@ -1005,6 +1151,34 @@ BEGIN TRY
         FROM dbo.WA_FieldContractRegistry AS R
         WHERE R.WebFormName = V.WebFormName
     );
+
+    /*
+      Danh mục chi nhánh chỉ đọc các cột vật lý của CF_BranchTbl nên đã được audit
+      là SIMPLE_TABLE. Chỉ thay kết quả discovery tự động; contract do quản trị viên
+      khai báo thủ công vẫn được giữ nguyên.
+    */
+    UPDATE R
+    SET ERPFormID = 'CF_BranchListFrm',
+        PermissionFormName = 'CF_BranchListFrm',
+        ContractType = 'SIMPLE_TABLE',
+        ExpectedTableName = N'CF_BranchTbl',
+        ExpectedPrimaryKey = N'BranchID',
+        ViewList = 'CF_BranchListFrm',
+        ViewProcedure = N'API_TruyVanDong_V2',
+        SaveProcedure = N'API_LuuDong_V2',
+        DeleteProcedure = N'API_XoaDong_V2',
+        WritePolicy = 'SAFE_TABLE_COLUMNS',
+        BranchPolicy = 'BRANCH_SCOPED',
+        DeletePolicy = 'AUTO_SCHEMA',
+        RolloutStatus = 'SHADOW',
+        RolloutReason = N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER',
+        SchemaVersion = 2,
+        IsEnabled = 1,
+        UpdatedAt = @Now,
+        UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'CF_BranchListFrm'
+      AND R.CreatedBy = 'SYSTEM_DISCOVERY';
 
     INSERT INTO dbo.WA_FieldDatasetRegistry
     (
@@ -1108,7 +1282,8 @@ END CATCH;
 SELECT *
 FROM dbo.WA_FieldContractRegistry
 WHERE WebFormName IN
-    ('WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm', 'WA_CaLamViecFrm')
+    ('WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm',
+     'CF_BranchListFrm', 'WA_CaLamViecFrm')
 ORDER BY WebFormName;
 
 SELECT *
@@ -1121,8 +1296,9 @@ ORDER BY DatasetKey;
 
 /* ===== BẮT ĐẦU sql/UnifiedContractRollout/05_DISCOVER_AND_SEED_SAFE_FORMS.sql ===== */
 /*
-  Chạy discovery rồi seed idempotent. Procedure không ghi đè manual
-  DEFERRED/BLOCKED và không thay policy do quản trị viên đã sửa.
+  Chạy discovery rồi seed idempotent. Procedure chỉ làm mới contract còn do
+  SYSTEM_DISCOVERY sở hữu, kể cả contract cũ từng DEFERRED/BLOCKED; policy do
+  quản trị viên sửa thủ công không bị ghi đè.
 */
 SET NOCOUNT ON;
 
@@ -1141,8 +1317,9 @@ EXEC dbo.API_Web_SeedSafeFieldContractsV2 @UserName = 'SYSTEM_DISCOVERY';
   Cập nhật metadata Grid/JOIN. Các procedure nguồn đọc wrapper DB-backed,
   caption/format/lookup vẫn lấy từ metadata ERP và không dùng SY_FormatFields.
 */
-IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
+IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
    OR OBJECT_ID(N'dbo.API_Phase4JoinRegistry', N'IF') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54300, N'FIELD_CONTRACT_DYNAMIC_WRAPPERS_NOT_INSTALLED', 1;
 GO
 
@@ -1155,8 +1332,8 @@ GO
 SET QUOTED_IDENTIFIER ON;
 GO
 
-IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
-    THROW 53200, N'PHASE3_SOURCE_REGISTRY_NOT_INSTALLED', 1;
+IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
+    THROW 53200, N'FIELD_METADATA_SOURCE_REGISTRY_NOT_INSTALLED', 1;
 GO
 
 IF OBJECT_ID(N'dbo.API_Web_GridFieldSchemaV2', N'P') IS NULL
@@ -1181,6 +1358,8 @@ BEGIN
         @ExpectedERPFormID varchar(100),
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
+        @ContractType varchar(40),
+        @PermissionFormName varchar(100),
         @ExpectedView sysname,
         @ExpectedSave sysname,
         @ExpectedDelete sysname,
@@ -1195,6 +1374,8 @@ BEGIN
         @ExpectedERPFormID = R.ERPFormID,
         @ExpectedTable = R.ExpectedTableName,
         @ExpectedPrimaryKey = R.ExpectedPrimaryKey,
+        @ContractType = R.ContractType,
+        @PermissionFormName = R.PermissionFormName,
         @ExpectedView = R.ViewV2,
         @ExpectedSave = R.SaveV2,
         @ExpectedDelete = R.DeleteV2,
@@ -1204,13 +1385,16 @@ BEGIN
         @DeletePolicy = R.DeletePolicy,
         @GlobalReferenceOnly = R.GlobalReferenceOnly,
         @BranchPolicy = R.BranchPolicy
-    FROM dbo.API_Phase3SimpleCrudRegistry() AS R
+    FROM dbo.API_FieldMetadataContractRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT;
 
     IF @ExpectedTable IS NULL
         THROW 53201, N'PHASE3_FORM_NOT_ALLOWLISTED_FOR_CONTRACT', 1;
     IF @UserName = ''
         THROW 53202, N'PHASE3_ACTOR_REQUIRED', 1;
+
+    SET @PermissionFormName =
+        LTRIM(RTRIM(ISNULL(NULLIF(@PermissionFormName, ''), @WebFormName)));
 
     SET @ERPFormID = LTRIM(RTRIM(ISNULL(NULLIF(@ERPFormID, ''), @ExpectedERPFormID)));
     IF @ERPFormID COLLATE DATABASE_DEFAULT <> @ExpectedERPFormID COLLATE DATABASE_DEFAULT
@@ -1342,28 +1526,20 @@ END;
             THROW 53210, N'PHASE3_BRANCH_CONTEXT_DENIED', 1;
     END;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE @MenuID varchar(50), @SkipPermission bit = 0, @GroupCanRun bit = 0;
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
         THROW 53211, N'PHASE3_ACTIVE_MENU_REQUIRED', 1;
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        SELECT @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
             THROW 53212, N'PHASE3_METADATA_PERMISSION_DENIED', 1;
     END;
 
@@ -1388,8 +1564,372 @@ END;
     WHERE A.[list] COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
       AND A.[func] COLLATE DATABASE_DEFAULT = 'Delete' COLLATE DATABASE_DEFAULT;
 
-    IF @ViewCount <> 1 OR @SaveCount <> 1 OR @DeleteCount <> 1
-        THROW 53213, N'PHASE3_WA_API_ROUTE_NOT_UNIQUE', 1;
+    IF @ViewCount <> 1 OR @SaveCount > 1 OR @DeleteCount > 1
+        THROW 53213, N'FIELD_METADATA_WA_API_ROUTE_NOT_UNIQUE', 1;
+
+    /*
+      View custom và Report lấy membership từ result-set. Field JOIN/computed chỉ
+      đọc; field vật lý của bảng chính vẫn kế thừa capability từ route hiện tại.
+    */
+    DECLARE @ResultSetFallback bit = 0;
+
+    IF @RegisteredView NOT IN (N'API_TruyVanDong', N'API_TruyVanDong_V2')
+    BEGIN
+        SET @ResultSetFallback = 1;
+
+        DECLARE @ResultProcedureObjectID int =
+            COALESCE(
+                OBJECT_ID(@RegisteredView, N'P'),
+                OBJECT_ID(N'dbo.' + @RegisteredView, N'P')
+            );
+
+        IF @ResultProcedureObjectID IS NULL
+            THROW 53214, N'FIELD_METADATA_VIEW_PROCEDURE_NOT_FOUND', 1;
+
+        DECLARE @ResultFields table
+        (
+            FieldOrdinal int NOT NULL,
+            FieldName sysname NOT NULL,
+            SqlType nvarchar(256) NULL,
+            IsNullable bit NULL,
+            MaxLength int NULL,
+            SourceSchema sysname NULL,
+            SourceTable sysname NULL,
+            SourceColumn sysname NULL
+        );
+
+        BEGIN TRY
+            IF NOT EXISTS
+            (
+                SELECT 1
+                FROM sys.dm_exec_describe_first_result_set_for_object
+                    (@ResultProcedureObjectID, 1) AS X
+                WHERE X.error_number IS NOT NULL
+            )
+            BEGIN
+                INSERT INTO @ResultFields
+                (
+                    FieldOrdinal, FieldName, SqlType, IsNullable, MaxLength,
+                    SourceSchema, SourceTable, SourceColumn
+                )
+                SELECT
+                    X.column_ordinal,
+                    X.name,
+                    X.system_type_name,
+                    X.is_nullable,
+                    X.max_length,
+                    X.source_schema,
+                    X.source_table,
+                    X.source_column
+                FROM sys.dm_exec_describe_first_result_set_for_object
+                    (@ResultProcedureObjectID, 1) AS X
+                WHERE ISNULL(X.is_hidden, 0) = 0
+                  AND X.error_number IS NULL
+                  AND NULLIF(LTRIM(RTRIM(X.name)), '') IS NOT NULL;
+            END;
+        END TRY
+        BEGIN CATCH
+            DELETE FROM @ResultFields;
+        END CATCH;
+
+        IF EXISTS (SELECT 1 FROM @ResultFields)
+           AND NOT EXISTS
+           (
+               SELECT LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
+               FROM @ResultFields AS F
+               GROUP BY LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
+               HAVING COUNT(*) > 1
+           )
+           AND
+           (
+               @ContractType = 'READ_ONLY'
+               OR @WebFormName NOT LIKE '%Frm'
+               OR EXISTS
+               (
+                   SELECT 1
+                   FROM @ResultFields AS F
+                   WHERE F.FieldName COLLATE DATABASE_DEFAULT =
+                         @ExpectedPrimaryKey COLLATE DATABASE_DEFAULT
+               )
+           )
+        BEGIN
+            SET @ResultSetFallback = 0;
+
+            SELECT
+            CAST('2.0' AS varchar(10)) AS SchemaVersion,
+            CAST('1.0' AS varchar(10)) AS CapabilityVersion,
+            @WebFormName AS WebFormName,
+            @ERPFormID AS ERPFormName,
+            @ExpectedTable AS TableName,
+            @ExpectedPrimaryKey AS PrimaryKey,
+            @RegisteredView AS RegisteredViewProcedure,
+            @RegisteredSave AS RegisteredSaveProcedure,
+            @RegisteredDelete AS RegisteredDeleteProcedure,
+            @ResolvedDeleteMode AS DeleteMode,
+            CAST('RESULT_SET' AS varchar(30)) AS SourceKind,
+            RF.FieldOrdinal,
+            CONVERT(varchar(128), RF.FieldName) AS FieldName,
+            RF.SqlType,
+            RF.IsNullable,
+            CONVERT(bit, CASE WHEN PC.column_id IS NULL THEN 0 ELSE 1 END) AS IsPhysicalColumn,
+            ResultFlags.IsPrimaryKey,
+            CONVERT(bit, ISNULL(PC.is_identity, 0)) AS IsIdentity,
+            CONVERT(bit, ISNULL(PC.is_computed, 0)) AS IsComputed,
+            CONVERT(bit, CASE WHEN ISNULL(PC.default_object_id, 0) <> 0 THEN 1 ELSE 0 END) AS HasDefault,
+            COALESCE(PC.max_length, RF.MaxLength) AS DbMaxLength,
+            PC.[precision] AS DbPrecision,
+            PC.scale AS DbScale,
+            RF.IsNullable AS DbIsNullable,
+            ResultFlags.IsServerManaged,
+            ResultFlags.IsDenied AS IsSensitiveOrDenied,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanInsert = 1
+                 AND ISNULL(RF.IsNullable, 1) = 0
+                 AND ISNULL(PC.default_object_id, 0) = 0 THEN 1
+                ELSE 0
+            END) AS IsRequiredOnInsert,
+            ResultFlags.CanQuery AS ShowInGrid,
+            ResultFlags.CanInsert AS ShowInAdd,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanUpdate = 1 OR ResultFlags.IsPrimaryKey = 1 THEN 1
+                ELSE 0
+            END) AS ShowInEdit,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanQuery = 1 AND ResultFilter.UserAutoID IS NOT NULL THEN 1
+                ELSE 0
+            END) AS ShowInFilter,
+            ResultFlags.CanInsert AS SupportsInsert,
+            ResultFlags.CanUpdate AS SupportsUpdate,
+            ResultFlags.CanQuery AS SupportsFilter,
+            ResultFlags.CanQuery AS SupportsSort,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanQuery = 1
+                 AND LOWER(ISNULL(RF.SqlType, '')) LIKE '%char%' THEN 1
+                ELSE 0
+            END) AS SupportsKeyword,
+            COALESCE(
+                NULLIF(ResultCaption.CaptionVN, N''),
+                NULLIF(ResultCaption.CaptionEN, N''),
+                CONVERT(nvarchar(200), RF.FieldName)
+            ) AS Caption,
+            ResultCaption.FormatID,
+            ResultFormat.[Type] AS FormatType,
+            CASE
+                WHEN ResultLookup.UserAutoID IS NOT NULL THEN 'lookup'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE 'bit%' THEN 'boolean'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'D' THEN 'date'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'DT' THEN 'datetime'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'H' THEN 'time'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) IN ('B', 'Q', 'N', 'N0', 'N3') THEN 'number'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE '%date%' THEN 'date'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE '%time%' THEN 'time'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE '%int%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%decimal%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%numeric%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%money%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%float%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%real%' THEN 'number'
+                ELSE 'text'
+            END AS RenderType,
+            ResultFormat.NumberDecimal,
+            ResultFormat.FormatString,
+            ResultFormat.MaskString,
+            COALESCE(ResultFormat.MaxLength, RF.MaxLength) AS MaxLength,
+            ResultFormat.MinValue,
+            ResultFormat.MaxValue,
+            COALESCE(NULLIF(ResultCaption.AlignX, ''), ResultFormat.Align) AS Align,
+            ResultCaption.MinWidth,
+            ResultCaption.MaxWidth,
+            CASE WHEN ResultLookup.UserAutoID IS NULL THEN NULL ELSE
+                CONVERT(varchar(64), HASHBYTES(
+                    'SHA2_256',
+                    UPPER(CONCAT(
+                        LTRIM(RTRIM(CONVERT(varchar(100), ResultLookup.FormID))),
+                        '|',
+                        LTRIM(RTRIM(CONVERT(varchar(128), ResultLookup.ColumnID)))
+                    ))
+                ), 2)
+            END AS LookupKey,
+            ResultLookup.[Type] AS LookupType,
+            ResultLookup.ValueColumn AS LookupValueColumn,
+            ResultLookup.DisplayColumn AS LookupDisplayColumn,
+            ResultLookup.ColumnArr AS LookupColumns,
+            ResultLookup.WidthArr AS LookupWidths,
+            ResultLookup.ParaRequireArr AS LookupDependsOn,
+            CONVERT(bit, ISNULL(ResultLookup.IsMultiSelect, 0)) AS LookupMultiSelect,
+            ResultLookup.ReloadType AS LookupReloadMode,
+            CONVERT(bit, ISNULL(ResultLookup.IsDisable, 0)) AS LookupDisabled,
+            CONVERT(bit, CASE WHEN @FilterSourceFormID IS NULL THEN 0 ELSE 1 END) AS HasConfiguredFilters,
+            @FilterSourceFormID AS FilterSourceFormID,
+            ResultFilter.KeyID AS FilterKeyID,
+            COALESCE(
+                NULLIF(ResultFilter.Caption, N''),
+                NULLIF(ResultCaption.CaptionVN, N''),
+                NULLIF(ResultCaption.CaptionEN, N''),
+                CONVERT(nvarchar(200), RF.FieldName)
+            ) AS FilterCaption,
+            ResultFilter.[Type] AS FilterControlType,
+            ResultFilter.Operator AS FilterOperator,
+            CONVERT(bit, ISNULL(ResultFilter.UseLikeOperator, 0)) AS FilterUseLikeOperator,
+            ResultFilter.ControlWidth AS FilterControlWidth,
+            ResultFilter.ValueColumn AS FilterValueColumn,
+            ResultFilter.DisplayColumn AS FilterDisplayColumn,
+            ResultFilter.ColumnArr AS FilterColumns,
+            ResultFilter.WidthArr AS FilterWidths,
+            CONVERT(bit, ISNULL(ResultFilter.RememberLastValue, 0)) AS FilterRememberLastValue,
+            ResultFilter.DefaultValue AS FilterDefaultValue,
+            CONVERT(bit, ISNULL(ResultFilter.IsReload, 0)) AS FilterReload,
+            CASE
+                WHEN ResultFlags.IsDenied = 1 OR ResultFlags.IsServerManaged = 1 THEN 'HIDDEN'
+                WHEN ResultFlags.IsPrimaryKey = 1
+                  OR ResultFlags.CanInsert = 1
+                  OR ResultLookup.UserAutoID IS NOT NULL THEN 'CORE'
+                ELSE 'OPTIONAL'
+            END AS MobileClass,
+            CASE
+                WHEN ResultFlags.IsDenied = 1 THEN 'DENIED_FIELD'
+                WHEN ResultFlags.IsServerManaged = 1 THEN 'SERVER_MANAGED'
+                WHEN ResultFlags.IsPrimaryKey = 1 THEN 'PRIMARY_KEY'
+                WHEN PC.column_id IS NULL THEN 'RESULT_SET_READ_ONLY'
+                ELSE 'RESULT_SET_FIELD'
+            END AS MobileReasonCodes,
+            CAST(NULL AS varchar(80)) AS DiagnosticCode
+        FROM @ResultFields AS RF
+        LEFT JOIN sys.columns AS PC
+          ON PC.object_id = @ObjectID
+         AND PC.name COLLATE DATABASE_DEFAULT =
+             COALESCE(NULLIF(RF.SourceColumn, ''), RF.FieldName) COLLATE DATABASE_DEFAULT
+         AND (
+             RF.SourceTable IS NULL
+             OR RF.SourceTable COLLATE DATABASE_DEFAULT =
+                @ExpectedTable COLLATE DATABASE_DEFAULT
+         )
+        OUTER APPLY
+        (
+            SELECT
+                CONVERT(bit, CASE
+                    WHEN RF.FieldName COLLATE DATABASE_DEFAULT =
+                         @ExpectedPrimaryKey COLLATE DATABASE_DEFAULT THEN 1
+                    ELSE 0
+                END) AS IsPrimaryKey,
+                CONVERT(bit, CASE
+                    WHEN LOWER(RF.FieldName) COLLATE DATABASE_DEFAULT IN
+                    (
+                        'usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
+                        'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat',
+                        'isdeleted', 'userdelete', 'deletedby', 'deleteby', 'datedelete', 'deleteddate', 'deletedat'
+                    ) THEN 1 ELSE 0
+                END) AS IsServerManaged,
+                CONVERT(bit, CASE
+                    WHEN LOWER(RF.FieldName) COLLATE DATABASE_DEFAULT IN
+                    (
+                        '__proto__', 'prototype', 'constructor', 'content', 'base64content',
+                        'filecontent', 'binarydata', 'password', 'passwordhash', 'token',
+                        'refreshtoken', 'secret', 'rawsql', 'commandtext'
+                    )
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'binary%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'varbinary%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'image%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'rowversion%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'timestamp%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'xml%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'sql_variant%'
+                    THEN 1 ELSE 0
+                END) AS IsDenied
+        ) AS ResultBase
+        OUTER APPLY
+        (
+            SELECT
+                ResultBase.IsPrimaryKey,
+                ResultBase.IsServerManaged,
+                ResultBase.IsDenied,
+                CONVERT(bit, CASE
+                    WHEN @EnableSave = 1
+                     AND PC.column_id IS NOT NULL
+                     AND ISNULL(PC.is_identity, 0) = 0
+                     AND ISNULL(PC.is_computed, 0) = 0
+                     AND ResultBase.IsServerManaged = 0
+                     AND ResultBase.IsDenied = 0 THEN 1
+                    ELSE 0
+                END) AS CanInsert,
+                CONVERT(bit, CASE
+                    WHEN @EnableSave = 1
+                     AND PC.column_id IS NOT NULL
+                     AND ISNULL(PC.is_identity, 0) = 0
+                     AND ISNULL(PC.is_computed, 0) = 0
+                     AND ResultBase.IsPrimaryKey = 0
+                     AND ResultBase.IsServerManaged = 0
+                     AND ResultBase.IsDenied = 0 THEN 1
+                    ELSE 0
+                END) AS CanUpdate,
+                CONVERT(bit, CASE
+                    WHEN @EnableView = 1 AND ResultBase.IsDenied = 0 THEN 1
+                    ELSE 0
+                END) AS CanQuery
+        ) AS ResultFlags
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+            FROM dbo.SY_FmtFldTbl AS X
+            WHERE X.FieldName COLLATE DATABASE_DEFAULT =
+                  RF.FieldName COLLATE DATABASE_DEFAULT
+              AND (
+                  X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
+                  OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+                  OR X.FormName IS NULL
+                  OR LTRIM(RTRIM(X.FormName)) = ''
+              )
+            ORDER BY CASE
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                ELSE 3
+            END, X.AutoID
+        ) AS ResultCaption
+        LEFT JOIN dbo.SY_FmatTbl AS ResultFormat
+          ON ResultFormat.FormatID COLLATE DATABASE_DEFAULT =
+             ResultCaption.FormatID COLLATE DATABASE_DEFAULT
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.UserAutoID, X.FormID, X.ColumnID, X.[Type], X.ValueColumn,
+                X.DisplayColumn, X.ColumnArr, X.WidthArr, X.ParaRequireArr,
+                X.IsMultiSelect, X.ReloadType, X.IsDisable
+            FROM dbo.SY_FrmDrdwTbl AS X
+            WHERE X.ColumnID COLLATE DATABASE_DEFAULT =
+                  RF.FieldName COLLATE DATABASE_DEFAULT
+              AND X.FormID COLLATE DATABASE_DEFAULT IN (@ERPFormID, @WebFormName)
+              AND ISNULL(X.IsDisable, 0) = 0
+            ORDER BY CASE
+                WHEN X.FormID COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                ELSE 2
+            END, X.UserAutoID
+        ) AS ResultLookup
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.UserAutoID, X.KeyID, X.Caption, X.ControlWidth, X.[Type],
+                X.ValueColumn, X.DisplayColumn, X.ColumnArr, X.WidthArr,
+                X.RememberLastValue, X.UseLikeOperator, X.IsReload,
+                X.Operator, X.DefaultValue
+            FROM dbo.SY_FrmFltTbl AS X
+            WHERE @FilterSourceFormID IS NOT NULL
+              AND X.FormID COLLATE DATABASE_DEFAULT =
+                  @FilterSourceFormID COLLATE DATABASE_DEFAULT
+              AND X.ColumnID COLLATE DATABASE_DEFAULT =
+                  RF.FieldName COLLATE DATABASE_DEFAULT
+              AND ISNULL(X.IsDisable, 0) = 0
+            ORDER BY
+                CASE WHEN TRY_CONVERT(int, X.KeyID) IS NULL THEN 1 ELSE 0 END,
+                TRY_CONVERT(int, X.KeyID),
+                X.KeyID,
+                X.UserAutoID
+        ) AS ResultFilter
+            ORDER BY RF.FieldOrdinal;
+
+            RETURN;
+        END;
+    END;
 
     /* PHASE3_UNIFIED_FIELD_CONTRACT: mỗi cột mới an toàn được phát hiện trực tiếp. */
     SELECT
@@ -1404,7 +1944,8 @@ END;
         @RegisteredSave AS RegisteredSaveProcedure,
         @RegisteredDelete AS RegisteredDeleteProcedure,
         @ResolvedDeleteMode AS DeleteMode,
-        CAST('MAIN_TABLE' AS varchar(30)) AS SourceKind,
+        CAST(CASE WHEN @ResultSetFallback = 1
+            THEN 'TABLE_FALLBACK' ELSE 'MAIN_TABLE' END AS varchar(30)) AS SourceKind,
         C.column_id AS FieldOrdinal,
         CONVERT(varchar(128), C.name) AS FieldName,
         T.name + CASE
@@ -1514,6 +2055,7 @@ END;
         Mobile.MobileClass,
         Mobile.ReasonCodes AS MobileReasonCodes,
         CASE
+            WHEN @ResultSetFallback = 1 THEN 'RESULTSET_FALLBACK_TO_TABLE'
             WHEN Flags.IsDenied = 1 THEN 'FIELD_DENIED'
             WHEN @RegisteredView COLLATE DATABASE_DEFAULT <> @ExpectedView COLLATE DATABASE_DEFAULT THEN 'SHADOW_VIEW_NOT_REGISTERED'
             WHEN @EnableSave = 1 AND @RegisteredSave COLLATE DATABASE_DEFAULT <> @ExpectedSave COLLATE DATABASE_DEFAULT THEN 'SHADOW_SAVE_NOT_REGISTERED'
@@ -1838,6 +2380,7 @@ BEGIN
         @ExpectedDeleteProcedure sysname,
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
+        @PermissionFormName varchar(100),
         @ReadOnly bit,
         @RegistryCount int;
 
@@ -1849,6 +2392,7 @@ BEGIN
         @ExpectedDeleteProcedure = MIN(CONVERT(sysname, R.ExpectedDeleteProcedure)),
         @ExpectedTable = MIN(CONVERT(sysname, R.ExpectedTableName)),
         @ExpectedPrimaryKey = MIN(CONVERT(sysname, R.ExpectedPrimaryKey)),
+        @PermissionFormName = MIN(R.PermissionFormName),
         @ReadOnly = CONVERT(bit, MIN(CONVERT(tinyint, R.IsReadOnly)))
     FROM dbo.API_Phase4JoinRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
@@ -1900,17 +2444,20 @@ BEGIN
         END;
     END;
 
+    SET @PermissionFormName =
+        LTRIM(RTRIM(ISNULL(NULLIF(@PermissionFormName, ''), @WebFormName)));
+
     DECLARE
         @MenuID varchar(50),
-        @SkipPermission bit = 0;
+        @SkipPermission bit = 0,
+        @GroupCanRun bit = 0;
 
-    SELECT TOP (1)
-        @MenuID = M.MenuID,
-        @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
     BEGIN
@@ -1920,21 +2467,7 @@ BEGIN
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
        AND @SkipPermission = 0
     BEGIN
-        DECLARE
-            @GroupCanRun bit,
-            @UserCanRun bit;
-
-        SELECT @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        SELECT @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
         BEGIN
             THROW 53405, N'PHASE4_JOIN_PERMISSION_DENIED', 1;
         END;
@@ -2243,6 +2776,7 @@ GO
   sang WA_FieldContractRegistry; không nhận table/PK từ client.
 */
 IF OBJECT_ID(N'dbo.WA_FieldContractRegistry', N'U') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54310, N'FIELD_CONTRACT_CONTROL_REGISTRY_NOT_INSTALLED', 1;
 GO
 
@@ -2387,6 +2921,7 @@ BEGIN
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
         @ExpectedView sysname,
+        @PermissionFormName varchar(100),
         @GlobalReferenceOnly bit,
         @BranchPolicy varchar(40);
 
@@ -2394,6 +2929,7 @@ BEGIN
         @ExpectedTable = R.ExpectedTableName,
         @ExpectedPrimaryKey = R.ExpectedPrimaryKey,
         @ExpectedView = R.ViewV2,
+        @PermissionFormName = R.PermissionFormName,
         @GlobalReferenceOnly = R.GlobalReferenceOnly,
         @BranchPolicy = R.BranchPolicy
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
@@ -2405,6 +2941,9 @@ BEGIN
 
     IF @UserName = ''
         THROW 53102, N'PHASE3_ACTOR_REQUIRED', 1;
+
+    SET @PermissionFormName =
+        LTRIM(RTRIM(ISNULL(NULLIF(@PermissionFormName, ''), @List)));
 
     IF @Data = N'' SET @Data = N'{}';
     IF ISJSON(@Data) <> 1 OR LEFT(@Data, 1) <> N'{'
@@ -2511,8 +3050,15 @@ BEGIN
     IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
        AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
     BEGIN
-        IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = '' OR @BranchID = ''
+        IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = ''
             THROW 53112, N'PHASE3_BRANCH_CONTEXT_REQUIRED', 1;
+
+        /*
+          Phạm vi thật luôn lấy từ SY_User. Client có thể không gửi BranchID hoặc
+          chỉ xin một tập con; client không thể tự mở rộng sang chi nhánh khác.
+        */
+        IF @BranchID = ''
+            SET @BranchID = @UserBranches;
 
         IF EXISTS (
             SELECT 1
@@ -2527,32 +3073,20 @@ BEGIN
             THROW 53113, N'PHASE3_BRANCH_CONTEXT_DENIED', 1;
     END;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1)
-        @MenuID = M.MenuID,
-        @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE @MenuID varchar(50), @SkipPermission bit = 0, @GroupCanRun bit = 0;
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
         THROW 53114, N'PHASE3_ACTIVE_MENU_REQUIRED', 1;
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        SELECT @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
             THROW 53115, N'PHASE3_VIEW_PERMISSION_DENIED', 1;
     END;
 
@@ -2795,6 +3329,7 @@ GO
   Save V2 đọc wrapper DB-backed, chỉ ghi physical field an toàn và giữ DB default.
 */
 IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54320, N'FIELD_CONTRACT_DYNAMIC_WRAPPER_NOT_INSTALLED', 1;
 GO
 
@@ -3272,13 +3807,21 @@ END;
     FROM OPENJSON(@Data) AS J
     WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT = 'isedit' COLLATE DATABASE_DEFAULT;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT =
-      @PermissionFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE
+        @MenuID varchar(50),
+        @SkipPermission bit = 0,
+        @GroupCanRun bit = 0,
+        @GroupCanAdd bit = 0,
+        @GroupCanEdit bit = 0;
+
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView,
+        @GroupCanAdd = P.CanAdd,
+        @GroupCanEdit = P.CanEdit
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
     BEGIN
@@ -3289,17 +3832,9 @@ END;
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupAllowed bit, @UserAllowed bit, @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupAllowed = CASE WHEN @IsEdit = 1 THEN P.IsUpdate ELSE P.IsAdd END, @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        SELECT @UserAllowed = CASE WHEN @IsEdit = 1 THEN P.IsUpdate ELSE P.IsAdd END, @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        IF COALESCE(@UserCanRun, @GroupCanRun, 0) <> 1 OR COALESCE(@UserAllowed, @GroupAllowed, 0) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
+           OR CASE WHEN @IsEdit = 1 THEN ISNULL(@GroupCanEdit, 0)
+                   ELSE ISNULL(@GroupCanAdd, 0) END <> 1
         BEGIN
             SELECT -1 AS code, N'PHASE3_MUTATION_PERMISSION_DENIED' AS msg,
                    @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;
@@ -3552,6 +4087,7 @@ GO
   Delete V2 đọc wrapper DB-backed, fail-closed theo permission/branch/policy.
 */
 IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54330, N'FIELD_CONTRACT_DYNAMIC_WRAPPER_NOT_INSTALLED', 1;
 GO
 
@@ -3853,12 +4389,19 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @PermissionFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE
+        @MenuID varchar(50),
+        @SkipPermission bit = 0,
+        @GroupCanRun bit = 0,
+        @GroupCanDelete bit = 0;
+
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView,
+        @GroupCanDelete = P.CanDelete
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
     BEGIN
@@ -3869,17 +4412,8 @@ BEGIN
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupAllowed bit, @UserAllowed bit, @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupAllowed = P.IsDelete, @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        SELECT @UserAllowed = P.IsDelete, @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
-           OR ISNULL(@UserAllowed, ISNULL(@GroupAllowed, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
+           OR ISNULL(@GroupCanDelete, 0) <> 1
         BEGIN
             SELECT -1 AS code, N'PHASE3_DELETE_PERMISSION_DENIED' AS msg, 0 AS rowsAffected,
                    @DeletePolicy AS deleteMode;
@@ -4123,7 +4657,48 @@ BEGIN
         RETURN;
     END;
 
-    /* Gate table/PK và unique key cho toàn bộ master. */
+    /*
+      Contract được chọn phải khai báo đúng route policy V2. Registry là nguồn
+      cấu hình, nhưng không được phép dùng registry để hợp thức hóa route legacy.
+    */
+    IF EXISTS
+    (
+        SELECT 1
+        FROM @Forms AS F
+        WHERE
+            (
+                F.ContractType = 'SIMPLE_TABLE'
+                AND
+                (
+                    ISNULL(F.ViewProcedure, N'') <> N'API_TruyVanDong_V2'
+                    OR ISNULL(F.SaveProcedure, N'') <> N'API_LuuDong_V2'
+                    OR ISNULL(F.DeleteProcedure, N'') <> N'API_XoaDong_V2'
+                )
+            )
+            OR
+            (
+                F.ContractType IN ('JOIN_VIEW_SINGLE_TABLE', 'MASTER_DETAIL_SIMPLE')
+                AND
+                (
+                    F.ViewProcedure IS NULL
+                    OR ISNULL(F.SaveProcedure, N'') <> N'API_LuuDong_V2'
+                    OR ISNULL(F.DeleteProcedure, N'') <> N'API_XoaDong_V2'
+                )
+            )
+            OR
+            (
+                F.ContractType = 'READ_ONLY'
+                AND
+                (
+                    F.ViewProcedure IS NULL
+                    OR F.SaveProcedure IS NOT NULL
+                    OR F.DeleteProcedure IS NOT NULL
+                )
+            )
+    )
+        THROW 54412, N'FIELD_CONTRACT_ROUTE_POLICY_INVALID', 1;
+
+    /* Gate table/PK và unique key cho master có mutation; READ_ONLY giữ View nghiệp vụ. */
     IF EXISTS
     (
         SELECT 1
@@ -4137,9 +4712,13 @@ BEGIN
             FROM dbo.SY_FrmLstTbl AS L
             WHERE L.FormID = F.WebFormName
         ) AS L
-        WHERE L.RegistrationCount <> 1
-           OR L.TableName <> F.ExpectedTableName
-           OR L.PrimaryKey <> F.ExpectedPrimaryKey
+        WHERE F.ContractType <> 'READ_ONLY'
+          AND
+          (
+              L.RegistrationCount <> 1
+              OR L.TableName <> F.ExpectedTableName
+              OR L.PrimaryKey <> F.ExpectedPrimaryKey
+          )
     )
         THROW 54403, N'FIELD_CONTRACT_TABLE_PRIMARY_KEY_MISMATCH', 1;
 
@@ -4147,37 +4726,41 @@ BEGIN
     (
         SELECT 1
         FROM @Forms AS F
-        WHERE OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U') IS NULL
-           OR NOT EXISTS
-           (
-               SELECT 1
-               FROM sys.columns AS C
-               WHERE C.object_id = OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U')
-                 AND C.name = F.ExpectedPrimaryKey
-           )
-           OR NOT EXISTS
-           (
-               SELECT 1
-               FROM sys.indexes AS I
-               INNER JOIN sys.index_columns AS IC
-                 ON IC.object_id = I.object_id
-                AND IC.index_id = I.index_id
-                AND IC.key_ordinal > 0
-               WHERE I.object_id = OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U')
-                 AND I.is_unique = 1
-                 AND I.is_disabled = 0
-               GROUP BY I.index_id
-               HAVING COUNT(*) = 1
-                  AND MAX(IC.column_id) = COLUMNPROPERTY(
-                      OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U'),
-                      F.ExpectedPrimaryKey,
-                      'ColumnId'
-                  )
-           )
+        WHERE F.ContractType <> 'READ_ONLY'
+          AND
+          (
+              OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U') IS NULL
+              OR NOT EXISTS
+              (
+                  SELECT 1
+                  FROM sys.columns AS C
+                  WHERE C.object_id = OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U')
+                    AND C.name = F.ExpectedPrimaryKey
+              )
+              OR NOT EXISTS
+              (
+                  SELECT 1
+                  FROM sys.indexes AS I
+                  INNER JOIN sys.index_columns AS IC
+                    ON IC.object_id = I.object_id
+                   AND IC.index_id = I.index_id
+                   AND IC.key_ordinal > 0
+                  WHERE I.object_id = OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U')
+                    AND I.is_unique = 1
+                    AND I.is_disabled = 0
+                  GROUP BY I.index_id
+                  HAVING COUNT(*) = 1
+                     AND MAX(IC.column_id) = COLUMNPROPERTY(
+                         OBJECT_ID(N'dbo.' + F.ExpectedTableName, N'U'),
+                         F.ExpectedPrimaryKey,
+                         'ColumnId'
+                     )
+              )
+          )
     )
         THROW 54404, N'FIELD_CONTRACT_TABLE_PRIMARY_KEY_NOT_SAFE', 1;
 
-    /* Gate physical table/PK của dataset; SY_FrmLstTbl được đối chiếu nếu có. */
+    /* Gate physical table/PK của dataset editable; dataset READ_ONLY không có mutation. */
     IF EXISTS
     (
         SELECT 1
@@ -4193,6 +4776,7 @@ BEGIN
             WHERE L.FormID = D.ApiList
         ) AS L
         WHERE D.RolloutStatus IN ('ACTIVE', 'SHADOW')
+          AND D.IsReadOnly = 0
           AND
           (
               OBJECT_ID(N'dbo.' + D.ExpectedTableName, N'U') IS NULL
@@ -4415,6 +4999,18 @@ BEGIN
                    (@Func = 'View' AND @CurrentProcedure NOT IN (N'API_TruyVanDong', N'API_TruyVanDong_V2'))
                    OR (@Func = 'Save' AND @CurrentProcedure NOT IN (N'API_LuuDong', N'API_LuuDong_V2'))
                    OR (@Func = 'Delete' AND @CurrentProcedure NOT IN (N'API_XoaDong', N'API_XoaDong_V2'))
+               )
+               AND NOT
+               (
+                   @Func = 'View'
+                   AND EXISTS
+                   (
+                       SELECT 1
+                       FROM dbo.WA_FieldContractRegistry AS Approved
+                       WHERE Approved.WebFormName = @OwnerForm
+                         AND Approved.ContractType = 'SIMPLE_TABLE'
+                         AND Approved.RolloutReason LIKE 'CONFIRMED%READY_FOR_CUTOVER'
+                   )
                )
                 THROW 54410, N'FIELD_CONTRACT_CUSTOM_MUTATION_OR_VIEW_NOT_REPLACEABLE', 1;
 
@@ -4696,14 +5292,14 @@ INNER JOIN dbo.WA_API AS A
 WHERE D.RolloutStatus = 'ACTIVE' AND D.IsReadOnly = 1
 ORDER BY D.WebFormName, D.DatasetKey, A.[func];
 
-/* 18. Form complex hoặc Report bị ACTIVE nhầm. */
+/* 18. Form complex hoặc Report không phải READ_ONLY bị ACTIVE nhầm. */
 SELECT WebFormName, ContractType, RolloutStatus, RolloutReason
 FROM dbo.WA_FieldContractRegistry
 WHERE RolloutStatus = 'ACTIVE'
   AND
   (
       ContractType IN ('COMPLEX_DEFERRED', 'BLOCKED')
-      OR WebFormName LIKE '%Report'
+      OR (WebFormName LIKE '%Report' AND ContractType <> 'READ_ONLY')
   )
 ORDER BY WebFormName;
 
@@ -4734,6 +5330,143 @@ SELECT B.*
 FROM dbo.WA_FieldContractRouteBackup AS B
 INNER JOIN LatestBatch AS X ON X.BackupBatchID = B.BackupBatchID
 ORDER BY B.BackupID;
+
+/* 21. Danh sách contract an toàn còn ở SHADOW và route đang chờ cutover V2. */
+SELECT
+    R.WebFormName,
+    R.ContractType,
+    R.RolloutReason,
+    R.ViewProcedure AS ExpectedView,
+    V.[SQL] AS CurrentView,
+    R.SaveProcedure AS ExpectedSave,
+    S.[SQL] AS CurrentSave,
+    R.DeleteProcedure AS ExpectedDelete,
+    D.[SQL] AS CurrentDelete
+FROM dbo.WA_FieldContractRegistry AS R
+LEFT JOIN dbo.WA_API AS V
+  ON V.[list] = ISNULL(NULLIF(R.ViewList, ''), R.WebFormName)
+ AND V.[func] = 'View'
+LEFT JOIN dbo.WA_API AS S
+  ON S.[list] = R.WebFormName
+ AND S.[func] = 'Save'
+LEFT JOIN dbo.WA_API AS D
+  ON D.[list] = R.WebFormName
+ AND D.[func] = 'Delete'
+WHERE R.IsEnabled = 1
+  AND R.WebFormName LIKE '%Frm'
+  AND R.RolloutStatus = 'SHADOW'
+  AND R.RolloutReason LIKE '%READY_FOR_CUTOVER'
+  AND R.ContractType IN
+      ('SIMPLE_TABLE', 'JOIN_VIEW_SINGLE_TABLE', 'MASTER_DETAIL_SIMPLE', 'READ_ONLY')
+ORDER BY R.ContractType, R.WebFormName;
+
+/*
+  22. Runtime V2 không được trộn quyền cá nhân cũ với quyền nhóm mà web đang dùng.
+  Result set này phải rỗng.
+*/
+SELECT
+    OBJECT_SCHEMA_NAME(M.object_id) AS SchemaName,
+    OBJECT_NAME(M.object_id) AS ObjectName
+FROM sys.sql_modules AS M
+WHERE OBJECT_NAME(M.object_id) IN
+(
+    'API_Web_GroupFormPermissionV2',
+    'API_Web_GridFieldSchemaV2',
+    'API_Web_JoinFieldSchemaV2',
+    'API_TruyVanDong_V2',
+    'API_LuuDong_V2',
+    'API_XoaDong_V2'
+)
+  AND M.definition LIKE '%WA[_]UserPermisstion%'
+ORDER BY ObjectName;
+
+/* 23. Contract không ánh xạ được menu dùng để kiểm tra quyền metadata V2. */
+SELECT
+    R.WebFormName,
+    R.PermissionFormName,
+    R.RolloutStatus,
+    R.RolloutReason
+FROM dbo.WA_FieldContractRegistry AS R
+WHERE R.IsEnabled = 1
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM dbo.WA_Menu AS M
+      WHERE M.FormName COLLATE DATABASE_DEFAULT =
+            R.PermissionFormName COLLATE DATABASE_DEFAULT
+        AND ISNULL(M.isDisable, 0) = 0
+  )
+ORDER BY R.WebFormName;
+
+/* 24. Contract đủ điều kiện nhưng khai báo route policy không đúng chuẩn V2. */
+SELECT
+    R.WebFormName,
+    R.ContractType,
+    R.RolloutStatus,
+    R.ViewProcedure,
+    R.SaveProcedure,
+    R.DeleteProcedure
+FROM dbo.WA_FieldContractRegistry AS R
+WHERE R.IsEnabled = 1
+  AND R.RolloutStatus IN ('ACTIVE', 'SHADOW')
+  AND
+  (
+      (
+          R.ContractType = 'SIMPLE_TABLE'
+          AND
+          (
+              ISNULL(R.ViewProcedure, N'') <> N'API_TruyVanDong_V2'
+              OR ISNULL(R.SaveProcedure, N'') <> N'API_LuuDong_V2'
+              OR ISNULL(R.DeleteProcedure, N'') <> N'API_XoaDong_V2'
+          )
+      )
+      OR
+      (
+          R.ContractType IN ('JOIN_VIEW_SINGLE_TABLE', 'MASTER_DETAIL_SIMPLE')
+          AND
+          (
+              R.ViewProcedure IS NULL
+              OR ISNULL(R.SaveProcedure, N'') <> N'API_LuuDong_V2'
+              OR ISNULL(R.DeleteProcedure, N'') <> N'API_XoaDong_V2'
+          )
+      )
+      OR
+      (
+          R.ContractType = 'READ_ONLY'
+          AND
+          (
+              R.ViewProcedure IS NULL
+              OR R.SaveProcedure IS NOT NULL
+              OR R.DeleteProcedure IS NOT NULL
+          )
+      )
+  )
+ORDER BY R.ContractType, R.WebFormName;
+
+/*
+  25. Danh mục chi nhánh phải dùng contract V2 có giới hạn chi nhánh.
+  Result set này phải rỗng.
+*/
+SELECT
+    R.WebFormName,
+    R.ContractType,
+    R.BranchPolicy,
+    R.RolloutStatus,
+    R.ViewProcedure,
+    V.[SQL] AS CurrentView
+FROM dbo.WA_FieldContractRegistry AS R
+LEFT JOIN dbo.WA_API AS V
+  ON V.[list] = ISNULL(NULLIF(R.ViewList, ''), R.WebFormName)
+ AND V.[func] = 'View'
+WHERE R.WebFormName = 'CF_BranchListFrm'
+  AND
+  (
+      R.ContractType <> 'SIMPLE_TABLE'
+      OR R.BranchPolicy <> 'BRANCH_SCOPED'
+      OR R.RolloutStatus <> 'ACTIVE'
+      OR R.ViewProcedure <> N'API_TruyVanDong_V2'
+      OR ISNULL(PARSENAME(LTRIM(RTRIM(V.[SQL])), 1), N'') <> N'API_TruyVanDong_V2'
+  );
 
 /* ===== KẾT THÚC sql/UnifiedContractRollout/11_VERIFY_MASS_ROLLOUT.sql ===== */
 

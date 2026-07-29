@@ -41,6 +41,7 @@ var ConfirmModal = (function () {
    */
   function show(options) {
     if (!modalOverlay) init();
+    modalOverlay.style.zIndex = '100100';
 
     document.getElementById('confirm-modal-title').innerText = options.title || 'Xác nhận';
     document.getElementById('confirm-modal-message').innerHTML = options.message || 'Bạn có chắc chắn muốn thực hiện hành động này?';

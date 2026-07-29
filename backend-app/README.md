@@ -36,11 +36,10 @@ SQL_ENCRYPT=true
 SQL_TRUST_SERVER_CERTIFICATE=false
 ```
 
-Quyền nghiệp vụ import tạm thời chỉ mở cho người dùng có
-`SY_User.UserGroupID = EXCEL_IMPORT_ALLOWED_GROUP` (mặc định `Admin`, không phân
-biệt hoa/thường). Backend xác minh
-token, đối chiếu tài khoản hiện tại trong `SY_User` và kiểm tra nhóm Admin ở cả
-bước xem khả năng, chuẩn bị và thực thi.
+Quyền nghiệp vụ import dùng chung cờ `isExportExcel` của màn hình. Backend xác
+minh token, đối chiếu tài khoản hiện tại trong `SY_User`, form trong `WA_Menu`
+và quyền nhóm trong `WA_UserGroupPermisstion` ở cả bước xem khả năng, chuẩn bị
+và thực thi. Nhóm `Admin` được kế thừa toàn quyền giống phía giao diện.
 
 Không cần tạo database role riêng cho import. Kết nối `SQL_USER` giữ nguyên role
 hiện tại và cần có quyền kỹ thuật `SELECT` metadata/người dùng, `SELECT` và

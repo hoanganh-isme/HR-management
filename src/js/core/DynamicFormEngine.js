@@ -2,6 +2,22 @@
  * Dynamic Form Engine - Generic Metadata-Driven UI Engine
  */
 window.DynamicFormEngine = (function () {
+  var GRID_UI_TEXT = Object.freeze({
+    loading: 'Đang tải dữ liệu...',
+    refreshingAfterSave: 'Đang cập nhật dữ liệu vừa lưu...'
+  });
+
+  function _defaultPageSize() {
+    return typeof Pagination !== 'undefined' && typeof Pagination.getDefaultPageSize === 'function'
+      ? Pagination.getDefaultPageSize()
+      : 15;
+  }
+
+  function _refreshPageSize(value) {
+    return typeof Pagination !== 'undefined' && typeof Pagination.getRefreshPageSize === 'function'
+      ? Pagination.getRefreshPageSize(value)
+      : _defaultPageSize();
+  }
 
   var $container = null;
   var gridData = [];
@@ -15,7 +31,7 @@ window.DynamicFormEngine = (function () {
   var currentSortCol = '';
   var currentSortDir = '';
   var currentPage = 1;
-  var currentLimit = 15;
+  var currentLimit = _defaultPageSize();
   var totalRecords = 0;
   var totalPagesFromApi = 0;
   var lastTimestamp = '';
@@ -86,7 +102,7 @@ window.DynamicFormEngine = (function () {
   function _hasConfiguredFilters() {
     if (MODULE_CONFIG.HideFilterBtn) return false;
 
-    if (_usesUnifiedFieldContract()) {
+    if (_usesUnifiedMetadata()) {
       return _configuredFilterSchema().length > 0;
     }
 
@@ -147,7 +163,7 @@ window.DynamicFormEngine = (function () {
 
   function _observeFieldSync() {
     if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') return;
-    if (!_isUnifiedCrudForm(currentFormName)) return;
+    if (!_isUnifiedMetadataForm(currentFormName)) return;
     var observedForm = currentFormName;
     var observedContextKey = typeof FieldSyncService.getContextKey === 'function'
       ? FieldSyncService.getContextKey(observedForm)
@@ -277,8 +293,8 @@ window.DynamicFormEngine = (function () {
     return String(MODULE_CONFIG.FormName).toLowerCase() === 'frmformbuilder';
   }
 
-  function _isUnifiedCrudForm(formName) {
-    return /Frm$/i.test(String(formName || '').trim());
+  function _isUnifiedMetadataForm(formName) {
+    return /(?:Frm|Report)$/i.test(String(formName || '').trim());
   }
 
   /**
@@ -374,16 +390,69 @@ window.DynamicFormEngine = (function () {
     return Boolean(fieldContractState && fieldContractState.active === true);
   }
 
+  function _usesUnifiedMetadata() {
+    return Boolean(fieldContractState && fieldContractState.metadataActive === true);
+  }
+
+  function _gridLoadingText(value) {
+    var normalized = typeof value === 'string' ? value.trim() : '';
+    return normalized || GRID_UI_TEXT.loading;
+  }
+
+  function _showGridLoading(gridContainer, message) {
+    if (!gridContainer) return;
+    gridContainer.innerHTML = '';
+
+    var loadingState = document.createElement('div');
+    loadingState.className = 'dynamic-grid-loading-state';
+    loadingState.setAttribute('role', 'status');
+    loadingState.setAttribute('aria-live', 'polite');
+
+    var spinner = document.createElement('span');
+    spinner.className = 'material-symbols-outlined dynamic-grid-loading-icon';
+    spinner.setAttribute('aria-hidden', 'true');
+    spinner.textContent = 'progress_activity';
+
+    var label = document.createElement('span');
+    label.className = 'dynamic-grid-loading-label';
+    label.textContent = _gridLoadingText(message);
+
+    loadingState.appendChild(spinner);
+    loadingState.appendChild(label);
+    gridContainer.appendChild(loadingState);
+  }
+
+  function _registeredRuntimeProcedure(action) {
+    var routes = fieldContractState
+      && fieldContractState.schema
+      && fieldContractState.schema.runtimeRoutes;
+    var route = routes && routes[action];
+    return String(route && route.registeredProcedure || '')
+      .trim()
+      .replace(/[\[\]]/g, '')
+      .split('.')
+      .pop()
+      .toLowerCase();
+  }
+
+  function _usesV2DeleteRoute() {
+    /*
+     * Metadata và trạng thái cutover là hai trục độc lập. Chọn wire contract
+     * xóa theo procedure đang đăng ký để form metadata-only không gửi payload
+     * legacy vào API_XoaDong_V2.
+     */
+    return _registeredRuntimeProcedure('delete') === 'api_xoadong_v2';
+  }
+
   function _contractWriteActive() {
-    return !_usesUnifiedFieldContract() || Boolean(fieldContractState && fieldContractState.writeActive === true);
+    return !_usesUnifiedMetadata() || Boolean(fieldContractState && fieldContractState.writeAvailable === true);
   }
 
   function _contractDeleteActive() {
-    return !_usesUnifiedFieldContract() || Boolean(fieldContractState && fieldContractState.deleteActive === true);
+    return !_usesUnifiedMetadata() || Boolean(fieldContractState && fieldContractState.deleteAvailable === true);
   }
 
   function _canImportExcel() {
-    var contract = _phase2RegistryEntry();
     var action = String(MODULE_CONFIG.action || MODULE_CONFIG.Action || '').toLowerCase();
     var readOnly = Boolean(
       MODULE_CONFIG.ReadOnly
@@ -394,15 +463,7 @@ window.DynamicFormEngine = (function () {
     );
     return Boolean(
       !readOnly
-      && contract
-      && contract.importEnabled === true
-      && contract.enableSave === true
-      && contract.expectedTableName
-      && contract.expectedPrimaryKey
-      && contract.saveV2 === 'API_LuuDong_V2'
-      && _usesUnifiedFieldContract()
-      && _contractWriteActive()
-      && _hasPermission('ADD')
+      && _hasPermission('EXPORT')
     );
   }
 
@@ -433,7 +494,7 @@ window.DynamicFormEngine = (function () {
 
   function _hasPermission(action, options) {
     var userOnly = Boolean(options && options.userOnly === true);
-    if (!userOnly && _usesUnifiedFieldContract()) {
+    if (!userOnly && _usesUnifiedMetadata()) {
       if ((action === 'ADD' || action === 'EDIT') && !_contractWriteActive()) return false;
       if (action === 'DELETE' && !_contractDeleteActive()) return false;
     }
@@ -541,13 +602,12 @@ window.DynamicFormEngine = (function () {
 
     var pConfig;
     if (!_isFormBuilder()
-      // Report chỉ dùng metadata legacy để xem/in, không đăng ký Unified CRUD.
-      && _isUnifiedCrudForm(MODULE_CONFIG.FormName)
+      && _isUnifiedMetadataForm(MODULE_CONFIG.FormName)
       && window.FieldSyncService
       && typeof FieldSyncService.observeForm === 'function') {
       pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
         fieldContractState = state || null;
-        if (state && state.active === true && state.schema && state.runtimeSchemas) {
+        if (state && state.metadataActive === true && state.schema && state.runtimeSchemas) {
           MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
           return {
             code: 0,
@@ -557,14 +617,20 @@ window.DynamicFormEngine = (function () {
           };
         }
         if (state && state.failClosed === true) {
-          throw new Error(state.error || 'Metadata của form ACTIVE không sẵn sàng.');
+          throw new Error(state.error || 'Metadata V2 của form không sẵn sàng.');
         }
-        return loadLegacyMetadata().then(function (legacyResponse) {
-          if (legacyResponse && typeof legacyResponse === 'object') {
-            legacyResponse._fieldContractState = state || null;
-          }
-          return legacyResponse;
-        });
+        if (state && state.error) {
+          throw new Error(state.error);
+        }
+        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
+          return loadLegacyMetadata().then(function (legacyResponse) {
+            if (legacyResponse && typeof legacyResponse === 'object') {
+              legacyResponse._fieldContractState = state || null;
+            }
+            return legacyResponse;
+          });
+        }
+        throw new Error('Form chưa được đăng ký metadata V2.');
       });
     } else {
       pConfig = loadLegacyMetadata();
@@ -1011,39 +1077,45 @@ window.DynamicFormEngine = (function () {
           });
         }
 
-  function _openExcelImportModal() {
-    if (!_canImportExcel()) {
-      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Form hiện tại chưa đủ điều kiện import an toàn.');
-      return;
-    }
-    if (!window.tabulatorInstance || typeof ExcelImportModal === 'undefined') {
-      if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Thư viện ExcelImportModal chưa được nạp.');
-      return;
-    }
-    var documentConfig = window.API_CONFIG
-      && API_CONFIG.ENDPOINTS
-      && API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
-    ExcelImportModal.show({
-      formName: MODULE_CONFIG.FormName,
-      formTitle: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName,
-      apiBase: documentConfig ? documentConfig.SERVICE_BASE : '',
-      requestHeaders: {
-        Username: _currentUser(),
-        BranchID: _currentBranchId()
-      },
-      onSuccess: function () {
-        selectedRows = [];
-        currentPage = 1;
-        if (window.tabulatorInstance && typeof window.tabulatorInstance.deselectRow === 'function') {
-          window.tabulatorInstance.deselectRow();
+        function _openExcelImportModal() {
+          if (!_canImportExcel()) {
+            if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Trang này chưa hỗ trợ lấy dữ liệu từ Excel.');
+            return;
+          }
+          if (!window.tabulatorInstance || typeof ExcelImportModal === 'undefined') {
+            if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Chức năng lấy dữ liệu chưa sẵn sàng. Vui lòng tải lại trang.');
+            return;
+          }
+          var documentConfig = window.API_CONFIG
+            && API_CONFIG.ENDPOINTS
+            && API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
+          var importColumnLayout = window.TableColumnLayout
+            && typeof TableColumnLayout.capture === 'function'
+            ? TableColumnLayout.capture(window.tabulatorInstance)
+            : [];
+          ExcelImportModal.show({
+            formName: MODULE_CONFIG.FormName,
+            formTitle: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName,
+            apiBase: documentConfig ? documentConfig.SERVICE_BASE : '',
+            columnLayout: importColumnLayout,
+            requestHeaders: {
+              Username: _currentUser(),
+              BranchID: _currentBranchId()
+            },
+            onSuccess: function () {
+              selectedRows = [];
+              currentPage = 1;
+              currentLimit = _refreshPageSize(currentLimit);
+              if (window.tabulatorInstance && typeof window.tabulatorInstance.deselectRow === 'function') {
+                window.tabulatorInstance.deselectRow();
+              }
+              _updateSelectionCounter();
+              _loadData({ loadingMessage: GRID_UI_TEXT.refreshingAfterSave });
+            }
+          });
         }
-        _updateSelectionCounter();
-        _loadData();
-      }
-    });
-  }
 
-  // Menu Tùy chọn bảng
+        // Menu Tùy chọn bảng
         var tabulatorActionWrapper = document.createElement('div');
         tabulatorActionWrapper.className = 'tabulator-action-wrapper';
         tabulatorActionWrapper.style.cssText = 'position: relative; display: inline-flex; margin-left: auto; align-items: center;';
@@ -1396,7 +1468,7 @@ window.DynamicFormEngine = (function () {
         }));
 
         if (_canImportExcel()) {
-          tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Import dữ liệu Excel', function () {
+          tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Lấy dữ liệu Excel', function () {
             _openExcelImportModal();
           }));
         }
@@ -1588,8 +1660,8 @@ window.DynamicFormEngine = (function () {
               _openEditForm(selectedRows[0]);
             }
           } : 'DISABLED') : false,
-          onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE', { userOnly: true }) ? function () {
-            if (_usesUnifiedFieldContract() && !_contractDeleteActive()) return Alert.info(MODULE_CONFIG.AlertTitleInfo, 'Delete V2 đang bị khóa cho tới khi policy xóa được DB xác minh.');
+          onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
+            if (_usesUnifiedMetadata() && !_contractDeleteActive()) return Alert.info(MODULE_CONFIG.AlertTitleInfo, 'Chức năng xóa chưa có route nghiệp vụ hợp lệ.');
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
 
             // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
@@ -1607,7 +1679,7 @@ window.DynamicFormEngine = (function () {
                 return Alert.info(MODULE_CONFIG.AlertTitleInfo, MODULE_CONFIG.InfoDeleteDev);
               }
 
-              if (_usesUnifiedFieldContract()) {
+              if (_usesV2DeleteRoute()) {
                 var primaryKey = MODULE_CONFIG.PrimaryKey;
                 var ids = selectedRows.map(function (row) { return row && row[primaryKey]; })
                   .filter(_hasContractValue);
@@ -1926,7 +1998,7 @@ window.DynamicFormEngine = (function () {
 
         if (dynamicFilters.length > 0) {
           filters = filters.concat(dynamicFilters);
-        } else if (!_usesUnifiedFieldContract()
+        } else if (!_usesUnifiedMetadata()
           && MODULE_CONFIG.Filters
           && MODULE_CONFIG.Filters.length > 0) {
           filters = filters.concat(MODULE_CONFIG.Filters);
@@ -1969,7 +2041,8 @@ window.DynamicFormEngine = (function () {
   // ── Load Data ─────────────────────────────────────────────
   var savedScrollY = 0; // Lưu vị trí scroll
 
-  function _loadData() {
+  function _loadData(options) {
+    var loadOptions = options || {};
     var loadRequestId = ++dataLoadSequence;
     var requestedFormName = currentFormName;
     var requestedContainer = $container;
@@ -1994,10 +2067,11 @@ window.DynamicFormEngine = (function () {
       // Hủy Tabulator khi element vẫn còn trong DOM; nếu xóa DOM trước,
       // lần refresh sau Save có thể ném lỗi và làm mất state vừa tải.
       _destroyTabulatorInstance();
-      gridContainer.innerHTML = '<div class="p-4 text-center" style="color:var(--color-text-secondary);">' + MODULE_CONFIG.TextLoading + '</div>';
-    } else if (gridContainer) {
-      gridContainer.innerHTML = '<div class="p-4 text-center" style="color:var(--color-text-secondary);">' + MODULE_CONFIG.TextLoading + '</div>';
     }
+    _showGridLoading(
+      gridContainer,
+      loadOptions.loadingMessage || MODULE_CONFIG.TextLoading
+    );
 
     var searchEndpoint = _usesUnifiedFieldContract() ? _gateway() : MODULE_CONFIG.ApiSearch;
     if (searchEndpoint) {
@@ -2005,7 +2079,7 @@ window.DynamicFormEngine = (function () {
       var activeFilters = {};
       if (window.currentFilters) {
         var allowedContractFilters = null;
-        if (_usesUnifiedFieldContract()) {
+        if (_usesUnifiedMetadata()) {
           allowedContractFilters = Object.create(null);
           _schemaFor('filters').forEach(function (field) { allowedContractFilters[String(field.name).toLowerCase()] = true; });
         }
@@ -2101,7 +2175,7 @@ window.DynamicFormEngine = (function () {
        * định; Keyword vẫn chỉ nằm ở top-level query.Keyword.
        */
       if (_usesUnifiedFieldContract() && !MODULE_CONFIG.IsFullPageDetail) {
-        var safePageSize = Math.min(500, Math.max(1, parseInt(currentLimit, 10) || 30));
+        var safePageSize = Math.min(100000, Math.max(1, parseInt(currentLimit, 10) || 30));
         var v2Data = Object.assign({}, activeFilters, {
           page: currentPage,
           pageSize: safePageSize
@@ -2702,7 +2776,7 @@ window.DynamicFormEngine = (function () {
         if (!endpoint) return;
 
         if (!_contractWriteActive()) {
-          if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Save V2 chưa được kích hoạt cho form này.');
+          if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Form chưa có route lưu dữ liệu hợp lệ.');
           cell.restoreOldValue();
           return;
         }
@@ -5718,7 +5792,7 @@ window.DynamicFormEngine = (function () {
       return;
     }
     if (!_contractWriteActive()) {
-      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Save V2 chưa được kích hoạt cho form này.');
+      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Form chưa có route lưu dữ liệu hợp lệ.');
       return;
     }
 
@@ -5803,7 +5877,7 @@ window.DynamicFormEngine = (function () {
       return;
     }
     if (!_contractWriteActive()) {
-      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Save V2 chưa được kích hoạt cho form này.');
+      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Form chưa có route lưu dữ liệu hợp lệ.');
       return;
     }
 
@@ -6100,7 +6174,7 @@ window.DynamicFormEngine = (function () {
       return;
     }
     if (!_contractWriteActive()) {
-      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Save V2 chưa được kích hoạt cho form này.');
+      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Form chưa có route lưu dữ liệu hợp lệ.');
       return;
     }
 

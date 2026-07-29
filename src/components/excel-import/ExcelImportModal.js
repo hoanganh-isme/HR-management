@@ -8,6 +8,16 @@ window.ExcelImportModal = (function () {
   var SOURCE_FILE = 'FILE';
   var SOURCE_CLIPBOARD = 'CLIPBOARD';
   var PREVIEW_COLUMN_LIMIT = 12;
+  var USER_TEXT = Object.freeze({
+    preparing: 'Đang chuẩn bị...',
+    sending: 'Đang gửi dữ liệu...',
+    reading: 'Đang đọc dữ liệu...',
+    readingHelp: 'Hệ thống đang đọc dữ liệu. Vui lòng chờ.',
+    saving: 'Đang lưu dữ liệu...',
+    savingHelp: 'Hệ thống đang kiểm tra và lưu dữ liệu. Vui lòng chờ.',
+    saveAction: 'Lưu',
+    ready: 'Dữ liệu đã sẵn sàng để lưu.'
+  });
 
   function text(value) {
     return String(value === undefined || value === null ? '' : value);
@@ -39,21 +49,27 @@ window.ExcelImportModal = (function () {
   function errorPayload(error) {
     return error && error.data && typeof error.data === 'object'
       ? error.data
-      : { message: error && error.message ? error.message : 'Không thể xử lý dữ liệu import.' };
+      : { message: error && error.message ? error.message : 'Không thể xử lý dữ liệu. Vui lòng thử lại.' };
   }
 
   function autoMatch(header, fields) {
     var exactName = fields.filter(function (field) { return text(field.name) === text(header).trim(); });
     if (exactName.length === 1) return exactName[0].name;
-    var exactLabel = fields.filter(function (field) { return text(field.label) === text(header).trim(); });
+    var exactLabel = fields.filter(function (field) {
+      return text(field.label) === text(header).trim()
+        || text(field.uiLabel) === text(header).trim();
+    });
     if (exactLabel.length === 1) return exactLabel[0].name;
     var normalized = fields.filter(function (field) {
-      return normalize(field.name) === normalize(header) || normalize(field.label) === normalize(header);
+      return normalize(field.name) === normalize(header)
+        || normalize(field.label) === normalize(header)
+        || normalize(field.uiLabel) === normalize(header);
     });
     if (normalized.length === 1) return normalized[0].name;
     var loose = fields.filter(function (field) {
       return normalizeLoose(field.name) === normalizeLoose(header)
-        || normalizeLoose(field.label) === normalizeLoose(header);
+        || normalizeLoose(field.label) === normalizeLoose(header)
+        || normalizeLoose(field.uiLabel) === normalizeLoose(header);
     });
     return loose.length === 1 ? loose[0].name : '';
   }
@@ -69,11 +85,12 @@ window.ExcelImportModal = (function () {
       prepared: null,
       capabilities: null,
       busy: false,
-      busyStartedAt: 0,
-      busyTimer: null,
       executed: false,
       successNotified: false,
-      controller: null
+      controller: null,
+      orderedFields: [],
+      positionalFields: [],
+      hasColumnLayout: false
     };
 
     var backdrop = document.createElement('div');
@@ -81,22 +98,25 @@ window.ExcelImportModal = (function () {
     backdrop.innerHTML = [
       '<section class="excel-import-card" role="dialog" aria-modal="true" aria-labelledby="excel-import-title" tabindex="-1">',
       '  <header class="excel-import-header">',
-      '    <div>',
-      '      <h3 id="excel-import-title"><span class="material-symbols-outlined">upload_file</span> Import dữ liệu</h3>',
-      '      <p id="excel-import-subtitle"></p>',
+      '    <div class="excel-import-title-group">',
+      '      <span class="material-symbols-outlined excel-import-title-icon" aria-hidden="true">upload_file</span>',
+      '      <div class="excel-import-title-copy">',
+      '        <h3 id="excel-import-title">Lấy dữ liệu Excel</h3>',
+      '        <p id="excel-import-subtitle"></p>',
+      '      </div>',
       '    </div>',
       '    <button type="button" class="excel-import-close-btn" aria-label="Đóng"><span class="material-symbols-outlined">close</span></button>',
       '  </header>',
       '  <div class="excel-import-body">',
       '    <div class="excel-import-source-box" role="radiogroup" aria-label="Nguồn dữ liệu">',
-      '      <label class="excel-import-source-option"><input type="radio" name="import_source" value="FILE" checked><span>Lấy từ file Excel</span></label>',
-      '      <label class="excel-import-source-option"><input type="radio" name="import_source" value="CLIPBOARD"><span>Lấy từ clipboard</span></label>',
+      '      <label class="excel-import-source-option"><input type="radio" name="import_source" value="FILE" checked><span><span class="material-symbols-outlined" aria-hidden="true">table_view</span>Từ file Excel</span></label>',
+      '      <label class="excel-import-source-option"><input type="radio" name="import_source" value="CLIPBOARD"><span><span class="material-symbols-outlined" aria-hidden="true">content_paste</span>Từ clipboard</span></label>',
       '    </div>',
       '    <div class="excel-import-source-panel excel-import-file-panel">',
       '      <label class="excel-import-dropzone" tabindex="0">',
       '        <span class="material-symbols-outlined excel-import-dropzone-icon">cloud_upload</span>',
-      '        <span class="excel-import-dropzone-text">Chọn hoặc kéo thả file Excel</span>',
-      '        <span class="excel-import-dropzone-subtext">Hỗ trợ .xlsx không có macro</span>',
+      '        <span class="excel-import-dropzone-text">Chọn file Excel</span>',
+      '        <span class="excel-import-dropzone-subtext">hoặc kéo thả vào đây · định dạng .xlsx</span>',
       '        <input class="excel-import-file-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>',
       '      </label>',
       '    </div>',
@@ -105,38 +125,52 @@ window.ExcelImportModal = (function () {
       '      <button type="button" class="excel-import-paste-zone">',
       '        <span class="material-symbols-outlined">content_paste_go</span>',
       '        <strong>Nhấn Ctrl + V để dán dữ liệu</strong>',
-      '        <small>Dữ liệu lớn sẽ được upload dạng luồng, không gửi JSON từng dòng.</small>',
+      '        <small>Hỗ trợ dán vùng dữ liệu lớn từ Excel.</small>',
       '      </button>',
       '    </div>',
-      '    <div class="excel-import-file-badge" hidden><span class="material-symbols-outlined">description</span><span class="excel-import-file-name"></span><small class="excel-import-file-size"></small></div>',
+      '    <div class="excel-import-file-badge" hidden>',
+      '      <span class="material-symbols-outlined excel-import-file-icon" aria-hidden="true">description</span>',
+      '      <div class="excel-import-file-details">',
+      '        <span class="excel-import-file-name"></span>',
+      '        <small><span class="excel-import-file-size"></span><span class="excel-import-file-type" hidden>Tệp Excel</span></small>',
+      '      </div>',
+      '      <button type="button" class="excel-import-replace-file" hidden><span class="material-symbols-outlined" aria-hidden="true">sync</span>Chọn file khác</button>',
+      '    </div>',
       '    <div class="excel-import-upload-progress" hidden>',
-      '      <div><span class="excel-import-progress-label">Đang upload...</span><span class="excel-import-progress-percent">0%</span></div>',
+      '      <div><span class="excel-import-progress-label">' + USER_TEXT.sending + '</span><span class="excel-import-progress-percent">0%</span></div>',
       '      <div class="excel-import-progress-track"><span></span></div>',
       '    </div>',
       '    <div class="excel-import-banner excel-import-banner-info" role="status" aria-live="polite">',
-      '      <span class="material-symbols-outlined">info</span><div class="excel-import-status">Đang kiểm tra khả năng Bulk Import...</div>',
+      '      <span class="material-symbols-outlined">info</span><div class="excel-import-status">' + USER_TEXT.preparing + '</div>',
       '    </div>',
       '    <div class="excel-import-config" hidden>',
       '      <div class="excel-import-config-grid">',
       '        <div class="excel-import-field"><label for="excel-import-sheet">Nguồn dữ liệu</label><select id="excel-import-sheet" class="excel-import-sheet"></select></div>',
       '        <div class="excel-import-field"><label for="excel-import-header-row">Tiêu đề các cột</label><select id="excel-import-header-row" class="excel-import-header-row"></select></div>',
+      '        <div class="excel-import-field"><label for="excel-import-mapping-mode">Cách ghép cột</label><select id="excel-import-mapping-mode" class="excel-import-mapping-mode"><option value="HEADER">Tự nhận diện theo tiêu đề</option><option value="TABLE_ORDER">Theo thứ tự trên bảng</option></select></div>',
       '      </div>',
       '      <div class="excel-import-mapping-toolbar">',
-      '        <label class="excel-import-checkbox-label"><input type="checkbox" class="excel-import-toggle-mapping"><span>Chỉnh ánh xạ cột</span></label>',
+      '        <label class="excel-import-checkbox-label"><input type="checkbox" class="excel-import-toggle-mapping"><span>Điều chỉnh cột</span></label>',
       '        <span class="excel-import-row-count"></span>',
       '      </div>',
       '      <div class="excel-import-mapping-summary"></div>',
       '      <div class="excel-import-mapping-list" hidden></div>',
       '      <section class="excel-import-preview-section">',
-      '        <h4 class="excel-import-section-title">Xem trước dữ liệu</h4>',
-      '        <div class="excel-import-table-wrapper"><table class="excel-import-table excel-import-preview"></table></div>',
+      '        <div class="excel-import-preview-heading">',
+      '          <div>',
+      '            <h4 class="excel-import-section-title">Xem trước dữ liệu</h4>',
+      '            <p>Kiểm tra nội dung trước khi lưu</p>',
+      '          </div>',
+      '          <span class="excel-import-preview-count"></span>',
+      '        </div>',
+      '        <div class="excel-import-table-wrapper"><table class="excel-import-table excel-import-preview" aria-label="Bản xem trước dữ liệu"></table></div>',
       '      </section>',
       '    </div>',
       '    <div class="excel-import-result" hidden></div>',
       '  </div>',
       '  <footer class="excel-import-footer">',
       '    <button type="button" class="excel-import-btn excel-import-btn-cancel">Hủy</button>',
-      '    <button type="button" class="excel-import-btn excel-import-btn-submit" disabled><span class="material-symbols-outlined">database_upload</span> Import dữ liệu</button>',
+      '    <button type="button" class="excel-import-btn excel-import-btn-submit" disabled><span class="material-symbols-outlined">upload_file</span> Lấy dữ liệu</button>',
       '  </footer>',
       '</section>'
     ].join('');
@@ -156,6 +190,8 @@ window.ExcelImportModal = (function () {
     var fileBadge = backdrop.querySelector('.excel-import-file-badge');
     var fileName = backdrop.querySelector('.excel-import-file-name');
     var fileSize = backdrop.querySelector('.excel-import-file-size');
+    var fileType = backdrop.querySelector('.excel-import-file-type');
+    var replaceFileButton = backdrop.querySelector('.excel-import-replace-file');
     var uploadProgress = backdrop.querySelector('.excel-import-upload-progress');
     var progressLabel = backdrop.querySelector('.excel-import-progress-label');
     var progressPercent = backdrop.querySelector('.excel-import-progress-percent');
@@ -166,11 +202,13 @@ window.ExcelImportModal = (function () {
     var resultSection = backdrop.querySelector('.excel-import-result');
     var sheetSelect = backdrop.querySelector('.excel-import-sheet');
     var headerRowSelect = backdrop.querySelector('.excel-import-header-row');
+    var mappingModeSelect = backdrop.querySelector('.excel-import-mapping-mode');
     var toggleMapping = backdrop.querySelector('.excel-import-toggle-mapping');
     var mappingSummary = backdrop.querySelector('.excel-import-mapping-summary');
     var mappingList = backdrop.querySelector('.excel-import-mapping-list');
     var rowCount = backdrop.querySelector('.excel-import-row-count');
     var previewTable = backdrop.querySelector('.excel-import-preview');
+    var previewCount = backdrop.querySelector('.excel-import-preview-count');
 
     subtitle.textContent = text(config.formTitle || formName);
 
@@ -192,46 +230,41 @@ window.ExcelImportModal = (function () {
     function setSourceInputsDisabled(disabled) {
       fileInput.disabled = disabled;
       pasteZone.disabled = disabled;
+      replaceFileButton.disabled = disabled;
       sourceRadios.forEach(function (radio) { radio.disabled = disabled; });
-    }
-
-    function stopBusyTimer() {
-      if (state.busyTimer) window.clearInterval(state.busyTimer);
-      state.busyTimer = null;
     }
 
     function setBusy(busy, label) {
       state.busy = busy;
       if (busy) {
-        state.busyStartedAt = Date.now();
         cancelButton.textContent = 'Hủy xử lý';
-        stopBusyTimer();
-        state.busyTimer = window.setInterval(function () {
-          var seconds = Math.max(1, Math.floor((Date.now() - state.busyStartedAt) / 1000));
-          submitButton.title = 'Đã xử lý ' + seconds + ' giây';
-        }, 1000);
       } else {
-        stopBusyTimer();
         cancelButton.textContent = state.executed ? 'Đóng' : 'Hủy';
-        submitButton.title = '';
       }
       setSourceInputsDisabled(busy || !state.capabilities);
       sheetSelect.disabled = busy;
       headerRowSelect.disabled = busy;
+      mappingModeSelect.disabled = busy || !state.hasColumnLayout;
       closeButton.disabled = busy;
       mappingList.querySelectorAll('select').forEach(function (select) { select.disabled = busy; });
       submitButton.disabled = busy || !canSubmit();
       submitButton.innerHTML = busy
         ? '<span class="material-symbols-outlined excel-import-spin">progress_activity</span>' + text(label || 'Đang xử lý...')
-        : '<span class="material-symbols-outlined">database_upload</span> Import ' + formatNumber(selectedDataRows()) + ' dòng';
+        : '<span class="material-symbols-outlined">save</span> ' + USER_TEXT.saveAction + ' ' + formatNumber(selectedDataRows()) + ' dòng';
     }
 
     function setStatus(kind, message) {
+      banner.hidden = false;
       banner.className = 'excel-import-banner excel-import-banner-' + kind;
       banner.querySelector('.material-symbols-outlined').textContent = kind === 'error'
         ? 'error'
         : kind === 'success' ? 'check_circle' : 'info';
       status.textContent = message;
+    }
+
+    function hideStatus() {
+      banner.hidden = true;
+      status.textContent = '';
     }
 
     function selectedSheet() {
@@ -261,6 +294,11 @@ window.ExcelImportModal = (function () {
       return Array.isArray(sheet.preview[headerRow - 1]) ? sheet.preview[headerRow - 1] : [];
     }
 
+    function usesTableOrderMapping() {
+      return Number(headerRowSelect.value || 0) === 0
+        || mappingModeSelect.value === 'TABLE_ORDER';
+    }
+
     function currentMapping() {
       var output = {};
       mappingList.querySelectorAll('.excel-import-mapping-row').forEach(function (row) {
@@ -287,6 +325,39 @@ window.ExcelImportModal = (function () {
       };
     }
 
+    function initialMapping(sourceHeaders, byTableOrder) {
+      var output = {};
+      sourceHeaders.forEach(function (source, index) {
+        source = text(source).trim();
+        if (!source) return;
+        var targetName = byTableOrder
+          ? (state.positionalFields[index] ? state.positionalFields[index].name : '')
+          : autoMatch(source, state.orderedFields);
+        if (targetName) output[source] = targetName;
+      });
+      return output;
+    }
+
+    function orderedSourceColumns(sourceHeaders, mapping, preserveSourceOrder) {
+      if (!preserveSourceOrder
+        && state.hasColumnLayout
+        && window.TableColumnLayout
+        && typeof TableColumnLayout.orderMappedSources === 'function') {
+        return TableColumnLayout.orderMappedSources(
+          sourceHeaders,
+          mapping,
+          state.orderedFields
+        );
+      }
+      return sourceHeaders.map(function (header, sourceIndex) {
+        return {
+          header: text(header).trim(),
+          sourceIndex: sourceIndex,
+          targetName: mapping[text(header).trim()] || ''
+        };
+      });
+    }
+
     function canSubmit() {
       if (!state.importId || !state.prepared || state.executed) return false;
       var check = mappingState();
@@ -295,14 +366,18 @@ window.ExcelImportModal = (function () {
 
     function renderPreview() {
       previewTable.innerHTML = '';
+      previewCount.textContent = '';
       var sheet = selectedSheet();
       if (!sheet) return;
       var allHeaders = headers();
-      var indices = [];
-      allHeaders.forEach(function (header, index) {
-        if (text(header).trim() && indices.length < PREVIEW_COLUMN_LIMIT) indices.push(index);
-      });
-      if (!indices.length) {
+      var previewColumns = orderedSourceColumns(
+        allHeaders,
+        currentMapping(),
+        usesTableOrderMapping()
+      ).filter(function (column) {
+        return column.header;
+      }).slice(0, PREVIEW_COLUMN_LIMIT);
+      if (!previewColumns.length) {
         var emptyRow = document.createElement('tr');
         var emptyCell = document.createElement('td');
         emptyCell.textContent = 'Dòng tiêu đề đang chọn không có dữ liệu.';
@@ -313,30 +388,47 @@ window.ExcelImportModal = (function () {
 
       var thead = document.createElement('thead');
       var headingRow = document.createElement('tr');
-      indices.forEach(function (index) {
+      var headerIndex = Number(headerRowSelect.value || 0) - 1;
+      var previewRows = (sheet.preview || []).slice(Math.max(0, headerIndex + 1));
+      var numericColumns = {};
+      previewColumns.forEach(function (column) {
+        var index = column.sourceIndex;
+        var populatedValues = previewRows.map(function (row) { return row[index]; }).filter(function (value) {
+          return text(value).trim() !== '';
+        });
+        numericColumns[index] = populatedValues.length > 0 && populatedValues.every(function (value) {
+          if (typeof value === 'number') return Number.isFinite(value);
+          return /^[-+]?(?:\d{1,3}(?:[.,\s]\d{3})+|\d+)(?:[.,]\d+)?$/.test(text(value).trim());
+        });
         var th = document.createElement('th');
-        th.textContent = text(allHeaders[index]) || ('Cột ' + (index + 1));
+        th.textContent = column.header || ('Cột ' + (index + 1));
+        th.scope = 'col';
+        th.title = th.textContent;
+        if (numericColumns[index]) th.classList.add('is-numeric');
         headingRow.appendChild(th);
       });
       thead.appendChild(headingRow);
       previewTable.appendChild(thead);
 
       var tbody = document.createElement('tbody');
-      var headerIndex = Number(headerRowSelect.value || 0) - 1;
-      (sheet.preview || []).slice(Math.max(0, headerIndex + 1)).forEach(function (row) {
+      previewRows.forEach(function (row) {
         var tr = document.createElement('tr');
-        indices.forEach(function (index) {
+        previewColumns.forEach(function (column) {
+          var index = column.sourceIndex;
           var td = document.createElement('td');
           td.textContent = text(row[index]);
+          td.title = td.textContent;
+          if (numericColumns[index]) td.classList.add('is-numeric');
           tr.appendChild(td);
         });
         tbody.appendChild(tr);
       });
       previewTable.appendChild(tbody);
+      previewCount.textContent = formatNumber(previewRows.length) + ' dòng mẫu';
 
       if (allHeaders.filter(function (item) { return text(item).trim(); }).length > PREVIEW_COLUMN_LIMIT) {
         var caption = document.createElement('caption');
-        caption.textContent = 'Đang xem ' + PREVIEW_COLUMN_LIMIT + ' cột đầu; tất cả cột đã map vẫn được import.';
+        caption.textContent = 'Đang hiển thị ' + PREVIEW_COLUMN_LIMIT + ' cột đầu. Các cột còn lại vẫn được lưu.';
         previewTable.appendChild(caption);
       }
     }
@@ -344,15 +436,19 @@ window.ExcelImportModal = (function () {
     function renderMapping() {
       mappingList.innerHTML = '';
       var sourceHeaders = headers();
-      var fields = state.prepared ? state.prepared.fields : [];
-      var noHeader = Number(headerRowSelect.value || 0) === 0;
+      var fields = state.orderedFields;
+      var byTableOrder = usesTableOrderMapping();
+      var mapping = initialMapping(sourceHeaders, byTableOrder);
+      var sourceColumns = orderedSourceColumns(sourceHeaders, mapping, byTableOrder);
 
-      sourceHeaders.forEach(function (source, index) {
-        source = text(source).trim();
+      sourceColumns.forEach(function (sourceColumn) {
+        var source = sourceColumn.header;
+        var index = sourceColumn.sourceIndex;
         if (!source) return;
         var row = document.createElement('div');
         row.className = 'excel-import-mapping-row';
         row.setAttribute('data-source', source);
+        row.setAttribute('data-source-index', String(index));
 
         var sourceBox = document.createElement('div');
         sourceBox.innerHTML = '<small>Cột nguồn ' + (index + 1) + '</small>';
@@ -368,15 +464,16 @@ window.ExcelImportModal = (function () {
         select.setAttribute('aria-label', 'Trường đích cho ' + source);
         var skipOption = document.createElement('option');
         skipOption.value = '';
-        skipOption.textContent = 'Không import cột này';
+        skipOption.textContent = 'Bỏ qua cột này';
         select.appendChild(skipOption);
         fields.forEach(function (field) {
           var option = document.createElement('option');
           option.value = field.name;
-          option.textContent = (field.label || field.name) + ' (' + field.name + ')' + (field.required ? ' *' : '');
+          option.textContent = (field.uiLabel || field.label || field.name)
+            + ' (' + field.name + ')' + (field.required ? ' *' : '');
           select.appendChild(option);
         });
-        select.value = autoMatch(source, fields) || (noHeader && fields[index] ? fields[index].name : '');
+        select.value = mapping[source] || '';
         select.addEventListener('change', updateMappingSummary);
 
         row.appendChild(sourceBox);
@@ -393,18 +490,23 @@ window.ExcelImportModal = (function () {
       mappingSummary.className = 'excel-import-mapping-summary';
       if (check.duplicates.length) {
         mappingSummary.classList.add('is-error');
-        mappingSummary.textContent = 'Một trường đích đang được map nhiều lần. Hãy chọn lại.';
+        mappingSummary.textContent = 'Có cột đang được chọn lặp lại. Vui lòng kiểm tra.';
       } else if (check.requiredMissing.length) {
         mappingSummary.classList.add('is-warning');
-        mappingSummary.textContent = 'Còn thiếu trường bắt buộc: ' + check.requiredMissing.map(function (field) {
+        mappingSummary.textContent = 'Vui lòng chọn dữ liệu cho: ' + check.requiredMissing.map(function (field) {
           return field.label || field.name;
         }).join(', ');
       } else if (check.count === 0) {
         mappingSummary.classList.add('is-error');
-        mappingSummary.textContent = 'Chưa nhận diện được cột nào. Hãy mở phần ánh xạ để chọn.';
+        mappingSummary.textContent = 'Chưa xác định được cột dữ liệu. Vui lòng mở “Điều chỉnh cột”.';
       } else {
         mappingSummary.classList.add('is-ready');
-        mappingSummary.textContent = 'Đã map ' + check.count + ' cột. Sẵn sàng import.';
+        mappingSummary.textContent = 'Đã nhận diện ' + check.count + ' cột. ' + USER_TEXT.ready;
+        if (!usesTableOrderMapping() && state.hasColumnLayout) {
+          mappingSummary.textContent += ' Bản xem trước được sắp xếp giống bảng hiện tại.';
+        } else if (usesTableOrderMapping() && state.hasColumnLayout) {
+          mappingSummary.textContent += ' Dữ liệu được ghép theo thứ tự trên bảng.';
+        }
       }
 
       var needsAttention = check.count === 0 || check.duplicates.length > 0 || check.requiredMissing.length > 0;
@@ -413,7 +515,7 @@ window.ExcelImportModal = (function () {
       rowCount.textContent = formatNumber(selectedDataRows()) + ' dòng dữ liệu';
       submitButton.disabled = state.busy || !canSubmit();
       if (!state.busy) {
-        submitButton.innerHTML = '<span class="material-symbols-outlined">database_upload</span> Import '
+        submitButton.innerHTML = '<span class="material-symbols-outlined">save</span> ' + USER_TEXT.saveAction + ' '
           + formatNumber(selectedDataRows()) + ' dòng';
       }
     }
@@ -436,10 +538,22 @@ window.ExcelImportModal = (function () {
     }
 
     function renderPrepared(response) {
-      state.prepared = response;
+      var arranged = window.TableColumnLayout
+        && typeof TableColumnLayout.arrangeFields === 'function'
+        ? TableColumnLayout.arrangeFields(response.fields, config.columnLayout)
+        : {
+          all: Array.isArray(response.fields) ? response.fields : [],
+          positional: Array.isArray(response.fields) ? response.fields : [],
+          hasLayout: false
+        };
+      state.orderedFields = arranged.all;
+      state.positionalFields = arranged.positional;
+      state.hasColumnLayout = arranged.hasLayout === true;
+      state.prepared = Object.assign({}, response, { fields: state.orderedFields });
       state.importId = response.importId;
       state.executed = false;
       state.sourceType = response.sourceType;
+      card.classList.add('is-prepared');
       resultSection.hidden = true;
       resultSection.innerHTML = '';
       configSection.hidden = false;
@@ -447,6 +561,8 @@ window.ExcelImportModal = (function () {
       clipboardPanel.hidden = true;
       uploadProgress.hidden = true;
       sheetSelect.innerHTML = '';
+      mappingModeSelect.value = 'HEADER';
+      mappingModeSelect.disabled = !state.hasColumnLayout;
       response.sheets.forEach(function (sheet) {
         var option = document.createElement('option');
         option.value = sheet.name;
@@ -455,10 +571,7 @@ window.ExcelImportModal = (function () {
       });
       buildHeaderOptions(response);
       renderMapping();
-      setStatus(
-        'success',
-        'Đã đọc dữ liệu ở backend. Kiểm tra tiêu đề, ánh xạ và bản xem trước trước khi import.'
-      );
+      hideStatus();
       setBusy(false);
     }
 
@@ -467,7 +580,7 @@ window.ExcelImportModal = (function () {
       resultSection.innerHTML = '';
       resultSection.hidden = false;
       var heading = document.createElement('h4');
-      heading.textContent = payload.message || 'Dữ liệu import không hợp lệ.';
+      heading.textContent = payload.message || 'Dữ liệu chưa thể lưu. Vui lòng kiểm tra lại.';
       resultSection.appendChild(heading);
 
       if (payload.summary) {
@@ -483,7 +596,7 @@ window.ExcelImportModal = (function () {
         payload.errors.forEach(function (item) {
           var row = document.createElement('div');
           row.innerHTML = '<strong></strong><span></span>';
-          row.querySelector('strong').textContent = item.row ? ('Dòng ' + item.row) : 'Ánh xạ';
+          row.querySelector('strong').textContent = item.row ? ('Dòng ' + item.row) : 'Cột dữ liệu';
           row.querySelector('span').textContent = (item.field ? item.field + ': ' : '') + text(item.message);
           list.appendChild(row);
         });
@@ -498,30 +611,18 @@ window.ExcelImportModal = (function () {
 
     function renderSuccess(response) {
       var summary = response.summary || {};
-      resultSection.classList.add('is-success');
-      resultSection.innerHTML = '';
-      resultSection.hidden = false;
-      configSection.hidden = true;
-      sourceBox.hidden = true;
-      fileBadge.hidden = true;
-      uploadProgress.hidden = true;
-      var box = document.createElement('div');
-      box.className = 'excel-import-success-result';
-      box.innerHTML = [
-        '<span class="material-symbols-outlined">task_alt</span>',
-        '<h4>Import hoàn tất</h4>',
-        '<p>Dữ liệu đã được ghi nguyên khối; không có trạng thái ghi dở dang.</p>',
-        '<div class="excel-import-result-stats">',
-        '  <div><strong class="inserted"></strong><small>Đã thêm</small></div>',
-        '  <div><strong class="elapsed"></strong><small>Thời gian</small></div>',
-        '</div>'
-      ].join('');
-      box.querySelector('.inserted').textContent = formatNumber(summary.insertedRows);
-      box.querySelector('.elapsed').textContent = ((Number(summary.elapsedMs) || 0) / 1000).toFixed(1) + ' giây';
-      resultSection.appendChild(box);
-      setStatus('success', 'Bulk Import thành công trong một transaction.');
-      submitButton.hidden = true;
-      cancelButton.textContent = 'Đóng';
+      var savedRows = Number(summary.insertedRows);
+      if (!Number.isFinite(savedRows)) savedRows = Number(summary.totalRows);
+      var message = Number.isFinite(savedRows) && savedRows > 0
+        ? 'Đã lưu thành công ' + formatNumber(savedRows) + ' dòng dữ liệu.'
+        : 'Dữ liệu đã được lưu thành công.';
+
+      backdrop.remove();
+      if (typeof Alert !== 'undefined' && typeof Alert.success === 'function') {
+        Alert.success('Thành công', message);
+      } else if (typeof UIToast !== 'undefined' && typeof UIToast.show === 'function') {
+        UIToast.show(message, 'success');
+      }
     }
 
     async function discardImport() {
@@ -540,24 +641,30 @@ window.ExcelImportModal = (function () {
 
     function clearPrepared() {
       state.prepared = null;
+      state.orderedFields = [];
+      state.positionalFields = [];
+      state.hasColumnLayout = false;
+      mappingModeSelect.value = 'HEADER';
+      mappingModeSelect.disabled = true;
       state.importId = '';
       state.executed = false;
+      card.classList.remove('is-prepared');
       configSection.hidden = true;
       resultSection.hidden = true;
       resultSection.innerHTML = '';
       resultSection.classList.remove('is-success');
       sourceBox.hidden = false;
       fileBadge.hidden = true;
+      fileInput.value = '';
       uploadProgress.hidden = true;
       showSelectedSourcePanel();
       submitButton.hidden = false;
       submitButton.disabled = true;
-      submitButton.innerHTML = '<span class="material-symbols-outlined">database_upload</span> Import dữ liệu';
+      submitButton.innerHTML = '<span class="material-symbols-outlined">upload_file</span> Lấy dữ liệu';
     }
 
     async function closeModal() {
       if (state.controller) state.controller.abort();
-      stopBusyTimer();
       await discardImport();
       backdrop.remove();
     }
@@ -572,12 +679,7 @@ window.ExcelImportModal = (function () {
       state.sourceType = nextSource;
       showSelectedSourcePanel();
       if (!state.prepared) {
-        setStatus(
-          'info',
-          nextSource === SOURCE_CLIPBOARD
-            ? 'Copy vùng dữ liệu trong Excel rồi nhấn Ctrl + V tại đây.'
-            : 'Chọn file .xlsx để backend đọc cấu trúc và tạo bản xem trước.'
-        );
+        hideStatus();
       }
       if (nextSource === SOURCE_CLIPBOARD) pasteZone.focus();
       else dropzone.focus();
@@ -601,12 +703,15 @@ window.ExcelImportModal = (function () {
       state.controller = new AbortController();
       fileBadge.hidden = false;
       fileName.textContent = displayName || file.name || 'Clipboard';
+      fileName.title = fileName.textContent;
       fileSize.textContent = formatBytes(file.size);
+      fileType.hidden = sourceType !== SOURCE_FILE;
+      replaceFileButton.hidden = sourceType !== SOURCE_FILE;
       uploadProgress.hidden = false;
       progressFill.style.width = '0%';
       progressPercent.textContent = '0%';
-      setBusy(true, sourceType === SOURCE_CLIPBOARD ? 'Đang nhận clipboard...' : 'Đang upload...');
-      setStatus('info', 'Đang upload và đọc cấu trúc dữ liệu ở backend...');
+      setBusy(true, sourceType === SOURCE_CLIPBOARD ? 'Đang nhận dữ liệu đã dán...' : USER_TEXT.sending);
+      setStatus('info', USER_TEXT.readingHelp);
 
       var formData = new FormData();
       formData.append('formName', formName);
@@ -620,7 +725,7 @@ window.ExcelImportModal = (function () {
             var percent = total > 0 ? Math.min(100, Math.round(loaded * 100 / total)) : 0;
             progressFill.style.width = percent + '%';
             progressPercent.textContent = percent + '%';
-            progressLabel.textContent = percent >= 100 ? 'Backend đang đọc dữ liệu...' : 'Đang upload...';
+            progressLabel.textContent = percent >= 100 ? USER_TEXT.reading : USER_TEXT.sending;
           }
         });
         progressFill.style.width = '100%';
@@ -653,10 +758,10 @@ window.ExcelImportModal = (function () {
     async function executeImport() {
       if (!canSubmit() || state.busy) return;
       state.controller = new AbortController();
-      setBusy(true, 'Đang Bulk Import...');
+      setBusy(true, USER_TEXT.saving);
       setStatus(
         'info',
-        'Backend đang kiểm tra toàn bộ dữ liệu và BulkCopy theo batch. Có thể hủy trước khi transaction hoàn tất.'
+        USER_TEXT.savingHelp
       );
       resultSection.hidden = true;
       try {
@@ -702,7 +807,7 @@ window.ExcelImportModal = (function () {
       state.controller = null;
       setBusy(false);
       clearPrepared();
-      setStatus('info', 'Đã gửi yêu cầu hủy. Bạn có thể chọn lại nguồn dữ liệu.');
+      setStatus('info', 'Đã dừng thao tác. Bạn có thể chọn lại nguồn dữ liệu.');
     }
 
     async function loadCapabilities() {
@@ -714,11 +819,7 @@ window.ExcelImportModal = (function () {
         );
         state.capabilities = response;
         setSourceInputsDisabled(false);
-        setStatus(
-          'info',
-          'Sẵn sàng Bulk Import tối đa ' + formatNumber(response.limits && response.limits.maxRows)
-            + ' dòng, batch ' + formatNumber(response.limits && response.limits.batchSize) + '.'
-        );
+        hideStatus();
       } catch (error) {
         var payload = errorPayload(error);
         state.capabilities = null;
@@ -732,18 +833,28 @@ window.ExcelImportModal = (function () {
     toggleMapping.addEventListener('change', function () {
       mappingList.hidden = !toggleMapping.checked;
     });
-    sheetSelect.addEventListener('change', renderMapping);
-    headerRowSelect.addEventListener('change', renderMapping);
+      sheetSelect.addEventListener('change', renderMapping);
+      headerRowSelect.addEventListener('change', renderMapping);
+      mappingModeSelect.addEventListener('change', renderMapping);
     submitButton.addEventListener('click', executeImport);
     closeButton.addEventListener('click', closeModal);
     cancelButton.addEventListener('click', cancelOrClose);
+
+    function openFilePicker() {
+      if (state.busy || !state.capabilities) return;
+      fileInput.value = '';
+      fileInput.click();
+    }
+
     fileInput.addEventListener('change', function () {
-      prepareSource(fileInput.files[0], SOURCE_FILE, fileInput.files[0] && fileInput.files[0].name);
+      var selectedFile = fileInput.files[0];
+      prepareSource(selectedFile, SOURCE_FILE, selectedFile && selectedFile.name);
     });
+    replaceFileButton.addEventListener('click', openFilePicker);
     dropzone.addEventListener('keydown', function (event) {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        fileInput.click();
+        openFilePicker();
       }
     });
     dropzone.addEventListener('dragover', function (event) {

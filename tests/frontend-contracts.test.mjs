@@ -160,6 +160,29 @@ test('Editable detail tabs use their configured primary key and preserve the leg
   assert.match(source, /currRow\[detailPrimaryKey\]/);
 });
 
+test('Pagination returns to a bounded page after a bulk data change', () => {
+  const { context } = loadBrowserScript('src/components/pagination/Pagination.js');
+  assert.equal(context.Pagination.getDefaultPageSize(), 15);
+  assert.equal(context.Pagination.getRefreshPageSize(100000), 15);
+  assert.equal(context.Pagination.getRefreshPageSize(50), 50);
+});
+
+test('Excel import uses user-facing action and progress messages', () => {
+  const source = fs.readFileSync(path.join(root, 'src/components/excel-import/ExcelImportModal.js'), 'utf8');
+  assert.match(source, /saveAction:\s*'Lưu'/);
+  assert.match(source, /readingHelp:\s*'Hệ thống đang đọc dữ liệu\. Vui lòng chờ\.'/);
+  assert.match(source, /savingHelp:\s*'Hệ thống đang kiểm tra và lưu dữ liệu\. Vui lòng chờ\.'/);
+  assert.doesNotMatch(source, /Backend đang đọc dữ liệu|Đang upload và đọc cấu trúc dữ liệu|Đang import dữ liệu/);
+});
+
+test('Dynamic grid always renders a readable loading state and bounds bulk refreshes', () => {
+  const source = fs.readFileSync(path.join(root, 'src/js/core/DynamicFormEngine.js'), 'utf8');
+  assert.match(source, /label\.textContent = _gridLoadingText\(message\)/);
+  assert.match(source, /currentLimit = _refreshPageSize\(currentLimit\)/);
+  assert.match(source, /loadingMessage:\s*GRID_UI_TEXT\.refreshingAfterSave/);
+  assert.doesNotMatch(source, /innerHTML\s*=.*MODULE_CONFIG\.TextLoading/);
+});
+
 test('HRM release SQL is add-only, dry-run safe, and has a unique FormatFields allow-list', () => {
   const source = fs.readFileSync(path.join(root, 'sql/Deploy/HRM_Web_Install.sql'), 'utf8');
   const formatKeys = Array.from(

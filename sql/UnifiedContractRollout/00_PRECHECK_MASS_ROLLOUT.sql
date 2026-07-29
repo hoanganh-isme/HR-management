@@ -37,7 +37,10 @@ BEGIN
     LEFT JOIN dbo.SY_FrmLstTbl AS L
       ON L.FormID COLLATE DATABASE_DEFAULT = M.FormName COLLATE DATABASE_DEFAULT
     WHERE NULLIF(LTRIM(RTRIM(M.FormName)), '') IS NOT NULL
-      AND LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+      AND (
+          LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+          OR LTRIM(RTRIM(M.FormName)) LIKE '%Report'
+      )
     GROUP BY M.FormName
     ORDER BY M.FormName;
 END;

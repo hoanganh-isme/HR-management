@@ -70,14 +70,20 @@ function requestInput(request, driver, name, type, value) {
     return request.input(name, type, value === undefined ? null : value);
 }
 
-async function queryTargetMetadata(sqlServer, contract, schema, context, allowedGroupId = 'Admin') {
+async function queryTargetMetadata(sqlServer, contract, schema, context) {
     const pool = await sqlServer.getPool();
     const driver = sqlServer.driver;
     const request = pool.request();
     requestInput(request, driver, 'FormName', driver.NVarChar(100), contract.webFormName);
     requestInput(request, driver, 'TableName', driver.NVarChar(128), contract.expectedTableName);
     requestInput(request, driver, 'PrimaryKey', driver.NVarChar(128), contract.expectedPrimaryKey);
-    requestInput(request, driver, 'AllowedUserGroup', driver.NVarChar(50), allowedGroupId);
+    requestInput(
+        request,
+        driver,
+        'PermissionFormName',
+        driver.NVarChar(100),
+        contract.permissionFormName || contract.webFormName
+    );
     requestInput(request, driver, 'UserName', driver.NVarChar(100), context.userName);
     requestInput(request, driver, 'BranchID', driver.NVarChar(4000), context.branchId);
 
@@ -103,7 +109,19 @@ async function queryTargetMetadata(sqlServer, contract, schema, context, allowed
             U.BranchID AS UserBranches,
             CASE
                 WHEN LOWER(LTRIM(RTRIM(ISNULL(U.UserGroupID, ''))))
-                   = LOWER(LTRIM(RTRIM(@AllowedUserGroup))) THEN 1
+                   = 'admin' THEN 1
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM dbo.WA_Menu AS M
+                    INNER JOIN dbo.WA_UserGroupPermisstion AS P
+                      ON P.MenuID = M.MenuID
+                     AND P.UserGroupID = U.UserGroupID
+                    WHERE LOWER(LTRIM(RTRIM(ISNULL(M.FormName, ''))))
+                        = LOWER(LTRIM(RTRIM(@PermissionFormName)))
+                      AND ISNULL(M.isDisable, 0) = 0
+                      AND ISNULL(P.IsRun, 0) = 1
+                      AND ISNULL(P.isExportExcel, 0) = 1
+                ) THEN 1
                 ELSE 0
             END AS CanImport
         FROM dbo.SY_User AS U
@@ -182,8 +200,8 @@ async function queryTargetMetadata(sqlServer, contract, schema, context, allowed
     }
     if (Number(permissionRow.CanImport) !== 1) {
         throw new ExcelImportError(
-            `Chức năng import hiện chỉ dành cho tài khoản thuộc nhóm ${allowedGroupId}.`,
-            'EXCEL_IMPORT_ADMIN_REQUIRED',
+            'Bạn chưa được cấp quyền Xuất Excel cho màn hình này.',
+            'EXCEL_IMPORT_EXPORT_PERMISSION_REQUIRED',
             403
         );
     }
@@ -295,7 +313,10 @@ function valueExpression(field) {
 
 async function createStaging(transaction, driver, fields, name) {
     const columns = ['[__RowNo] int NOT NULL', ...fields.map(stageColumnDefinition)];
-    await transaction.request().query(`CREATE TABLE ${name} (${columns.join(', ')});`);
+    // Local temporary tables created through query() live inside sp_executesql and
+    // disappear before the TDS BulkLoad request starts. batch() keeps the #table
+    // in the transaction connection's session scope.
+    await transaction.request().batch(`CREATE TABLE ${name} (${columns.join(', ')});`);
     return name;
 }
 

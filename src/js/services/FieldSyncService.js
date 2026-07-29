@@ -12,7 +12,7 @@ window.FieldSyncService = (function (global) {
       rolloutMode: 'registry',
       includeForms: [],
       excludeForms: [],
-      fallbackToLegacy: true,
+      fallbackToLegacy: false,
       pollSeconds: 120
     };
   }
@@ -35,13 +35,13 @@ window.FieldSyncService = (function (global) {
     return Array.isArray(schema) ? schema.map(cloneValue) : [];
   }
 
-  function isCrudContractForm(formName) {
-    return /Frm$/i.test(String(formName || '').trim());
+  function isMetadataContractForm(formName) {
+    return /(?:Frm|Report)$/i.test(String(formName || '').trim());
   }
 
   function isPilot(formName) {
-    // Chỉ form CRUD có hậu tố Frm mới tham gia Unified Field Contract.
-    if (!isCrudContractForm(formName)) return false;
+    // Form CRUD và report động đều dùng cùng nguồn metadata V2.
+    if (!isMetadataContractForm(formName)) return false;
     var target = normalizeName(formName);
     var settings = config();
     var excluded = Array.isArray(settings.excludeForms) ? settings.excludeForms : [];
@@ -422,20 +422,48 @@ window.FieldSyncService = (function (global) {
     var headers = requestHeaders();
     var metadataRequestOptions = { headers: headers, logoutOnUnauthorized: false };
     var encodedForm = encodeURIComponent(formName);
-    var base = metadataBaseUrl() + '/grid-schema/' + encodedForm;
     var expectedErpFormId = erpFormId(formName);
-    var aliasQuery = '?erpFormId=' + encodeURIComponent(expectedErpFormId)
-      + (forceRefresh === true ? '&refresh=1' : '');
-    var requests = [global.ApiClient.get(base + aliasQuery, metadataRequestOptions)];
-    if (includeComparison !== false) requests.push(global.ApiClient.get(base + '/compare' + aliasQuery, metadataRequestOptions));
-    return Promise.all(requests).then(function (responses) {
-      return {
-        schema: responses[0] && responses[0].schema,
-        comparison: responses[1] && responses[1].comparison,
-        control: responses[0] && responses[0].contract,
-        backendActive: Boolean(responses[0] && responses[0].active === true),
-        expectedErpFormId: expectedErpFormId
-      };
+    var stateUrl = metadataBaseUrl() + '/contract-state/' + encodedForm
+      + (forceRefresh === true ? '?refresh=1' : '');
+    return global.ApiClient.get(stateUrl, metadataRequestOptions).then(function (contractState) {
+      var control = contractState && contractState.contract;
+      if (!contractState || contractState.metadataEnabled !== true) {
+        return {
+          schema: null,
+          comparison: null,
+          control: control || null,
+          registered: Boolean(contractState && contractState.registered === true),
+          metadataEnabled: false,
+          backendActive: false,
+          reasonCode: String(
+            contractState && (
+              contractState.metadataReasonCode
+              || contractState.reasonCode
+            ) || ''
+          ).trim().toUpperCase(),
+          expectedErpFormId: expectedErpFormId
+        };
+      }
+
+      var base = metadataBaseUrl() + '/grid-schema/' + encodedForm;
+      var aliasQuery = '?erpFormId=' + encodeURIComponent(expectedErpFormId)
+        + (forceRefresh === true ? '&refresh=1' : '');
+      var requests = [global.ApiClient.get(base + aliasQuery, metadataRequestOptions)];
+      if (includeComparison !== false) {
+        requests.push(global.ApiClient.get(base + '/compare' + aliasQuery, metadataRequestOptions));
+      }
+      return Promise.all(requests).then(function (responses) {
+        return {
+          schema: responses[0] && responses[0].schema,
+          comparison: responses[1] && responses[1].comparison,
+          control: (responses[0] && responses[0].contract) || control,
+          registered: true,
+          metadataEnabled: true,
+          backendActive: Boolean(responses[0] && responses[0].active === true),
+          reasonCode: null,
+          expectedErpFormId: expectedErpFormId
+        };
+      });
     });
   }
 
@@ -453,7 +481,10 @@ window.FieldSyncService = (function (global) {
       status: status || 'legacy-full',
       runtimeMode: 'LEGACY_FULL',
       managed: true,
+      metadataActive: false,
       active: false,
+      writeAvailable: false,
+      deleteAvailable: false,
       writeActive: false,
       deleteActive: false,
       contextKey: stateKey(formName),
@@ -471,7 +502,10 @@ window.FieldSyncService = (function (global) {
       status: status,
       runtimeMode: status === 'cutover-contract-error' ? 'CUTOVER_CONTRACT_ERROR' : 'METADATA_ERROR',
       managed: true,
+      metadataActive: false,
       active: false,
+      writeAvailable: false,
+      deleteAvailable: false,
       writeActive: false,
       deleteActive: false,
       contextKey: stateKey(formName),
@@ -523,32 +557,34 @@ window.FieldSyncService = (function (global) {
     var key = stateKey(formName);
     var entry = registryEntry(formName) || {};
     var current = states[key];
-    var requestedActive = isPilot(formName) && config().enabled === true && config().shadowMode === false;
+    var metadataRequested = isPilot(formName) && config().enabled === true;
+    var requestedActive = metadataRequested && config().shadowMode === false;
     var ttlMs = Math.max(5, Number(config().pollSeconds) || 120) * 1000;
     var resolvedLegacySchema = Array.isArray(legacySchema) && legacySchema.length
       ? legacySchema
       : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
 
-    if (!requestedActive) {
+    if (!metadataRequested) {
       clearFormTimers(formName);
       var legacyDisabled = legacyFullState(
         formName,
         resolvedLegacySchema,
-        config().enabled === true && config().shadowMode === true ? 'legacy-shadow' : 'legacy-disabled'
+        'legacy-disabled'
       );
+      legacyDisabled.managed = false;
       states[key] = legacyDisabled;
       return Promise.resolve(legacyDisabled);
     }
 
     if (current && current.pending) return current.pending;
     if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
-      current.runtimeSchemas = current.runtimeMode === 'LEGACY_FULL'
-        ? createRuntimeSchemas(resolvedLegacySchema, [], false)
-        : createUnifiedRuntimeSchemas(current.schema || [], current.writeActive === true, entry);
+      current.runtimeSchemas = current.metadataActive === true
+        ? createUnifiedRuntimeSchemas(current.schema || [], current.writeAvailable === true, entry)
+        : createRuntimeSchemas(resolvedLegacySchema, [], false);
       return Promise.resolve(current);
     }
 
-    var lastKnownV2 = current && current.schema && current.active === true ? current : null;
+    var lastKnownV2 = current && current.schema && current.metadataActive === true ? current : null;
     var lastKnownLegacy = current && current.runtimeMode === 'LEGACY_FULL' ? current : null;
     var pending = requestMetadata(formName, false, force === true).then(function (metadata) {
       var schema = metadata.schema;
@@ -568,21 +604,16 @@ window.FieldSyncService = (function (global) {
         normalizeName(registeredView) === normalizeName(entry.oldView) || !registeredView
       );
 
-      if (legacyViewRegistered) {
-        var legacy = legacyFullState(formName, resolvedLegacySchema, 'legacy-view-not-cutover', schema, 'VIEW_V2_NOT_ACTIVE', null);
-        states[key] = legacy;
-        dispatchUpdate(formName, legacy);
-        return legacy;
-      }
-
       var contractReady = isUnifiedContractReady(schema, formName, metadata.expectedErpFormId);
       var blocked = !contractReady || hasBlockingDiagnostics(schema);
-      if (!viewRouteReady || blocked) {
+      if ((!viewRouteReady && !legacyViewRegistered) || blocked) {
         var cutoverError = errorState(
           formName,
           'cutover-contract-error',
-          !viewRouteReady ? 'VIEW_ROUTE_UNEXPECTED' : 'FIELD_CONTRACT_INVALID_AFTER_CUTOVER',
-          !viewRouteReady ? 'Route View không khớp registry migration.' : 'View V2 đã cutover nhưng Unified Field Contract không đạt gate.',
+          !viewRouteReady && !legacyViewRegistered ? 'VIEW_ROUTE_UNEXPECTED' : 'FIELD_CONTRACT_INVALID',
+          !viewRouteReady && !legacyViewRegistered
+            ? 'Route xem dữ liệu không khớp contract đã đăng ký.'
+            : 'Metadata V2 không đạt điều kiện an toàn.',
           schema
         );
         states[key] = cutoverError;
@@ -590,19 +621,27 @@ window.FieldSyncService = (function (global) {
         return cutoverError;
       }
 
-      var writeActive = entry.enableSave === true && normalizeName(registeredSave) === normalizeName(entry.saveV2);
-      var deleteActive = managedDeleteReady(entry, registeredDelete, deleteMode);
+      var active = requestedActive && viewRouteReady;
+      var writeAvailable = entry.enableSave === true && Boolean(registeredSave);
+      var deleteAvailable = entry.enableDelete === true && Boolean(registeredDelete);
+      var writeActive = active && normalizeName(registeredSave) === normalizeName(entry.saveV2);
+      var deleteActive = active && managedDeleteReady(entry, registeredDelete, deleteMode);
       var next = {
-        status: writeActive ? 'unified-active' : 'unified-readonly',
-        runtimeMode: 'V2_FULL',
+        status: active
+          ? (writeActive ? 'unified-active' : 'unified-readonly')
+          : 'metadata-v2-current-business',
+        runtimeMode: active ? 'V2_FULL' : 'V2_METADATA_CURRENT_BUSINESS',
         managed: true,
-        active: true,
+        metadataActive: true,
+        active: active,
+        writeAvailable: writeAvailable,
+        deleteAvailable: deleteAvailable,
         writeActive: writeActive,
         deleteActive: deleteActive,
         contextKey: key,
         schema: schema,
         comparison: null,
-        runtimeSchemas: createUnifiedRuntimeSchemas(schema, writeActive, entry),
+        runtimeSchemas: createUnifiedRuntimeSchemas(schema, writeAvailable, entry),
         loadedAt: Date.now(),
         errorCode: null,
         error: null
@@ -651,7 +690,10 @@ window.FieldSyncService = (function (global) {
           status: 'unified-last-known-readonly',
           runtimeMode: 'V2_READONLY',
           managed: true,
+          metadataActive: true,
           active: true,
+          writeAvailable: false,
+          deleteAvailable: false,
           writeActive: false,
           deleteActive: false,
           contextKey: key,
@@ -690,7 +732,10 @@ window.FieldSyncService = (function (global) {
       status: 'loading',
       runtimeMode: current && current.runtimeMode ? current.runtimeMode : 'LOADING',
       managed: true,
+      metadataActive: Boolean(current && current.metadataActive),
       active: Boolean(current && current.active),
+      writeAvailable: false,
+      deleteAvailable: false,
       writeActive: false,
       deleteActive: false,
       contextKey: key,
@@ -721,18 +766,37 @@ window.FieldSyncService = (function (global) {
       return Promise.resolve(disabled);
     }
     if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
-      current.runtimeSchemas = current.active === true
-        ? createUnifiedRuntimeSchemas(current.schema || {}, current.writeActive === true, current.registryEntry || {})
+      current.runtimeSchemas = current.metadataActive === true
+        ? createUnifiedRuntimeSchemas(current.schema || {}, current.writeAvailable === true, current.registryEntry || {})
         : createRuntimeSchemas(resolvedLegacySchema, [], false);
       return Promise.resolve(current);
     }
     if (current && current.pending) return current.pending;
 
-    var lastKnownActive = current && current.active === true && current.schema ? current : null;
-    var pending = requestMetadata(formName, settings.shadowMode === true, force === true).then(function (metadata) {
+    var lastKnownMetadata = current && current.metadataActive === true && current.schema ? current : null;
+    var pending = requestMetadata(formName, false, force === true).then(function (metadata) {
       var schema = metadata.schema;
       var control = metadata.control || {};
-      var rolloutStatus = String(control.rolloutStatus || '').toUpperCase();
+      var reasonStatus = String(metadata.reasonCode || '').replace(/^FIELD_CONTRACT_/, '');
+      var rolloutStatus = String(control.rolloutStatus || reasonStatus || 'NOT_REGISTERED').toUpperCase();
+      if (metadata.metadataEnabled !== true) {
+        clearFormTimers(formName);
+        var blockedMetadata = errorState(
+          formName,
+          'metadata-contract-blocked',
+          metadata.reasonCode || 'FIELD_CONTRACT_METADATA_UNAVAILABLE',
+          'Form chưa đủ thông tin để tạo metadata V2.'
+        );
+        blockedMetadata.managed = metadata.registered === true;
+        blockedMetadata.contract = metadata.control || null;
+        blockedMetadata.rolloutStatus = rolloutStatus;
+        blockedMetadata.pollAllowed = false;
+        blockedMetadata.reasonCode = metadata.reasonCode || null;
+        blockedMetadata.failClosed = true;
+        states[key] = blockedMetadata;
+        dispatchUpdate(formName, blockedMetadata);
+        return blockedMetadata;
+      }
       if (!schema || !Array.isArray(schema.gridFields) || !rolloutStatus) {
         var invalid = new Error('Unified Field Contract không hợp lệ.');
         invalid.code = 'FIELD_CONTRACT_INVALID';
@@ -740,16 +804,20 @@ window.FieldSyncService = (function (global) {
       }
       var backendActive = metadata.backendActive === true && control.active === true;
       var active = backendActive && settings.shadowMode !== true;
-      var writeActive = active
-        && String(control.contractType || '').toUpperCase() !== 'READ_ONLY'
+      var writeAvailable = String(control.contractType || '').toUpperCase() !== 'READ_ONLY'
         && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.save && schema.runtimeRoutes.save.registeredProcedure);
-      var deleteActive = writeActive
+      var deleteAvailable = String(control.contractType || '').toUpperCase() !== 'READ_ONLY'
         && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.delete && schema.runtimeRoutes.delete.registeredProcedure);
+      var writeActive = active && writeAvailable;
+      var deleteActive = active && deleteAvailable;
       var next = {
-        status: active ? (writeActive ? 'unified-active' : 'unified-readonly') : 'legacy-shadow',
-        runtimeMode: active ? 'V2_FULL' : 'LEGACY_FULL',
+        status: active ? (writeActive ? 'unified-active' : 'unified-readonly') : 'metadata-v2-current-business',
+        runtimeMode: active ? 'V2_FULL' : 'V2_METADATA_CURRENT_BUSINESS',
         managed: true,
+        metadataActive: true,
         active: active,
+        writeAvailable: writeAvailable,
+        deleteAvailable: deleteAvailable,
         writeActive: writeActive,
         deleteActive: deleteActive,
         contextKey: key,
@@ -759,9 +827,7 @@ window.FieldSyncService = (function (global) {
         rolloutStatus: rolloutStatus,
         registryEntry: {},
         pollAllowed: rolloutStatus === 'ACTIVE' || rolloutStatus === 'SHADOW',
-        runtimeSchemas: active
-          ? createUnifiedRuntimeSchemas(schema, writeActive, {})
-          : createRuntimeSchemas(resolvedLegacySchema, [], false),
+        runtimeSchemas: createUnifiedRuntimeSchemas(schema, writeAvailable, {}),
         loadedAt: Date.now(),
         errorCode: null,
         error: null
@@ -777,29 +843,6 @@ window.FieldSyncService = (function (global) {
         || (error && error.code)
         || ''
       ).trim().toUpperCase();
-      var legacyCodes = {
-        FIELD_CONTRACT_NOT_REGISTERED: true,
-        FIELD_CONTRACT_DEFERRED: true,
-        FIELD_CONTRACT_BLOCKED: true,
-        FIELD_CONTRACT_DISABLED: true
-      };
-      if (legacyCodes[code] || (status === 404 && !code)) {
-        clearFormTimers(formName);
-        var legacy = legacyFullState(
-          formName,
-          resolvedLegacySchema,
-          'legacy-' + (code || 'not-registered').toLowerCase(),
-          null,
-          code || 'FIELD_CONTRACT_NOT_REGISTERED',
-          null
-        );
-        legacy.managed = code !== 'FIELD_CONTRACT_NOT_REGISTERED';
-        legacy.rolloutStatus = code.replace('FIELD_CONTRACT_', '') || 'NOT_REGISTERED';
-        legacy.pollAllowed = false;
-        states[key] = legacy;
-        dispatchUpdate(formName, legacy);
-        return legacy;
-      }
       if (status === 401) {
         return verifyPrimarySession().then(function (verification) {
           var sessionState = errorState(
@@ -815,13 +858,33 @@ window.FieldSyncService = (function (global) {
           return sessionState;
         });
       }
-      if (lastKnownActive && (status === 0 || status >= 500)) {
-        var readOnly = Object.assign({}, lastKnownActive, {
+      if (status === 403) {
+        /*
+         * Từ chối quyền phải dừng tại metadata V2. Không dùng schema cũ hoặc
+         * dữ liệu cache vì như vậy có thể làm sai phạm vi chi nhánh của tài khoản.
+         */
+        var forbidden = errorState(
+          formName,
+          'metadata-forbidden',
+          code || 'FIELD_METADATA_PERMISSION_DENIED',
+          'Bạn không có quyền xem dữ liệu của trang trong phạm vi chi nhánh hiện tại.'
+        );
+        forbidden.failClosed = true;
+        forbidden.pollAllowed = false;
+        states[key] = forbidden;
+        dispatchUpdate(formName, forbidden);
+        return forbidden;
+      }
+      if (lastKnownMetadata && (status === 0 || status >= 500)) {
+        var readOnly = Object.assign({}, lastKnownMetadata, {
           status: 'unified-last-known-readonly',
           runtimeMode: 'V2_READONLY',
+          metadataActive: true,
+          writeAvailable: false,
+          deleteAvailable: false,
           writeActive: false,
           deleteActive: false,
-          runtimeSchemas: createUnifiedRuntimeSchemas(lastKnownActive.schema, false, {}),
+          runtimeSchemas: createUnifiedRuntimeSchemas(lastKnownMetadata.schema, false, {}),
           loadedAt: Date.now(),
           errorCode: code || 'METADATA_UNAVAILABLE_LAST_KNOWN'
         });
@@ -829,27 +892,11 @@ window.FieldSyncService = (function (global) {
         dispatchUpdate(formName, readOnly);
         return readOnly;
       }
-      var isContractIntegrityFailure = code.indexOf('FIELD_CONTRACT_') === 0;
-      if (settings.fallbackToLegacy !== false && !isContractIntegrityFailure) {
-        var fallback = legacyFullState(
-          formName,
-          resolvedLegacySchema,
-          'legacy-metadata-unavailable',
-          null,
-          code || 'METADATA_UNAVAILABLE',
-          null
-        );
-        fallback.managed = false;
-        fallback.pollAllowed = false;
-        states[key] = fallback;
-        dispatchUpdate(formName, fallback);
-        return fallback;
-      }
       var unavailable = errorState(
         formName,
         'cutover-contract-error',
-        code || 'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
-        'Metadata của form ACTIVE không sẵn sàng.'
+        code || 'FIELD_CONTRACT_METADATA_UNAVAILABLE',
+        'Metadata V2 của form không sẵn sàng.'
       );
       unavailable.failClosed = true;
       unavailable.pollAllowed = true;
@@ -862,7 +909,10 @@ window.FieldSyncService = (function (global) {
       status: 'loading',
       runtimeMode: current && current.runtimeMode ? current.runtimeMode : 'LOADING',
       managed: true,
+      metadataActive: Boolean(current && current.metadataActive),
       active: Boolean(current && current.active),
+      writeAvailable: false,
+      deleteAvailable: false,
       writeActive: false,
       deleteActive: false,
       contextKey: key,
@@ -1129,7 +1179,7 @@ window.FieldSyncService = (function (global) {
     var aliasKey = aliasPrefix + requestedLookupKey.toLowerCase();
     var effectiveLookupKey = lookupKeyAliases[aliasKey] || requestedLookupKey;
     var currentState = getState(formName);
-    if (!currentState || currentState.active !== true || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
+    if (!currentState || currentState.metadataActive !== true || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
       return Promise.reject(normalizeLookupError(new Error('Lookup V2 không hợp lệ')));
     }
     var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(effectiveLookupKey) + '/search';

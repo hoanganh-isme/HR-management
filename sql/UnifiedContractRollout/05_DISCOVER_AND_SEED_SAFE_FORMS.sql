@@ -1,6 +1,7 @@
 /*
-  Chạy discovery rồi seed idempotent. Procedure không ghi đè manual
-  DEFERRED/BLOCKED và không thay policy do quản trị viên đã sửa.
+  Chạy discovery rồi seed idempotent. Procedure chỉ làm mới contract còn do
+  SYSTEM_DISCOVERY sở hữu, kể cả contract cũ từng DEFERRED/BLOCKED; policy do
+  quản trị viên sửa thủ công không bị ghi đè.
 */
 SET NOCOUNT ON;
 

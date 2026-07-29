@@ -1,5 +1,5 @@
 /*
-  Seed idempotent cho năm form và hai dataset đã được audit ở các phase trước.
+  Seed idempotent cho sáu form và hai dataset đã được audit ở các phase trước.
   Chỉ cập nhật lại bản ghi còn do seed sở hữu, không ghi đè quyết định manual.
 */
 SET NOCOUNT ON;
@@ -70,6 +70,14 @@ BEGIN TRY
             'SHADOW', N'CONFIRMED_PHASE3_READY_FOR_CUTOVER'
         ),
         (
+            'CF_BranchListFrm', 'CF_BranchListFrm', 'CF_BranchListFrm',
+            'SIMPLE_TABLE', N'CF_BranchTbl', N'BranchID',
+            'CF_BranchListFrm', N'API_TruyVanDong_V2',
+            N'API_LuuDong_V2', N'API_XoaDong_V2',
+            'SAFE_TABLE_COLUMNS', 'BRANCH_SCOPED', 'AUTO_SCHEMA',
+            'SHADOW', N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER'
+        ),
+        (
             'WA_CaLamViecFrm', 'WA_CaLamViecFrm', 'WA_CaLamViecFrm',
             'MASTER_DETAIL_SIMPLE', N'HR_SapCaTbl', N'SapCaID',
             'WA_CaLamViecFrm', N'API_TruyVanDong_V2',
@@ -90,6 +98,34 @@ BEGIN TRY
         FROM dbo.WA_FieldContractRegistry AS R
         WHERE R.WebFormName = V.WebFormName
     );
+
+    /*
+      Danh mục chi nhánh chỉ đọc các cột vật lý của CF_BranchTbl nên đã được audit
+      là SIMPLE_TABLE. Chỉ thay kết quả discovery tự động; contract do quản trị viên
+      khai báo thủ công vẫn được giữ nguyên.
+    */
+    UPDATE R
+    SET ERPFormID = 'CF_BranchListFrm',
+        PermissionFormName = 'CF_BranchListFrm',
+        ContractType = 'SIMPLE_TABLE',
+        ExpectedTableName = N'CF_BranchTbl',
+        ExpectedPrimaryKey = N'BranchID',
+        ViewList = 'CF_BranchListFrm',
+        ViewProcedure = N'API_TruyVanDong_V2',
+        SaveProcedure = N'API_LuuDong_V2',
+        DeleteProcedure = N'API_XoaDong_V2',
+        WritePolicy = 'SAFE_TABLE_COLUMNS',
+        BranchPolicy = 'BRANCH_SCOPED',
+        DeletePolicy = 'AUTO_SCHEMA',
+        RolloutStatus = 'SHADOW',
+        RolloutReason = N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER',
+        SchemaVersion = 2,
+        IsEnabled = 1,
+        UpdatedAt = @Now,
+        UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'CF_BranchListFrm'
+      AND R.CreatedBy = 'SYSTEM_DISCOVERY';
 
     INSERT INTO dbo.WA_FieldDatasetRegistry
     (
@@ -193,7 +229,8 @@ END CATCH;
 SELECT *
 FROM dbo.WA_FieldContractRegistry
 WHERE WebFormName IN
-    ('WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm', 'WA_CaLamViecFrm')
+    ('WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm',
+     'CF_BranchListFrm', 'WA_CaLamViecFrm')
 ORDER BY WebFormName;
 
 SELECT *

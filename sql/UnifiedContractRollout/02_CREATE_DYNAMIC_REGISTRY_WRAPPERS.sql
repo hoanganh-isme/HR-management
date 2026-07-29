@@ -8,7 +8,60 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 IF OBJECT_ID(N'dbo.WA_FieldContractRegistry', N'U') IS NULL
+   OR OBJECT_ID(N'dbo.WA_API', N'U') IS NULL
     THROW 54000, N'FIELD_CONTRACT_CONTROL_REGISTRY_NOT_INSTALLED', 1;
+GO
+
+/*
+  Quyền hiệu lực phải dùng đúng nguồn mà web Phân quyền đang quản lý:
+  WA_UserGroupPermisstion. Không trộn WA_UserPermisstion vì frontend hiện
+  không đọc bảng override này và hai nguồn có thể cho kết quả trái nhau.
+*/
+IF OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
+    EXEC(N'CREATE FUNCTION dbo.API_Web_GroupFormPermissionV2
+    (
+        @UserGroupID varchar(50),
+        @PermissionFormName varchar(100)
+    )
+    RETURNS TABLE AS RETURN
+    (
+        SELECT CAST(NULL AS varchar(50)) AS MenuID WHERE 1 = 0
+    );');
+GO
+
+ALTER FUNCTION dbo.API_Web_GroupFormPermissionV2
+(
+    @UserGroupID varchar(50),
+    @PermissionFormName varchar(100)
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT
+        M.MenuID,
+        CONVERT(bit, ISNULL(M.isNotCheckPermission, 0)) AS SkipPermission,
+        CONVERT(bit, ISNULL(P.IsRun, 0)) AS CanView,
+        CONVERT(bit, ISNULL(P.IsAdd, 0)) AS CanAdd,
+        CONVERT(bit, ISNULL(P.IsUpdate, 0)) AS CanEdit,
+        CONVERT(bit, ISNULL(P.IsDelete, 0)) AS CanDelete
+    FROM
+    (
+        SELECT TOP (1)
+            Menu.MenuID,
+            Menu.isNotCheckPermission
+        FROM dbo.WA_Menu AS Menu
+        WHERE Menu.FormName COLLATE DATABASE_DEFAULT =
+              @PermissionFormName COLLATE DATABASE_DEFAULT
+          AND ISNULL(Menu.isDisable, 0) = 0
+        ORDER BY Menu.MenuID
+    ) AS M
+    LEFT JOIN dbo.WA_UserGroupPermisstion AS P
+      ON P.UserGroupID COLLATE DATABASE_DEFAULT =
+         @UserGroupID COLLATE DATABASE_DEFAULT
+     AND P.MenuID COLLATE DATABASE_DEFAULT =
+         M.MenuID COLLATE DATABASE_DEFAULT
+);
 GO
 
 IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
@@ -113,6 +166,87 @@ RETURN
 );
 GO
 
+/*
+  Wrapper metadata độc lập với trạng thái cutover nghiệp vụ.
+  ACTIVE dùng V2 toàn phần; SHADOW/DEFERRED/BLOCKED vẫn lấy schema V2 nhưng
+  giữ nguyên View/Save/Delete đang đăng ký trong WA_API.
+*/
+IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
+    EXEC(N'CREATE FUNCTION dbo.API_FieldMetadataContractRegistry()
+        RETURNS TABLE AS RETURN
+        (SELECT CAST(NULL AS varchar(100)) AS WebFormName WHERE 1 = 0);');
+GO
+
+ALTER FUNCTION dbo.API_FieldMetadataContractRegistry()
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT
+        R.WebFormName,
+        R.ERPFormID,
+        R.ExpectedTableName,
+        R.ExpectedPrimaryKey,
+        R.ContractType,
+        CONVERT(sysname, CurrentRoutes.ViewProcedure) AS OldView,
+        CONVERT(sysname, CurrentRoutes.ViewProcedure) AS ViewV2,
+        CONVERT(sysname, CurrentRoutes.SaveProcedure) AS OldSave,
+        CONVERT(sysname, CurrentRoutes.SaveProcedure) AS SaveV2,
+        CONVERT(sysname, CurrentRoutes.DeleteProcedure) AS OldDelete,
+        CONVERT(sysname, CurrentRoutes.DeleteProcedure) AS DeleteV2,
+        R.PermissionFormName,
+        R.WritePolicy,
+        CASE
+            WHEN R.BranchPolicy <> 'AUTO_SCHEMA' THEN R.BranchPolicy
+            WHEN EXISTS
+            (
+                SELECT 1
+                FROM sys.columns AS C
+                WHERE C.object_id = OBJECT_ID(N'dbo.' + R.ExpectedTableName, N'U')
+                  AND LOWER(C.name) COLLATE DATABASE_DEFAULT
+                      IN ('branchid', 'tenantid', 'companyid', 'donviid')
+            ) THEN CONVERT(varchar(40), 'BRANCH_SCOPED')
+            ELSE CONVERT(varchar(40), 'GLOBAL_REFERENCE')
+        END AS BranchPolicy,
+        CONVERT(bit, CASE WHEN CurrentRoutes.ViewRouteCount = 1 THEN 1 ELSE 0 END) AS EnableView,
+        CONVERT(bit, CASE
+            WHEN R.ContractType <> 'READ_ONLY' AND CurrentRoutes.SaveRouteCount = 1 THEN 1
+            ELSE 0
+        END) AS EnableSave,
+        CONVERT(bit, CASE
+            WHEN R.ContractType <> 'READ_ONLY' AND CurrentRoutes.DeleteRouteCount = 1 THEN 1
+            ELSE 0
+        END) AS EnableDelete,
+        R.DeletePolicy,
+        CONVERT(bit, CASE WHEN R.BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' THEN 1 ELSE 0 END)
+            AS GlobalReferenceOnly
+    FROM dbo.WA_FieldContractRegistry AS R
+    OUTER APPLY
+    (
+        SELECT
+            SUM(CASE WHEN A.[func] = 'View' THEN 1 ELSE 0 END) AS ViewRouteCount,
+            SUM(CASE WHEN A.[func] = 'Save' THEN 1 ELSE 0 END) AS SaveRouteCount,
+            SUM(CASE WHEN A.[func] = 'Delete' THEN 1 ELSE 0 END) AS DeleteRouteCount,
+            MIN(CASE WHEN A.[func] = 'View'
+                THEN CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)) END) AS ViewProcedure,
+            MIN(CASE WHEN A.[func] = 'Save'
+                THEN CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)) END) AS SaveProcedure,
+            MIN(CASE WHEN A.[func] = 'Delete'
+                THEN CONVERT(sysname, PARSENAME(LTRIM(RTRIM(A.[SQL])), 1)) END) AS DeleteProcedure
+        FROM dbo.WA_API AS A
+        WHERE A.[list] COLLATE DATABASE_DEFAULT =
+              ISNULL(NULLIF(R.ViewList, ''), R.WebFormName) COLLATE DATABASE_DEFAULT
+          AND A.[func] IN ('View', 'Save', 'Delete')
+    ) AS CurrentRoutes
+    WHERE R.IsEnabled = 1
+      AND R.ExpectedTableName IS NOT NULL
+      AND R.ExpectedPrimaryKey IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(R.ERPFormID)), '') IS NOT NULL
+      AND R.ERPFormID <> 'ERP_FORM_ALIAS_REQUIRES_REVIEW'
+      AND (R.WebFormName LIKE '%Frm' OR R.WebFormName LIKE '%Report')
+);
+GO
+
 IF OBJECT_ID(N'dbo.API_Phase4JoinRegistry', N'IF') IS NULL
     EXEC(N'CREATE FUNCTION dbo.API_Phase4JoinRegistry()
         RETURNS TABLE AS RETURN
@@ -145,6 +279,7 @@ RETURN
             ELSE D.DeleteProcedure END) AS ExpectedDeleteProcedure,
         D.ExpectedTableName,
         D.ExpectedPrimaryKey,
+        R.PermissionFormName,
         D.IsReadOnly,
         CONVERT(bit, 1) AS EnableMetadata
     FROM dbo.WA_FieldDatasetRegistry AS D

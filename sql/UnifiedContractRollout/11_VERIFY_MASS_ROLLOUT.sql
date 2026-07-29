@@ -175,14 +175,14 @@ INNER JOIN dbo.WA_API AS A
 WHERE D.RolloutStatus = 'ACTIVE' AND D.IsReadOnly = 1
 ORDER BY D.WebFormName, D.DatasetKey, A.[func];
 
-/* 18. Form complex hoặc Report bị ACTIVE nhầm. */
+/* 18. Form complex hoặc Report không phải READ_ONLY bị ACTIVE nhầm. */
 SELECT WebFormName, ContractType, RolloutStatus, RolloutReason
 FROM dbo.WA_FieldContractRegistry
 WHERE RolloutStatus = 'ACTIVE'
   AND
   (
       ContractType IN ('COMPLEX_DEFERRED', 'BLOCKED')
-      OR WebFormName LIKE '%Report'
+      OR (WebFormName LIKE '%Report' AND ContractType <> 'READ_ONLY')
   )
 ORDER BY WebFormName;
 
@@ -213,3 +213,140 @@ SELECT B.*
 FROM dbo.WA_FieldContractRouteBackup AS B
 INNER JOIN LatestBatch AS X ON X.BackupBatchID = B.BackupBatchID
 ORDER BY B.BackupID;
+
+/* 21. Danh sách contract an toàn còn ở SHADOW và route đang chờ cutover V2. */
+SELECT
+    R.WebFormName,
+    R.ContractType,
+    R.RolloutReason,
+    R.ViewProcedure AS ExpectedView,
+    V.[SQL] AS CurrentView,
+    R.SaveProcedure AS ExpectedSave,
+    S.[SQL] AS CurrentSave,
+    R.DeleteProcedure AS ExpectedDelete,
+    D.[SQL] AS CurrentDelete
+FROM dbo.WA_FieldContractRegistry AS R
+LEFT JOIN dbo.WA_API AS V
+  ON V.[list] = ISNULL(NULLIF(R.ViewList, ''), R.WebFormName)
+ AND V.[func] = 'View'
+LEFT JOIN dbo.WA_API AS S
+  ON S.[list] = R.WebFormName
+ AND S.[func] = 'Save'
+LEFT JOIN dbo.WA_API AS D
+  ON D.[list] = R.WebFormName
+ AND D.[func] = 'Delete'
+WHERE R.IsEnabled = 1
+  AND R.WebFormName LIKE '%Frm'
+  AND R.RolloutStatus = 'SHADOW'
+  AND R.RolloutReason LIKE '%READY_FOR_CUTOVER'
+  AND R.ContractType IN
+      ('SIMPLE_TABLE', 'JOIN_VIEW_SINGLE_TABLE', 'MASTER_DETAIL_SIMPLE', 'READ_ONLY')
+ORDER BY R.ContractType, R.WebFormName;
+
+/*
+  22. Runtime V2 không được trộn quyền cá nhân cũ với quyền nhóm mà web đang dùng.
+  Result set này phải rỗng.
+*/
+SELECT
+    OBJECT_SCHEMA_NAME(M.object_id) AS SchemaName,
+    OBJECT_NAME(M.object_id) AS ObjectName
+FROM sys.sql_modules AS M
+WHERE OBJECT_NAME(M.object_id) IN
+(
+    'API_Web_GroupFormPermissionV2',
+    'API_Web_GridFieldSchemaV2',
+    'API_Web_JoinFieldSchemaV2',
+    'API_TruyVanDong_V2',
+    'API_LuuDong_V2',
+    'API_XoaDong_V2'
+)
+  AND M.definition LIKE '%WA[_]UserPermisstion%'
+ORDER BY ObjectName;
+
+/* 23. Contract không ánh xạ được menu dùng để kiểm tra quyền metadata V2. */
+SELECT
+    R.WebFormName,
+    R.PermissionFormName,
+    R.RolloutStatus,
+    R.RolloutReason
+FROM dbo.WA_FieldContractRegistry AS R
+WHERE R.IsEnabled = 1
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM dbo.WA_Menu AS M
+      WHERE M.FormName COLLATE DATABASE_DEFAULT =
+            R.PermissionFormName COLLATE DATABASE_DEFAULT
+        AND ISNULL(M.isDisable, 0) = 0
+  )
+ORDER BY R.WebFormName;
+
+/* 24. Contract đủ điều kiện nhưng khai báo route policy không đúng chuẩn V2. */
+SELECT
+    R.WebFormName,
+    R.ContractType,
+    R.RolloutStatus,
+    R.ViewProcedure,
+    R.SaveProcedure,
+    R.DeleteProcedure
+FROM dbo.WA_FieldContractRegistry AS R
+WHERE R.IsEnabled = 1
+  AND R.RolloutStatus IN ('ACTIVE', 'SHADOW')
+  AND
+  (
+      (
+          R.ContractType = 'SIMPLE_TABLE'
+          AND
+          (
+              ISNULL(R.ViewProcedure, N'') <> N'API_TruyVanDong_V2'
+              OR ISNULL(R.SaveProcedure, N'') <> N'API_LuuDong_V2'
+              OR ISNULL(R.DeleteProcedure, N'') <> N'API_XoaDong_V2'
+          )
+      )
+      OR
+      (
+          R.ContractType IN ('JOIN_VIEW_SINGLE_TABLE', 'MASTER_DETAIL_SIMPLE')
+          AND
+          (
+              R.ViewProcedure IS NULL
+              OR ISNULL(R.SaveProcedure, N'') <> N'API_LuuDong_V2'
+              OR ISNULL(R.DeleteProcedure, N'') <> N'API_XoaDong_V2'
+          )
+      )
+      OR
+      (
+          R.ContractType = 'READ_ONLY'
+          AND
+          (
+              R.ViewProcedure IS NULL
+              OR R.SaveProcedure IS NOT NULL
+              OR R.DeleteProcedure IS NOT NULL
+          )
+      )
+  )
+ORDER BY R.ContractType, R.WebFormName;
+
+/*
+  25. Danh mục chi nhánh phải dùng contract V2 có giới hạn chi nhánh.
+  Result set này phải rỗng.
+*/
+SELECT
+    R.WebFormName,
+    R.ContractType,
+    R.BranchPolicy,
+    R.RolloutStatus,
+    R.ViewProcedure,
+    V.[SQL] AS CurrentView
+FROM dbo.WA_FieldContractRegistry AS R
+LEFT JOIN dbo.WA_API AS V
+  ON V.[list] = ISNULL(NULLIF(R.ViewList, ''), R.WebFormName)
+ AND V.[func] = 'View'
+WHERE R.WebFormName = 'CF_BranchListFrm'
+  AND
+  (
+      R.ContractType <> 'SIMPLE_TABLE'
+      OR R.BranchPolicy <> 'BRANCH_SCOPED'
+      OR R.RolloutStatus <> 'ACTIVE'
+      OR R.ViewProcedure <> N'API_TruyVanDong_V2'
+      OR ISNULL(PARSENAME(LTRIM(RTRIM(V.[SQL])), 1), N'') <> N'API_TruyVanDong_V2'
+  );

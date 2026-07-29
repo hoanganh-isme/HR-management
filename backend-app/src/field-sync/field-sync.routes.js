@@ -2,11 +2,16 @@ import express from 'express';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
 import { FieldSyncGatewayError } from './field-sync.gateway.js';
+import {
+    assertContractMetadataReadable,
+    resolveContractRuntimePolicy,
+    toPublicContract
+} from './field-contract.policy.js';
 import { normalizeGridCompare, normalizeGridSchema, normalizeJoinSchema, normalizeLookupSchema, normalizeRegisteredLookup } from './field-sync.resolver.js';
 
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
 const SAFE_DETAIL_KEY = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
-const CRUD_FORM = /Frm$/i;
+const METADATA_FORM = /(?:Frm|Report)$/i;
 const SAFE_LOOKUP_KEY = /^[A-Fa-f0-9]{64}$/;
 const SAFE_DEPENDENCY = /^[A-Za-z_][A-Za-z0-9_@$#]{0,127}$/;
 const BLOCKED_DEPENDENCY_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
@@ -21,8 +26,8 @@ function badRequest(message) {
     return error;
 }
 
-function contractError(message, code, statusCode = 409) {
-    return new FieldSyncGatewayError(message, statusCode, code);
+function contractError(message, code, statusCode = 409, details = {}) {
+    return new FieldSyncGatewayError(message, statusCode, code, details);
 }
 
 function validateFormName(value) {
@@ -31,32 +36,16 @@ function validateFormName(value) {
     return formName;
 }
 
-function assertContractReadable(contract) {
-    const status = String(contract?.rolloutStatus || '').toUpperCase();
-    if (!contract?.isEnabled || status === 'DISABLED') {
-        throw contractError('Unified Field Contract đang bị tắt.', 'FIELD_CONTRACT_DISABLED');
-    }
-    if (status === 'DEFERRED' || contract.contractType === 'COMPLEX_DEFERRED') {
-        throw contractError('Form được giữ ở runtime legacy.', 'FIELD_CONTRACT_DEFERRED');
-    }
-    if (status === 'BLOCKED' || contract.contractType === 'BLOCKED') {
-        throw contractError('Form bị chặn do contract chưa đủ an toàn.', 'FIELD_CONTRACT_BLOCKED');
-    }
-    if (status !== 'ACTIVE' && status !== 'SHADOW') {
-        throw contractError('Trạng thái Unified Field Contract không hợp lệ.', 'FIELD_CONTRACT_DISABLED');
-    }
-}
-
 async function resolveDbFormNames(repository, context, formName, requestedValue, forceRefresh = false) {
     const contract = await repository.resolveContract(formName, context, { forceRefresh });
-    if (!CRUD_FORM.test(contract.webFormName)) {
+    if (!METADATA_FORM.test(contract.webFormName)) {
         throw contractError(
-            'Report không thuộc Unified CRUD contract.',
+            'Trang không thuộc Unified Field Metadata contract.',
             'FIELD_CONTRACT_NOT_REGISTERED',
             404
         );
     }
-    assertContractReadable(contract);
+    assertContractMetadataReadable(contract);
     const webFormName = contract.webFormName;
     const erpFormName = contract.erpFormId;
     if (requestedValue !== undefined && requestedValue !== null && requestedValue !== '') {
@@ -122,7 +111,7 @@ async function resolveDbJoinContract(repository, context, formName, detailKeyVal
         context,
         { forceRefresh }
     );
-    assertContractReadable(resolved.contract);
+    assertContractMetadataReadable(resolved.contract);
     const datasetStatus = String(resolved.dataset.rolloutStatus || '').toUpperCase();
     if (datasetStatus !== 'ACTIVE' && datasetStatus !== 'SHADOW') {
         throw contractError(
@@ -264,19 +253,8 @@ function normalizeLookupDependencies(rawValues, declaredNames) {
     return result;
 }
 
-function publicContract(contract) {
-    return {
-        webFormName: contract.webFormName,
-        erpFormId: contract.erpFormId,
-        permissionFormName: contract.permissionFormName,
-        contractType: contract.contractType,
-        rolloutStatus: contract.rolloutStatus,
-        rolloutReason: contract.rolloutReason,
-        schemaVersion: contract.schemaVersion,
-        active: contract.isEnabled === true && contract.rolloutStatus === 'ACTIVE',
-        shadow: contract.isEnabled === true && contract.rolloutStatus === 'SHADOW',
-        source: contract.source
-    };
+function errorCode(error) {
+    return String(error?.diagnosticCode || error?.code || '').trim().toUpperCase();
 }
 
 export function createFieldSyncRouter({
@@ -290,6 +268,44 @@ export function createFieldSyncRouter({
     router.use((req, res, next) => {
         res.set('Cache-Control', 'private, no-store');
         next();
+    });
+
+    router.get('/contract-state/:formName', async (req, res, next) => {
+        try {
+            const context = resolveFieldSyncContext(req);
+            await gateway.verifySession(context);
+            const formName = validateFormName(req.params.formName);
+            const refresh = bypassMetadataCache(req);
+            const contract = await repository.resolveContract(formName, context, { forceRefresh: refresh });
+            const policy = resolveContractRuntimePolicy(contract);
+
+            return res.json({
+                success: true,
+                registered: true,
+                metadataEnabled: policy.metadataEnabled,
+                active: policy.active,
+                shadow: policy.shadow,
+                runtimeMode: policy.runtimeMode,
+                reasonCode: policy.reasonCode,
+                metadataReasonCode: policy.metadataReasonCode,
+                contract: toPublicContract(contract)
+            });
+        } catch (error) {
+            if (errorCode(error) === 'FIELD_CONTRACT_NOT_REGISTERED') {
+                return res.json({
+                    success: true,
+                    registered: false,
+                    metadataEnabled: false,
+                    active: false,
+                    shadow: false,
+                    runtimeMode: 'METADATA_BLOCKED',
+                    reasonCode: 'FIELD_CONTRACT_NOT_REGISTERED',
+                    metadataReasonCode: 'FIELD_CONTRACT_NOT_REGISTERED',
+                    contract: null
+                });
+            }
+            return next(error);
+        }
     });
 
     router.get('/grid-schema/:formName', async (req, res, next) => {
@@ -314,10 +330,14 @@ export function createFieldSyncRouter({
                     rows = await gateway.gridSchema({ FormName: formName, ERPFormID: erpFormName }, context);
                 } catch (error) {
                     if (names.contract.rolloutStatus === 'ACTIVE') {
+                        if (error?.statusCode === 401 || error?.statusCode === 403) {
+                            throw error;
+                        }
                         throw contractError(
                             'Metadata của form ACTIVE không sẵn sàng.',
                             'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
-                            503
+                            503,
+                            error?.details
                         );
                     }
                     throw error;
@@ -331,7 +351,7 @@ export function createFieldSyncRouter({
             return res.json({
                 success: true,
                 active: names.contract.rolloutStatus === 'ACTIVE',
-                contract: publicContract(names.contract),
+                contract: toPublicContract(names.contract),
                 schema
             });
         } catch (error) {
@@ -361,10 +381,14 @@ export function createFieldSyncRouter({
                     rows = await gateway.gridCompare({ FormName: formName, ERPFormID: erpFormName }, context);
                 } catch (error) {
                     if (names.contract.rolloutStatus === 'ACTIVE') {
+                        if (error?.statusCode === 401 || error?.statusCode === 403) {
+                            throw error;
+                        }
                         throw contractError(
                             'Metadata compare của form ACTIVE không sẵn sàng.',
                             'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
-                            503
+                            503,
+                            error?.details
                         );
                     }
                     throw error;
@@ -378,7 +402,7 @@ export function createFieldSyncRouter({
             return res.json({
                 success: true,
                 active: names.contract.rolloutStatus === 'ACTIVE',
-                contract: publicContract(names.contract),
+                contract: toPublicContract(names.contract),
                 comparison
             });
         } catch (error) {

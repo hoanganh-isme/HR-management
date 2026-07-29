@@ -3,6 +3,7 @@ import path from 'node:path';
 import ExcelJS from 'exceljs';
 import yauzl from 'yauzl';
 import { ExcelImportError } from './excel-import.errors.js';
+import { withOoxmlWorkbook } from './excel-import.ooxml.js';
 
 function isBlank(value) {
     return value === undefined || value === null || String(value).trim() === '';
@@ -156,7 +157,7 @@ export async function validateWorkbookFile(filePath, config) {
     await inspectZip(filePath, config);
 }
 
-export async function scanWorkbook(filePath, config) {
+async function scanWithExcelJs(filePath, config) {
     const sheets = [];
     const reader = createReader(filePath);
     for await (const worksheet of reader) {
@@ -179,13 +180,55 @@ export async function scanWorkbook(filePath, config) {
         }
         sheets.push({ name: String(worksheet.name || '').slice(0, 255), estimatedRows, preview });
     }
+    return sheets;
+}
+
+async function scanWithOoxml(filePath, config) {
+    return withOoxmlWorkbook(filePath, async (workbook) => {
+        if (workbook.sheets.length > config.maxSheets) {
+            throw new ExcelImportError('Workbook có quá nhiều sheet.', 'EXCEL_IMPORT_TOO_MANY_SHEETS', 413);
+        }
+        const sheets = [];
+        for (const worksheet of workbook.sheets) {
+            let estimatedRows = 0;
+            const preview = [];
+            await workbook.streamRows(worksheet.name, (row) => {
+                if (preview.length < config.previewRows) preview.push(rowValues(row, config.maxColumns));
+                if (!isNonEmptyRow(row)) return;
+                estimatedRows += 1;
+                if (estimatedRows > config.maxRows + config.maxHeaderRow) {
+                    throw new ExcelImportError(
+                        `Sheet "${worksheet.name}" vượt giới hạn ${config.maxRows.toLocaleString('vi-VN')} dòng.`,
+                        'EXCEL_IMPORT_MAX_ROWS_EXCEEDED',
+                        413
+                    );
+                }
+            });
+            sheets.push({ name: worksheet.name, estimatedRows, preview });
+        }
+        return sheets;
+    });
+}
+
+export async function scanWorkbook(filePath, config) {
+    let sheets = null;
+    try {
+        sheets = await scanWithExcelJs(filePath, config);
+    } catch (error) {
+        if (error instanceof ExcelImportError) throw error;
+    }
+    // Một số workbook OpenXML hợp lệ dùng namespace có prefix và relationship
+    // tuyệt đối. ExcelJS 4.x có thể tạo "Sheet1" rỗng trong trường hợp này.
+    if (!sheets || sheets.every((sheet) => sheet.estimatedRows === 0)) {
+        sheets = await scanWithOoxml(filePath, config);
+    }
     if (!sheets.length) {
         throw new ExcelImportError('Workbook không có sheet dữ liệu.', 'EXCEL_IMPORT_NO_SHEETS', 422);
     }
     return sheets;
 }
 
-export async function readSheetHeader(filePath, sheetName, headerRow, config) {
+async function readHeaderWithExcelJs(filePath, sheetName, headerRow, config) {
     let found = null;
     const reader = createReader(filePath);
     for await (const worksheet of reader) {
@@ -197,6 +240,29 @@ export async function readSheetHeader(filePath, sheetName, headerRow, config) {
         }
         break;
     }
+    return found;
+}
+
+async function readHeaderWithOoxml(filePath, sheetName, headerRow, config) {
+    return withOoxmlWorkbook(filePath, async (workbook) => {
+        let found = null;
+        const foundSheet = await workbook.streamRows(sheetName, (row) => {
+            if (row.number !== headerRow) return;
+            found = rowValues(row, config.maxColumns);
+            return false;
+        });
+        return foundSheet ? found : null;
+    });
+}
+
+export async function readSheetHeader(filePath, sheetName, headerRow, config) {
+    let found = null;
+    try {
+        found = await readHeaderWithExcelJs(filePath, sheetName, headerRow, config);
+    } catch {
+        // Thử parser OOXML tương thích trước khi trả lỗi cho người dùng.
+    }
+    if (!found) found = await readHeaderWithOoxml(filePath, sheetName, headerRow, config);
     if (!found) {
         throw new ExcelImportError('Không tìm thấy dòng tiêu đề trong sheet đã chọn.', 'EXCEL_IMPORT_HEADER_ROW_INVALID', 422);
     }
@@ -205,19 +271,30 @@ export async function readSheetHeader(filePath, sheetName, headerRow, config) {
 
 export async function streamSheetRows(filePath, sheetName, onRow) {
     let foundSheet = false;
-    const reader = createReader(filePath);
-    for await (const worksheet of reader) {
-        if (String(worksheet.name) !== String(sheetName)) continue;
-        foundSheet = true;
-        for await (const row of worksheet) {
-            const callbackResult = onRow(row, worksheet);
-            const resolved = callbackResult && typeof callbackResult.then === 'function'
-                ? await callbackResult
-                : callbackResult;
-            if (resolved === false) break;
+    try {
+        const reader = createReader(filePath);
+        for await (const worksheet of reader) {
+            if (String(worksheet.name) !== String(sheetName)) continue;
+            foundSheet = true;
+            for await (const row of worksheet) {
+                const callbackResult = onRow(row, worksheet);
+                const resolved = callbackResult && typeof callbackResult.then === 'function'
+                    ? await callbackResult
+                    : callbackResult;
+                if (resolved === false) break;
+            }
+            break;
         }
-        break;
+    } catch (error) {
+        // Khi callback đã chạy, không được fallback vì sẽ xử lý trùng dòng.
+        if (foundSheet) throw error;
     }
+    if (foundSheet) return;
+
+    foundSheet = await withOoxmlWorkbook(
+        filePath,
+        (workbook) => workbook.streamRows(sheetName, onRow)
+    );
     if (!foundSheet) {
         throw new ExcelImportError('Sheet đã chọn không tồn tại.', 'EXCEL_IMPORT_SHEET_NOT_FOUND', 422);
     }

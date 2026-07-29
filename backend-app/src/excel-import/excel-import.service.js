@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { normalizeGridSchema } from '../field-sync/field-sync.resolver.js';
+import { assertContractMetadataReadable } from '../field-sync/field-contract.policy.js';
 import { resolveExcelImportContract } from './excel-import.registry.js';
 import { ExcelImportError } from './excel-import.errors.js';
 import {
@@ -31,6 +32,20 @@ function ensureEnabled(config) {
 
 function sqlErrorCode(error) {
     return String(error?.code || error?.originalError?.code || '').trim().toUpperCase();
+}
+
+function sqlErrorNumber(error) {
+    const candidates = [
+        error,
+        ...(Array.isArray(error?.precedingErrors) ? error.precedingErrors : []),
+        error?.originalError,
+        error?.originalError?.info
+    ];
+    for (const candidate of candidates) {
+        const number = Number(candidate?.number);
+        if (Number.isInteger(number)) return number;
+    }
+    return null;
 }
 
 function normalizeServiceError(error, fallback = {
@@ -82,7 +97,57 @@ function normalizeServiceError(error, fallback = {
 function normalizeBulkWriteError(error) {
     if (error instanceof ExcelImportError) return error;
     const code = sqlErrorCode(error);
+    const number = sqlErrorNumber(error);
     if (error?.name === 'RequestError' || code === 'EREQUEST') {
+        if (number === 208) {
+            return new ExcelImportError(
+                'Không tạo được vùng staging cho BulkCopy. Backend cần được cập nhật hoặc khởi động lại.',
+                'EXCEL_IMPORT_STAGING_UNAVAILABLE',
+                500
+            );
+        }
+        if ([2601, 2627].includes(number)) {
+            return new ExcelImportError(
+                'Dữ liệu import có khóa đã tồn tại hoặc bị trùng.',
+                'EXCEL_IMPORT_DUPLICATE_KEY',
+                409
+            );
+        }
+        if (number === 515) {
+            return new ExcelImportError(
+                'Dữ liệu import đang thiếu trường bắt buộc của bảng.',
+                'EXCEL_IMPORT_REQUIRED_COLUMN_MISSING',
+                422
+            );
+        }
+        if ([245, 8114].includes(number)) {
+            return new ExcelImportError(
+                'Một hoặc nhiều giá trị không chuyển được sang kiểu dữ liệu của SQL Server.',
+                'EXCEL_IMPORT_SQL_CONVERSION_FAILED',
+                422
+            );
+        }
+        if ([2628, 8152].includes(number)) {
+            return new ExcelImportError(
+                'Một hoặc nhiều giá trị vượt quá độ dài cột trong SQL Server.',
+                'EXCEL_IMPORT_SQL_VALUE_TOO_LONG',
+                422
+            );
+        }
+        if (number === 547) {
+            return new ExcelImportError(
+                'Dữ liệu import vi phạm ràng buộc của bảng đích.',
+                'EXCEL_IMPORT_CONSTRAINT_REJECTED',
+                422
+            );
+        }
+        if (number === 229) {
+            return new ExcelImportError(
+                'Tài khoản SQL hiện tại không có quyền ghi vào bảng đích.',
+                'EXCEL_IMPORT_SQL_INSERT_DENIED',
+                503
+            );
+        }
         return new ExcelImportError(
             'SQL Server từ chối dữ liệu import. Toàn bộ transaction đã được hoàn tác; hãy kiểm tra kiểu dữ liệu, khóa và ràng buộc của bảng.',
             'EXCEL_IMPORT_DATABASE_REJECTED',
@@ -93,7 +158,9 @@ function normalizeBulkWriteError(error) {
 }
 
 function assertCurrentSchema(schema, contract) {
-    const errorDiagnostics = (schema.diagnostics || []).filter((item) => item.severity === 'error');
+    const errorDiagnostics = (schema.diagnostics || []).filter(
+        (item) => String(item?.severity || '').toLowerCase() === 'error'
+    );
     const saveProcedure = schema.runtimeRoutes?.save?.registeredProcedure;
     if (schema.schemaVersion !== '2.0'
         || errorDiagnostics.length
@@ -101,7 +168,7 @@ function assertCurrentSchema(schema, contract) {
         || !sameValue(schema.primaryKey, contract.expectedPrimaryKey)
         || !sameValue(saveProcedure, contract.expectedSaveProcedure)) {
         throw new ExcelImportError(
-            'Unified Field Contract hiện tại chưa đủ điều kiện import.',
+            'Cấu hình dữ liệu của màn hình chưa đủ điều kiện để nhập từ Excel.',
             'EXCEL_IMPORT_CONTRACT_NOT_READY',
             409
         );
@@ -157,24 +224,26 @@ function assertExecuteInput(body, config) {
     return { formName, sheetName, headerRow, mapping: body.mapping, mode };
 }
 
-export function createExcelImportService({ config, store, gateway, sqlServer }) {
+export function createExcelImportService({ config, store, gateway, sqlServer, repository }) {
     async function loadCurrentTarget(formName, context) {
-        const contract = resolveExcelImportContract(formName);
+        await gateway.verifySession(context);
+        const fieldContract = await repository.resolveContract(formName, context);
+        assertContractMetadataReadable(fieldContract);
+        const contract = resolveExcelImportContract(fieldContract);
         if (!contract) {
             throw new ExcelImportError(
-                'Form chưa được đăng ký cho import an toàn.',
+                'Màn hình này chưa có cấu hình ghi dữ liệu phù hợp để nhập từ Excel.',
                 'EXCEL_IMPORT_FORM_NOT_ENABLED',
                 409
             );
         }
-        await gateway.verifySession(context);
         const rows = await gateway.gridSchema({
             FormName: contract.webFormName,
             ERPFormID: contract.erpFormId
         }, context);
         const schema = normalizeGridSchema(rows, contract.webFormName, contract.erpFormId);
         assertCurrentSchema(schema, contract);
-        return queryTargetMetadata(sqlServer, contract, schema, context, config.allowedGroupId);
+        return queryTargetMetadata(sqlServer, contract, schema, context);
     }
 
     function publicCapabilities(target) {

@@ -1,6 +1,8 @@
 /*
   Installer SQLCMD cho Unified Contract Rollout.
   File 10 chỉ cài procedure cutover; không tự cutover trước khi review verify.
+  Sau khi rà kết quả file 11, chạy riêng file
+  13_APPLY_REVIEWED_SAFE_CUTOVER.sql để áp dụng route V2 cho các contract đủ điều kiện.
 */
 :r ..\UnifiedContractRollout\00_PRECHECK_MASS_ROLLOUT.sql
 :r ..\UnifiedContractRollout\01_CREATE_CONTROL_REGISTRY.sql

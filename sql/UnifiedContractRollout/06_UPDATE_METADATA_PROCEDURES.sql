@@ -2,8 +2,9 @@
   Cập nhật metadata Grid/JOIN. Các procedure nguồn đọc wrapper DB-backed,
   caption/format/lookup vẫn lấy từ metadata ERP và không dùng SY_FormatFields.
 */
-IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
+IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
    OR OBJECT_ID(N'dbo.API_Phase4JoinRegistry', N'IF') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54300, N'FIELD_CONTRACT_DYNAMIC_WRAPPERS_NOT_INSTALLED', 1;
 GO
 
@@ -16,8 +17,8 @@ GO
 SET QUOTED_IDENTIFIER ON;
 GO
 
-IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
-    THROW 53200, N'PHASE3_SOURCE_REGISTRY_NOT_INSTALLED', 1;
+IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
+    THROW 53200, N'FIELD_METADATA_SOURCE_REGISTRY_NOT_INSTALLED', 1;
 GO
 
 IF OBJECT_ID(N'dbo.API_Web_GridFieldSchemaV2', N'P') IS NULL
@@ -42,6 +43,8 @@ BEGIN
         @ExpectedERPFormID varchar(100),
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
+        @ContractType varchar(40),
+        @PermissionFormName varchar(100),
         @ExpectedView sysname,
         @ExpectedSave sysname,
         @ExpectedDelete sysname,
@@ -56,6 +59,8 @@ BEGIN
         @ExpectedERPFormID = R.ERPFormID,
         @ExpectedTable = R.ExpectedTableName,
         @ExpectedPrimaryKey = R.ExpectedPrimaryKey,
+        @ContractType = R.ContractType,
+        @PermissionFormName = R.PermissionFormName,
         @ExpectedView = R.ViewV2,
         @ExpectedSave = R.SaveV2,
         @ExpectedDelete = R.DeleteV2,
@@ -65,13 +70,16 @@ BEGIN
         @DeletePolicy = R.DeletePolicy,
         @GlobalReferenceOnly = R.GlobalReferenceOnly,
         @BranchPolicy = R.BranchPolicy
-    FROM dbo.API_Phase3SimpleCrudRegistry() AS R
+    FROM dbo.API_FieldMetadataContractRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT;
 
     IF @ExpectedTable IS NULL
         THROW 53201, N'PHASE3_FORM_NOT_ALLOWLISTED_FOR_CONTRACT', 1;
     IF @UserName = ''
         THROW 53202, N'PHASE3_ACTOR_REQUIRED', 1;
+
+    SET @PermissionFormName =
+        LTRIM(RTRIM(ISNULL(NULLIF(@PermissionFormName, ''), @WebFormName)));
 
     SET @ERPFormID = LTRIM(RTRIM(ISNULL(NULLIF(@ERPFormID, ''), @ExpectedERPFormID)));
     IF @ERPFormID COLLATE DATABASE_DEFAULT <> @ExpectedERPFormID COLLATE DATABASE_DEFAULT
@@ -203,28 +211,20 @@ END;
             THROW 53210, N'PHASE3_BRANCH_CONTEXT_DENIED', 1;
     END;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE @MenuID varchar(50), @SkipPermission bit = 0, @GroupCanRun bit = 0;
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
         THROW 53211, N'PHASE3_ACTIVE_MENU_REQUIRED', 1;
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        SELECT @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
             THROW 53212, N'PHASE3_METADATA_PERMISSION_DENIED', 1;
     END;
 
@@ -249,8 +249,372 @@ END;
     WHERE A.[list] COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
       AND A.[func] COLLATE DATABASE_DEFAULT = 'Delete' COLLATE DATABASE_DEFAULT;
 
-    IF @ViewCount <> 1 OR @SaveCount <> 1 OR @DeleteCount <> 1
-        THROW 53213, N'PHASE3_WA_API_ROUTE_NOT_UNIQUE', 1;
+    IF @ViewCount <> 1 OR @SaveCount > 1 OR @DeleteCount > 1
+        THROW 53213, N'FIELD_METADATA_WA_API_ROUTE_NOT_UNIQUE', 1;
+
+    /*
+      View custom và Report lấy membership từ result-set. Field JOIN/computed chỉ
+      đọc; field vật lý của bảng chính vẫn kế thừa capability từ route hiện tại.
+    */
+    DECLARE @ResultSetFallback bit = 0;
+
+    IF @RegisteredView NOT IN (N'API_TruyVanDong', N'API_TruyVanDong_V2')
+    BEGIN
+        SET @ResultSetFallback = 1;
+
+        DECLARE @ResultProcedureObjectID int =
+            COALESCE(
+                OBJECT_ID(@RegisteredView, N'P'),
+                OBJECT_ID(N'dbo.' + @RegisteredView, N'P')
+            );
+
+        IF @ResultProcedureObjectID IS NULL
+            THROW 53214, N'FIELD_METADATA_VIEW_PROCEDURE_NOT_FOUND', 1;
+
+        DECLARE @ResultFields table
+        (
+            FieldOrdinal int NOT NULL,
+            FieldName sysname NOT NULL,
+            SqlType nvarchar(256) NULL,
+            IsNullable bit NULL,
+            MaxLength int NULL,
+            SourceSchema sysname NULL,
+            SourceTable sysname NULL,
+            SourceColumn sysname NULL
+        );
+
+        BEGIN TRY
+            IF NOT EXISTS
+            (
+                SELECT 1
+                FROM sys.dm_exec_describe_first_result_set_for_object
+                    (@ResultProcedureObjectID, 1) AS X
+                WHERE X.error_number IS NOT NULL
+            )
+            BEGIN
+                INSERT INTO @ResultFields
+                (
+                    FieldOrdinal, FieldName, SqlType, IsNullable, MaxLength,
+                    SourceSchema, SourceTable, SourceColumn
+                )
+                SELECT
+                    X.column_ordinal,
+                    X.name,
+                    X.system_type_name,
+                    X.is_nullable,
+                    X.max_length,
+                    X.source_schema,
+                    X.source_table,
+                    X.source_column
+                FROM sys.dm_exec_describe_first_result_set_for_object
+                    (@ResultProcedureObjectID, 1) AS X
+                WHERE ISNULL(X.is_hidden, 0) = 0
+                  AND X.error_number IS NULL
+                  AND NULLIF(LTRIM(RTRIM(X.name)), '') IS NOT NULL;
+            END;
+        END TRY
+        BEGIN CATCH
+            DELETE FROM @ResultFields;
+        END CATCH;
+
+        IF EXISTS (SELECT 1 FROM @ResultFields)
+           AND NOT EXISTS
+           (
+               SELECT LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
+               FROM @ResultFields AS F
+               GROUP BY LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
+               HAVING COUNT(*) > 1
+           )
+           AND
+           (
+               @ContractType = 'READ_ONLY'
+               OR @WebFormName NOT LIKE '%Frm'
+               OR EXISTS
+               (
+                   SELECT 1
+                   FROM @ResultFields AS F
+                   WHERE F.FieldName COLLATE DATABASE_DEFAULT =
+                         @ExpectedPrimaryKey COLLATE DATABASE_DEFAULT
+               )
+           )
+        BEGIN
+            SET @ResultSetFallback = 0;
+
+            SELECT
+            CAST('2.0' AS varchar(10)) AS SchemaVersion,
+            CAST('1.0' AS varchar(10)) AS CapabilityVersion,
+            @WebFormName AS WebFormName,
+            @ERPFormID AS ERPFormName,
+            @ExpectedTable AS TableName,
+            @ExpectedPrimaryKey AS PrimaryKey,
+            @RegisteredView AS RegisteredViewProcedure,
+            @RegisteredSave AS RegisteredSaveProcedure,
+            @RegisteredDelete AS RegisteredDeleteProcedure,
+            @ResolvedDeleteMode AS DeleteMode,
+            CAST('RESULT_SET' AS varchar(30)) AS SourceKind,
+            RF.FieldOrdinal,
+            CONVERT(varchar(128), RF.FieldName) AS FieldName,
+            RF.SqlType,
+            RF.IsNullable,
+            CONVERT(bit, CASE WHEN PC.column_id IS NULL THEN 0 ELSE 1 END) AS IsPhysicalColumn,
+            ResultFlags.IsPrimaryKey,
+            CONVERT(bit, ISNULL(PC.is_identity, 0)) AS IsIdentity,
+            CONVERT(bit, ISNULL(PC.is_computed, 0)) AS IsComputed,
+            CONVERT(bit, CASE WHEN ISNULL(PC.default_object_id, 0) <> 0 THEN 1 ELSE 0 END) AS HasDefault,
+            COALESCE(PC.max_length, RF.MaxLength) AS DbMaxLength,
+            PC.[precision] AS DbPrecision,
+            PC.scale AS DbScale,
+            RF.IsNullable AS DbIsNullable,
+            ResultFlags.IsServerManaged,
+            ResultFlags.IsDenied AS IsSensitiveOrDenied,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanInsert = 1
+                 AND ISNULL(RF.IsNullable, 1) = 0
+                 AND ISNULL(PC.default_object_id, 0) = 0 THEN 1
+                ELSE 0
+            END) AS IsRequiredOnInsert,
+            ResultFlags.CanQuery AS ShowInGrid,
+            ResultFlags.CanInsert AS ShowInAdd,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanUpdate = 1 OR ResultFlags.IsPrimaryKey = 1 THEN 1
+                ELSE 0
+            END) AS ShowInEdit,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanQuery = 1 AND ResultFilter.UserAutoID IS NOT NULL THEN 1
+                ELSE 0
+            END) AS ShowInFilter,
+            ResultFlags.CanInsert AS SupportsInsert,
+            ResultFlags.CanUpdate AS SupportsUpdate,
+            ResultFlags.CanQuery AS SupportsFilter,
+            ResultFlags.CanQuery AS SupportsSort,
+            CONVERT(bit, CASE
+                WHEN ResultFlags.CanQuery = 1
+                 AND LOWER(ISNULL(RF.SqlType, '')) LIKE '%char%' THEN 1
+                ELSE 0
+            END) AS SupportsKeyword,
+            COALESCE(
+                NULLIF(ResultCaption.CaptionVN, N''),
+                NULLIF(ResultCaption.CaptionEN, N''),
+                CONVERT(nvarchar(200), RF.FieldName)
+            ) AS Caption,
+            ResultCaption.FormatID,
+            ResultFormat.[Type] AS FormatType,
+            CASE
+                WHEN ResultLookup.UserAutoID IS NOT NULL THEN 'lookup'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE 'bit%' THEN 'boolean'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'D' THEN 'date'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'DT' THEN 'datetime'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) = 'H' THEN 'time'
+                WHEN UPPER(ISNULL(ResultCaption.FormatID, '')) IN ('B', 'Q', 'N', 'N0', 'N3') THEN 'number'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE '%date%' THEN 'date'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE '%time%' THEN 'time'
+                WHEN LOWER(ISNULL(RF.SqlType, '')) LIKE '%int%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%decimal%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%numeric%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%money%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%float%'
+                  OR LOWER(ISNULL(RF.SqlType, '')) LIKE '%real%' THEN 'number'
+                ELSE 'text'
+            END AS RenderType,
+            ResultFormat.NumberDecimal,
+            ResultFormat.FormatString,
+            ResultFormat.MaskString,
+            COALESCE(ResultFormat.MaxLength, RF.MaxLength) AS MaxLength,
+            ResultFormat.MinValue,
+            ResultFormat.MaxValue,
+            COALESCE(NULLIF(ResultCaption.AlignX, ''), ResultFormat.Align) AS Align,
+            ResultCaption.MinWidth,
+            ResultCaption.MaxWidth,
+            CASE WHEN ResultLookup.UserAutoID IS NULL THEN NULL ELSE
+                CONVERT(varchar(64), HASHBYTES(
+                    'SHA2_256',
+                    UPPER(CONCAT(
+                        LTRIM(RTRIM(CONVERT(varchar(100), ResultLookup.FormID))),
+                        '|',
+                        LTRIM(RTRIM(CONVERT(varchar(128), ResultLookup.ColumnID)))
+                    ))
+                ), 2)
+            END AS LookupKey,
+            ResultLookup.[Type] AS LookupType,
+            ResultLookup.ValueColumn AS LookupValueColumn,
+            ResultLookup.DisplayColumn AS LookupDisplayColumn,
+            ResultLookup.ColumnArr AS LookupColumns,
+            ResultLookup.WidthArr AS LookupWidths,
+            ResultLookup.ParaRequireArr AS LookupDependsOn,
+            CONVERT(bit, ISNULL(ResultLookup.IsMultiSelect, 0)) AS LookupMultiSelect,
+            ResultLookup.ReloadType AS LookupReloadMode,
+            CONVERT(bit, ISNULL(ResultLookup.IsDisable, 0)) AS LookupDisabled,
+            CONVERT(bit, CASE WHEN @FilterSourceFormID IS NULL THEN 0 ELSE 1 END) AS HasConfiguredFilters,
+            @FilterSourceFormID AS FilterSourceFormID,
+            ResultFilter.KeyID AS FilterKeyID,
+            COALESCE(
+                NULLIF(ResultFilter.Caption, N''),
+                NULLIF(ResultCaption.CaptionVN, N''),
+                NULLIF(ResultCaption.CaptionEN, N''),
+                CONVERT(nvarchar(200), RF.FieldName)
+            ) AS FilterCaption,
+            ResultFilter.[Type] AS FilterControlType,
+            ResultFilter.Operator AS FilterOperator,
+            CONVERT(bit, ISNULL(ResultFilter.UseLikeOperator, 0)) AS FilterUseLikeOperator,
+            ResultFilter.ControlWidth AS FilterControlWidth,
+            ResultFilter.ValueColumn AS FilterValueColumn,
+            ResultFilter.DisplayColumn AS FilterDisplayColumn,
+            ResultFilter.ColumnArr AS FilterColumns,
+            ResultFilter.WidthArr AS FilterWidths,
+            CONVERT(bit, ISNULL(ResultFilter.RememberLastValue, 0)) AS FilterRememberLastValue,
+            ResultFilter.DefaultValue AS FilterDefaultValue,
+            CONVERT(bit, ISNULL(ResultFilter.IsReload, 0)) AS FilterReload,
+            CASE
+                WHEN ResultFlags.IsDenied = 1 OR ResultFlags.IsServerManaged = 1 THEN 'HIDDEN'
+                WHEN ResultFlags.IsPrimaryKey = 1
+                  OR ResultFlags.CanInsert = 1
+                  OR ResultLookup.UserAutoID IS NOT NULL THEN 'CORE'
+                ELSE 'OPTIONAL'
+            END AS MobileClass,
+            CASE
+                WHEN ResultFlags.IsDenied = 1 THEN 'DENIED_FIELD'
+                WHEN ResultFlags.IsServerManaged = 1 THEN 'SERVER_MANAGED'
+                WHEN ResultFlags.IsPrimaryKey = 1 THEN 'PRIMARY_KEY'
+                WHEN PC.column_id IS NULL THEN 'RESULT_SET_READ_ONLY'
+                ELSE 'RESULT_SET_FIELD'
+            END AS MobileReasonCodes,
+            CAST(NULL AS varchar(80)) AS DiagnosticCode
+        FROM @ResultFields AS RF
+        LEFT JOIN sys.columns AS PC
+          ON PC.object_id = @ObjectID
+         AND PC.name COLLATE DATABASE_DEFAULT =
+             COALESCE(NULLIF(RF.SourceColumn, ''), RF.FieldName) COLLATE DATABASE_DEFAULT
+         AND (
+             RF.SourceTable IS NULL
+             OR RF.SourceTable COLLATE DATABASE_DEFAULT =
+                @ExpectedTable COLLATE DATABASE_DEFAULT
+         )
+        OUTER APPLY
+        (
+            SELECT
+                CONVERT(bit, CASE
+                    WHEN RF.FieldName COLLATE DATABASE_DEFAULT =
+                         @ExpectedPrimaryKey COLLATE DATABASE_DEFAULT THEN 1
+                    ELSE 0
+                END) AS IsPrimaryKey,
+                CONVERT(bit, CASE
+                    WHEN LOWER(RF.FieldName) COLLATE DATABASE_DEFAULT IN
+                    (
+                        'usercreate', 'createdby', 'createby', 'datecreate', 'createddate', 'createdat',
+                        'userupdate', 'updatedby', 'updateby', 'dateupdate', 'updateddate', 'updatedat',
+                        'isdeleted', 'userdelete', 'deletedby', 'deleteby', 'datedelete', 'deleteddate', 'deletedat'
+                    ) THEN 1 ELSE 0
+                END) AS IsServerManaged,
+                CONVERT(bit, CASE
+                    WHEN LOWER(RF.FieldName) COLLATE DATABASE_DEFAULT IN
+                    (
+                        '__proto__', 'prototype', 'constructor', 'content', 'base64content',
+                        'filecontent', 'binarydata', 'password', 'passwordhash', 'token',
+                        'refreshtoken', 'secret', 'rawsql', 'commandtext'
+                    )
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'binary%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'varbinary%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'image%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'rowversion%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'timestamp%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'xml%'
+                    OR LOWER(ISNULL(RF.SqlType, '')) LIKE 'sql_variant%'
+                    THEN 1 ELSE 0
+                END) AS IsDenied
+        ) AS ResultBase
+        OUTER APPLY
+        (
+            SELECT
+                ResultBase.IsPrimaryKey,
+                ResultBase.IsServerManaged,
+                ResultBase.IsDenied,
+                CONVERT(bit, CASE
+                    WHEN @EnableSave = 1
+                     AND PC.column_id IS NOT NULL
+                     AND ISNULL(PC.is_identity, 0) = 0
+                     AND ISNULL(PC.is_computed, 0) = 0
+                     AND ResultBase.IsServerManaged = 0
+                     AND ResultBase.IsDenied = 0 THEN 1
+                    ELSE 0
+                END) AS CanInsert,
+                CONVERT(bit, CASE
+                    WHEN @EnableSave = 1
+                     AND PC.column_id IS NOT NULL
+                     AND ISNULL(PC.is_identity, 0) = 0
+                     AND ISNULL(PC.is_computed, 0) = 0
+                     AND ResultBase.IsPrimaryKey = 0
+                     AND ResultBase.IsServerManaged = 0
+                     AND ResultBase.IsDenied = 0 THEN 1
+                    ELSE 0
+                END) AS CanUpdate,
+                CONVERT(bit, CASE
+                    WHEN @EnableView = 1 AND ResultBase.IsDenied = 0 THEN 1
+                    ELSE 0
+                END) AS CanQuery
+        ) AS ResultFlags
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+            FROM dbo.SY_FmtFldTbl AS X
+            WHERE X.FieldName COLLATE DATABASE_DEFAULT =
+                  RF.FieldName COLLATE DATABASE_DEFAULT
+              AND (
+                  X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
+                  OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+                  OR X.FormName IS NULL
+                  OR LTRIM(RTRIM(X.FormName)) = ''
+              )
+            ORDER BY CASE
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                ELSE 3
+            END, X.AutoID
+        ) AS ResultCaption
+        LEFT JOIN dbo.SY_FmatTbl AS ResultFormat
+          ON ResultFormat.FormatID COLLATE DATABASE_DEFAULT =
+             ResultCaption.FormatID COLLATE DATABASE_DEFAULT
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.UserAutoID, X.FormID, X.ColumnID, X.[Type], X.ValueColumn,
+                X.DisplayColumn, X.ColumnArr, X.WidthArr, X.ParaRequireArr,
+                X.IsMultiSelect, X.ReloadType, X.IsDisable
+            FROM dbo.SY_FrmDrdwTbl AS X
+            WHERE X.ColumnID COLLATE DATABASE_DEFAULT =
+                  RF.FieldName COLLATE DATABASE_DEFAULT
+              AND X.FormID COLLATE DATABASE_DEFAULT IN (@ERPFormID, @WebFormName)
+              AND ISNULL(X.IsDisable, 0) = 0
+            ORDER BY CASE
+                WHEN X.FormID COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                ELSE 2
+            END, X.UserAutoID
+        ) AS ResultLookup
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.UserAutoID, X.KeyID, X.Caption, X.ControlWidth, X.[Type],
+                X.ValueColumn, X.DisplayColumn, X.ColumnArr, X.WidthArr,
+                X.RememberLastValue, X.UseLikeOperator, X.IsReload,
+                X.Operator, X.DefaultValue
+            FROM dbo.SY_FrmFltTbl AS X
+            WHERE @FilterSourceFormID IS NOT NULL
+              AND X.FormID COLLATE DATABASE_DEFAULT =
+                  @FilterSourceFormID COLLATE DATABASE_DEFAULT
+              AND X.ColumnID COLLATE DATABASE_DEFAULT =
+                  RF.FieldName COLLATE DATABASE_DEFAULT
+              AND ISNULL(X.IsDisable, 0) = 0
+            ORDER BY
+                CASE WHEN TRY_CONVERT(int, X.KeyID) IS NULL THEN 1 ELSE 0 END,
+                TRY_CONVERT(int, X.KeyID),
+                X.KeyID,
+                X.UserAutoID
+        ) AS ResultFilter
+            ORDER BY RF.FieldOrdinal;
+
+            RETURN;
+        END;
+    END;
 
     /* PHASE3_UNIFIED_FIELD_CONTRACT: mỗi cột mới an toàn được phát hiện trực tiếp. */
     SELECT
@@ -265,7 +629,8 @@ END;
         @RegisteredSave AS RegisteredSaveProcedure,
         @RegisteredDelete AS RegisteredDeleteProcedure,
         @ResolvedDeleteMode AS DeleteMode,
-        CAST('MAIN_TABLE' AS varchar(30)) AS SourceKind,
+        CAST(CASE WHEN @ResultSetFallback = 1
+            THEN 'TABLE_FALLBACK' ELSE 'MAIN_TABLE' END AS varchar(30)) AS SourceKind,
         C.column_id AS FieldOrdinal,
         CONVERT(varchar(128), C.name) AS FieldName,
         T.name + CASE
@@ -375,6 +740,7 @@ END;
         Mobile.MobileClass,
         Mobile.ReasonCodes AS MobileReasonCodes,
         CASE
+            WHEN @ResultSetFallback = 1 THEN 'RESULTSET_FALLBACK_TO_TABLE'
             WHEN Flags.IsDenied = 1 THEN 'FIELD_DENIED'
             WHEN @RegisteredView COLLATE DATABASE_DEFAULT <> @ExpectedView COLLATE DATABASE_DEFAULT THEN 'SHADOW_VIEW_NOT_REGISTERED'
             WHEN @EnableSave = 1 AND @RegisteredSave COLLATE DATABASE_DEFAULT <> @ExpectedSave COLLATE DATABASE_DEFAULT THEN 'SHADOW_SAVE_NOT_REGISTERED'
@@ -699,6 +1065,7 @@ BEGIN
         @ExpectedDeleteProcedure sysname,
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
+        @PermissionFormName varchar(100),
         @ReadOnly bit,
         @RegistryCount int;
 
@@ -710,6 +1077,7 @@ BEGIN
         @ExpectedDeleteProcedure = MIN(CONVERT(sysname, R.ExpectedDeleteProcedure)),
         @ExpectedTable = MIN(CONVERT(sysname, R.ExpectedTableName)),
         @ExpectedPrimaryKey = MIN(CONVERT(sysname, R.ExpectedPrimaryKey)),
+        @PermissionFormName = MIN(R.PermissionFormName),
         @ReadOnly = CONVERT(bit, MIN(CONVERT(tinyint, R.IsReadOnly)))
     FROM dbo.API_Phase4JoinRegistry() AS R
     WHERE R.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
@@ -761,17 +1129,20 @@ BEGIN
         END;
     END;
 
+    SET @PermissionFormName =
+        LTRIM(RTRIM(ISNULL(NULLIF(@PermissionFormName, ''), @WebFormName)));
+
     DECLARE
         @MenuID varchar(50),
-        @SkipPermission bit = 0;
+        @SkipPermission bit = 0,
+        @GroupCanRun bit = 0;
 
-    SELECT TOP (1)
-        @MenuID = M.MenuID,
-        @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
     BEGIN
@@ -781,21 +1152,7 @@ BEGIN
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
        AND @SkipPermission = 0
     BEGIN
-        DECLARE
-            @GroupCanRun bit,
-            @UserCanRun bit;
-
-        SELECT @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        SELECT @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
         BEGIN
             THROW 53405, N'PHASE4_JOIN_PERMISSION_DENIED', 1;
         END;

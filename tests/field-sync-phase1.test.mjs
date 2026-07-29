@@ -58,6 +58,43 @@ function validFieldSyncPayloads() {
   };
 }
 
+function validUnifiedBangThueSchema(viewProcedure = 'API_TruyVanDong_V2') {
+  const field = {
+    name: 'Bac',
+    label: 'Bậc',
+    orderNo: 1,
+    showInGrid: true,
+    showInAdd: true,
+    showInEdit: true,
+    showInFilter: true,
+    supportsInsert: true,
+    supportsUpdate: true,
+    supportsFilter: true,
+    supportsSort: true
+  };
+  return {
+    schemaVersion: '2.0',
+    capabilityVersion: '1.0',
+    formName: 'WA_BangThueTNCNFrm',
+    erpFormId: 'HR_BangThueTNCNFrm',
+    tableName: 'HR_BangThueTNCNTbl',
+    primaryKey: 'Bac',
+    sourceKind: 'MAIN_TABLE',
+    fields: [field],
+    gridFields: [field],
+    addFields: [field],
+    editFields: [field],
+    filterFields: [field],
+    lookups: [],
+    diagnostics: [],
+    runtimeRoutes: {
+      view: { registeredProcedure: viewProcedure },
+      save: { registeredProcedure: 'API_LuuDong_V2' },
+      delete: { registeredProcedure: 'API_XoaDong_V2', mode: 'hard' }
+    }
+  };
+}
+
 test('feature flag Phase 1 mặc định tắt và chưa có pilot', () => {
   const window = runBrowserFiles(['src/js/config/FieldSyncConfig.js']);
   assert.equal(window.ERP_FIELD_SYNC_CONFIG.enabled, false);
@@ -275,6 +312,84 @@ test('pilot chỉ active khi toàn bộ contract runtime hợp lệ', async () =
   assert.equal(state.active, true);
   assert.deepEqual(Array.from(state.runtimeSchemas.grid, (field) => field.name), ['ErpCode']);
   assert.deepEqual(Array.from(state.runtimeSchemas.edit, (field) => field.name), ['LegacyCode']);
+});
+
+test('cấu hình pilot cũ vẫn công bố metadataActive cho form unified', async () => {
+  const schema = validUnifiedBangThueSchema();
+  const window = runBrowserFiles([
+    'src/js/config/FieldContractMigrationRegistry.js',
+    'src/js/config/Phase2MigrationRegistry.js',
+    'src/js/config/ErpFormAliases.js',
+    'src/js/services/FieldSyncService.js'
+  ], {
+    ERP_FIELD_SYNC_CONFIG: {
+      enabled: true,
+      shadowMode: false,
+      rolloutMode: 'pilot',
+      pilotForms: ['WA_BangThueTNCNFrm'],
+      pollSeconds: 120,
+      metadataBaseUrl: 'http://metadata'
+    },
+    ApiClient: {
+      get: async (url) => url.includes('/contract-state/')
+        ? {
+            registered: true,
+            metadataEnabled: true,
+            contract: { active: true }
+          }
+        : {
+            active: true,
+            schema
+          }
+    },
+    AppSession: { getUserName: () => 'admin', getBranchId: () => 'CN01' }
+  });
+
+  const state = await window.FieldSyncService.observeForm('WA_BangThueTNCNFrm', []);
+  assert.equal(state.metadataActive, true);
+  assert.equal(state.active, true);
+  assert.equal(state.writeAvailable, true);
+  assert.equal(state.runtimeMode, 'V2_FULL');
+  assert.deepEqual(Array.from(state.runtimeSchemas.grid, (field) => field.name), ['Bac']);
+});
+
+test('metadata V2 vẫn dùng được khi pilot còn chạy route nghiệp vụ hiện tại', async () => {
+  const schema = validUnifiedBangThueSchema('API_TruyVanDong');
+  const window = runBrowserFiles([
+    'src/js/config/FieldContractMigrationRegistry.js',
+    'src/js/config/Phase2MigrationRegistry.js',
+    'src/js/config/ErpFormAliases.js',
+    'src/js/services/FieldSyncService.js'
+  ], {
+    ERP_FIELD_SYNC_CONFIG: {
+      enabled: true,
+      shadowMode: false,
+      rolloutMode: 'pilot',
+      pilotForms: ['WA_BangThueTNCNFrm'],
+      pollSeconds: 120,
+      metadataBaseUrl: 'http://metadata'
+    },
+    ApiClient: {
+      get: async (url) => url.includes('/contract-state/')
+        ? {
+            registered: true,
+            metadataEnabled: true,
+            contract: { active: false }
+          }
+        : {
+            active: false,
+            schema
+          }
+    },
+    AppSession: { getUserName: () => 'admin', getBranchId: () => 'CN01' }
+  });
+
+  const state = await window.FieldSyncService.observeForm('WA_BangThueTNCNFrm', []);
+  assert.equal(state.metadataActive, true);
+  assert.equal(state.active, false);
+  assert.equal(state.writeAvailable, true);
+  assert.equal(state.runtimeMode, 'V2_METADATA_CURRENT_BUSINESS');
+  assert.deepEqual(Array.from(state.runtimeSchemas.grid, (field) => field.name), ['Bac']);
 });
 
 test('pilot fail-closed khi compare trả status ngoài contract', async () => {

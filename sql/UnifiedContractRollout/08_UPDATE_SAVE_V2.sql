@@ -2,6 +2,7 @@
   Save V2 đọc wrapper DB-backed, chỉ ghi physical field an toàn và giữ DB default.
 */
 IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54320, N'FIELD_CONTRACT_DYNAMIC_WRAPPER_NOT_INSTALLED', 1;
 GO
 
@@ -479,13 +480,21 @@ END;
     FROM OPENJSON(@Data) AS J
     WHERE LOWER(J.[key]) COLLATE DATABASE_DEFAULT = 'isedit' COLLATE DATABASE_DEFAULT;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT =
-      @PermissionFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE
+        @MenuID varchar(50),
+        @SkipPermission bit = 0,
+        @GroupCanRun bit = 0,
+        @GroupCanAdd bit = 0,
+        @GroupCanEdit bit = 0;
+
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView,
+        @GroupCanAdd = P.CanAdd,
+        @GroupCanEdit = P.CanEdit
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
     BEGIN
@@ -496,17 +505,9 @@ END;
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupAllowed bit, @UserAllowed bit, @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupAllowed = CASE WHEN @IsEdit = 1 THEN P.IsUpdate ELSE P.IsAdd END, @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        SELECT @UserAllowed = CASE WHEN @IsEdit = 1 THEN P.IsUpdate ELSE P.IsAdd END, @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        IF COALESCE(@UserCanRun, @GroupCanRun, 0) <> 1 OR COALESCE(@UserAllowed, @GroupAllowed, 0) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
+           OR CASE WHEN @IsEdit = 1 THEN ISNULL(@GroupCanEdit, 0)
+                   ELSE ISNULL(@GroupCanAdd, 0) END <> 1
         BEGIN
             SELECT -1 AS code, N'PHASE3_MUTATION_PERMISSION_DENIED' AS msg,
                    @PrimaryKey AS primaryKey, @PrimaryValue AS primaryValue, 0 AS rowsAffected;

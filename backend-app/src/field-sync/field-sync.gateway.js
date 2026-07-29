@@ -12,6 +12,13 @@ const TRANSIENT_NETWORK_CODES = new Set([
     'ERR_NETWORK',
     'ETIMEDOUT'
 ]);
+const FIELD_METADATA_FORBIDDEN_ERRORS = new Map([
+    [53208, 'FIELD_METADATA_ACTOR_FORBIDDEN'],
+    [53209, 'FIELD_METADATA_BRANCH_CONTEXT_REQUIRED'],
+    [53210, 'FIELD_METADATA_BRANCH_CONTEXT_DENIED'],
+    [53211, 'FIELD_METADATA_MENU_FORBIDDEN'],
+    [53212, 'FIELD_METADATA_PERMISSION_DENIED']
+]);
 
 function positiveInteger(value, fallback) {
     const parsed = Number(value);
@@ -87,6 +94,19 @@ function assertGatewaySuccess(payload, records) {
     const invalidEnvelopeCode = payload && payload.code !== undefined && !Number.isFinite(envelopeCode) && records.length === 0;
     if (invalidEnvelopeCode) throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_ENVELOPE_INVALID');
     if (explicitFailure || (Number.isFinite(envelopeCode) && envelopeCode < 0) || (Number.isFinite(recordCode) && recordCode < 0)) {
+        /*
+         * Các lỗi quyền do metadata V2 trả về phải giữ nguyên ngữ nghĩa 403.
+         * Không đổi chúng thành 502 vì frontend có thể hiểu nhầm là lỗi hạ tầng
+         * và dùng một luồng dữ liệu không còn được kiểm soát quyền chi nhánh.
+         */
+        if (FIELD_METADATA_FORBIDDEN_ERRORS.has(errorNumber)) {
+            throw new FieldSyncGatewayError(
+                'Không có quyền đọc metadata của trang trong phạm vi hiện tại.',
+                403,
+                FIELD_METADATA_FORBIDDEN_ERRORS.get(errorNumber),
+                { upstreamCode, errorNumber }
+            );
+        }
         throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_ENVELOPE_REJECTED', {
             upstreamCode,
             errorNumber: Number.isInteger(errorNumber) ? errorNumber : undefined
@@ -199,7 +219,7 @@ export function createFieldSyncGateway(config, httpClient = axios) {
         await verifySession(context);
         const keyword = String(extra.keyword || jsonData?.Keyword || '');
         const page = Number(extra.page || jsonData?.Page || 1);
-        const pageSize = Number(extra.limit || jsonData?.PageSize || 50);
+        const pageSize = Number(extra.limit || jsonData?.pageSize || jsonData?.PageSize || 50);
         /*
          * API_Gateway_Router has a fixed wire contract.  FormName, ERPFormID,
          * LookupKey and PageSize are deliberately carried in JsonData because

@@ -36,7 +36,7 @@ HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     rolloutMode: 'registry',
     includeForms: [],
     excludeForms: [],
-    fallbackToLegacy: true,
+    fallbackToLegacy: false,
     pollSeconds: 360,
     metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
 }, HRM_EXISTING_FIELD_SYNC);
@@ -99,6 +99,9 @@ window.API_CONFIG = {
 
     ENDPOINTS: {
         ROUTER: '/api/API_Gateway_Router',
+        DASHBOARD: {
+            BASE_API: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/dashboard'
+        },
         AUTH: {
             LOGIN: '/api/login',
             LOGOUT: '/logout',

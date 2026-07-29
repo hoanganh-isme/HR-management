@@ -42,21 +42,30 @@ BEGIN
         SELECT CONVERT(varchar(100), LTRIM(RTRIM(M.FormName))) AS WebFormName
         FROM dbo.WA_Menu AS M
         WHERE NULLIF(LTRIM(RTRIM(M.FormName)), '') IS NOT NULL
-          AND LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+          AND (
+              LTRIM(RTRIM(M.FormName)) LIKE '%Frm'
+              OR LTRIM(RTRIM(M.FormName)) LIKE '%Report'
+          )
 
         UNION
 
         SELECT CONVERT(varchar(100), LTRIM(RTRIM(L.FormID)))
         FROM dbo.SY_FrmLstTbl AS L
         WHERE NULLIF(LTRIM(RTRIM(L.FormID)), '') IS NOT NULL
-          AND LTRIM(RTRIM(L.FormID)) LIKE '%Frm'
+          AND (
+              LTRIM(RTRIM(L.FormID)) LIKE '%Frm'
+              OR LTRIM(RTRIM(L.FormID)) LIKE '%Report'
+          )
 
         UNION
 
         SELECT CONVERT(varchar(100), LTRIM(RTRIM(A.[list])))
         FROM dbo.WA_API AS A
         WHERE NULLIF(LTRIM(RTRIM(A.[list])), '') IS NOT NULL
-          AND LTRIM(RTRIM(A.[list])) LIKE '%Frm'
+          AND (
+              LTRIM(RTRIM(A.[list])) LIKE '%Frm'
+              OR LTRIM(RTRIM(A.[list])) LIKE '%Report'
+          )
     ),
     FormRegistration AS
     (
@@ -208,6 +217,11 @@ BEGIN
                   OR D.ViewProcedureObjectID IS NULL
                   OR D.ERPFormID IS NULL THEN 'BLOCKED'
                 WHEN D.SaveRouteCount > 1 OR D.DeleteRouteCount > 1 THEN 'BLOCKED'
+                WHEN D.WebFormName LIKE '%Report'
+                 AND D.ResultSetDescribable = 1
+                 AND D.SaveRouteCount = 0
+                 AND D.DeleteRouteCount = 0 THEN 'READ_ONLY'
+                WHEN D.WebFormName LIKE '%Report' THEN 'BLOCKED'
                 WHEN (D.SaveRouteCount = 1
                       AND D.SaveProcedure NOT IN (N'API_LuuDong', N'API_LuuDong_V2'))
                   OR (D.DeleteRouteCount = 1
@@ -268,7 +282,9 @@ BEGIN
             WHEN C.PrimaryKeyUnique = 0 THEN 'PRIMARY_KEY_NOT_UNIQUE'
             WHEN C.ViewRouteCount <> 1 THEN 'VIEW_ROUTE_NOT_UNIQUE'
             WHEN C.ViewProcedureObjectID IS NULL THEN 'VIEW_PROCEDURE_NOT_FOUND'
+            WHEN C.ResultSetDescribable = 0 THEN 'VIEW_RESULTSET_NOT_DESCRIBABLE'
             WHEN C.SaveRouteCount > 1 OR C.DeleteRouteCount > 1 THEN 'MUTATION_ROUTE_NOT_UNIQUE'
+            WHEN C.SuggestedContractType = 'READ_ONLY' THEN 'REPORT_READ_ONLY_METADATA_READY'
             WHEN C.SaveRouteCount <> 1 OR C.DeleteRouteCount <> 1
                 THEN 'CRUD_MUTATION_ROUTE_MISSING'
             WHEN C.SuggestedContractType = 'COMPLEX_DEFERRED' THEN 'CUSTOM_MUTATION_REQUIRES_AUDIT'
@@ -371,9 +387,10 @@ BEGIN
           );
 
         /*
-          Chỉ làm mới bản ghi vẫn hoàn toàn do discovery sở hữu. Có thể hạ
-          contract không còn an toàn, nhưng không sửa policy, không đụng bản ghi
-          quản trị viên đã cập nhật và không tự nâng DEFERRED/BLOCKED.
+          Chỉ làm mới bản ghi vẫn hoàn toàn do discovery sở hữu. Kết quả được
+          tính lại từ schema và route hiện tại nên contract cũ từng DEFERRED hoặc
+          BLOCKED có thể chuyển sang SHADOW sau khi nguyên nhân đã được xử lý.
+          Bản ghi do quản trị viên sửa thủ công vẫn không bị ghi đè.
         */
         UPDATE R
         SET ContractType = C.SuggestedContractType,
@@ -395,26 +412,7 @@ BEGIN
         INNER JOIN @Candidates AS C
           ON C.WebFormName = R.WebFormName
         WHERE R.CreatedBy = 'SYSTEM_DISCOVERY'
-          AND R.UpdatedBy = 'SYSTEM_DISCOVERY'
-          AND R.RolloutStatus NOT IN ('DEFERRED', 'BLOCKED');
-
-        /* Report chỉ xem/in bằng runtime legacy, không thuộc Unified CRUD. */
-        UPDATE dbo.WA_FieldContractRegistry
-        SET RolloutStatus = 'DEFERRED',
-            RolloutReason = N'REPORT_LEGACY_VIEW_PRINT_ONLY',
-            UpdatedAt = SYSUTCDATETIME(),
-            UpdatedBy = @UserName
-        WHERE WebFormName LIKE '%Report'
-          AND RolloutStatus <> 'DEFERRED';
-
-        UPDATE D
-        SET RolloutStatus = 'DEFERRED',
-            RolloutReason = N'REPORT_LEGACY_VIEW_PRINT_ONLY',
-            UpdatedAt = SYSUTCDATETIME(),
-            UpdatedBy = @UserName
-        FROM dbo.WA_FieldDatasetRegistry AS D
-        WHERE D.WebFormName LIKE '%Report'
-          AND D.RolloutStatus <> 'DEFERRED';
+          AND R.UpdatedBy IN ('SYSTEM_DISCOVERY', @UserName);
 
         COMMIT TRANSACTION;
     END TRY

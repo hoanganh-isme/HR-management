@@ -23,6 +23,8 @@ import { isExcelImportError } from './src/excel-import/excel-import.errors.js';
 import { createExcelImportStore } from './src/excel-import/excel-import.store.js';
 import { createExcelImportService } from './src/excel-import/excel-import.service.js';
 import { createExcelImportRouter } from './src/excel-import/excel-import.routes.js';
+import { createDashboardRouter } from './src/dashboard/dashboard.routes.js';
+import { createDashboardRepository } from './src/dashboard/dashboard.repository.js';
 
 try {
     if (typeof dns.setDefaultResultOrder === 'function') {
@@ -104,6 +106,7 @@ const contractDocumentService = createContractDocumentService(
 
 app.use('/api', createContractDocumentRouter(documentConfig, contractDocumentService));
 
+const sqlServer = createSqlServer();
 const fieldSyncConfig = createFieldSyncConfig(documentConfig);
 const fieldSyncGateway = createFieldSyncGateway(fieldSyncConfig);
 const fieldContractRepository = createFieldContractRepository({
@@ -115,15 +118,20 @@ app.use('/api/metadata', createFieldSyncRouter({
     config: fieldSyncConfig,
     repository: fieldContractRepository
 }));
+const dashboardRepository = createDashboardRepository({ sqlServer });
+app.use('/api/dashboard', createDashboardRouter({
+    gateway: fieldSyncGateway,
+    repository: dashboardRepository
+}));
 
 const excelImportConfig = createExcelImportConfig(documentConfig);
 const excelImportStore = createExcelImportStore(excelImportConfig);
-const sqlServer = createSqlServer();
 const excelImportService = createExcelImportService({
     config: excelImportConfig,
     store: excelImportStore,
     gateway: fieldSyncGateway,
-    sqlServer
+    sqlServer,
+    repository: fieldContractRepository
 });
 app.use('/api/excel-import', createExcelImportRouter({
     config: excelImportConfig,

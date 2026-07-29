@@ -1,277 +1,399 @@
--- ==============================================================================
--- STORED PROCEDURES CHO HR DASHBOARD (MULTI-TEMPLATE)
--- ==============================================================================
-
-IF OBJECT_ID('API_HR_Dashboard_GetBranches', 'P') IS NOT NULL
-    DROP PROCEDURE API_HR_Dashboard_GetBranches
+SET ANSI_NULLS ON
 GO
-CREATE PROCEDURE API_HR_Dashboard_GetBranches
+SET QUOTED_IDENTIFIER ON
+GO
+
+/* ============================================================================
+   QUYỀN CHI NHÁNH DÙNG CHUNG CHO DASHBOARD
+   - Nguồn quyền duy nhất: dbo.SY_User.BranchID.
+   - Admin được xem toàn bộ hoặc một chi nhánh yêu cầu.
+   - Tài khoản thường chỉ nhận giao giữa phạm vi yêu cầu và quyền được cấp.
+   - Không tìm thấy user hoặc user thường chưa có BranchID thì trả tập rỗng.
+   ============================================================================ */
+CREATE OR ALTER FUNCTION dbo.API_HR_Dashboard_AuthorizedBranches
+(
+    @UserName varchar(50),
+    @RequestedBranchID nvarchar(max) = NULL
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT DISTINCT
+        B.BranchID
+    FROM dbo.CF_BranchTbl AS B
+    INNER JOIN dbo.SY_User AS U
+        ON U.UserName = @UserName
+       AND ISNULL(U.Disable, 0) = 0
+    WHERE
+        (
+            LOWER(LTRIM(RTRIM(ISNULL(U.UserGroupID, '')))) = 'admin'
+            OR EXISTS
+            (
+                SELECT 1
+                FROM STRING_SPLIT(ISNULL(U.BranchID, ''), ',') AS Allowed
+                WHERE UPPER(LTRIM(RTRIM(Allowed.[value]))) =
+                      UPPER(LTRIM(RTRIM(B.BranchID)))
+            )
+        )
+        AND
+        (
+            LTRIM(RTRIM(ISNULL(@RequestedBranchID, ''))) = ''
+            OR EXISTS
+            (
+                SELECT 1
+                FROM STRING_SPLIT(@RequestedBranchID, ',') AS Requested
+                WHERE UPPER(LTRIM(RTRIM(Requested.[value]))) =
+                      UPPER(LTRIM(RTRIM(B.BranchID)))
+            )
+        )
+);
+GO
+
+/* Danh sách chi nhánh dùng cho bộ lọc, đã giới hạn theo tài khoản. */
+CREATE OR ALTER PROCEDURE dbo.API_HR_Dashboard_GetBranches
+    @UserName varchar(50) = '',
+    @BranchID nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT BranchID AS value, ISNULL(BranchName, BranchID) AS label
-    FROM dbo.CF_BranchTbl
-    ORDER BY BranchName;
-END
+
+    SELECT
+        B.BranchID AS [value],
+        ISNULL(B.BranchName, B.BranchID) AS label
+    FROM dbo.CF_BranchTbl AS B
+    INNER JOIN dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+        ON Allowed.BranchID = B.BranchID
+    ORDER BY B.BranchName, B.BranchID;
+END;
 GO
 
----------------------------------------------------------------------------------
-IF OBJECT_ID('API_HR_Dashboard_OverviewToday', 'P') IS NOT NULL
-    DROP PROCEDURE API_HR_Dashboard_OverviewToday
-GO
-
-CREATE PROCEDURE API_HR_Dashboard_OverviewToday
-    @Date DATE = NULL,
-    @BranchID VARCHAR(50) = NULL
+CREATE OR ALTER PROCEDURE dbo.API_HR_Dashboard_OverviewToday
+    @Date date = NULL,
+    @UserName varchar(50) = '',
+    @BranchID nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
     IF @Date IS NULL SET @Date = GETDATE();
 
-    DECLARE @TotalHeadcount INT, @Present INT, @Late INT, @Absent INT, @NewHires INT, @ProbationExpiring INT;
+    DECLARE
+        @TotalHeadcount int = 0,
+        @Present int = 0,
+        @Late int = 0,
+        @Absent int = 0,
+        @NewHires int = 0,
+        @ProbationExpiring int = 0;
 
-    -- 1. Tổng nhân sự đang làm việc
-    SELECT @TotalHeadcount = COUNT(1) 
-    FROM dbo.HR_PersonTbl 
-    WHERE (NgayNghiViec IS NULL OR NgayNghiViec > @Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR BranchID = @BranchID);
+    SELECT @TotalHeadcount = COUNT_BIG(1)
+    FROM dbo.HR_PersonTbl AS P
+    WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > @Date)
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      );
 
-    -- 2. Đi làm & Đi trễ
-    SELECT 
-        @Present = ISNULL(COUNT(1), 0),
+    SELECT
+        @Present = COUNT_BIG(1),
         @Late = ISNULL(SUM(CASE WHEN T.GioVao > '08:00' THEN 1 ELSE 0 END), 0)
-    FROM dbo.HR_TimeSheetDayTbl T
-    INNER JOIN dbo.HR_PersonTbl P ON T.PersonID = P.PersonID
+    FROM dbo.HR_TimeSheetDayTbl AS T
+    INNER JOIN dbo.HR_PersonTbl AS P
+        ON T.PersonID = P.PersonID
     WHERE T.Ngay = @Date
       AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > @Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID);
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      );
 
-    -- 3. Vắng mặt
     SET @Present = ISNULL(@Present, 0);
     SET @Absent = @TotalHeadcount - @Present;
     IF @Absent < 0 SET @Absent = 0;
 
-    -- 4. Tuyển mới trong tháng
-    SELECT @NewHires = COUNT(1) 
-    FROM dbo.HR_PersonTbl 
-    WHERE MONTH(NgayVaoLam) = MONTH(@Date) AND YEAR(NgayVaoLam) = YEAR(@Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR BranchID = @BranchID);
+    SELECT @NewHires = COUNT_BIG(1)
+    FROM dbo.HR_PersonTbl AS P
+    WHERE MONTH(P.NgayVaoLam) = MONTH(@Date)
+      AND YEAR(P.NgayVaoLam) = YEAR(@Date)
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      );
 
-    -- 5. Hợp đồng sắp hết hạn
-    SELECT @ProbationExpiring = COUNT(1)
-    FROM dbo.HR_HopDongTbl H
-    INNER JOIN dbo.HR_PersonTbl P ON H.PersonID = P.PersonID
+    SELECT @ProbationExpiring = COUNT_BIG(1)
+    FROM dbo.HR_HopDongTbl AS H
+    INNER JOIN dbo.HR_PersonTbl AS P
+        ON H.PersonID = P.PersonID
     WHERE H.NgayHetHieuLuc BETWEEN @Date AND DATEADD(DAY, 7, @Date)
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID);
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      );
 
-    -- Trả về
-    SELECT 
+    SELECT
         @TotalHeadcount AS totalHeadcount,
         @Present AS present,
         @Late AS late,
         @Absent AS absent,
         @NewHires AS newHires,
         @ProbationExpiring AS probationExpiring;
-END
+END;
 GO
 
----------------------------------------------------------------------------------
-IF OBJECT_ID('API_HR_Dashboard_Demographics', 'P') IS NOT NULL
-    DROP PROCEDURE API_HR_Dashboard_Demographics
-GO
-
-CREATE PROCEDURE API_HR_Dashboard_Demographics
-    @BranchID VARCHAR(50) = NULL
+CREATE OR ALTER PROCEDURE dbo.API_HR_Dashboard_Demographics
+    @UserName varchar(50) = '',
+    @BranchID nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    
-    -- 1: Theo Giới tính
-    SELECT 
+
+    SELECT
         'Gender' AS groupType,
-        CASE 
-            WHEN LTRIM(RTRIM(GioiTinh)) IN (N'Nam', N'Naam', 'Nam', 'Naam') THEN N'Nam'
-            WHEN LTRIM(RTRIM(GioiTinh)) IN (N'Nữ', N'Nư', N'Nu', 'Nữ', 'Nư', 'Nu') THEN N'Nữ'
+        CASE
+            WHEN LTRIM(RTRIM(P.GioiTinh)) IN (N'Nam', N'Naam', 'Nam', 'Naam') THEN N'Nam'
+            WHEN LTRIM(RTRIM(P.GioiTinh)) IN (N'Nữ', N'Nư', N'Nu', 'Nữ', 'Nư', 'Nu') THEN N'Nữ'
             ELSE N'Chưa cập nhật'
         END AS label,
-        COUNT(1) AS value
-    FROM dbo.HR_PersonTbl P
+        COUNT_BIG(1) AS [value]
+    FROM dbo.HR_PersonTbl AS P
     WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
-    GROUP BY 
-        CASE 
-            WHEN LTRIM(RTRIM(GioiTinh)) IN (N'Nam', N'Naam', 'Nam', 'Naam') THEN N'Nam'
-            WHEN LTRIM(RTRIM(GioiTinh)) IN (N'Nữ', N'Nư', N'Nu', 'Nữ', 'Nư', 'Nu') THEN N'Nữ'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      )
+    GROUP BY
+        CASE
+            WHEN LTRIM(RTRIM(P.GioiTinh)) IN (N'Nam', N'Naam', 'Nam', 'Naam') THEN N'Nam'
+            WHEN LTRIM(RTRIM(P.GioiTinh)) IN (N'Nữ', N'Nư', N'Nu', 'Nữ', 'Nư', 'Nu') THEN N'Nữ'
             ELSE N'Chưa cập nhật'
         END
 
     UNION ALL
 
-    -- 2: Theo Độ tuổi
-    SELECT 
+    SELECT
         'Age' AS groupType,
-        CASE 
-            WHEN DATEDIFF(YEAR, NgaySinh, GETDATE()) < 25 THEN N'Dưới 25 tuổi'
-            WHEN DATEDIFF(YEAR, NgaySinh, GETDATE()) BETWEEN 25 AND 35 THEN N'25 - 35 tuổi'
-            WHEN DATEDIFF(YEAR, NgaySinh, GETDATE()) BETWEEN 36 AND 45 THEN N'36 - 45 tuổi'
+        CASE
+            WHEN DATEDIFF(YEAR, P.NgaySinh, GETDATE()) < 25 THEN N'Dưới 25 tuổi'
+            WHEN DATEDIFF(YEAR, P.NgaySinh, GETDATE()) BETWEEN 25 AND 35 THEN N'25 - 35 tuổi'
+            WHEN DATEDIFF(YEAR, P.NgaySinh, GETDATE()) BETWEEN 36 AND 45 THEN N'36 - 45 tuổi'
             ELSE N'Trên 45 tuổi'
         END AS label,
-        COUNT(1) AS value
-    FROM dbo.HR_PersonTbl P
+        COUNT_BIG(1) AS [value]
+    FROM dbo.HR_PersonTbl AS P
     WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-      AND NgaySinh IS NOT NULL
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
-    GROUP BY 
-        CASE 
-            WHEN DATEDIFF(YEAR, NgaySinh, GETDATE()) < 25 THEN N'Dưới 25 tuổi'
-            WHEN DATEDIFF(YEAR, NgaySinh, GETDATE()) BETWEEN 25 AND 35 THEN N'25 - 35 tuổi'
-            WHEN DATEDIFF(YEAR, NgaySinh, GETDATE()) BETWEEN 36 AND 45 THEN N'36 - 45 tuổi'
+      AND P.NgaySinh IS NOT NULL
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      )
+    GROUP BY
+        CASE
+            WHEN DATEDIFF(YEAR, P.NgaySinh, GETDATE()) < 25 THEN N'Dưới 25 tuổi'
+            WHEN DATEDIFF(YEAR, P.NgaySinh, GETDATE()) BETWEEN 25 AND 35 THEN N'25 - 35 tuổi'
+            WHEN DATEDIFF(YEAR, P.NgaySinh, GETDATE()) BETWEEN 36 AND 45 THEN N'36 - 45 tuổi'
             ELSE N'Trên 45 tuổi'
         END
 
     UNION ALL
 
-    -- 3: Theo Thời hạn hợp đồng
-    SELECT 
+    SELECT
         'Contract' AS groupType,
         ISNULL(H.LoaiHopDong, N'Chưa có HĐ') AS label,
-        COUNT(1) AS value
-    FROM dbo.HR_PersonTbl P
-    LEFT JOIN dbo.HR_HopDongTbl H ON P.PersonID = H.PersonID
+        COUNT_BIG(1) AS [value]
+    FROM dbo.HR_PersonTbl AS P
+    LEFT JOIN dbo.HR_HopDongTbl AS H
+        ON H.MaHopDong =
+        (
+            SELECT TOP (1) Latest.MaHopDong
+            FROM dbo.HR_HopDongTbl AS Latest
+            WHERE Latest.PersonID = P.PersonID
+            ORDER BY Latest.NgayKyHopDong DESC
+        )
     WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-      AND H.MaHopDong = (SELECT TOP 1 MaHopDong FROM dbo.HR_HopDongTbl WHERE PersonID = P.PersonID ORDER BY NgayKyHopDong DESC)
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      )
     GROUP BY H.LoaiHopDong;
-END
+END;
 GO
 
----------------------------------------------------------------------------------
-IF OBJECT_ID('API_HR_Dashboard_Department', 'P') IS NOT NULL
-    DROP PROCEDURE API_HR_Dashboard_Department
-GO
-
-CREATE PROCEDURE API_HR_Dashboard_Department
-    @BranchID VARCHAR(50) = NULL
+CREATE OR ALTER PROCEDURE dbo.API_HR_Dashboard_Department
+    @UserName varchar(50) = '',
+    @BranchID nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    
-    SELECT * FROM (
-        SELECT 
-            'Dept' AS groupType,
-            ISNULL(D.TenPhongBan, N'Chưa rõ') AS label,
-            COUNT(P.PersonID) AS value
-        FROM dbo.HR_DepartmentListTbl D
-        LEFT JOIN dbo.HR_PersonTbl P ON P.PhongBan = D.PhongBan AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-        WHERE (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID OR P.PersonID IS NULL)
-        GROUP BY D.TenPhongBan
-    ) AS T1
+
+    SELECT
+        'Dept' AS groupType,
+        ISNULL(D.TenPhongBan, ISNULL(P.PhongBan, N'Chưa rõ')) AS label,
+        COUNT_BIG(P.PersonID) AS [value]
+    FROM dbo.HR_PersonTbl AS P
+    LEFT JOIN dbo.HR_DepartmentListTbl AS D
+        ON D.PhongBan = P.PhongBan
+    WHERE (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      )
+    GROUP BY D.TenPhongBan, P.PhongBan
 
     UNION ALL
 
-    SELECT * FROM (
-        SELECT 
-            'Branch' AS groupType,
-            ISNULL(B.BranchName, N'Chưa rõ') AS label,
-            COUNT(P.PersonID) AS value
-        FROM dbo.CF_BranchTbl B
-        LEFT JOIN dbo.HR_PersonTbl P ON P.BranchID = B.BranchID AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-        GROUP BY B.BranchName
-    ) AS T2
-
-    ORDER BY groupType, value DESC;
-END
+    SELECT
+        'Branch' AS groupType,
+        ISNULL(B.BranchName, B.BranchID) AS label,
+        COUNT_BIG(P.PersonID) AS [value]
+    FROM dbo.CF_BranchTbl AS B
+    INNER JOIN dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+        ON Allowed.BranchID = B.BranchID
+    LEFT JOIN dbo.HR_PersonTbl AS P
+        ON P.BranchID = B.BranchID
+       AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
+    GROUP BY B.BranchName, B.BranchID
+    ORDER BY groupType, [value] DESC;
+END;
 GO
 
----------------------------------------------------------------------------------
-IF OBJECT_ID('API_HR_Dashboard_Birthdays', 'P') IS NOT NULL
-    DROP PROCEDURE API_HR_Dashboard_Birthdays
-GO
-
-CREATE PROCEDURE API_HR_Dashboard_Birthdays
-    @BranchID VARCHAR(50) = NULL
+CREATE OR ALTER PROCEDURE dbo.API_HR_Dashboard_Birthdays
+    @UserName varchar(50) = '',
+    @BranchID nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT TOP 15
+
+    SELECT TOP (15)
         P.PersonName + ' (' + ISNULL(D.TenPhongBan, N'') + ')' AS empName,
-        CONVERT(VARCHAR(5), P.NgaySinh, 103) AS birthdayDate,
+        CONVERT(varchar(5), P.NgaySinh, 103) AS birthdayDate,
         DAY(P.NgaySinh) AS birthDay
-    FROM dbo.HR_PersonTbl P
-    LEFT JOIN dbo.HR_DepartmentListTbl D ON P.PhongBan = D.PhongBan
-    WHERE MONTH(P.NgaySinh) = MONTH(GETDATE()) 
+    FROM dbo.HR_PersonTbl AS P
+    LEFT JOIN dbo.HR_DepartmentListTbl AS D
+        ON P.PhongBan = D.PhongBan
+    WHERE MONTH(P.NgaySinh) = MONTH(GETDATE())
       AND (P.NgayNghiViec IS NULL OR P.NgayNghiViec > GETDATE())
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
-    ORDER BY DAY(P.NgaySinh) ASC;
-END
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      )
+    ORDER BY DAY(P.NgaySinh), P.PersonName;
+END;
 GO
 
----------------------------------------------------------------------------------
-IF OBJECT_ID('API_HR_Dashboard_Payroll', 'P') IS NOT NULL
-    DROP PROCEDURE API_HR_Dashboard_Payroll
-GO
-
-CREATE PROCEDURE API_HR_Dashboard_Payroll
-    @PeriodID VARCHAR(20) = NULL,
-    @BranchID VARCHAR(50) = NULL
+CREATE OR ALTER PROCEDURE dbo.API_HR_Dashboard_Payroll
+    @PeriodID varchar(20) = NULL,
+    @UserName varchar(50) = '',
+    @BranchID nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    IF @PeriodID IS NULL OR @PeriodID = '' 
+    IF @PeriodID IS NULL OR @PeriodID = ''
         SET @PeriodID = FORMAT(GETDATE(), 'yyyyMM');
 
-    -- ResultSet 1: Số liệu tổng quỹ lương
-    SELECT 
-        ISNULL(SUM(PR.TongLuong), 0) AS totalSalary,
-        ISNULL(SUM(PR.TongLuong) * 0.9, 0) AS prevTotalSalary, 
-        ISNULL(SUM(PR.TienBuTru), 0) AS bonus, 
-        ISNULL(SUM(PR.TongLuong) * 0.88, 0) AS prevBonus, 
-        ISNULL(SUM(PR.MucDong), 0) AS insurance, 
-        ISNULL(SUM(PR.MucDong) * 0.9, 0) AS prevInsurance
-    FROM dbo.HR_PayrollTbl PR
-    INNER JOIN dbo.HR_PersonTbl P ON PR.PersonID = P.PersonID
-    WHERE PR.PeriodID = @PeriodID
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID);
+    DECLARE @PreviousPeriodID varchar(20) = NULL;
 
-    -- ResultSet 2: Phân bổ quỹ lương theo phòng ban
-    SELECT TOP 5
+    SELECT TOP (1)
+        @PreviousPeriodID = PreviousPeriod.PeriodID
+    FROM dbo.SY_Period AS CurrentPeriod
+    INNER JOIN dbo.SY_Period AS PreviousPeriod
+        ON PreviousPeriod.FromDate < CurrentPeriod.FromDate
+    WHERE CurrentPeriod.PeriodID = @PeriodID
+    ORDER BY PreviousPeriod.FromDate DESC;
+
+    IF @PreviousPeriodID IS NULL
+    BEGIN
+        SELECT TOP (1)
+            @PreviousPeriodID = PR.PeriodID
+        FROM dbo.HR_PayrollTbl AS PR
+        WHERE PR.PeriodID < @PeriodID
+        ORDER BY PR.PeriodID DESC;
+    END;
+
+    SELECT
+        ISNULL(SUM(CASE WHEN PR.PeriodID = @PeriodID THEN PR.TongLuong ELSE 0 END), 0) AS totalSalary,
+        ISNULL(SUM(CASE WHEN PR.PeriodID = @PreviousPeriodID THEN PR.TongLuong ELSE 0 END), 0) AS prevTotalSalary,
+        ISNULL(SUM(CASE WHEN PR.PeriodID = @PeriodID THEN PR.TienBuTru ELSE 0 END), 0) AS bonus,
+        ISNULL(SUM(CASE WHEN PR.PeriodID = @PreviousPeriodID THEN PR.TienBuTru ELSE 0 END), 0) AS prevBonus,
+        ISNULL(SUM(CASE WHEN PR.PeriodID = @PeriodID THEN PR.MucDong ELSE 0 END), 0) AS insurance,
+        ISNULL(SUM(CASE WHEN PR.PeriodID = @PreviousPeriodID THEN PR.MucDong ELSE 0 END), 0) AS prevInsurance,
+        COUNT(DISTINCT CASE WHEN PR.PeriodID = @PeriodID THEN PR.PersonID END) AS employeeCount
+    FROM dbo.HR_PayrollTbl AS PR
+    INNER JOIN dbo.HR_PersonTbl AS P
+        ON PR.PersonID = P.PersonID
+    WHERE PR.PeriodID IN (@PeriodID, @PreviousPeriodID)
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      );
+
+    SELECT TOP (5)
         ISNULL(D.TenPhongBan, ISNULL(P.PhongBan, N'Khác')) AS label,
-        SUM(PR.TongLuong) AS value
-    FROM dbo.HR_PayrollTbl PR
-    INNER JOIN dbo.HR_PersonTbl P ON PR.PersonID = P.PersonID
-    LEFT JOIN dbo.HR_DepartmentListTbl D ON P.PhongBan = D.PhongBan
+        SUM(PR.TongLuong) AS [value]
+    FROM dbo.HR_PayrollTbl AS PR
+    INNER JOIN dbo.HR_PersonTbl AS P
+        ON PR.PersonID = P.PersonID
+    LEFT JOIN dbo.HR_DepartmentListTbl AS D
+        ON P.PhongBan = D.PhongBan
     WHERE PR.PeriodID = @PeriodID
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      )
     GROUP BY D.TenPhongBan, P.PhongBan
-    ORDER BY value DESC;
-END
+    ORDER BY [value] DESC;
+END;
 GO
 
----------------------------------------------------------------------------------
-IF OBJECT_ID('API_HR_Dashboard_ContractsExpiring', 'P') IS NOT NULL
-    DROP PROCEDURE API_HR_Dashboard_ContractsExpiring
-GO
-
-CREATE PROCEDURE API_HR_Dashboard_ContractsExpiring
-    @Days INT = 30,
-    @BranchID VARCHAR(50) = NULL
+CREATE OR ALTER PROCEDURE dbo.API_HR_Dashboard_ContractsExpiring
+    @Days int = 30,
+    @UserName varchar(50) = '',
+    @BranchID nvarchar(max) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT TOP 10
+
+    SELECT TOP (10)
         P.PersonName + ' (' + ISNULL(D.TenPhongBan, N'Chưa rõ') + ')' AS empName,
-        CONVERT(VARCHAR(10), H.NgayHetHieuLuc, 103) AS expireDate,
+        CONVERT(varchar(10), H.NgayHetHieuLuc, 103) AS expireDate,
         P.PersonID AS empCode,
-        CASE 
+        CASE
             WHEN DATEDIFF(DAY, GETDATE(), H.NgayHetHieuLuc) <= 7 THEN 'danger'
             WHEN DATEDIFF(DAY, GETDATE(), H.NgayHetHieuLuc) <= 15 THEN 'warning'
             ELSE 'info'
         END AS statusLevel
-    FROM dbo.HR_HopDongTbl H
-    INNER JOIN dbo.HR_PersonTbl P ON H.PersonID = P.PersonID
-    LEFT JOIN dbo.HR_DepartmentListTbl D ON P.PhongBan = D.PhongBan
+    FROM dbo.HR_HopDongTbl AS H
+    INNER JOIN dbo.HR_PersonTbl AS P
+        ON H.PersonID = P.PersonID
+    LEFT JOIN dbo.HR_DepartmentListTbl AS D
+        ON P.PhongBan = D.PhongBan
     WHERE H.NgayHetHieuLuc BETWEEN GETDATE() AND DATEADD(DAY, @Days, GETDATE())
-      AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID = @BranchID)
-    ORDER BY H.NgayHetHieuLuc ASC;
-END
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.API_HR_Dashboard_AuthorizedBranches(@UserName, @BranchID) AS Allowed
+          WHERE Allowed.BranchID = P.BranchID
+      )
+    ORDER BY H.NgayHetHieuLuc;
+END;
 GO

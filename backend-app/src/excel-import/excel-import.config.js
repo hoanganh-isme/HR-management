@@ -16,14 +16,6 @@ function readBoolean(value, fallback) {
     return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
-function readAllowedGroup(value) {
-    const groupId = String(value || 'Admin').trim();
-    if (!/^[A-Za-z0-9_.@-]{1,50}$/.test(groupId)) {
-        throw new Error('EXCEL_IMPORT_ALLOWED_GROUP không hợp lệ.');
-    }
-    return groupId;
-}
-
 function resolveTempDir(documentConfig, value) {
     const configured = String(value || '').trim();
     if (!configured) return path.join(documentConfig.paths.storageDir, 'excel-import');
@@ -52,7 +44,6 @@ export function createExcelImportConfig(documentConfig, env = process.env) {
 
     const config = Object.freeze({
         enabled: readBoolean(env.EXCEL_IMPORT_ENABLED, true),
-        allowedGroupId: readAllowedGroup(env.EXCEL_IMPORT_ALLOWED_GROUP),
         tempDir: resolveTempDir(documentConfig, env.EXCEL_IMPORT_TEMP_DIR),
         maxFileBytes: Math.floor(maxFileMb * 1024 * 1024),
         maxUncompressedBytes: Math.floor(maxUncompressedMb * 1024 * 1024),

@@ -3,6 +3,37 @@
  * Trình phân trang cho DataGrid
  */
 var Pagination = (function () {
+  var DEFAULT_PAGE_SIZE = 15;
+  var ALL_PAGE_SIZE = 100000;
+  var PAGE_SIZE_OPTIONS = [
+    10,
+    DEFAULT_PAGE_SIZE,
+    20,
+    50,
+    100,
+    200,
+    500,
+    1000,
+    { label: "Tất cả", value: ALL_PAGE_SIZE }
+  ];
+
+  function getDefaultPageSize() {
+    return DEFAULT_PAGE_SIZE;
+  }
+
+  function isAllPageSize(value) {
+    var parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= ALL_PAGE_SIZE;
+  }
+
+  function getRefreshPageSize(value) {
+    var parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0 || isAllPageSize(parsed)) {
+      return DEFAULT_PAGE_SIZE;
+    }
+    return parsed;
+  }
+
   /**
    * Tạo component phân trang
    * @param {Object} options - { totalItems, itemsPerPage, currentPage, onPageChange }
@@ -23,14 +54,13 @@ var Pagination = (function () {
     var sizeSelector = document.createElement('div');
     sizeSelector.className = 'pager-size-selector';
     var select = document.createElement('select');
-    var pageSizes = [10, 15, 20, 50, 100, 200, 500, 1000, { label: "Tất cả", value: 100000 }];
-    pageSizes.forEach(function (valObj) {
+    PAGE_SIZE_OPTIONS.forEach(function (valObj) {
       var val = typeof valObj === 'object' ? valObj.value : valObj;
       var label = typeof valObj === 'object' ? valObj.label : val;
       var opt = document.createElement('option');
       opt.value = val;
       opt.text = label;
-      if (val === options.itemsPerPage || (val === 100000 && options.itemsPerPage >= 100000)) {
+      if (val === options.itemsPerPage || (val === ALL_PAGE_SIZE && isAllPageSize(options.itemsPerPage))) {
          opt.selected = true;
       }
       select.appendChild(opt);
@@ -131,6 +161,9 @@ var Pagination = (function () {
   }
 
   return {
-    create: create
+    create: create,
+    getDefaultPageSize: getDefaultPageSize,
+    isAllPageSize: isAllPageSize,
+    getRefreshPageSize: getRefreshPageSize
   };
 })();

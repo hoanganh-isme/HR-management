@@ -6,6 +6,7 @@
   <title>Excel Import UI Harness</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">
+  <link rel="stylesheet" href="../src/components/alert/alert.css">
   <link rel="stylesheet" href="../src/components/excel-import/excel-import.css">
   <style>
     :root {
@@ -108,14 +109,48 @@
       };
     })();
   </script>
-  <script src="../src/components/excel-import/ExcelImportModal.js"></script>
+  <script src="../src/components/alert/Alert.js?v=36"></script>
+  <script>
+    (function () {
+      var showSuccess = Alert.success;
+      Alert.success = function (title, message, duration) {
+        document.documentElement.setAttribute('data-last-alert-title', title);
+        document.documentElement.setAttribute('data-last-alert-message', message);
+        return showSuccess(title, message, duration);
+      };
+    })();
+  </script>
+  <script src="../src/js/utils/TableColumnLayout.js?v=36"></script>
+  <script src="../src/components/excel-import/ExcelImportModal.js?v=36"></script>
   <script>
     ExcelImportModal.show({
       formName: 'WA_BangThueTNCNFrm',
       formTitle: 'Bảng mức thuế TNCN',
       apiBase: '',
+      columnLayout: [
+        { name: 'DenMuc', label: 'Đến mức', visible: true },
+        { name: 'TuMuc', label: 'Từ mức', visible: true },
+        { name: 'Bac', label: 'Bậc thuế', visible: true },
+        { name: 'GioiTinh', label: 'Giới tính', visible: false },
+        { name: 'ThueSuat', label: 'Thuế suất (%)', visible: true },
+        { name: 'GhiChu', label: 'Ghi chú', visible: true }
+      ],
       requestHeaders: { Username: 'visual-test', BranchID: 'CN001' }
     });
+
+    if (new URLSearchParams(location.search).has('auto-file')) {
+      var mockFileName = new URLSearchParams(location.search).get('auto-file') || 'bang-thue-thu-nhap.xlsx';
+      var mockFile = new File(['visual-test'], mockFileName, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      var transfer = new DataTransfer();
+      transfer.items.add(mockFile);
+      var input = document.querySelector('.excel-import-file-input');
+      window.setTimeout(function () {
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }, 0);
+    }
   </script>
 </body>
 </html>

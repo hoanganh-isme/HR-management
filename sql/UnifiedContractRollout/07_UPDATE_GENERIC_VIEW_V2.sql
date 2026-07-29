@@ -3,6 +3,7 @@
   sang WA_FieldContractRegistry; không nhận table/PK từ client.
 */
 IF OBJECT_ID(N'dbo.WA_FieldContractRegistry', N'U') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54310, N'FIELD_CONTRACT_CONTROL_REGISTRY_NOT_INSTALLED', 1;
 GO
 
@@ -147,6 +148,7 @@ BEGIN
         @ExpectedTable sysname,
         @ExpectedPrimaryKey sysname,
         @ExpectedView sysname,
+        @PermissionFormName varchar(100),
         @GlobalReferenceOnly bit,
         @BranchPolicy varchar(40);
 
@@ -154,6 +156,7 @@ BEGIN
         @ExpectedTable = R.ExpectedTableName,
         @ExpectedPrimaryKey = R.ExpectedPrimaryKey,
         @ExpectedView = R.ViewV2,
+        @PermissionFormName = R.PermissionFormName,
         @GlobalReferenceOnly = R.GlobalReferenceOnly,
         @BranchPolicy = R.BranchPolicy
     FROM dbo.API_Phase3SimpleCrudRegistry() AS R
@@ -165,6 +168,9 @@ BEGIN
 
     IF @UserName = ''
         THROW 53102, N'PHASE3_ACTOR_REQUIRED', 1;
+
+    SET @PermissionFormName =
+        LTRIM(RTRIM(ISNULL(NULLIF(@PermissionFormName, ''), @List)));
 
     IF @Data = N'' SET @Data = N'{}';
     IF ISJSON(@Data) <> 1 OR LEFT(@Data, 1) <> N'{'
@@ -271,8 +277,15 @@ BEGIN
     IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
        AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
     BEGIN
-        IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = '' OR @BranchID = ''
+        IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = ''
             THROW 53112, N'PHASE3_BRANCH_CONTEXT_REQUIRED', 1;
+
+        /*
+          Phạm vi thật luôn lấy từ SY_User. Client có thể không gửi BranchID hoặc
+          chỉ xin một tập con; client không thể tự mở rộng sang chi nhánh khác.
+        */
+        IF @BranchID = ''
+            SET @BranchID = @UserBranches;
 
         IF EXISTS (
             SELECT 1
@@ -287,32 +300,20 @@ BEGIN
             THROW 53113, N'PHASE3_BRANCH_CONTEXT_DENIED', 1;
     END;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1)
-        @MenuID = M.MenuID,
-        @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @List COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE @MenuID varchar(50), @SkipPermission bit = 0, @GroupCanRun bit = 0;
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
         THROW 53114, N'PHASE3_ACTIVE_MENU_REQUIRED', 1;
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        SELECT @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
             THROW 53115, N'PHASE3_VIEW_PERMISSION_DENIED', 1;
     END;
 

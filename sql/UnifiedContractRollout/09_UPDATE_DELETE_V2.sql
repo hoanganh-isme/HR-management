@@ -2,6 +2,7 @@
   Delete V2 đọc wrapper DB-backed, fail-closed theo permission/branch/policy.
 */
 IF OBJECT_ID(N'dbo.API_Phase3SimpleCrudRegistry', N'IF') IS NULL
+   OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54330, N'FIELD_CONTRACT_DYNAMIC_WRAPPER_NOT_INSTALLED', 1;
 GO
 
@@ -303,12 +304,19 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE @MenuID varchar(50), @SkipPermission bit = 0;
-    SELECT TOP (1) @MenuID = M.MenuID, @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
-    FROM dbo.WA_Menu AS M
-    WHERE M.FormName COLLATE DATABASE_DEFAULT = @PermissionFormName COLLATE DATABASE_DEFAULT
-      AND ISNULL(M.isDisable, 0) = 0
-    ORDER BY M.MenuID;
+    DECLARE
+        @MenuID varchar(50),
+        @SkipPermission bit = 0,
+        @GroupCanRun bit = 0,
+        @GroupCanDelete bit = 0;
+
+    SELECT
+        @MenuID = P.MenuID,
+        @SkipPermission = P.SkipPermission,
+        @GroupCanRun = P.CanView,
+        @GroupCanDelete = P.CanDelete
+    FROM dbo.API_Web_GroupFormPermissionV2
+        (@UserGroupID, @PermissionFormName) AS P;
 
     IF @MenuID IS NULL
     BEGIN
@@ -319,17 +327,8 @@ BEGIN
 
     IF LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT AND @SkipPermission = 0
     BEGIN
-        DECLARE @GroupAllowed bit, @UserAllowed bit, @GroupCanRun bit, @UserCanRun bit;
-        SELECT @GroupAllowed = P.IsDelete, @GroupCanRun = P.IsRun
-        FROM dbo.WA_UserGroupPermisstion AS P
-        WHERE P.UserGroupID COLLATE DATABASE_DEFAULT = @UserGroupID COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        SELECT @UserAllowed = P.IsDelete, @UserCanRun = P.IsRun
-        FROM dbo.WA_UserPermisstion AS P
-        WHERE P.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
-          AND P.MenuID COLLATE DATABASE_DEFAULT = @MenuID COLLATE DATABASE_DEFAULT;
-        IF ISNULL(@UserCanRun, ISNULL(@GroupCanRun, 0)) <> 1
-           OR ISNULL(@UserAllowed, ISNULL(@GroupAllowed, 0)) <> 1
+        IF ISNULL(@GroupCanRun, 0) <> 1
+           OR ISNULL(@GroupCanDelete, 0) <> 1
         BEGIN
             SELECT -1 AS code, N'PHASE3_DELETE_PERMISSION_DENIED' AS msg, 0 AS rowsAffected,
                    @DeletePolicy AS deleteMode;

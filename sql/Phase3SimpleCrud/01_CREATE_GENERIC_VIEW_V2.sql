@@ -265,8 +265,15 @@ BEGIN
     IF (@BranchPolicy = 'LEGACY_GLOBAL_REFERENCE' OR @BranchPolicy = 'BRANCH_SCOPED')
        AND LOWER(@UserGroupID) COLLATE DATABASE_DEFAULT <> 'admin' COLLATE DATABASE_DEFAULT
     BEGIN
-        IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = '' OR @BranchID = ''
+        IF LTRIM(RTRIM(ISNULL(@UserBranches, ''))) = ''
             THROW 53112, N'PHASE3_BRANCH_CONTEXT_REQUIRED', 1;
+
+        /*
+          Phạm vi thật luôn lấy từ SY_User. Client có thể không gửi BranchID hoặc
+          chỉ xin một tập con; client không thể tự mở rộng sang chi nhánh khác.
+        */
+        IF @BranchID = ''
+            SET @BranchID = @UserBranches;
 
         IF EXISTS (
             SELECT 1
