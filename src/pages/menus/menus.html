@@ -141,28 +141,72 @@
           </div>
         </div>
 
-        <!-- 🔴 HỆ SINH THÁI ĐỘNG V2 (METADATA-DRIVEN) 🔴 -->
+        <!-- 🔴 HỆ SINH THÁI ĐỘNG V2 & V3 (METADATA-DRIVEN) 🔴 -->
         <div
           style="background:rgba(60,80,224,0.05); border:1px solid rgba(60,80,224,0.15); border-radius:8px; padding:16px; margin-bottom:16px;">
           <div
             style="font-weight:700; color:var(--color-primary); margin-bottom:12px; font-size:12px; text-transform:uppercase; display:flex; align-items:center; gap:6px;">
-            <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span> Cấu hình Form Động (V2)
+            <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span> Cấu hình Form Động & API (V2 / V3)
           </div>
+
+          <!-- Chế độ kết nối API (ContractType) -->
+          <div class="form-group mb-3">
+            <label class="form-label" style="font-weight:600;">Chế Độ Kết Nối API</label>
+            <select id="menu-contract-type" class="ui-input" style="background:#fff; font-weight:500;">
+              <option value="SIMPLE_TABLE">1. Bảng Đơn Giản (Tự động 100% V2 Dùng Chung)</option>
+              <option value="JOIN_VIEW">2. Bảng Join Nhiều Bảng / View Query (Tùy chỉnh View Đọc)</option>
+              <option value="CUSTOM_API">3. API Nghiệp Vụ Riêng (Chạy Stored Procedure Riêng)</option>
+              <option value="MASTER_DETAIL">4. Master - Detail (Có các Tab Con liên kết)</option>
+            </select>
+          </div>
+
           <div class="row g-3 mb-3">
             <div class="col-8">
               <div class="form-group">
-                <label class="form-label">Bảng Dữ Liệu (TableName)</label>
-                <input type="text" id="menu-tablename" class="ui-input" placeholder="VD: HR_NhanVienTbl"
+                <label class="form-label">Bảng Dữ Liệu Vật Lý (TableName)</label>
+                <input type="text" id="menu-tablename" class="ui-input" placeholder="VD: HR_SapCaChiNhanhTbl"
                   style="background:#fff;">
               </div>
             </div>
             <div class="col-4">
               <div class="form-group">
                 <label class="form-label">Khóa Chính</label>
-                <input type="text" id="menu-primarykey" class="ui-input" placeholder="VD: ID" style="background:#fff;">
+                <input type="text" id="menu-primarykey" class="ui-input" placeholder="VD: SapCaID" style="background:#fff;">
               </div>
             </div>
           </div>
+
+          <!-- Các ô Procedure Tùy chỉnh (Ẩn/Hiện theo Chế Độ) -->
+          <div id="menu-custom-proc-container" style="display:none; background:#fff; border:1px dashed var(--color-border); border-radius:6px; padding:12px; margin-bottom:12px;">
+            <div class="form-group mb-2" id="group-custom-view">
+              <label class="form-label" style="font-size:12px;">SQL View / Procedure Đọc Master (View)</label>
+              <input type="text" id="menu-custom-view-proc" class="ui-input" placeholder="VD: API_CaLamViecBranch_Master">
+            </div>
+            <div class="form-group mb-2" id="group-custom-save" style="display:none;">
+              <label class="form-label" style="font-size:12px;">Procedure Lưu (Save)</label>
+              <input type="text" id="menu-custom-save-proc" class="ui-input" placeholder="VD: API_HopDongLaoDong_Save">
+            </div>
+            <div class="form-group mb-0" id="group-custom-delete" style="display:none;">
+              <label class="form-label" style="font-size:12px;">Procedure Xóa (Delete)</label>
+              <input type="text" id="menu-custom-delete-proc" class="ui-input" placeholder="VD: API_HopDongLaoDong_Delete">
+            </div>
+          </div>
+
+          <!-- Khu vực cấu hình Sub-Datasets (Tabs Con) khi chọn MASTER_DETAIL -->
+          <div id="menu-subdatasets-container" style="display:none; background:#fff; border:1px solid var(--color-border); border-radius:6px; padding:12px; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <span style="font-weight:600; font-size:12px; color:var(--color-primary); display:flex; align-items:center; gap:4px;">
+                <span class="material-symbols-outlined" style="font-size:16px;">tab</span> CẤU HÌNH TAB CON (SUB-DATASETS)
+              </span>
+              <button type="button" id="btn-add-subdataset" class="btn btn-outline-primary" style="padding:2px 8px; font-size:11px; display:flex; align-items:center; gap:4px;">
+                <span class="material-symbols-outlined" style="font-size:14px;">add</span> Thêm Tab Con
+              </button>
+            </div>
+            <div id="subdatasets-list" style="display:flex; flex-direction:column; gap:10px;">
+              <!-- Dynamic subdataset items rendered here -->
+            </div>
+          </div>
+
           <div class="form-group mb-0">
             <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
               <input type="checkbox" id="menu-allow-hard-delete" class="modern-checkbox"

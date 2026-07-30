@@ -223,8 +223,22 @@ UIControls.utils = (function () {
     });
     tableHTML += '</tr></thead><tbody>';
 
+    function _getPropVal(obj, propName) {
+      if (!obj || !propName) return '';
+      if (obj[propName] !== undefined && obj[propName] !== null) return obj[propName];
+      var lowerName = String(propName).toLowerCase();
+      for (var k in obj) {
+        if (k.toLowerCase() === lowerName && obj[k] !== undefined && obj[k] !== null) return obj[k];
+      }
+      return '';
+    }
+
     dataList.forEach(function (rData, idx) {
-      var isDuplicate = ctx.panel._currentRows.some(function (r) { return r[options.keyField] === rData[options.keyField]; });
+      var rDataKey = _getPropVal(rData, options.keyField);
+      var isDuplicate = !!rDataKey && (ctx && ctx.panel && Array.isArray(ctx.panel._currentRows)) && ctx.panel._currentRows.some(function (r) {
+        var existingKey = _getPropVal(r, options.keyField);
+        return existingKey && String(existingKey).toLowerCase() === String(rDataKey).toLowerCase();
+      });
       var chkDisabled = isDuplicate ? 'disabled' : '';
       var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : 'background: #ffffff;';
       var warningText = isDuplicate ? 'Đã có trên form' : '';
@@ -245,7 +259,8 @@ UIControls.utils = (function () {
         if (f === '_warning_') {
           tableHTML += '<td style="padding: 10px 12px; border-bottom: 1px solid var(--color-border, #e8e8e8); ' + warningStyle + '">' + warningText + '</td>';
         } else {
-          tableHTML += '<td style="padding: 10px 12px; border-bottom: 1px solid var(--color-border, #e8e8e8);">' + (rData[f] || '') + '</td>';
+          var cellVal = _getPropVal(rData, f);
+          tableHTML += '<td style="padding: 10px 12px; border-bottom: 1px solid var(--color-border, #e8e8e8);">' + cellVal + '</td>';
         }
       });
       tableHTML += '</tr>';

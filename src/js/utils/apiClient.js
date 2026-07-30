@@ -225,20 +225,24 @@ const ApiClient = (function () {
             return request(endpoint, { ...options, method: 'GET' });
         },
 
-        /**
-         * G\u1eedi request POST (Dữ liệu truyền vào th\u00f4ng qua body)
-         */
         post: function (endpoint, data, options = {}) {
+            var payload = data;
+            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+                payload = Object.assign({}, payload);
+                if (!payload.UserName) {
+                    var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
+                        || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
+                        || localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    if (uName) payload.UserName = uName;
+                }
+            }
             return request(endpoint, {
                 ...options,
                 method: 'POST',
-                body: JSON.stringify(data)
+                body: JSON.stringify(payload)
             });
         },
 
-        /**
-         * G\u1eedi request PUT (Th\u01b0\u1eddng d\u00f9ng \u0111\u1ec3 update)
-         */
         put: function (endpoint, data, options = {}) {
             return request(endpoint, {
                 ...options,
@@ -247,9 +251,6 @@ const ApiClient = (function () {
             });
         },
 
-        /**
-         * G\u1eedi request DELETE
-         */
         delete: function (endpoint, options = {}) {
             return request(endpoint, { ...options, method: 'DELETE' });
         },
@@ -257,7 +258,6 @@ const ApiClient = (function () {
         normalizeResponse: normalizeResponse,
         requestRecords: requestRecords,
         upload: upload,
-
         // Expose cookie helpers to be used globally (e.g., in login and logout)
         setCookie: setCookie,
         getCookie: getCookie,

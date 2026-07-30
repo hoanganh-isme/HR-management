@@ -97,8 +97,9 @@ END;
 GO
 
 /*
-  Metadata giao diện V2 là nguồn cấu hình duy nhất cho web. Bảng này không
-  chứa câu SQL và không phụ thuộc SY_FormatFields/SY_FrmDrdwTbl.
+  Metadata giao diện V2 là nguồn cấu hình duy nhất cho web.
+  Dropdown trỏ thẳng đến một route View trong WA_API; route đó gọi API_* tương ứng.
+  Vì vậy chỉ cần một bảng field, không cần bảng lookup và bảng option riêng.
 */
 IF OBJECT_ID(N'dbo.WA_FieldUiContractV2', N'U') IS NULL
 BEGIN
@@ -118,7 +119,15 @@ BEGIN
         ShowInFilter bit NULL,
         IsReadOnlyAdd bit NULL,
         IsReadOnlyEdit bit NULL,
-        LookupCode varchar(100) NULL,
+        LookupList varchar(50) NULL,
+        LookupValueColumn sysname NULL,
+        LookupDisplayColumn sysname NULL,
+        LookupColumns nvarchar(1000) NULL,
+        LookupWidths nvarchar(500) NULL,
+        LookupDependsOn nvarchar(500) NULL,
+        LookupMultiSelect bit NOT NULL
+            CONSTRAINT DF_WA_FieldUiContractV2_LookupMultiSelect DEFAULT (0),
+        LookupReloadMode varchar(30) NULL,
         NumberDecimal int NULL,
         FormatString nvarchar(100) NULL,
         MaskString nvarchar(100) NULL,
@@ -158,101 +167,171 @@ BEGIN
                 (MinWidth IS NULL OR MinWidth >= 0)
                 AND (MaxWidth IS NULL OR MaxWidth >= 0)
                 AND (MinWidth IS NULL OR MaxWidth IS NULL OR MinWidth <= MaxWidth)
+            ),
+        CONSTRAINT CK_WA_FieldUiContractV2_Lookup
+            CHECK
+            (
+                (
+                    LookupList IS NULL
+                    AND LookupValueColumn IS NULL
+                    AND LookupDisplayColumn IS NULL
+                )
+                OR
+                (
+                    LookupList IS NOT NULL
+                    AND LookupValueColumn IS NOT NULL
+                    AND LookupDisplayColumn IS NOT NULL
+                )
             )
     );
 
     CREATE INDEX IX_WA_FieldUiContractV2_Lookup
-        ON dbo.WA_FieldUiContractV2(LookupCode)
-        WHERE LookupCode IS NOT NULL AND IsEnabled = 1;
+        ON dbo.WA_FieldUiContractV2(LookupList)
+        WHERE LookupList IS NOT NULL AND IsEnabled = 1;
 END;
 GO
 
 /*
-  Lookup chỉ được phép trỏ tới một API View đã đăng ký hoặc danh sách giá trị
-  khai báo. Không lưu và không thực thi raw SQL từ metadata.
+  Nâng cấp từ bản ba bảng cũ. Chỉ migrate nguồn REGISTERED_API; value-list mặc định
+  PERSON_GENDER được chuyển sang API_ComboGioiTinh trong installer dropdown.
 */
-IF OBJECT_ID(N'dbo.WA_LookupContractV2', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.WA_LookupContractV2
-    (
-        LookupCode varchar(100) NOT NULL,
-        SourceType varchar(20) NOT NULL,
-        RegisteredList varchar(50) NULL,
-        ValueColumn sysname NOT NULL,
-        DisplayColumn sysname NOT NULL,
-        DisplayColumns nvarchar(1000) NULL,
-        Widths nvarchar(500) NULL,
-        DependsOn nvarchar(500) NULL,
-        IsMultiSelect bit NOT NULL
-            CONSTRAINT DF_WA_LookupContractV2_IsMultiSelect DEFAULT (0),
-        ReloadMode varchar(30) NULL,
-        BranchPolicy varchar(40) NOT NULL
-            CONSTRAINT DF_WA_LookupContractV2_BranchPolicy DEFAULT ('CALLER_SCOPE'),
-        IsEnabled bit NOT NULL
-            CONSTRAINT DF_WA_LookupContractV2_IsEnabled DEFAULT (1),
-        SchemaVersion int NOT NULL
-            CONSTRAINT DF_WA_LookupContractV2_SchemaVersion DEFAULT (1),
-        CreatedAt datetime2(3) NOT NULL
-            CONSTRAINT DF_WA_LookupContractV2_CreatedAt DEFAULT SYSUTCDATETIME(),
-        CreatedBy varchar(100) NOT NULL,
-        UpdatedAt datetime2(3) NOT NULL
-            CONSTRAINT DF_WA_LookupContractV2_UpdatedAt DEFAULT SYSUTCDATETIME(),
-        UpdatedBy varchar(100) NOT NULL,
-        CONSTRAINT PK_WA_LookupContractV2 PRIMARY KEY (LookupCode),
-        CONSTRAINT CK_WA_LookupContractV2_SourceType CHECK
-        (
-            SourceType IN ('REGISTERED_API', 'VALUE_LIST')
-        ),
-        CONSTRAINT CK_WA_LookupContractV2_Source CHECK
-        (
-            (SourceType = 'REGISTERED_API' AND RegisteredList IS NOT NULL)
-            OR (SourceType = 'VALUE_LIST' AND RegisteredList IS NULL)
-        ),
-        CONSTRAINT CK_WA_LookupContractV2_BranchPolicy CHECK
-        (
-            BranchPolicy IN ('CALLER_SCOPE', 'GLOBAL_REFERENCE')
-        ),
-        CONSTRAINT CK_WA_LookupContractV2_SchemaVersion
-            CHECK (SchemaVersion > 0)
-    );
-END;
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupList') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2 ADD LookupList varchar(50) NULL;
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupValueColumn') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2 ADD LookupValueColumn sysname NULL;
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupDisplayColumn') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2 ADD LookupDisplayColumn sysname NULL;
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupColumns') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2 ADD LookupColumns nvarchar(1000) NULL;
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupWidths') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2 ADD LookupWidths nvarchar(500) NULL;
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupDependsOn') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2 ADD LookupDependsOn nvarchar(500) NULL;
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupMultiSelect') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2
+        ADD LookupMultiSelect bit NOT NULL
+            CONSTRAINT DF_WA_FieldUiContractV2_LookupMultiSelect DEFAULT (0);
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupReloadMode') IS NULL
+    ALTER TABLE dbo.WA_FieldUiContractV2 ADD LookupReloadMode varchar(30) NULL;
 GO
 
-IF OBJECT_ID(N'dbo.WA_LookupOptionV2', N'U') IS NULL
+IF OBJECT_ID(N'dbo.WA_LookupContractV2', N'U') IS NOT NULL
 BEGIN
-    CREATE TABLE dbo.WA_LookupOptionV2
+    /*
+      Dùng SQL động vì bản cài mới không có LookupCode và hai bảng lookup cũ.
+      Tên object/column đều cố định trong source, không nhận từ request.
+    */
+    IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupCode') IS NOT NULL
+        EXEC sys.sp_executesql N'
+            UPDATE Ui
+            SET
+                LookupList =
+                    CASE
+                        WHEN LookupContract.SourceType = ''VALUE_LIST''
+                         AND LookupContract.LookupCode = ''PERSON_GENDER''
+                            THEN ''API_ComboGioiTinh''
+                        ELSE LookupContract.RegisteredList
+                    END,
+                LookupValueColumn =
+                    CASE
+                        WHEN LookupContract.SourceType = ''VALUE_LIST''
+                         AND LookupContract.LookupCode = ''PERSON_GENDER''
+                            THEN ''Value''
+                        ELSE LookupContract.ValueColumn
+                    END,
+                LookupDisplayColumn =
+                    CASE
+                        WHEN LookupContract.SourceType = ''VALUE_LIST''
+                         AND LookupContract.LookupCode = ''PERSON_GENDER''
+                            THEN ''Display''
+                        ELSE LookupContract.DisplayColumn
+                    END,
+                LookupColumns =
+                    CASE
+                        WHEN LookupContract.SourceType = ''VALUE_LIST''
+                         AND LookupContract.LookupCode = ''PERSON_GENDER''
+                            THEN N''Value,Display''
+                        ELSE LookupContract.DisplayColumns
+                    END,
+                LookupWidths = LookupContract.Widths,
+                LookupDependsOn = LookupContract.DependsOn,
+                LookupMultiSelect = LookupContract.IsMultiSelect,
+                LookupReloadMode = LookupContract.ReloadMode,
+                UpdatedAt = SYSUTCDATETIME(),
+                UpdatedBy = ''SYSTEM_LOOKUP_SINGLE_TABLE_MIGRATION''
+            FROM dbo.WA_FieldUiContractV2 AS Ui
+            INNER JOIN dbo.WA_LookupContractV2 AS LookupContract
+              ON LookupContract.LookupCode = Ui.LookupCode
+             AND LookupContract.IsEnabled = 1
+            WHERE LookupContract.SourceType = ''REGISTERED_API''
+               OR LookupContract.LookupCode = ''PERSON_GENDER'';';
+
+    DECLARE @CustomValueListCount int = 0;
+    EXEC sys.sp_executesql
+        N'
+            SELECT @Count = COUNT(*)
+            FROM dbo.WA_LookupContractV2
+            WHERE SourceType = ''VALUE_LIST''
+              AND LookupCode <> ''PERSON_GENDER'';',
+        N'@Count int OUTPUT',
+        @Count = @CustomValueListCount OUTPUT;
+
+    IF @CustomValueListCount > 0
+    BEGIN
+        EXEC sys.sp_executesql N'
+            SELECT
+                LookupCode,
+                SourceType,
+                ValueColumn,
+                DisplayColumn
+            FROM dbo.WA_LookupContractV2
+            WHERE SourceType = ''VALUE_LIST''
+              AND LookupCode <> ''PERSON_GENDER''
+            ORDER BY LookupCode;';
+
+        THROW 54302, N'CUSTOM_VALUE_LIST_MUST_BE_CONVERTED_TO_REGISTERED_API', 1;
+    END;
+
+    IF EXISTS
     (
-        LookupCode varchar(100) NOT NULL,
-        OptionValue nvarchar(500) NOT NULL,
-        OptionLabel nvarchar(500) NOT NULL,
-        OrderNo int NOT NULL
-            CONSTRAINT DF_WA_LookupOptionV2_OrderNo DEFAULT (0),
-        IsEnabled bit NOT NULL
-            CONSTRAINT DF_WA_LookupOptionV2_IsEnabled DEFAULT (1),
-        CONSTRAINT PK_WA_LookupOptionV2
-            PRIMARY KEY (LookupCode, OptionValue),
-        CONSTRAINT FK_WA_LookupOptionV2_Contract FOREIGN KEY (LookupCode)
-            REFERENCES dbo.WA_LookupContractV2(LookupCode)
-    );
+        SELECT 1
+        FROM sys.foreign_keys
+        WHERE [name] = N'FK_WA_FieldUiContractV2_Lookup'
+          AND parent_object_id = OBJECT_ID(N'dbo.WA_FieldUiContractV2')
+    )
+        ALTER TABLE dbo.WA_FieldUiContractV2
+            DROP CONSTRAINT FK_WA_FieldUiContractV2_Lookup;
+
+    IF EXISTS
+    (
+        SELECT 1
+        FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'dbo.WA_FieldUiContractV2')
+          AND [name] = N'IX_WA_FieldUiContractV2_Lookup'
+    )
+        DROP INDEX IX_WA_FieldUiContractV2_Lookup
+            ON dbo.WA_FieldUiContractV2;
+
+    IF OBJECT_ID(N'dbo.WA_LookupOptionV2', N'U') IS NOT NULL
+        EXEC(N'DROP TABLE dbo.WA_LookupOptionV2;');
+
+    EXEC(N'DROP TABLE dbo.WA_LookupContractV2;');
+
+    IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupCode') IS NOT NULL
+        EXEC(N'ALTER TABLE dbo.WA_FieldUiContractV2 DROP COLUMN LookupCode;');
 END;
 GO
 
 IF NOT EXISTS
 (
     SELECT 1
-    FROM sys.foreign_keys
-    WHERE [name] = N'FK_WA_FieldUiContractV2_Lookup'
-      AND parent_object_id = OBJECT_ID(N'dbo.WA_FieldUiContractV2')
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.WA_FieldUiContractV2')
+      AND [name] = N'IX_WA_FieldUiContractV2_Lookup'
 )
-BEGIN
-    ALTER TABLE dbo.WA_FieldUiContractV2
-        WITH CHECK ADD CONSTRAINT FK_WA_FieldUiContractV2_Lookup
-        FOREIGN KEY (LookupCode)
-        REFERENCES dbo.WA_LookupContractV2(LookupCode);
-
-    ALTER TABLE dbo.WA_FieldUiContractV2
-        CHECK CONSTRAINT FK_WA_FieldUiContractV2_Lookup;
-END;
+    CREATE INDEX IX_WA_FieldUiContractV2_Lookup
+        ON dbo.WA_FieldUiContractV2(LookupList)
+        WHERE LookupList IS NOT NULL AND IsEnabled = 1;
 GO
 
 IF OBJECT_ID(N'dbo.WA_FieldContractRouteBackup', N'U') IS NULL

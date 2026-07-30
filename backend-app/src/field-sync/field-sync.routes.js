@@ -613,7 +613,7 @@ export function createFieldSyncRouter({
                 const formName = validateFormName(
                     req.params.formName
                 );
-                if (!CRUD_FORM.test(formName)) {
+                if (!METADATA_FORM.test(formName)) {
                     throw contractError(
                         'Report không thuộc Unified CRUD contract.',
                         'FIELD_CONTRACT_NOT_REGISTERED',

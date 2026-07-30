@@ -13,8 +13,10 @@ var DetailPage = (function () {
       return;
     }
 
-    var baseConfig = null;
-    if (window.APP_MODULES) {
+    var baseConfig = window.Router && typeof Router.getConfigByFormName === 'function'
+      ? Router.getConfigByFormName(formName)
+      : null;
+    if (!baseConfig && window.APP_MODULES) {
       // Find module config by FormName
       var targetName = formName.toLowerCase();
       for (var k in window.APP_MODULES) {
@@ -28,20 +30,32 @@ var DetailPage = (function () {
       }
     }
 
+    // Dynamic fallback cho deep-link khi route menu chưa kịp dựng.
     if (!baseConfig) {
-      $container.innerHTML = '<div class="alert alert-danger m-4">Không tìm thấy cấu hình cho module: ' + formName + '</div>';
+      try {
+        var cachedNav = JSON.parse(sessionStorage.getItem('pmql_nav_cache') || 'null');
+        if (cachedNav && cachedNav.contractVersion === 2 && Array.isArray(cachedNav.rawRecords) && window.Router) {
+          Router.addDynamicRoutes(cachedNav.rawRecords);
+          baseConfig = Router.getConfigByFormName(formName);
+        }
+      } catch (e) { }
+    }
+
+    if (!baseConfig) {
+      $container.innerHTML = '<div class="alert alert-danger m-4">Không tìm thấy cấu hình master-detail cho module: ' + formName + '</div>';
       return;
     }
 
     var rowData = null;
     try {
-      var rowDataStr = sessionStorage.getItem('HR_Detail_Row_' + baseConfig.FormName);
+      var storageKey = (isAdd ? 'HR_Detail_Defaults_' : 'HR_Detail_Row_') + baseConfig.FormName;
+      var rowDataStr = sessionStorage.getItem(storageKey);
       if (rowDataStr) {
         rowData = JSON.parse(rowDataStr);
+        if (isAdd) sessionStorage.removeItem(storageKey);
       }
     } catch(e) {}
 
-    var isAdd = hash.indexOf('action=add') > -1;
     var isForceEdit = hash.indexOf('action=edit') > -1;
 
     // Merge với cờ IsFullPageDetail để engine biết cần render thẳng ra page thay vì vẽ grid

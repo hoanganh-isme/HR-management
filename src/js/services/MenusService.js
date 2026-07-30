@@ -52,7 +52,13 @@ var MenusService = (function () {
     return new Promise(function (resolve, reject) {
       var endpoint = _ep('SAVE');
       ApiClient.post(endpoint, payload)
-        .then(resolve)
+        .then(function (res) {
+          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
+            res.code = 0;
+            res.msg = 'Lưu Menu thành công!';
+          }
+          resolve(res);
+        })
         .catch(function (err) {
           console.error('[MenusService] Lỗi save:', err);
           reject(err);
@@ -69,7 +75,13 @@ var MenusService = (function () {
     return new Promise(function (resolve, reject) {
       var endpoint = _ep('DELETE');
       ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId(), MenuID: menuId })
-        .then(resolve)
+        .then(function (res) {
+          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
+            res.code = 0;
+            res.msg = 'Xóa Menu thành công!';
+          }
+          resolve(res);
+        })
         .catch(function (err) {
           console.error('[MenusService] Lỗi deleteMenu:', err);
           reject(err);

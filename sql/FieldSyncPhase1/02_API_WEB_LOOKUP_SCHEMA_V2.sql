@@ -1,7 +1,6 @@
 /*
-  Lookup V2 chỉ đọc registry mới:
-  - VALUE_LIST: danh sách tĩnh có kiểm soát.
-  - REGISTERED_API: tên route View đã đăng ký trong WA_API.
+  Lookup V2 chỉ đọc WA_FieldUiContractV2. Mỗi dropdown trỏ trực tiếp đến một
+  route View duy nhất trong WA_API; route đó gọi API_* tương ứng.
   Không đọc SY_FrmDrdwTbl, không nhận và không thực thi raw SQL.
 */
 SET ANSI_NULLS ON;
@@ -10,8 +9,6 @@ SET QUOTED_IDENTIFIER ON;
 GO
 
 IF OBJECT_ID(N'dbo.WA_FieldUiContractV2', N'U') IS NULL
-   OR OBJECT_ID(N'dbo.WA_LookupContractV2', N'U') IS NULL
-   OR OBJECT_ID(N'dbo.WA_LookupOptionV2', N'U') IS NULL
     THROW 51100, N'LOOKUP_CONTRACT_V2_REGISTRY_NOT_INSTALLED', 1;
 GO
 
@@ -104,28 +101,49 @@ BEGIN
     END;
 
     DECLARE
-        @LookupCode varchar(100),
-        @SourceType varchar(20),
         @RegisteredList varchar(50),
         @ValueColumn sysname,
         @DisplayColumn sysname;
 
     SELECT TOP (1)
-        @LookupCode = L.LookupCode,
-        @SourceType = L.SourceType,
-        @RegisteredList = L.RegisteredList,
-        @ValueColumn = L.ValueColumn,
-        @DisplayColumn = L.DisplayColumn
+        @RegisteredList = U.LookupList,
+        @ValueColumn = U.LookupValueColumn,
+        @DisplayColumn = U.LookupDisplayColumn
     FROM dbo.WA_FieldUiContractV2 AS U
-    INNER JOIN dbo.WA_LookupContractV2 AS L
-      ON L.LookupCode = U.LookupCode
-     AND L.IsEnabled = 1
     WHERE U.WebFormName = @WebFormName
       AND U.IsEnabled = 1
+      AND U.LookupList IS NOT NULL
+      AND U.LookupValueColumn IS NOT NULL
+      AND U.LookupDisplayColumn IS NOT NULL
       AND CONVERT
       (
           varchar(64),
-          HASHBYTES('SHA2_256', UPPER(LTRIM(RTRIM(L.LookupCode)))),
+          HASHBYTES
+          (
+              'SHA2_256',
+              UPPER
+              (
+                  LTRIM
+                  (
+                      RTRIM
+                      (
+                          CONVERT
+                          (
+                              varchar(max),
+                              CONCAT
+                              (
+                                  U.LookupList, '|',
+                                  U.LookupValueColumn, '|',
+                                  U.LookupDisplayColumn, '|',
+                                  ISNULL(U.LookupColumns, N''), '|',
+                                  ISNULL(U.LookupDependsOn, N''), '|',
+                                  CONVERT(varchar(1), U.LookupMultiSelect)
+                              )
+                          )
+                      )
+                  )
+              )
+          ),
           2
       ) = @LookupKey
     ORDER BY
@@ -133,7 +151,7 @@ BEGIN
         U.DatasetKey,
         U.FieldName;
 
-    IF @LookupCode IS NULL
+    IF @RegisteredList IS NULL
     BEGIN
         SELECT
             'BLOCKED' AS LookupMode,
@@ -164,34 +182,7 @@ BEGIN
         RETURN;
     END;
 
-    IF @SourceType = 'VALUE_LIST'
-    BEGIN
-        SELECT
-            'VALUE_LIST' AS LookupMode,
-            CAST(0 AS bit) AS Blocked,
-            'OK' AS DiagnosticCode,
-            O.OptionValue AS [Value],
-            O.OptionLabel AS Display,
-            CAST(NULL AS varchar(50)) AS RegisteredList,
-            @ValueColumn AS ValueColumn,
-            @DisplayColumn AS DisplayColumn
-        FROM dbo.WA_LookupOptionV2 AS O
-        WHERE O.LookupCode = @LookupCode
-          AND O.IsEnabled = 1
-          AND
-          (
-              @Keyword = N''
-              OR O.OptionValue LIKE N'%' + @Keyword + N'%'
-              OR O.OptionLabel LIKE N'%' + @Keyword + N'%'
-          )
-        ORDER BY O.OrderNo, O.OptionLabel, O.OptionValue
-        OFFSET ((@Page - 1) * @PageSize) ROWS
-        FETCH NEXT @PageSize ROWS ONLY;
-        RETURN;
-    END;
-
-    IF @SourceType = 'REGISTERED_API'
-       AND EXISTS
+    IF EXISTS
        (
             SELECT 1
             FROM dbo.WA_API AS A

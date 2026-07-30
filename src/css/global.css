@@ -505,6 +505,76 @@ img {
 }
 
 /* ════ FLATPICKR OVERRIDES (Thu nhỏ) ════ */
+/* Dynamic master-detail detail page */
+.full-page-detail {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.full-page-detail__body,
+.full-page-detail .detail-tabs-container,
+.full-page-detail .detail-tab-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.full-page-detail .detail-tab-panel {
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .full-page-detail {
+    min-height: calc(100vh - 72px) !important;
+    padding: 16px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+  }
+
+  .full-page-detail__header {
+    align-items: flex-start !important;
+    gap: 12px;
+    margin-bottom: 16px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .full-page-detail__header h2 {
+    font-size: 1.25rem !important;
+  }
+
+  .full-page-detail__actions {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .full-page-detail .detail-tabs-container {
+    margin-top: 12px !important;
+  }
+
+  .full-page-detail .detail-tab-panel > table {
+    min-width: 640px;
+  }
+}
+
+@media (max-width: 480px) {
+  .full-page-detail {
+    padding: 12px !important;
+  }
+
+  .full-page-detail__header {
+    flex-direction: column;
+  }
+
+  .full-page-detail__actions {
+    width: 100%;
+  }
+
+  .full-page-detail__actions .btn {
+    flex: 1 1 120px;
+  }
+}
+
 .flatpickr-calendar {
   width: 260px !important;
   font-size: 13px !important;

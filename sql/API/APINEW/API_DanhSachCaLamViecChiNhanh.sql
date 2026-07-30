@@ -41,21 +41,3 @@ BEGIN
 END
 GO
 
--- 1. Cấu hình định tuyến Gateway
-DELETE FROM WA_API WHERE list = 'HR_ShiftListCNFrm' AND func = 'View';
-GO
-
-INSERT INTO WA_API (list, func, [SQL], Para)
-VALUES (
-    'HR_ShiftListCNFrm', 
-    'View', 
-    'API_DanhSachCaLamViecChiNhanh', 
-    '@Keyword=N''{Keyword}'', @UserBranchID=N''{BranchID}'''
-);
-GO
-
--- 2. Đồng bộ các cột từ API
-EXEC [dbo].[API_DongBoTruongGiaoDien]
-    @FormName = 'HR_ShiftListCNFrm',
-    @ObjectName = 'API_DanhSachCaLamViecChiNhanh';
-GO

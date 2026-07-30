@@ -1,21 +1,16 @@
 /*
-  Metadata giao diện/lookup V2 dùng chung cho hồ sơ nhân viên và các field
-  ca làm việc đã được đăng ký contract.
-
-  Điều kiện:
-  - Đã chạy UnifiedContractRollout/01_CREATE_CONTROL_REGISTRY.sql.
-  - WA_PersonFullFrm đã được đăng ký Field Contract V2.
-  - Các nguồn động phải là route View duy nhất trong WA_API.
-
+  Cấu hình dropdown toàn cục bằng một bảng WA_FieldUiContractV2.
+  Mọi dropdown đều gọi API_* thông qua route View duy nhất trong WA_API.
   File không đọc hoặc ghi SY_FormatFields/SY_FrmDrdwTbl.
 */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 IF OBJECT_ID(N'dbo.WA_FieldUiContractV2', N'U') IS NULL
-   OR OBJECT_ID(N'dbo.WA_LookupContractV2', N'U') IS NULL
-   OR OBJECT_ID(N'dbo.WA_LookupOptionV2', N'U') IS NULL
     THROW 51500, N'FIELD_UI_CONTRACT_V2_REGISTRY_NOT_INSTALLED', 1;
+
+IF COL_LENGTH(N'dbo.WA_FieldUiContractV2', N'LookupList') IS NULL
+    THROW 51501, N'FIELD_UI_CONTRACT_V2_SINGLE_TABLE_NOT_INSTALLED', 1;
 
 IF NOT EXISTS
 (
@@ -24,7 +19,90 @@ IF NOT EXISTS
     WHERE WebFormName = 'WA_PersonFullFrm'
       AND IsEnabled = 1
 )
-    THROW 51501, N'WA_PERSONFULLFRM_FIELD_CONTRACT_V2_NOT_REGISTERED', 1;
+    THROW 51502, N'WA_PERSONFULLFRM_FIELD_CONTRACT_V2_NOT_REGISTERED', 1;
+GO
+
+/*
+  Danh sách giới tính là domain dùng chung, đặt trong API thay vì hard-code
+  tại WizardForm hoặc từng trang detail.
+*/
+CREATE OR ALTER PROCEDURE dbo.API_ComboGioiTinh
+    @Keyword nvarchar(200) = N'',
+    @UserName varchar(100) = '',
+    @BranchID varchar(max) = ''
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SET @Keyword = LTRIM(RTRIM(ISNULL(@Keyword, N'')));
+    SET @UserName = LTRIM(RTRIM(ISNULL(@UserName, '')));
+
+    IF NOT EXISTS
+    (
+        SELECT 1
+        FROM dbo.SY_User
+        WHERE UserName = @UserName
+          AND ISNULL(Disable, 0) = 0
+    )
+        THROW 51503, N'LOOKUP_ACTOR_INVALID', 1;
+
+    SELECT
+        Gender.[Value],
+        Gender.Display
+    FROM
+    (
+        VALUES
+            (1, N'Nam', N'Nam'),
+            (2, N'Nữ', N'Nữ'),
+            (3, N'Khác', N'Khác')
+    ) AS Gender(OrderNo, [Value], Display)
+    WHERE @Keyword = N''
+       OR Gender.[Value] LIKE N'%' + @Keyword + N'%'
+       OR Gender.Display LIKE N'%' + @Keyword + N'%'
+    ORDER BY Gender.OrderNo;
+END;
+GO
+
+/*
+  API_ComboGioiTinh là route mới duy nhất cần đăng ký. Các API còn lại phải
+  tồn tại sẵn; installer không tự đoán hoặc ghi đè route nghiệp vụ hiện hữu.
+*/
+IF
+(
+    SELECT COUNT(*)
+    FROM dbo.WA_API
+    WHERE [list] = 'API_ComboGioiTinh'
+      AND LOWER(LTRIM(RTRIM([func]))) = 'view'
+) > 1
+    THROW 51504, N'API_COMBO_GIOITINH_ROUTE_DUPLICATED', 1;
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM dbo.WA_API
+    WHERE [list] = 'API_ComboGioiTinh'
+      AND LOWER(LTRIM(RTRIM([func]))) = 'view'
+)
+BEGIN
+    INSERT INTO dbo.WA_API ([list], [func], [SQL], Para)
+    VALUES
+    (
+        'API_ComboGioiTinh',
+        'View',
+        'API_ComboGioiTinh',
+        '@Keyword=N''{Keyword}'', @UserName=N''{User}'', @BranchID=N''{BranchID}'''
+    );
+END;
+ELSE
+BEGIN
+    UPDATE dbo.WA_API
+    SET
+        [SQL] = 'API_ComboGioiTinh',
+        Para = '@Keyword=N''{Keyword}'', @UserName=N''{User}'', @BranchID=N''{BranchID}'''
+    WHERE [list] = 'API_ComboGioiTinh'
+      AND LOWER(LTRIM(RTRIM([func]))) = 'view';
+END;
+GO
 
 DECLARE @RequiredRoutes table
 (
@@ -33,6 +111,7 @@ DECLARE @RequiredRoutes table
 
 INSERT INTO @RequiredRoutes(RegisteredList)
 VALUES
+    ('API_ComboGioiTinh'),
     ('CF_BranchListFrm'),
     ('API_ComboPersonStatus'),
     ('API_DanhSachChucVu'),
@@ -71,119 +150,11 @@ BEGIN
     ) <> 1
     ORDER BY RequiredRoute.RegisteredList, Route.STT;
 
-    THROW 51502, N'FIELD_UI_CONTRACT_V2_LOOKUP_ROUTE_MISSING_OR_DUPLICATED', 1;
+    THROW 51505, N'FIELD_UI_LOOKUP_API_ROUTE_MISSING_OR_DUPLICATED', 1;
 END;
 
 BEGIN TRY
     BEGIN TRANSACTION;
-
-    DECLARE @LookupManifest table
-    (
-        LookupCode varchar(100) NOT NULL PRIMARY KEY,
-        SourceType varchar(20) NOT NULL,
-        RegisteredList varchar(50) NULL,
-        ValueColumn sysname NOT NULL,
-        DisplayColumn sysname NOT NULL,
-        DisplayColumns nvarchar(1000) NULL,
-        DependsOn nvarchar(500) NULL,
-        BranchPolicy varchar(40) NOT NULL
-    );
-
-    INSERT INTO @LookupManifest
-    (
-        LookupCode,
-        SourceType,
-        RegisteredList,
-        ValueColumn,
-        DisplayColumn,
-        DisplayColumns,
-        DependsOn,
-        BranchPolicy
-    )
-    VALUES
-        ('PERSON_GENDER', 'VALUE_LIST', NULL,
-         'Value', 'Display', N'Value,Display', NULL, 'GLOBAL_REFERENCE'),
-        ('PERSON_BRANCH', 'REGISTERED_API', 'CF_BranchListFrm',
-         'BranchID', 'BranchName', N'BranchID,BranchName', NULL, 'CALLER_SCOPE'),
-        ('PERSON_STATUS', 'REGISTERED_API', 'API_ComboPersonStatus',
-         'PersonStatus', 'PersonStatusName',
-         N'PersonStatus,PersonStatusName', NULL, 'GLOBAL_REFERENCE'),
-        ('PERSON_TITLE', 'REGISTERED_API', 'API_DanhSachChucVu',
-         'TitleName', 'TitleName', N'TitleName,GhiChu', NULL, 'GLOBAL_REFERENCE'),
-        ('PERSON_PROFESSIONAL_TITLE', 'REGISTERED_API', 'API_DanhSachChucDanh',
-         'ChucDanhChuyenMon', 'ChucDanhChuyenMon',
-         N'ChucDanhChuyenMon,MoTa', NULL, 'GLOBAL_REFERENCE'),
-        ('PERSON_SHIFT', 'REGISTERED_API', 'API_HR_DropdownShifts',
-         'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, 'GLOBAL_REFERENCE');
-
-    UPDATE Target
-    SET
-        Target.SourceType = Source.SourceType,
-        Target.RegisteredList = Source.RegisteredList,
-        Target.ValueColumn = Source.ValueColumn,
-        Target.DisplayColumn = Source.DisplayColumn,
-        Target.DisplayColumns = Source.DisplayColumns,
-        Target.DependsOn = Source.DependsOn,
-        Target.BranchPolicy = Source.BranchPolicy,
-        Target.IsEnabled = 1,
-        Target.SchemaVersion = Target.SchemaVersion + 1,
-        Target.UpdatedAt = SYSUTCDATETIME(),
-        Target.UpdatedBy = 'SYSTEM_FIELD_UI_V2'
-    FROM dbo.WA_LookupContractV2 AS Target
-    INNER JOIN @LookupManifest AS Source
-      ON Source.LookupCode = Target.LookupCode;
-
-    INSERT INTO dbo.WA_LookupContractV2
-    (
-        LookupCode,
-        SourceType,
-        RegisteredList,
-        ValueColumn,
-        DisplayColumn,
-        DisplayColumns,
-        DependsOn,
-        BranchPolicy,
-        IsEnabled,
-        SchemaVersion,
-        CreatedBy,
-        UpdatedBy
-    )
-    SELECT
-        Source.LookupCode,
-        Source.SourceType,
-        Source.RegisteredList,
-        Source.ValueColumn,
-        Source.DisplayColumn,
-        Source.DisplayColumns,
-        Source.DependsOn,
-        Source.BranchPolicy,
-        1,
-        1,
-        'SYSTEM_FIELD_UI_V2',
-        'SYSTEM_FIELD_UI_V2'
-    FROM @LookupManifest AS Source
-    WHERE NOT EXISTS
-    (
-        SELECT 1
-        FROM dbo.WA_LookupContractV2 AS Target
-        WHERE Target.LookupCode = Source.LookupCode
-    );
-
-    DELETE FROM dbo.WA_LookupOptionV2
-    WHERE LookupCode = 'PERSON_GENDER';
-
-    INSERT INTO dbo.WA_LookupOptionV2
-    (
-        LookupCode,
-        OptionValue,
-        OptionLabel,
-        OrderNo,
-        IsEnabled
-    )
-    VALUES
-        ('PERSON_GENDER', N'Nam', N'Nam', 1, 1),
-        ('PERSON_GENDER', N'Nữ', N'Nữ', 2, 1),
-        ('PERSON_GENDER', N'Khác', N'Khác', 3, 1);
 
     DECLARE @FieldManifest table
     (
@@ -191,8 +162,14 @@ BEGIN TRY
         DatasetKey varchar(80) NOT NULL,
         FieldName sysname NOT NULL,
         Caption nvarchar(200) NOT NULL,
-        LookupCode varchar(100) NOT NULL,
-        OrderNo int NULL,
+        LookupList varchar(50) NOT NULL,
+        ValueColumn sysname NOT NULL,
+        DisplayColumn sysname NOT NULL,
+        DisplayColumns nvarchar(1000) NULL,
+        Widths nvarchar(500) NULL,
+        DependsOn nvarchar(500) NULL,
+        IsMultiSelect bit NOT NULL,
+        ReloadMode varchar(30) NULL,
         PRIMARY KEY (WebFormName, DatasetKey, FieldName)
     );
 
@@ -202,23 +179,31 @@ BEGIN TRY
         DatasetKey,
         FieldName,
         Caption,
-        LookupCode,
-        OrderNo
+        LookupList,
+        ValueColumn,
+        DisplayColumn,
+        DisplayColumns,
+        Widths,
+        DependsOn,
+        IsMultiSelect,
+        ReloadMode
     )
     VALUES
-        ('WA_PersonFullFrm', 'MAIN', 'GioiTinh',
-         N'Giới tính', 'PERSON_GENDER', NULL),
-        ('WA_PersonFullFrm', 'MAIN', 'BranchID',
-         N'Chi nhánh', 'PERSON_BRANCH', NULL),
-        ('WA_PersonFullFrm', 'MAIN', 'TitleName',
-         N'Chức vụ', 'PERSON_TITLE', NULL),
-        ('WA_PersonFullFrm', 'MAIN', 'ChucDanhChuyenMon',
-         N'Chức danh chuyên môn',
-         'PERSON_PROFESSIONAL_TITLE', NULL),
-        ('WA_PersonFullFrm', 'MAIN', 'PersonStatus',
-         N'Trạng thái', 'PERSON_STATUS', NULL),
-        ('WA_PersonFullFrm', 'MAIN', 'ShiftID',
-         N'Ca làm việc', 'PERSON_SHIFT', NULL);
+        ('WA_PersonFullFrm', 'MAIN', 'GioiTinh', N'Giới tính',
+         'API_ComboGioiTinh', 'Value', 'Display', N'Value,Display', NULL, NULL, 0, NULL),
+        ('WA_PersonFullFrm', 'MAIN', 'BranchID', N'Chi nhánh',
+         'CF_BranchListFrm', 'BranchID', 'BranchName', N'BranchID,BranchName', NULL, NULL, 0, NULL),
+        ('WA_PersonFullFrm', 'MAIN', 'TitleName', N'Chức vụ',
+         'API_DanhSachChucVu', 'TitleName', 'TitleName', N'TitleName,GhiChu', NULL, NULL, 0, NULL),
+        ('WA_PersonFullFrm', 'MAIN', 'ChucDanhChuyenMon', N'Chức danh chuyên môn',
+         'API_DanhSachChucDanh', 'ChucDanhChuyenMon', 'ChucDanhChuyenMon',
+         N'ChucDanhChuyenMon,MoTa', NULL, NULL, 0, NULL),
+        ('WA_PersonFullFrm', 'MAIN', 'PersonStatus', N'Trạng thái',
+         'API_ComboPersonStatus', 'PersonStatus', 'PersonStatusName',
+         N'PersonStatus,PersonStatusName', NULL, NULL, 0, NULL),
+        ('WA_PersonFullFrm', 'MAIN', 'ShiftID', N'Ca làm việc',
+         'API_HR_DropdownShifts', 'ShiftID', 'ShiftName',
+         N'ShiftID,ShiftName', NULL, NULL, 0, NULL);
 
     IF EXISTS
     (
@@ -234,24 +219,30 @@ BEGIN TRY
             DatasetKey,
             FieldName,
             Caption,
-            LookupCode,
-            OrderNo
+            LookupList,
+            ValueColumn,
+            DisplayColumn,
+            DisplayColumns,
+            Widths,
+            DependsOn,
+            IsMultiSelect,
+            ReloadMode
         )
         VALUES
-            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu2',
-             N'Ca thứ 2', 'PERSON_SHIFT', NULL),
-            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu3',
-             N'Ca thứ 3', 'PERSON_SHIFT', NULL),
-            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu4',
-             N'Ca thứ 4', 'PERSON_SHIFT', NULL),
-            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu5',
-             N'Ca thứ 5', 'PERSON_SHIFT', NULL),
-            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu6',
-             N'Ca thứ 6', 'PERSON_SHIFT', NULL),
-            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu7',
-             N'Ca thứ 7', 'PERSON_SHIFT', NULL),
-            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDChuNhat',
-             N'Ca chủ nhật', 'PERSON_SHIFT', NULL);
+            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu2', N'Ca thứ 2',
+             'API_HR_DropdownShifts', 'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, NULL, 0, NULL),
+            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu3', N'Ca thứ 3',
+             'API_HR_DropdownShifts', 'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, NULL, 0, NULL),
+            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu4', N'Ca thứ 4',
+             'API_HR_DropdownShifts', 'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, NULL, 0, NULL),
+            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu5', N'Ca thứ 5',
+             'API_HR_DropdownShifts', 'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, NULL, 0, NULL),
+            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu6', N'Ca thứ 6',
+             'API_HR_DropdownShifts', 'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, NULL, 0, NULL),
+            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDThu7', N'Ca thứ 7',
+             'API_HR_DropdownShifts', 'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, NULL, 0, NULL),
+            ('WA_CaLamViecFrm', 'MAIN', 'ShiftIDChuNhat', N'Ca chủ nhật',
+             'API_HR_DropdownShifts', 'ShiftID', 'ShiftName', N'ShiftID,ShiftName', NULL, NULL, 0, NULL);
     END;
 
     UPDATE Target
@@ -259,12 +250,18 @@ BEGIN TRY
         Target.Caption = Source.Caption,
         Target.ControlType = 'LOOKUP',
         Target.FormatID = 'SL',
-        Target.OrderNo = Source.OrderNo,
-        Target.LookupCode = Source.LookupCode,
+        Target.LookupList = Source.LookupList,
+        Target.LookupValueColumn = Source.ValueColumn,
+        Target.LookupDisplayColumn = Source.DisplayColumn,
+        Target.LookupColumns = Source.DisplayColumns,
+        Target.LookupWidths = Source.Widths,
+        Target.LookupDependsOn = Source.DependsOn,
+        Target.LookupMultiSelect = Source.IsMultiSelect,
+        Target.LookupReloadMode = Source.ReloadMode,
         Target.IsEnabled = 1,
         Target.SchemaVersion = Target.SchemaVersion + 1,
         Target.UpdatedAt = SYSUTCDATETIME(),
-        Target.UpdatedBy = 'SYSTEM_FIELD_UI_V2'
+        Target.UpdatedBy = 'SYSTEM_FIELD_UI_API_LOOKUP'
     FROM dbo.WA_FieldUiContractV2 AS Target
     INNER JOIN @FieldManifest AS Source
       ON Target.WebFormName = Source.WebFormName
@@ -279,8 +276,14 @@ BEGIN TRY
         Caption,
         ControlType,
         FormatID,
-        OrderNo,
-        LookupCode,
+        LookupList,
+        LookupValueColumn,
+        LookupDisplayColumn,
+        LookupColumns,
+        LookupWidths,
+        LookupDependsOn,
+        LookupMultiSelect,
+        LookupReloadMode,
         IsEnabled,
         SchemaVersion,
         CreatedBy,
@@ -293,12 +296,18 @@ BEGIN TRY
         Source.Caption,
         'LOOKUP',
         'SL',
-        Source.OrderNo,
-        Source.LookupCode,
+        Source.LookupList,
+        Source.ValueColumn,
+        Source.DisplayColumn,
+        Source.DisplayColumns,
+        Source.Widths,
+        Source.DependsOn,
+        Source.IsMultiSelect,
+        Source.ReloadMode,
         1,
         1,
-        'SYSTEM_FIELD_UI_V2',
-        'SYSTEM_FIELD_UI_V2'
+        'SYSTEM_FIELD_UI_API_LOOKUP',
+        'SYSTEM_FIELD_UI_API_LOOKUP'
     FROM @FieldManifest AS Source
     WHERE NOT EXISTS
     (
@@ -323,21 +332,43 @@ SELECT
     Ui.FieldName,
     Ui.Caption,
     Ui.ControlType,
-    Ui.LookupCode,
+    Ui.LookupList,
+    Ui.LookupValueColumn,
+    Ui.LookupDisplayColumn,
     CONVERT
     (
         varchar(64),
-        HASHBYTES('SHA2_256', UPPER(LTRIM(RTRIM(Ui.LookupCode)))),
+        HASHBYTES
+        (
+            'SHA2_256',
+            UPPER
+            (
+                LTRIM
+                (
+                    RTRIM
+                    (
+                        CONVERT
+                        (
+                            varchar(max),
+                            CONCAT
+                            (
+                                Ui.LookupList, '|',
+                                Ui.LookupValueColumn, '|',
+                                Ui.LookupDisplayColumn, '|',
+                                ISNULL(Ui.LookupColumns, N''), '|',
+                                ISNULL(Ui.LookupDependsOn, N''), '|',
+                                CONVERT(varchar(1), Ui.LookupMultiSelect)
+                            )
+                        )
+                    )
+                )
+            )
+        ),
         2
-    ) AS LookupKey,
-    LookupContract.SourceType,
-    LookupContract.RegisteredList,
-    LookupContract.ValueColumn,
-    LookupContract.DisplayColumn
+    ) AS LookupKey
 FROM dbo.WA_FieldUiContractV2 AS Ui
-INNER JOIN dbo.WA_LookupContractV2 AS LookupContract
-  ON LookupContract.LookupCode = Ui.LookupCode
 WHERE Ui.WebFormName IN ('WA_PersonFullFrm', 'WA_CaLamViecFrm')
   AND Ui.DatasetKey = 'MAIN'
   AND Ui.IsEnabled = 1
+  AND Ui.LookupList IS NOT NULL
 ORDER BY Ui.OrderNo, Ui.FieldName;

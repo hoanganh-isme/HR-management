@@ -104,15 +104,24 @@ BEGIN
         FROM OPENJSON(@JsonData);
     END
     
-    -- ƯU TIÊN 2: FALLBACK (DỰ PHÒNG CÁC BIẾN CỨNG TỪ C# NẾU CHƯA ĐƯỢC MAP BỞI JSON)
+    -- ƯU TIÊN 2: FALLBACK (DỰ PHÒNG CÁC BIẾN CỨNG)
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Keyword}', REPLACE(ISNULL(@Keyword, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortColumn}', REPLACE(ISNULL(@SortColumn, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortDir}', REPLACE(ISNULL(@SortDir, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Page}', ISNULL(CAST(@Page AS VARCHAR), ''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Limit}', ISNULL(CAST(@Limit AS VARCHAR), ''));
-    
-    -- Cuối cùng, Replace chính cái cục JsonData nếu API đích cần đọc cả cục
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{JsonData}', REPLACE(ISNULL(@JsonData, ''), '''', ''''''));
+
+    -- Tự động tiếp quản @UserName nếu thủ tục đích khai báo tham số @UserName mà Para chưa có
+    IF OBJECT_ID(@TargetStore) IS NOT NULL
+       AND EXISTS (SELECT 1 FROM sys.parameters WHERE object_id = OBJECT_ID(@TargetStore) AND name = '@UserName')
+       AND CHARINDEX('@UserName', @ParaTemplate) = 0
+       AND ISNULL(@UserName, '') <> ''
+    BEGIN
+        IF LTRIM(RTRIM(@ParaTemplate)) <> ''
+            SET @ParaTemplate = @ParaTemplate + ', ';
+        SET @ParaTemplate = @ParaTemplate + '@UserName=N''' + REPLACE(ISNULL(@UserName, ''), '''', '''''') + '''';
+    END
 
     -- 4. DỌN DẸP CÁC BIẾN KHÔNG ĐƯỢC TRUYỀN (GIÁ TRỊ VẪN LÀ '{TenBien}')
     IF OBJECT_ID(@TargetStore) IS NOT NULL
@@ -127,13 +136,6 @@ BEGIN
     
     -- Xóa rác (dấu phẩy thừa)
     WHILE CHARINDEX(', ,', @ParaTemplate) > 0 SET @ParaTemplate = REPLACE(@ParaTemplate, ', ,', ',');
-    IF LEFT(LTRIM(@ParaTemplate), 1) = ',' SET @ParaTemplate = LTRIM(SUBSTRING(LTRIM(@ParaTemplate), 2, LEN(@ParaTemplate)));
-    IF RIGHT(RTRIM(@ParaTemplate), 1) = ',' SET @ParaTemplate = RTRIM(SUBSTRING(RTRIM(@ParaTemplate), 1, LEN(RTRIM(@ParaTemplate)) - 1));
-
-    -- 5. Chạy câu lệnh hoàn chỉnh
-    DECLARE @FinalSQL NVARCHAR(MAX);
-    
-    -- Ráp lệnh EXEC
     IF @ParaTemplate <> ''
         SET @FinalSQL = 'EXEC ' + QUOTENAME(@TargetStore) + ' ' + @ParaTemplate;
     ELSE

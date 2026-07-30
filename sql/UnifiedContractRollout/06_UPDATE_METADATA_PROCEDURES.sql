@@ -1,13 +1,12 @@
 /*
-  Cập nhật metadata Grid/JOIN. Cấu hình caption/format/lookup đọc từ
-  WA_FieldUiContractV2 và WA_LookupContractV2; không đọc metadata desktop cũ.
+  Cập nhật metadata Grid/JOIN. Cấu hình caption/format/lookup chỉ đọc từ
+  WA_FieldUiContractV2; dropdown trỏ đến route WA_API gọi API_* tương ứng.
 */
 IF OBJECT_ID(N'dbo.API_FieldMetadataContractRegistry', N'IF') IS NULL
    OR OBJECT_ID(N'dbo.API_Phase4JoinRegistry', N'IF') IS NULL
    OR OBJECT_ID(N'dbo.API_Web_GroupFormPermissionV2', N'IF') IS NULL
     THROW 54300, N'FIELD_CONTRACT_DYNAMIC_WRAPPERS_NOT_INSTALLED', 1;
 IF OBJECT_ID(N'dbo.WA_FieldUiContractV2', N'U') IS NULL
-   OR OBJECT_ID(N'dbo.WA_LookupContractV2', N'U') IS NULL
     THROW 54301, N'FIELD_UI_CONTRACT_V2_REGISTRY_NOT_INSTALLED', 1;
 GO
 
@@ -448,7 +447,7 @@ END;
             CASE WHEN ResultLookup.UserAutoID IS NULL THEN NULL ELSE
                 CONVERT(varchar(64), HASHBYTES(
                     'SHA2_256',
-                    UPPER(LTRIM(RTRIM(CONVERT(varchar(100), ResultLookup.LookupCode))))
+                    UPPER(LTRIM(RTRIM(CONVERT(varchar(max), ResultLookup.LookupCode))))
                 ), 2)
             END AS LookupKey,
             ResultLookup.[Type] AS LookupType,
@@ -615,28 +614,36 @@ END;
         OUTER APPLY
         (
             SELECT TOP (1)
-                U.LookupCode AS UserAutoID,
+                U.LookupList AS UserAutoID,
                 U.WebFormName AS FormID,
                 U.FieldName AS ColumnID,
-                L.SourceType AS [Type],
-                L.ValueColumn,
-                L.DisplayColumn,
-                L.DisplayColumns AS ColumnArr,
-                L.Widths AS WidthArr,
-                L.DependsOn AS ParaRequireArr,
-                L.IsMultiSelect,
-                L.ReloadMode AS ReloadType,
+                'REGISTERED_API' AS [Type],
+                U.LookupValueColumn AS ValueColumn,
+                U.LookupDisplayColumn AS DisplayColumn,
+                U.LookupColumns AS ColumnArr,
+                U.LookupWidths AS WidthArr,
+                U.LookupDependsOn AS ParaRequireArr,
+                U.LookupMultiSelect AS IsMultiSelect,
+                U.LookupReloadMode AS ReloadType,
                 CONVERT(bit, 0) AS IsDisable,
-                U.LookupCode
+                CONCAT
+                (
+                    U.LookupList, '|',
+                    U.LookupValueColumn, '|',
+                    U.LookupDisplayColumn, '|',
+                    ISNULL(U.LookupColumns, N''), '|',
+                    ISNULL(U.LookupDependsOn, N''), '|',
+                    CONVERT(varchar(1), U.LookupMultiSelect)
+                ) AS LookupCode
             FROM dbo.WA_FieldUiContractV2 AS U
-            INNER JOIN dbo.WA_LookupContractV2 AS L
-              ON L.LookupCode = U.LookupCode
-             AND L.IsEnabled = 1
             WHERE U.WebFormName COLLATE DATABASE_DEFAULT =
                   @WebFormName COLLATE DATABASE_DEFAULT
               AND U.DatasetKey COLLATE DATABASE_DEFAULT =
                   'MAIN' COLLATE DATABASE_DEFAULT
               AND U.IsEnabled = 1
+              AND U.LookupList IS NOT NULL
+              AND U.LookupValueColumn IS NOT NULL
+              AND U.LookupDisplayColumn IS NOT NULL
               AND U.FieldName COLLATE DATABASE_DEFAULT =
                   RF.FieldName COLLATE DATABASE_DEFAULT
         ) AS ResultLookup
@@ -769,7 +776,7 @@ END;
         CASE WHEN D.UserAutoID IS NULL THEN NULL ELSE
             CONVERT(varchar(64), HASHBYTES(
                 'SHA2_256',
-                UPPER(LTRIM(RTRIM(CONVERT(varchar(100), D.LookupCode))))
+                UPPER(LTRIM(RTRIM(CONVERT(varchar(max), D.LookupCode))))
             ), 2)
         END AS LookupKey,
         D.[Type] AS LookupType,
@@ -893,23 +900,28 @@ END;
     OUTER APPLY
     (
         SELECT TOP (1)
-            U.LookupCode AS UserAutoID,
+            U.LookupList AS UserAutoID,
             U.WebFormName AS FormID,
             U.FieldName AS ColumnID,
-            L.SourceType AS [Type],
-            L.ValueColumn,
-            L.DisplayColumn,
-            L.DisplayColumns AS ColumnArr,
-            L.Widths AS WidthArr,
-            L.DependsOn AS ParaRequireArr,
-            L.IsMultiSelect,
-            L.ReloadMode AS ReloadType,
+            'REGISTERED_API' AS [Type],
+            U.LookupValueColumn AS ValueColumn,
+            U.LookupDisplayColumn AS DisplayColumn,
+            U.LookupColumns AS ColumnArr,
+            U.LookupWidths AS WidthArr,
+            U.LookupDependsOn AS ParaRequireArr,
+            U.LookupMultiSelect AS IsMultiSelect,
+            U.LookupReloadMode AS ReloadType,
             CONVERT(bit, 0) AS IsDisable,
-            U.LookupCode
+            CONCAT
+            (
+                U.LookupList, '|',
+                U.LookupValueColumn, '|',
+                U.LookupDisplayColumn, '|',
+                ISNULL(U.LookupColumns, N''), '|',
+                ISNULL(U.LookupDependsOn, N''), '|',
+                CONVERT(varchar(1), U.LookupMultiSelect)
+            ) AS LookupCode
         FROM dbo.WA_FieldUiContractV2 AS U
-        INNER JOIN dbo.WA_LookupContractV2 AS L
-          ON L.LookupCode = U.LookupCode
-         AND L.IsEnabled = 1
         WHERE
             U.WebFormName COLLATE DATABASE_DEFAULT =
                 @WebFormName COLLATE DATABASE_DEFAULT
@@ -918,6 +930,9 @@ END;
             AND U.FieldName COLLATE DATABASE_DEFAULT =
                 C.name COLLATE DATABASE_DEFAULT
             AND U.IsEnabled = 1
+            AND U.LookupList IS NOT NULL
+            AND U.LookupValueColumn IS NOT NULL
+            AND U.LookupDisplayColumn IS NOT NULL
     ) AS D
 
     OUTER APPLY
@@ -1504,7 +1519,7 @@ BEGIN
                 HASHBYTES
                 (
                     'SHA2_256',
-                    UPPER(LTRIM(RTRIM(CONVERT(varchar(100), D.LookupCode))))
+                    UPPER(LTRIM(RTRIM(CONVERT(varchar(max), D.LookupCode))))
                 ),
                 2
             )
@@ -1571,23 +1586,28 @@ BEGIN
     OUTER APPLY
     (
         SELECT TOP (1)
-            U.LookupCode AS UserAutoID,
+            U.LookupList AS UserAutoID,
             U.WebFormName AS FormID,
             U.FieldName AS ColumnID,
-            L.SourceType AS [Type],
-            L.ValueColumn,
-            L.DisplayColumn,
-            L.DisplayColumns AS ColumnArr,
-            L.Widths AS WidthArr,
-            L.DependsOn AS ParaRequireArr,
-            L.IsMultiSelect,
-            L.ReloadMode AS ReloadType,
+            'REGISTERED_API' AS [Type],
+            U.LookupValueColumn AS ValueColumn,
+            U.LookupDisplayColumn AS DisplayColumn,
+            U.LookupColumns AS ColumnArr,
+            U.LookupWidths AS WidthArr,
+            U.LookupDependsOn AS ParaRequireArr,
+            U.LookupMultiSelect AS IsMultiSelect,
+            U.LookupReloadMode AS ReloadType,
             CONVERT(bit, 0) AS IsDisable,
-            U.LookupCode
+            CONCAT
+            (
+                U.LookupList, '|',
+                U.LookupValueColumn, '|',
+                U.LookupDisplayColumn, '|',
+                ISNULL(U.LookupColumns, N''), '|',
+                ISNULL(U.LookupDependsOn, N''), '|',
+                CONVERT(varchar(1), U.LookupMultiSelect)
+            ) AS LookupCode
         FROM dbo.WA_FieldUiContractV2 AS U
-        INNER JOIN dbo.WA_LookupContractV2 AS L
-          ON L.LookupCode = U.LookupCode
-         AND L.IsEnabled = 1
         WHERE U.WebFormName COLLATE DATABASE_DEFAULT =
               @WebFormName COLLATE DATABASE_DEFAULT
           AND U.DatasetKey COLLATE DATABASE_DEFAULT =
@@ -1595,6 +1615,9 @@ BEGIN
           AND U.FieldName COLLATE DATABASE_DEFAULT =
               RF.FieldName COLLATE DATABASE_DEFAULT
           AND U.IsEnabled = 1
+          AND U.LookupList IS NOT NULL
+          AND U.LookupValueColumn IS NOT NULL
+          AND U.LookupDisplayColumn IS NOT NULL
     ) AS D
     ORDER BY COALESCE(M.OrderNo, RF.FieldOrdinal);
 END;
