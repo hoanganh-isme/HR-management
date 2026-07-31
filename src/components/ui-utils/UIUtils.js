@@ -169,28 +169,78 @@ UIControls.utils = (function () {
 
     var mBox = document.createElement('div');
     mBox.className = 'ui-modal-content';
-    mBox.style.cssText = 'background: #fff; width: 900px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
+    mBox.style.cssText = 'background: #fff; width: 920px; max-width: 95%; max-height: 90%; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 4px 24px rgba(0,0,0,0.2);';
 
     var mHeader = document.createElement('div');
     mHeader.style.cssText = 'padding: 16px; border-bottom: 1px solid var(--color-border); display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); border-radius: 8px 8px 0 0;';
     mHeader.innerHTML = '<h3 style="margin: 0; font-size: 16px;">' + (options.title || 'Chọn dữ liệu') + '</h3><button type="button" class="btn-close" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">&times;</button>';
     mHeader.querySelector('.btn-close').onclick = function () { document.body.removeChild(mWrap); };
 
-    var mBody = document.createElement('div');
-    mBody.style.cssText = 'padding: 16px; overflow-y: auto; flex: 1;';
+    // Search and Filter Bar
+    var filterBar = document.createElement('div');
+    filterBar.style.cssText = 'padding: 12px 16px; border-bottom: 1px solid var(--color-border, #e8e8e8); background: var(--color-surface, #fafafa); display: flex; gap: 12px; align-items: center; flex-wrap: wrap;';
 
-    var tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 13px;">';
-    tableHTML += '<thead style="background: var(--color-surface-elevated);"><tr style="border-bottom: 2px solid var(--color-border);">';
-    tableHTML += '<th style="padding: 10px; text-align: center; width: 40px;"><input type="checkbox" id="chkAllMulti" /></th>';
+    var departments = [];
+    dataList.forEach(function (r) {
+      var dept = (r.PhongBan || r.BoPhan || r.Department || '').toString().trim();
+      if (dept && departments.indexOf(dept) === -1) {
+        departments.push(dept);
+      }
+    });
+    departments.sort();
+
+    var searchHTML = '<div style="position: relative; flex: 1; min-width: 220px;">' +
+      '<input type="text" class="multi-search-input" placeholder="Tìm kiếm theo Mã NV, Họ Tên, Bộ phận, Chức vụ..." ' +
+      'style="width: 100%; padding: 8px 12px 8px 32px; border: 1px solid var(--color-border, #d9d9d9); border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box;" />' +
+      '<span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #8c8c8c; pointer-events: none; display: flex; align-items: center;">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+      '</span></div>';
+
+    if (departments.length > 1) {
+      searchHTML += '<div style="min-width: 210px;">' +
+        '<select class="multi-dept-filter" style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border, #d9d9d9); border-radius: 6px; font-size: 13px; outline: none; background: #fff; box-sizing: border-box; cursor: pointer;">' +
+        '<option value="">-- Tất cả bộ phận(' + departments.length + ') --</option>';
+      departments.forEach(function (d) {
+        searchHTML += '<option value="' + d.replace(/"/g, '&quot;') + '">' + d + '</option>';
+      });
+      searchHTML += '</select></div>';
+    }
+
+    searchHTML += '<div style="font-size: 12px; color: #595959; white-space: nowrap;" class="multi-count-label">' +
+      'Hiển thị: <b>' + dataList.length + '</b> / ' + dataList.length + ' nhân viên</div>';
+
+    filterBar.innerHTML = searchHTML;
+
+    var mBody = document.createElement('div');
+    mBody.style.cssText = 'padding: 0; overflow-y: auto; flex: 1; position: relative;';
+
+    var tableHTML = '<table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px;">';
+    tableHTML += '<thead style="position: sticky; top: 0; z-index: 10; background: var(--color-surface-elevated, #f5f5f5);">';
+    tableHTML += '<tr style="background: var(--color-surface-elevated, #f5f5f5);">';
+    tableHTML += '<th style="padding: 10px 12px; text-align: center; width: 40px; background: var(--color-surface-elevated, #f5f5f5); border-bottom: 2px solid var(--color-border, #e8e8e8);"><input type="checkbox" id="chkAllMulti" /></th>';
     options.headers.forEach(function (h) {
-      tableHTML += '<th style="padding: 10px; text-align: left;">' + h + '</th>';
+      tableHTML += '<th style="padding: 10px 12px; text-align: left; background: var(--color-surface-elevated, #f5f5f5); border-bottom: 2px solid var(--color-border, #e8e8e8); font-weight: 600; color: var(--color-text, #262626);">' + h + '</th>';
     });
     tableHTML += '</tr></thead><tbody>';
 
+    function _getPropVal(obj, propName) {
+      if (!obj || !propName) return '';
+      if (obj[propName] !== undefined && obj[propName] !== null) return obj[propName];
+      var lowerName = String(propName).toLowerCase();
+      for (var k in obj) {
+        if (k.toLowerCase() === lowerName && obj[k] !== undefined && obj[k] !== null) return obj[k];
+      }
+      return '';
+    }
+
     dataList.forEach(function (rData, idx) {
-      var isDuplicate = ctx.panel._currentRows.some(function (r) { return r[options.keyField] === rData[options.keyField]; });
+      var rDataKey = _getPropVal(rData, options.keyField);
+      var isDuplicate = !!rDataKey && (ctx && ctx.panel && Array.isArray(ctx.panel._currentRows)) && ctx.panel._currentRows.some(function (r) {
+        var existingKey = _getPropVal(r, options.keyField);
+        return existingKey && String(existingKey).toLowerCase() === String(rDataKey).toLowerCase();
+      });
       var chkDisabled = isDuplicate ? 'disabled' : '';
-      var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : '';
+      var styleClass = isDuplicate ? 'opacity: 0.5; background: #f9f9f9;' : 'background: #ffffff;';
       var warningText = isDuplicate ? 'Đã có trên form' : '';
       var warningStyle = isDuplicate ? 'color: red;' : '';
 
@@ -203,13 +253,14 @@ UIControls.utils = (function () {
         }
       }
 
-      tableHTML += '<tr style="border-bottom: 1px solid var(--color-border); ' + styleClass + '">';
-      tableHTML += '<td style="padding: 8px; text-align: center;"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
+      tableHTML += '<tr style="' + styleClass + '">';
+      tableHTML += '<td style="padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--color-border, #e8e8e8);"><input type="checkbox" class="chk-item-multi" data-idx="' + idx + '" ' + chkDisabled + ' /></td>';
       options.fields.forEach(function (f) {
         if (f === '_warning_') {
-          tableHTML += '<td style="padding: 8px; ' + warningStyle + '">' + warningText + '</td>';
+          tableHTML += '<td style="padding: 10px 12px; border-bottom: 1px solid var(--color-border, #e8e8e8); ' + warningStyle + '">' + warningText + '</td>';
         } else {
-          tableHTML += '<td style="padding: 8px;">' + (rData[f] || '') + '</td>';
+          var cellVal = _getPropVal(rData, f);
+          tableHTML += '<td style="padding: 10px 12px; border-bottom: 1px solid var(--color-border, #e8e8e8);">' + cellVal + '</td>';
         }
       });
       tableHTML += '</tr>';
@@ -263,18 +314,71 @@ UIControls.utils = (function () {
     mFooter.appendChild(btnSelect);
 
     mBox.appendChild(mHeader);
+    mBox.appendChild(filterBar);
     mBox.appendChild(mBody);
     mBox.appendChild(mFooter);
     mWrap.appendChild(mBox);
 
     document.body.appendChild(mWrap);
 
+    // Filter Logic
+    function applyFilter() {
+      var searchInput = filterBar.querySelector('.multi-search-input');
+      var deptSelect = filterBar.querySelector('.multi-dept-filter');
+      var countLabel = filterBar.querySelector('.multi-count-label');
+
+      var kw = (searchInput ? searchInput.value : '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      var deptVal = deptSelect ? deptSelect.value.trim().toLowerCase() : '';
+
+      var rows = mBody.querySelectorAll('tbody tr');
+      var visibleCount = 0;
+
+      rows.forEach(function (tr, idx) {
+        var rData = dataList[idx];
+        if (!rData) return;
+
+        var matchesDept = !deptVal || (rData.PhongBan || rData.BoPhan || rData.Department || '').toString().trim().toLowerCase() === deptVal;
+
+        var matchesKw = true;
+        if (kw) {
+          var rowText = options.fields.map(function (f) {
+            return f !== '_warning_' ? String(rData[f] || '') : '';
+          }).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          matchesKw = rowText.indexOf(kw) !== -1;
+        }
+
+        if (matchesDept && matchesKw) {
+          tr.style.display = '';
+          visibleCount++;
+        } else {
+          tr.style.display = 'none';
+        }
+      });
+
+      if (countLabel) {
+        countLabel.innerHTML = 'Hiển thị: <b>' + visibleCount + '</b> / ' + dataList.length + ' nhân viên';
+      }
+
+      var chkAll = mBody.querySelector('#chkAllMulti');
+      if (chkAll) chkAll.checked = false;
+    }
+
+    var searchInput = filterBar.querySelector('.multi-search-input');
+    if (searchInput) {
+      searchInput.oninput = applyFilter;
+      setTimeout(function () { searchInput.focus(); }, 100);
+    }
+    var deptSelect = filterBar.querySelector('.multi-dept-filter');
+    if (deptSelect) {
+      deptSelect.onchange = applyFilter;
+    }
+
     var chkAll = mBody.querySelector('#chkAllMulti');
     if (chkAll) {
       chkAll.onclick = function () {
-        var chks = mBody.querySelectorAll('.chk-item-multi:not([disabled])');
         var isChecked = this.checked;
-        chks.forEach(function (chk) { chk.checked = isChecked; });
+        var visibleChks = mBody.querySelectorAll('tbody tr:not([style*="display: none"]) .chk-item-multi:not([disabled])');
+        visibleChks.forEach(function (chk) { chk.checked = isChecked; });
       };
     }
   }

@@ -1,0 +1,2774 @@
+[
+  {
+    "STT": 2,
+    "list": "frmformbuilder",
+    "func": "View",
+    "SQL": "API_DanhSachTruongGiaoDien",
+    "Para": "@Keyword=N'{Keyword}', @FormName=N'{List}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}'",
+    "_sourceLine": 20925,
+    "_statementSha256": "de0b7f6ecd4a02dd808ee3c4e39c595e6296f962ca41398a2a003a85a63aa5b2"
+  },
+  {
+    "STT": 3,
+    "list": "frmformbuilder",
+    "func": "Save",
+    "SQL": "API_LuuTruongGiaoDien",
+    "Para": "@FormName=N'{List}', @FieldName=N'{FieldName}', @CaptionVN=N'{CaptionVN}', @FormatID=N'{FormatID}', @CaptionEN=N'{CaptionEN}', @DataSource=N'{DataSource}', @IsRequired=N'{IsRequired}', @FormPosition=N'{FormPosition}', @ShowInAdd=N'{ShowInAdd}', @ShowInEdit=N'{ShowInEdit}', @IsReadOnlyEdit=N'{IsReadOnlyEdit}', @IsReadOnlyAdd=N'{IsReadOnlyAdd}', @ValidateRule=N'{ValidateRule}', @DependsOn=N'{DependsOn}', @VisibleRule=N'{VisibleRule}', @OrderNo=N'{OrderNo}', @ShowInFilter=N'{ShowInFilter}', @NoResult=N'{NoResult}'",
+    "_sourceLine": 20926,
+    "_statementSha256": "26c4cf2073ff9f6ac58af154769e5c0ee2c481b54af79f17d75d7b8a54b40c69"
+  },
+  {
+    "STT": 4,
+    "list": "frmformbuilder",
+    "func": "Delete",
+    "SQL": "API_XoaTruongGiaoDien",
+    "Para": "@IDs='{IDs}', @FormName='{FormName}', @UserName='{UserName}'",
+    "_sourceLine": 20927,
+    "_statementSha256": "bfd2f65f7004893cf133a9f9aca31859e516d3b6b7de3890d8c6dfe79cbc8c46"
+  },
+  {
+    "STT": 7,
+    "list": "HR_BaoCaoNhanSuReport",
+    "func": "View",
+    "SQL": "HR_BaoCaoNhanSuReportStp",
+    "Para": "@FromDate='{FromDate}', @ToDate='{ToDate}', @PhongBan=N'{PhongBan}'",
+    "_sourceLine": 20928,
+    "_statementSha256": "5faad57971de1834d5a49e9aed9b3b2f704d467003d5f8d347b8fa29893a2a36"
+  },
+  {
+    "STT": 11,
+    "list": "API_DongBoTruongGiaoDien",
+    "func": "Execute",
+    "SQL": "API_DongBoTruongGiaoDien",
+    "Para": "@FormName=N'{List}', @ObjectName=N'{ObjectName}', @TSQL=N'{TSQL}', @Overrides=N'{Overrides}', @DeleteMissingFields=N'{DeleteMissingFields}', @FallbackObjectName=N'{FallbackObjectName}'",
+    "_sourceLine": 20929,
+    "_statementSha256": "e4fca1d3c1e75a8adab5b7e86d15e6809c00c0d57269b66e08e2a71b9d681938"
+  },
+  {
+    "STT": 12,
+    "list": "API_DanhSachChucVu",
+    "func": "Execute",
+    "SQL": "API_DanhSachChucVu",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20930,
+    "_statementSha256": "b8bc9288631ab627273029171d727bb9b234c68f174e273ab626d5c12f525a8c"
+  },
+  {
+    "STT": 15,
+    "list": "API_DanhSachViTri",
+    "func": "Execute",
+    "SQL": "API_DanhSachViTri",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20931,
+    "_statementSha256": "8773d0be8b4012b51c8711025a2f4aec8fd8bf4c7e7dd6252496b0e8ae232262"
+  },
+  {
+    "STT": 17,
+    "list": "API_DanhSachToNhom",
+    "func": "Execute",
+    "SQL": "API_DanhSachToNhom",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20932,
+    "_statementSha256": "37a660ec811b911dcc7106071b149e6f41fd0807ee00900b6129c99c74ffde05"
+  },
+  {
+    "STT": 19,
+    "list": "API_DanhSachCaLamViec",
+    "func": "Execute",
+    "SQL": "API_DanhSachCaLamViec",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20933,
+    "_statementSha256": "8bb60a6b818a7b79fad7a95f41bec8423316039f4ae9377726be69320261df9f"
+  },
+  {
+    "STT": 21,
+    "list": "API_DanhSachCongViec",
+    "func": "Execute",
+    "SQL": "API_DanhSachCongViec",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20934,
+    "_statementSha256": "2f74eb578d32c69efe740b3da38f38dba5938c0e5cdcefef7894f0f9c51a73d2"
+  },
+  {
+    "STT": 23,
+    "list": "API_DanhSachBenhVien",
+    "func": "Execute",
+    "SQL": "API_DanhSachBenhVien",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20935,
+    "_statementSha256": "62b1f2d206f03fefdc6e36b1142d9ffe73d0755c56357c23dbac55fae3e143c4"
+  },
+  {
+    "STT": 25,
+    "list": "API_DanhSachNganHang",
+    "func": "Execute",
+    "SQL": "API_DanhSachNganHang",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20936,
+    "_statementSha256": "6b5de6ebec134ab95dab36802e94db943c50f25bd8b2582282825bc773fccd79"
+  },
+  {
+    "STT": 27,
+    "list": "API_DanhSachQuocGia",
+    "func": "Execute",
+    "SQL": "API_DanhSachQuocGia",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20937,
+    "_statementSha256": "edc79e0957aaa858d718ffb0adebde1d09393cd112db4b5e001e72d525b2d1e4"
+  },
+  {
+    "STT": 29,
+    "list": "API_DanhSachTinhThanh",
+    "func": "Execute",
+    "SQL": "API_DanhSachTinhThanh",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20938,
+    "_statementSha256": "ee9a22d83bd71e4cca174e5d8b35a75437447e898637771743a84bda5572ff57"
+  },
+  {
+    "STT": 31,
+    "list": "API_DanhSachDanToc",
+    "func": "Execute",
+    "SQL": "API_DanhSachDanToc",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20939,
+    "_statementSha256": "d319f0721edc7fee3b6aa001f435da105d436f57ea5e5eef04fa349b78683e1b"
+  },
+  {
+    "STT": 33,
+    "list": "API_DanhSachTonGiao",
+    "func": "Execute",
+    "SQL": "API_DanhSachTonGiao",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20940,
+    "_statementSha256": "33f3e0de78557681d05e3e01c321421ea1256716eb3fc6c3e38dda9aa0481a50"
+  },
+  {
+    "STT": 35,
+    "list": "API_DanhSachHocVan",
+    "func": "Execute",
+    "SQL": "API_DanhSachHocVan",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20941,
+    "_statementSha256": "873dc6129700f545c5ea661c28a726b5a47206c231e298053286a2f205bb6132"
+  },
+  {
+    "STT": 41,
+    "list": "API_DanhSachNgheNghiep",
+    "func": "Execute",
+    "SQL": "API_DanhSachNgheNghiep",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20942,
+    "_statementSha256": "fafb648cc65927c3a74fd5acaaf9b6b1645764c090af74ea290196bdccfede7f"
+  },
+  {
+    "STT": 43,
+    "list": "API_DanhSachHinhThucNghi",
+    "func": "Execute",
+    "SQL": "API_DanhSachHinhThucNghi",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20943,
+    "_statementSha256": "322d212a42f468d5daa9cd4a86944621ec68431ec18a0f554cbc3d78086884dc"
+  },
+  {
+    "STT": 45,
+    "list": "API_DanhSachChiNhanh",
+    "func": "Execute",
+    "SQL": "API_DanhSachChiNhanh",
+    "Para": "@Keyword=N'{Keyword}', @UserBranchID=N'{UserBranchID}'",
+    "_sourceLine": 20944,
+    "_statementSha256": "21ca496ace7fcc889ca6bf33689c67167cc3cddf3abbd2f56b4867931e2694df"
+  },
+  {
+    "STT": 49,
+    "list": "WA_TimeSheetFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 20945,
+    "_statementSha256": "11e3364ef2e5a1a9d46721abe05ae732b8869768d30ae18f5956d492f9eefa04"
+  },
+  {
+    "STT": 50,
+    "list": "WA_TimeSheetFrm",
+    "func": "HR_PayRoll_Process_Stp",
+    "SQL": "HR_PayRoll_Process_Stp",
+    "Para": "@PeriodID=N'{PeriodID}'",
+    "_sourceLine": 20946,
+    "_statementSha256": "d29f305fb6a9a9279732a2761e23893a6bc955048352f62057692b1db8378898"
+  },
+  {
+    "STT": 52,
+    "list": "WA_TimeSheetFrm",
+    "func": "View",
+    "SQL": "API_BangChamCongTongHop",
+    "Para": "@Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 20947,
+    "_statementSha256": "2bd68f3c44058eec420fe4943ad0a7455819dfae5287508066d546da7aadfa2f"
+  },
+  {
+    "STT": 53,
+    "list": "WA_TimeSheetFrm",
+    "func": "HR_PayRoll_Process_Stp",
+    "SQL": "HR_PayRoll_Process_Stp",
+    "Para": "@PeriodID=N'{PeriodID}'",
+    "_sourceLine": 20948,
+    "_statementSha256": "f799979a407ab1c4de7eda958dcf2a0eee71749c078bd35fc8175634b41cad4f"
+  },
+  {
+    "STT": 58,
+    "list": "WA_TimeSheetCTReport",
+    "func": "View",
+    "SQL": "API_BaoCaoChamCongChiTiet",
+    "Para": "@Template=N'{Template}', @Ngay=N'{Ngay}', @PeriodID=N'{PeriodID}', @BranchID=N'{BranchID}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 20949,
+    "_statementSha256": "8c3cdaf8bf69b1812b5a5f8e042d15cfafe4a49251717f2103d9c565c825858d"
+  },
+  {
+    "STT": 59,
+    "list": "SY_Period",
+    "func": "View",
+    "SQL": "API_TruyVanDong",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 20950,
+    "_statementSha256": "2a72d95957121f8db452e683e90583c94fd9e710f512ee61f5ca9dcbf20cc75b"
+  },
+  {
+    "STT": 60,
+    "list": "SY_Period",
+    "func": "Edit",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 20951,
+    "_statementSha256": "4bdf455009848520df911fa5efb1f9490b05288330547b2bef7a4140d937883e"
+  },
+  {
+    "STT": 61,
+    "list": "API_BaoCaoChamCong",
+    "func": "Execute",
+    "SQL": "API_BaoCaoChamCong",
+    "Para": "@PeriodID=N'{PeriodID}', @PhongBan=N'{PhongBan}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 20952,
+    "_statementSha256": "6cb419d175b099826cb8f66863ed03720fe80f5eb0b9e161a1ee27b616d370dd"
+  },
+  {
+    "STT": 69,
+    "list": "API_BaoCaoChamCongTongHop",
+    "func": "Execute",
+    "SQL": "API_BaoCaoChamCongTongHop",
+    "Para": "@PeriodID=N'{PeriodID}', @PhongBan=N'{PhongBan}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 20953,
+    "_statementSha256": "14d3a46dd99cb5b38c4787e2b6902a12121f17062676b5d3a114f336e56a78d3"
+  },
+  {
+    "STT": 70,
+    "list": "WA_TimeSheetTH2Report",
+    "func": "View",
+    "SQL": "API_BaoCaoChamCongTongHop",
+    "Para": "@PeriodID=N'{PeriodID}', @PhongBan=N'{PhongBan}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 20954,
+    "_statementSha256": "83f1a786cee2fd4fbd0f4923c8eebdb30224989bfff32c35f49e1ce5a8ceb3f2"
+  },
+  {
+    "STT": 71,
+    "list": "HR_DepartmentListTbl",
+    "func": "View",
+    "SQL": "API_DanhSachBoPhan",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20955,
+    "_statementSha256": "c701d6e71a3a7dca9b96139f81c5aa5d75916a187e3ce432950d4c7b10eaa2e5"
+  },
+  {
+    "STT": 113,
+    "list": "API_DanhSachChiNhanh",
+    "func": "View",
+    "SQL": "API_DanhSachChiNhanh",
+    "Para": "@Keyword=N'{Keyword}', @UserBranchID=N'{UserBranchID}'",
+    "_sourceLine": 20956,
+    "_statementSha256": "85d93095bb6f2d061118d0aefaf673b3eb23f7e2c8238f5cac5191f84d794fc5"
+  },
+  {
+    "STT": 114,
+    "list": "API_DanhSachBoPhan",
+    "func": "View",
+    "SQL": "API_DanhSachBoPhan",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20957,
+    "_statementSha256": "61a8b82e08b4e4fd1b3be32d5642b40b04905d86511fbcaaf7b66d93c74eeae1"
+  },
+  {
+    "STT": 119,
+    "list": "WA_QuanLyNghiPhepNamFrm",
+    "func": "View",
+    "SQL": "API_QuanLyNghiPhepNam",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}', @PhongBan=N'{PhongBan}', @PersonName=N'{PersonName}', @Nam=N'{Nam}'",
+    "_sourceLine": 20958,
+    "_statementSha256": "74b452d4169d6cb0548275089d818d49310347a036c418fbb6ef22fe4c874ea0"
+  },
+  {
+    "STT": 120,
+    "list": "API_QuanLyNghiPhepNam_ChiTiet",
+    "func": "View",
+    "SQL": "API_QuanLyNghiPhepNam_ChiTiet",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20959,
+    "_statementSha256": "942bf12e65fef96b8ba6cadaed438b3d309a05cac736a159bc4ebf2c193fa908"
+  },
+  {
+    "STT": 121,
+    "list": "API_HoSoNhanVien",
+    "func": "Execute",
+    "SQL": "API_HoSoNhanVien",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}', @PhongBan=N'{PhongBan}', @NamLap=N'{NamLap}', @LoaiHD=N'{LoaiHD}', @PersonStatusName=N'{PersonStatusName}', @PersonStatus=N'{PersonStatus}'",
+    "_sourceLine": 20960,
+    "_statementSha256": "e77b7335db3698b87f66f847479b119b496989a4f8efa401cc69ea4e672af37f"
+  },
+  {
+    "STT": 142,
+    "list": "API_HoSoNhanVien_T1_Luong",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T1_Luong",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20961,
+    "_statementSha256": "5ea51ef2cced740e3135683bcfc7c29d153d5c036abd3be39cb8bbac772ce8b8"
+  },
+  {
+    "STT": 143,
+    "list": "API_HoSoNhanVien_T2_PhuCap",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T2_PhuCap",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20962,
+    "_statementSha256": "5aade78394521c904c60d3a4b0c0428c28a5477f95e289e55f536f78d056031f"
+  },
+  {
+    "STT": 144,
+    "list": "API_HoSoNhanVien_T3_KTKL",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T3_KTKL",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20963,
+    "_statementSha256": "23ab2ddc734fb8e44bb25dbd31686d47c72809dce9ca28d1fa89adbd4b8921a1"
+  },
+  {
+    "STT": 145,
+    "list": "API_HoSoNhanVien_T4_NghiPhep",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T4_NghiPhep",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20964,
+    "_statementSha256": "1a51077b367fd5f38c402649e6da63a5e4bb17c857bf9eaeda95b073cd913578"
+  },
+  {
+    "STT": 146,
+    "list": "API_HoSoNhanVien_T5_GiaCanh",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T5_GiaCanh",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20965,
+    "_statementSha256": "17400f0af8b6679336017f3bbc9562b122754dfae6e70f0dd5d0f3d5b293e3df"
+  },
+  {
+    "STT": 147,
+    "list": "API_HoSoNhanVien_T6_HopDong",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T6_HopDong",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20966,
+    "_statementSha256": "bb25c3f74a7879abfe5b59aad02ffb1656c002a286191643795e4549a0aef408"
+  },
+  {
+    "STT": 148,
+    "list": "API_HoSoNhanVien_T7_CongTac",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T7_CongTac",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20967,
+    "_statementSha256": "22722bf135ffed88bc5052ccf7c943c9e1e5cceb12dad0361f24a963049c5656"
+  },
+  {
+    "STT": 149,
+    "list": "API_HoSoNhanVien_T8_CongViec",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T8_CongViec",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20968,
+    "_statementSha256": "79d99c879726d4f055f1bcec02b421bd73d6ad8aac77fb9aff28e58fb8d48b2d"
+  },
+  {
+    "STT": 150,
+    "list": "API_HoSoNhanVien_T9_GiayTo",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien_T9_GiayTo",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 20969,
+    "_statementSha256": "4667409d1e819094dd9b19d4ad0d41ab7444be08e3a40aa3c9e4ad12d320fb77"
+  },
+  {
+    "STT": 160,
+    "list": "API_QuanLyUngVien",
+    "func": "Execute",
+    "SQL": "API_QuanLyUngVien",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20970,
+    "_statementSha256": "3551b9711c7378e02acf4f02156f856a7a119343867c763d87e885dd654606fb"
+  },
+  {
+    "STT": 175,
+    "list": "API_DongBoQuyenTruyCap",
+    "func": "Execute",
+    "SQL": "API_DongBoQuyenTruyCap",
+    "Para": "@NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}'",
+    "_sourceLine": 20971,
+    "_statementSha256": "22d7a9c22c01864bfd502d59cbe13a5abf06f4f96417e6494fa47deb95d632fe"
+  },
+  {
+    "STT": 181,
+    "list": "API_LuongKhoan",
+    "func": "Execute",
+    "SQL": "API_LuongKhoan",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20972,
+    "_statementSha256": "ad8fe4b652b60b23f92cc6c47f088e163ea5df82cddff90b3f3f5089ae377678"
+  },
+  {
+    "STT": 185,
+    "list": "API_BangPhuCap",
+    "func": "Execute",
+    "SQL": "API_BangPhuCap",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 20973,
+    "_statementSha256": "6506e77f739264d0aaf227c2e30bc27280ea288a1a1738ba6b2e04d57082bf76"
+  },
+  {
+    "STT": 189,
+    "list": "API_Payroll",
+    "func": "Execute",
+    "SQL": "API_Payroll",
+    "Para": "@PeriodID=N'{PeriodID}', @PhongBan=N'{PhongBan}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 20974,
+    "_statementSha256": "e5bf095e9682775ddf157c1d4c6312b4f7e8b00c4a59a98404f28d08386d19a1"
+  },
+  {
+    "STT": 211,
+    "list": "HR_PayRoll_Process_Stp",
+    "func": "View",
+    "SQL": "HR_PayRoll_Process_Stp",
+    "Para": "@PeriodID=N'{PeriodID}'",
+    "_sourceLine": 20975,
+    "_statementSha256": "62cfefb1c7596f8a728d90a5b552eccd8a6b33c3f90ce29386cb852f0cffbbd3"
+  },
+  {
+    "STT": 334,
+    "list": "API_XoaMenu",
+    "func": "Execute",
+    "SQL": "API_XoaMenu",
+    "Para": "@NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}', @MenuID=N'{MenuID}'",
+    "_sourceLine": 20976,
+    "_statementSha256": "257a2d6c45e1aaee25e5d403e0f0e8367af79fd0a4968d56cbdee1fa950291c9"
+  },
+  {
+    "STT": 355,
+    "list": "WA_BaoCaoLuongReport",
+    "func": "View",
+    "SQL": "API_BaoCaoLuong",
+    "Para": "@PeriodID=N'{PeriodID}', @PhongBan=N'{PhongBan}', @BranchID1=N'{BranchID1}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 20977,
+    "_statementSha256": "5ea7ba939cf5656c170d4ed31b556dcdd32491b229ce55f3256a45fcb32080c3"
+  },
+  {
+    "STT": 356,
+    "list": "WA_BaoCaoNghiPhepReport",
+    "func": "View",
+    "SQL": "API_BaoCaoNghiPhepReportStp",
+    "Para": "@PeriodID=N'{PeriodID}', @BranchID1=N'{BranchID1}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 20978,
+    "_statementSha256": "ce5956d60dd9d643504ce62ce34a3648fdd152937ed096c2af81173336584a12"
+  },
+  {
+    "STT": 357,
+    "list": "API_XoaDong",
+    "func": "Execute",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 20979,
+    "_statementSha256": "414fc43120068ccb502549f7c2a584bc5f921e74cf7f96258eb82dd0b1d2a3ca"
+  },
+  {
+    "STT": 361,
+    "list": "WA_DepartmentListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20980,
+    "_statementSha256": "af27bb9fe718bb93acd4264a019bba910a534d66b178950bb1694760d4dca730"
+  },
+  {
+    "STT": 362,
+    "list": "WA_DepartmentListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20981,
+    "_statementSha256": "c95a478a601f996dbb8cf472c10d71711ff177c1dd0ebe7741c4abc3eff37a41"
+  },
+  {
+    "STT": 363,
+    "list": "WA_DepartmentListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20982,
+    "_statementSha256": "ce97b8b46b8dc158c7ef437dc75c9c1fea4fb8b671a09b9140d3f50531648a7f"
+  },
+  {
+    "STT": 364,
+    "list": "WA_TitleListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20983,
+    "_statementSha256": "8e787b37f57f68c83c40b0ccd03d739213bfd2cc36b87527b2194ac7ab61598b"
+  },
+  {
+    "STT": 365,
+    "list": "WA_TitleListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20984,
+    "_statementSha256": "388104130f7dd9d7941fd4d75e3c5495d42870e971ec451e9441f25732f5f7f9"
+  },
+  {
+    "STT": 366,
+    "list": "WA_TitleListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20985,
+    "_statementSha256": "ed1737ace3dd1deb9be2a2fed18d0b16b70d6099ae9852f5b8710f859dc76039"
+  },
+  {
+    "STT": 367,
+    "list": "WA_PositionListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20986,
+    "_statementSha256": "363e7461ad4193da3dc6de8ccb1da53718b5e4f0593e10210617def2d541257d"
+  },
+  {
+    "STT": 368,
+    "list": "WA_PositionListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20987,
+    "_statementSha256": "4db6253fbb3c647cf0a83bfd9d74bb7cb714395570c2e39cecabc669c4019039"
+  },
+  {
+    "STT": 369,
+    "list": "WA_PositionListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20988,
+    "_statementSha256": "80908ef95aac34a76b7735fe608b17b51c81f532f73c6f9ad424a9e9fbef994a"
+  },
+  {
+    "STT": 373,
+    "list": "WA_WorkingGroupListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20989,
+    "_statementSha256": "a4fc6869044a42f84aaf3f397a377093918bff13b869637442027e3e75752de1"
+  },
+  {
+    "STT": 374,
+    "list": "WA_WorkingGroupListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20990,
+    "_statementSha256": "33e70ef2fbe7369bd8aeda6263c5f3baa72cf70f8085c83e1f407a22a34c4a77"
+  },
+  {
+    "STT": 375,
+    "list": "WA_WorkingGroupListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20991,
+    "_statementSha256": "58458e5a75cf521abfb77ab2b48710e0c6d47eec94eb6010e7886ed7799aeb77"
+  },
+  {
+    "STT": 382,
+    "list": "WA_ShiftListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20992,
+    "_statementSha256": "90ac90347e06108a22aba99dcb4681c0a849730e2334254fa0e72aac51128122"
+  },
+  {
+    "STT": 383,
+    "list": "WA_ShiftListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20993,
+    "_statementSha256": "e2e99bede3fbe057b8e5b06028c32480b53c370c1a9fe9b64bd3f7713fe6cbf4"
+  },
+  {
+    "STT": 384,
+    "list": "WA_ShiftListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20994,
+    "_statementSha256": "a3261e5ce33c453a253337456384fcbddf405daf575c1dee013972f8b9c1e39a"
+  },
+  {
+    "STT": 385,
+    "list": "WA_JobListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20995,
+    "_statementSha256": "b9e281b8f244edc676056f073d178ff4ba5ba4c6b7a85415a8cd3c35ff3e6df9"
+  },
+  {
+    "STT": 386,
+    "list": "WA_JobListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20996,
+    "_statementSha256": "7599131ece00412b2dc20deaf467f9ba7602868cec8071e44c5ff9ae7b13e539"
+  },
+  {
+    "STT": 387,
+    "list": "WA_JobListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20997,
+    "_statementSha256": "cd506312f74a8649db19548e0763afdd069dde4624ecad8f173dea067822925b"
+  },
+  {
+    "STT": 388,
+    "list": "WA_HospitalListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20998,
+    "_statementSha256": "2250fe57078d8d8b9208ca5bc07e419b8475aacd832e447031d0e93e5c63a380"
+  },
+  {
+    "STT": 389,
+    "list": "WA_HospitalListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 20999,
+    "_statementSha256": "dcd15ee17a3cffb73664e918fa3ab07b3bf700b766ecfdb1a8b71be540eac0eb"
+  },
+  {
+    "STT": 390,
+    "list": "WA_HospitalListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21000,
+    "_statementSha256": "7b3ca77abb5fb5d119ab0f6ff29314e02b26ffe63a1d6bc85cc3ac5efee7995d"
+  },
+  {
+    "STT": 391,
+    "list": "WA_BankListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21001,
+    "_statementSha256": "2951a4d3af761eece3ab6f1a31f15caa13201c364e891890731765ca6b0e06c9"
+  },
+  {
+    "STT": 392,
+    "list": "WA_BankListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21002,
+    "_statementSha256": "0061e16a1d68f3191629503da6cbf8bb7bf0c45cf4344f6bf2a11aaad880eda4"
+  },
+  {
+    "STT": 393,
+    "list": "WA_BankListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21003,
+    "_statementSha256": "8bc8bb405fcdc1ab481885225b1b26f3499c9c7ae6b3627d693e6b1441d70e56"
+  },
+  {
+    "STT": 394,
+    "list": "WA_NationListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21004,
+    "_statementSha256": "be2dbc8e936247d351955a080485877db599974e109c834bc684d589e3834a25"
+  },
+  {
+    "STT": 395,
+    "list": "WA_NationListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21005,
+    "_statementSha256": "1d629cb451a6d30686cdc0c864b798696759bba8a4bf231a9dc22db4ed3b2582"
+  },
+  {
+    "STT": 396,
+    "list": "WA_NationListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21006,
+    "_statementSha256": "2bfd7bc1efa47e9f426c9ff39318599610399e899425fd0560bacc8bc2249f8e"
+  },
+  {
+    "STT": 397,
+    "list": "WA_ProvinceListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21007,
+    "_statementSha256": "6e830cfda223ada3366d0e1687a1bcf7669e2d7b410968e9e8f141c7be0e0f8b"
+  },
+  {
+    "STT": 398,
+    "list": "WA_ProvinceListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21008,
+    "_statementSha256": "c6dc9b82e81b40e0005cb5f3cf73d46ab79a8b5df4133115fdc6b734eac1f4bf"
+  },
+  {
+    "STT": 399,
+    "list": "WA_ProvinceListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21009,
+    "_statementSha256": "aae95ef5c487a0adcc8a5d8f76288b892bb031d0a08632935c399e1651109fe3"
+  },
+  {
+    "STT": 403,
+    "list": "WA_PeopleListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21010,
+    "_statementSha256": "8bca20b6ab498043b2088cd948f1e5b20b7045b00091d455ebed5e6ff618bba4"
+  },
+  {
+    "STT": 404,
+    "list": "WA_PeopleListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21011,
+    "_statementSha256": "27eea8cb99151c15dcf442a415f3114b927e633f038a97291e19acdca4a15818"
+  },
+  {
+    "STT": 405,
+    "list": "WA_PeopleListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21012,
+    "_statementSha256": "422016d9c2ca811b15b2353498d3ba0def985c8528f31d23b3947c4cddb466ba"
+  },
+  {
+    "STT": 406,
+    "list": "WA_ReligionListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21013,
+    "_statementSha256": "619ef80bea035b7f4b6e392dda38725a6e7ec030e0fd18f3b39b611ec1bde250"
+  },
+  {
+    "STT": 407,
+    "list": "WA_ReligionListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21014,
+    "_statementSha256": "098147123b5a15c5cfe20f0af628adf631e312c8b63bf3f1ff59e47ca3ab9e29"
+  },
+  {
+    "STT": 408,
+    "list": "WA_ReligionListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21015,
+    "_statementSha256": "353ba37f46c09e7adc5761dd7df13ea94c453829203ce1cddec1edd267861fc3"
+  },
+  {
+    "STT": 409,
+    "list": "WA_EducationListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21016,
+    "_statementSha256": "d4cb9b04fc2fe5e875dc61d10c512299805489acccd3899113ebc736e79525a1"
+  },
+  {
+    "STT": 410,
+    "list": "WA_EducationListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21017,
+    "_statementSha256": "c3d1d9868a3e59393ba551826951529fc7b8134d43c96906a3af012f3d8e58d0"
+  },
+  {
+    "STT": 411,
+    "list": "WA_EducationListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21018,
+    "_statementSha256": "7350306364275a1a08c05ed26f9eb9c49d4b38493554378c3ab5c0ee2d229e43"
+  },
+  {
+    "STT": 412,
+    "list": "WA_BangCapListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21019,
+    "_statementSha256": "5510107e5e1d72fe13be5f4dae2a518e3c1ff7c31b7010875566c9cf1cc6ed6d"
+  },
+  {
+    "STT": 413,
+    "list": "WA_BangCapListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21020,
+    "_statementSha256": "04130b55e832a779a746b63c36c20c2c825395a6a4dd27c0a795b275a9d7b4f6"
+  },
+  {
+    "STT": 414,
+    "list": "WA_BangCapListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21021,
+    "_statementSha256": "b8ba832eef39d7a966432dc3188ada7f57c9a2d47a4a5565325cdd3d58c1b466"
+  },
+  {
+    "STT": 415,
+    "list": "WA_CareerlListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21022,
+    "_statementSha256": "7c0c9e7c6811173a283d6117f3946b6b1a4f962cb60b3e18ed5a22948411fe7f"
+  },
+  {
+    "STT": 416,
+    "list": "WA_CareerlListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21023,
+    "_statementSha256": "09b5e1bc0ca5788ab9c0dda6870b7d4c6fed63c3c062af824adf687edb07c3d8"
+  },
+  {
+    "STT": 417,
+    "list": "WA_CareerlListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21025,
+    "_statementSha256": "ad6d9c1d732241a23b775af56251d10aae30f3fb1281cd7e62bc6727e1f340be"
+  },
+  {
+    "STT": 419,
+    "list": "WA_HinhThucNghiListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21026,
+    "_statementSha256": "bbed31fd49aab8e7af30e6256d03d32f3088279185e54326f7ef489978460c3d"
+  },
+  {
+    "STT": 420,
+    "list": "WA_HinhThucNghiListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21027,
+    "_statementSha256": "af9e8d47562a3b7e7853dbebb63ce081b829863f506f63cb9fa96a315cbd2e9d"
+  },
+  {
+    "STT": 421,
+    "list": "CF_BranchListFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21028,
+    "_statementSha256": "a54fce78ad66641e739c26df3d4fcda3a6763017f48d114b73d5a8cde47c4193"
+  },
+  {
+    "STT": 422,
+    "list": "CF_BranchListFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21029,
+    "_statementSha256": "bd481f29c3bfe5083c6653a67575256f7c3e3b428518a49c0f35b1a06bceca55"
+  },
+  {
+    "STT": 423,
+    "list": "CF_BranchListFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21030,
+    "_statementSha256": "a66276ef05e77157b70116f0fc45eaabe94a081a05f89dda50f96024165ed77d"
+  },
+  {
+    "STT": 433,
+    "list": "API_BangThamSo",
+    "func": "Execute",
+    "SQL": "API_BangThamSo",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21031,
+    "_statementSha256": "64a42e7c27b2b7f5f176ee09cf986c300709634b0f782053ffedc8256f25fd33"
+  },
+  {
+    "STT": 435,
+    "list": "WA_BangThamSoFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21032,
+    "_statementSha256": "fb00b15dd97820a8e1b598501809e28d47eb0bfca45ec8613531c7526137a4b6"
+  },
+  {
+    "STT": 436,
+    "list": "WA_BangThamSoFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21033,
+    "_statementSha256": "404691d0aa1989d292d50c26eb41207dfc9cbfb45f26c9a699a52c1e9b1d0010"
+  },
+  {
+    "STT": 437,
+    "list": "WA_BangThamSoFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21034,
+    "_statementSha256": "b8f289d2a849c81705d0585f48b44d30a7946e4fb356ff080eae7638a70ae57b"
+  },
+  {
+    "STT": 438,
+    "list": "WA_LuongKhoanFrm",
+    "func": "View",
+    "SQL": "API_LuongKhoan",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21035,
+    "_statementSha256": "05dd2a93318fe55c66f2c9cb01300f675f389eefe1c645cfd5a3d027ffb8b582"
+  },
+  {
+    "STT": 439,
+    "list": "WA_LuongKhoanFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21036,
+    "_statementSha256": "ccf9752ab88b6b181e0c2b59c554fcde40356569baa6af455eec0f5a4e14f79d"
+  },
+  {
+    "STT": 440,
+    "list": "WA_LuongKhoanFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21037,
+    "_statementSha256": "0c3348c3b2c4654713cb1092c8a49d81972844396e981cdbb199162a48277962"
+  },
+  {
+    "STT": 449,
+    "list": "WA_BangPhuCapFrm",
+    "func": "View",
+    "SQL": "API_BangPhuCap",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21038,
+    "_statementSha256": "1e3700b91f9a799286e87f4bd9ea0a3a9502ba75df4c4a06f94fc2303072054e"
+  },
+  {
+    "STT": 450,
+    "list": "API_BangPhuCap_Detail",
+    "func": "View",
+    "SQL": "API_BangPhuCap_Detail",
+    "Para": "@MaPhuCap=N'{MaPhuCap}'",
+    "_sourceLine": 21039,
+    "_statementSha256": "641265212e76c15bd246f5a6719184b4d4abc0f79c1a01d401cd2210ca0a37ad"
+  },
+  {
+    "STT": 451,
+    "list": "WA_BangPhuCapFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21040,
+    "_statementSha256": "bc411a6607c0cf26cc163adf0bb573c43347871d8a0c6f0787ce228f3b5b01e2"
+  },
+  {
+    "STT": 452,
+    "list": "WA_BangPhuCapFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21041,
+    "_statementSha256": "d297c780d7fdd09bc3ada5ac2a6d7857415b8c6fcfc62c70730da730088fda49"
+  },
+  {
+    "STT": 453,
+    "list": "HR_PersonTbl",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}', @PhongBan=N'{PhongBan}', @NamLap=N'{NamLap}', @LoaiHD=N'{LoaiHD}', @PersonStatusName=N'{PersonStatusName}', @PersonStatus=N'{PersonStatus}'",
+    "_sourceLine": 21042,
+    "_statementSha256": "7e9a6f830ceefa26481d56fb9c4d0f410eb55629a8eb08253c29ca0d9ca132f7"
+  },
+  {
+    "STT": 454,
+    "list": "API_BangPhuCap_Detail",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21043,
+    "_statementSha256": "126d3c435cfd41528c395700a94fa5ea3df4041fd989abeff7c4baded0119367"
+  },
+  {
+    "STT": 455,
+    "list": "API_BangPhuCap_Detail",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21044,
+    "_statementSha256": "0ea6646b6296b73377e35e6e1efcb8b135cfeb68fa4f165bc9d278ec6b0f52c3"
+  },
+  {
+    "STT": 456,
+    "list": "WA_PayrollFrm",
+    "func": "View",
+    "SQL": "API_Payroll",
+    "Para": "@PeriodID=N'{PeriodID}', @PhongBan=N'{PhongBan}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 21045,
+    "_statementSha256": "2a36e978eee6bc0ca1dd1e8d8f9cc89df4c946757bf39340077ca0bb0dc92f79"
+  },
+  {
+    "STT": 457,
+    "list": "API_Payroll_Detail",
+    "func": "View",
+    "SQL": "API_Payroll_Detail",
+    "Para": "@DocumentID=N'{DocumentID}'",
+    "_sourceLine": 21046,
+    "_statementSha256": "b3a5408f44b2ff38a26e8f02151c7c5140909adaf26958a1b24a8cd3f282337f"
+  },
+  {
+    "STT": 458,
+    "list": "WA_PayRoll_Process_Stp",
+    "func": "View",
+    "SQL": "WA_PayRoll_Process_Stp",
+    "Para": "@PeriodID=N'{PeriodID}'",
+    "_sourceLine": 21047,
+    "_statementSha256": "e58cbc75374e49f4493dd2a2cc7fcee300756f324eccd8526f4e600681cd6c21"
+  },
+  {
+    "STT": 471,
+    "list": "API_DanhSachLoaiHD",
+    "func": "Execute",
+    "SQL": "API_DanhSachLoaiHD",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21048,
+    "_statementSha256": "6ebe5a154ea2df561f2b02aadf6cb53c2e1465671b3674afde7dc5b578039d8d"
+  },
+  {
+    "STT": 491,
+    "list": "WA_TimeSheetDayFrm",
+    "func": "View",
+    "SQL": "API_XuLyChamCongHangNgay",
+    "Para": "@Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21049,
+    "_statementSha256": "78dd2f9dfee84d1885ff3ed71f36349b4be32b9fd100c4a258a31838d389594a"
+  },
+  {
+    "STT": 492,
+    "list": "WA_TimeSheetDay_Process_Stp",
+    "func": "View",
+    "SQL": "WA_TimeSheetDay_Process_Stp",
+    "Para": "@PeriodID=N'{PeriodID}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21050,
+    "_statementSha256": "6c94b58780e92c7b16640b3ea146ca6209f94d22d9a6557fe6a397d33c3be2c1"
+  },
+  {
+    "STT": 493,
+    "list": "WA_DanhSachLoaiHD",
+    "func": "View",
+    "SQL": "API_DanhSachLoaiHD",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21051,
+    "_statementSha256": "5fcf89f1c6217e19d456d556296e75419b6d3bd9ec5cd4330283edcf914b58f3"
+  },
+  {
+    "STT": 495,
+    "list": "WA_QuanLyNghiLeFrm",
+    "func": "View",
+    "SQL": "API_QuanLyNghiLe",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21052,
+    "_statementSha256": "bdd14eb77c18f4318857115594dea87277f6a6562ed79b316476710584f28e1c"
+  },
+  {
+    "STT": 520,
+    "list": "API_DanhSachCaLamViecChiNhanh",
+    "func": "Execute",
+    "SQL": "API_DanhSachCaLamViecChiNhanh",
+    "Para": "@Keyword=N'{Keyword}', @UserBranchID=N'{UserBranchID}'",
+    "_sourceLine": 21053,
+    "_statementSha256": "7e20118bba74ba52c42e5b5012cb27c82219f2bdcb88b3fcecef25ffd9ed9b39"
+  },
+  {
+    "STT": 521,
+    "list": "HR_ShiftListCNFrm",
+    "func": "View",
+    "SQL": "API_DanhSachCaLamViecChiNhanh",
+    "Para": "@Keyword=N'{Keyword}', @UserBranchID=N'{BranchID}'",
+    "_sourceLine": 21054,
+    "_statementSha256": "058b06043bcc4ce93b6207d0204041ed0a8f3931b2b6b17d3a168873fe5cf97b"
+  },
+  {
+    "STT": 522,
+    "list": "WA_ShiftListCNFrm",
+    "func": "View",
+    "SQL": "API_DanhSachCaLamViecChiNhanh",
+    "Para": "@Keyword=N'{Keyword}', @UserBranchID=N'{BranchID}'",
+    "_sourceLine": 21055,
+    "_statementSha256": "91a17908c8977bdca8cba859f8676c81a5c373578e21123918aa7cb6c9398d47"
+  },
+  {
+    "STT": 523,
+    "list": "API_BangThueTNCN",
+    "func": "Execute",
+    "SQL": "API_BangThueTNCN",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21056,
+    "_statementSha256": "a28adc03638328f9afaee09321509da38906457a194bf44a8fb141a6b7e76423"
+  },
+  {
+    "STT": 524,
+    "list": "API_DanhSachBangCap",
+    "func": "Execute",
+    "SQL": "API_DanhSachBangCap",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21057,
+    "_statementSha256": "51ff9a31188dfdb3156de4fb69b0b5d8cb4cd857668af2d7a3c3c247ec9f204c"
+  },
+  {
+    "STT": 525,
+    "list": "API_DanhSachMenu",
+    "func": "Execute",
+    "SQL": "API_DanhSachMenu",
+    "Para": "@ModuleCode=N'{ModuleCode}', @NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}'",
+    "_sourceLine": 21058,
+    "_statementSha256": "25f99a5a0cfeba6611338085555c709bd193413467c0434177e2e950a59f331f"
+  },
+  {
+    "STT": 526,
+    "list": "API_LayCacTruongGiaoDien",
+    "func": "Execute",
+    "SQL": "API_LayCacTruongGiaoDien",
+    "Para": "@FormName=N'{List}'",
+    "_sourceLine": 21059,
+    "_statementSha256": "f4339ec6d4bebd6ed32da3dc6cd691383245f00a23ed8d831763850bbb64749a"
+  },
+  {
+    "STT": 527,
+    "list": "API_LayDanhSachMenuTatCa",
+    "func": "Execute",
+    "SQL": "API_LayDanhSachMenuTatCa",
+    "Para": "@NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}'",
+    "_sourceLine": 21060,
+    "_statementSha256": "c12d50ef07e29cfcce41edc3f5773742e0b373eed545fe0426ec7b33f9ff9808"
+  },
+  {
+    "STT": 528,
+    "list": "API_LayDanhSachNhom",
+    "func": "Execute",
+    "SQL": "API_LayDanhSachNhom",
+    "Para": "",
+    "_sourceLine": 21061,
+    "_statementSha256": "b2a0bedf220db6c908e58ad2361ba2d557469f32b58f99e51600c6ee67be113c"
+  },
+  {
+    "STT": 529,
+    "list": "API_LayGiaTriSetup",
+    "func": "Execute",
+    "SQL": "API_LayGiaTriSetup",
+    "Para": "",
+    "_sourceLine": 21062,
+    "_statementSha256": "d182aa1347326fada11b34ab85dcf1d89cee0b8cfc8618d05900c03c384334f6"
+  },
+  {
+    "STT": 530,
+    "list": "API_LayMenuTheoNhomQuyen",
+    "func": "Execute",
+    "SQL": "API_LayMenuTheoNhomQuyen",
+    "Para": "@NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}', @UserGroupID=N'{UserGroupID}'",
+    "_sourceLine": 21063,
+    "_statementSha256": "43652b524639b07c3ca045bf8b28ac1efe73f4949a76acda3ab3d465f0e65028"
+  },
+  {
+    "STT": 531,
+    "list": "API_LayPhienBanQuyen",
+    "func": "Execute",
+    "SQL": "API_LayPhienBanQuyen",
+    "Para": "",
+    "_sourceLine": 21064,
+    "_statementSha256": "ac58a316526bcf204f6a9b727d08a7a0658687bc45d40733da89643264000383"
+  },
+  {
+    "STT": 532,
+    "list": "API_LayQuyenNhomDayDu",
+    "func": "Execute",
+    "SQL": "API_LayQuyenNhomDayDu",
+    "Para": "@NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}', @UserGroupID=N'{UserGroupID}'",
+    "_sourceLine": 21065,
+    "_statementSha256": "657ee829b0e83a81a58403df3fdb4c832abe9c13fbf7f42e8e4cd02827fa59e2"
+  },
+  {
+    "STT": 533,
+    "list": "API_LuuMenu",
+    "func": "Execute",
+    "SQL": "API_LuuMenu",
+    "Para": "@NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}', @MenuID=N'{MenuID}', @OldMenuID=N'{OldMenuID}', @ParentID=N'{ParentID}', @Label=N'{Label}', @EN=N'{EN}', @SubTitle=N'{SubTitle}', @FormName=N'{FormName}', @FormKey=N'{FormKey}', @URLPara=N'{URLPara}', @Icon=N'{Icon}', @IsDisable=N'{IsDisable}', @IsEdit=N'{IsEdit}', @TableName=N'{TableName}', @PrimaryKey=N'{PrimaryKey}', @AllowHardDelete=N'{AllowHardDelete}'",
+    "_sourceLine": 21066,
+    "_statementSha256": "fb2d3b202c3948cc66359957966a759255b14109f72252181ed68a16c6c1aa3d"
+  },
+  {
+    "STT": 534,
+    "list": "API_LuuQuyenCuaNhom",
+    "func": "Execute",
+    "SQL": "API_LuuQuyenCuaNhom",
+    "Para": "@NhomNguoiDangThaoTac=N'{NhomNguoiDangThaoTac}', @UserGroupID=N'{UserGroupID}', @MenuID=N'{MenuID}', @IsRun=N'{IsRun}', @IsAdd=N'{IsAdd}', @IsUpdate=N'{IsUpdate}', @IsDelete=N'{IsDelete}', @isManager=N'{isManager}', @isAdmin=N'{isAdmin}', @isAutoLock=N'{isAutoLock}', @isHideAmount=N'{isHideAmount}', @isLockDoc=N'{isLockDoc}', @isUnLockDoc=N'{isUnLockDoc}', @isExportExcel=N'{isExportExcel}'",
+    "_sourceLine": 21067,
+    "_statementSha256": "f235a633959e07e9d2fa64a2710522e38f97ade7ba74662440f5df1ba3fd0b35"
+  },
+  {
+    "STT": 535,
+    "list": "API_ComboPersonStatus",
+    "func": "Execute",
+    "SQL": "API_ComboPersonStatus",
+    "Para": "@Keyword=N'{Keyword}', @UserName=N'{User}'",
+    "_sourceLine": 21068,
+    "_statementSha256": "7d4a10f2fdfbada008f04f3ab476f4f0c39c2089bf706bc7ea6ddde7b1bb6c1c"
+  },
+  {
+    "STT": 536,
+    "list": "API_DanhSachTaiKhoan",
+    "func": "Execute",
+    "SQL": "API_DanhSachTaiKhoan",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21069,
+    "_statementSha256": "d9aebd8c745a02f03f31f5a6e353d743e25bf1252dccca599d069df1ba5297fd"
+  },
+  {
+    "STT": 537,
+    "list": "API_HopDongLaoDong",
+    "func": "Execute",
+    "SQL": "API_HopDongLaoDong",
+    "Para": "@Keyword=N'{Keyword}', @NamLap=N'{NamLap}', @LoaiHD=N'{LoaiHD}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21070,
+    "_statementSha256": "79195a18b3329c2d2c6d8b743832e803e5aa7b0c1a7a87cc2125a529c832050d"
+  },
+  {
+    "STT": 542,
+    "list": "API_HoSoNhanVienIn",
+    "func": "Execute",
+    "SQL": "API_HoSoNhanVienIn",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}', @PhongBan=N'{PhongBan}', @NamLap=N'{NamLap}', @LoaiHD=N'{LoaiHD}'",
+    "_sourceLine": 21071,
+    "_statementSha256": "6a0125f321b3e01b110af3a929803a422b5d1af0cfd2e170ea06d8ca5044516d"
+  },
+  {
+    "STT": 543,
+    "list": "API_HoSoNhanVienQuit",
+    "func": "Execute",
+    "SQL": "API_HoSoNhanVienQuit",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}', @PhongBan=N'{PhongBan}', @NamLap=N'{NamLap}', @LoaiHD=N'{LoaiHD}'",
+    "_sourceLine": 21072,
+    "_statementSha256": "89ae7d1f12b8a32f7f1b0aac2d2d5024bb3e325b6032d9ae59c247ffccdc45fd"
+  },
+  {
+    "STT": 544,
+    "list": "API_HR_GetForm",
+    "func": "Execute",
+    "SQL": "API_HR_GetForm",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21073,
+    "_statementSha256": "1d2df570e72360b79aa90d932b2c6352e3702abd94ec1c060bdc48099ed29650"
+  },
+  {
+    "STT": 545,
+    "list": "API_KinhPhiCongDoan",
+    "func": "Execute",
+    "SQL": "API_KinhPhiCongDoan",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}', @PeriodID=N'{PeriodID}', @PhongBan=N'{PhongBan}', @User=N'{User}'",
+    "_sourceLine": 21074,
+    "_statementSha256": "3a42ba6b95bddfae006573cab885c2228d1b973d7736f4bb102e1dae7006f107"
+  },
+  {
+    "STT": 546,
+    "list": "API_KinhPhiCongDoan_PersonList",
+    "func": "Execute",
+    "SQL": "API_KinhPhiCongDoan_PersonList",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21075,
+    "_statementSha256": "983f82e02b6e106ece537db006cc46f2d604f3a86dd52b391aff106b9ac2fcf9"
+  },
+  {
+    "STT": 547,
+    "list": "API_PersonAttach_SaveAvatar",
+    "func": "Execute",
+    "SQL": "API_PersonAttach_SaveAvatar",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21076,
+    "_statementSha256": "a09716af5e61f17bd0dc8e397509ae96e48c6a3a3ced9faa9edf5264e249749a"
+  },
+  {
+    "STT": 578,
+    "list": "API_PersonAttach",
+    "func": "SaveAvatar",
+    "SQL": "API_PersonAttach_SaveAvatar",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21077,
+    "_statementSha256": "82c9da0c39459737129c4c357eecf504438806a057bf4e9980f465db346ea54e"
+  },
+  {
+    "STT": 584,
+    "list": "API_NguoiDungNhomFrm",
+    "func": "Execute",
+    "SQL": "API_NguoiDungNhomFrm",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21078,
+    "_statementSha256": "faf396598ce2d53391c9d19a01c7cbe67e93b737ce4ce3350985a8a126620396"
+  },
+  {
+    "STT": 588,
+    "list": "WA_NguoiDungNhomFrm",
+    "func": "View",
+    "SQL": "API_NguoiDungNhomFrm",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21079,
+    "_statementSha256": "f58232ce9ef55932e38e7e34e4e5af03ed3171610009603ba64f55a0fe021968"
+  },
+  {
+    "STT": 589,
+    "list": "WA_NguoiDungNhomFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21080,
+    "_statementSha256": "7620d89ff33a4059a12837468ffbb24ab9a36a4f987803767cb418d3a20b8075"
+  },
+  {
+    "STT": 590,
+    "list": "WA_NguoiDungNhomFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21081,
+    "_statementSha256": "451c0a9a76cc037a4db851230fffd8c6019cb58174e807cd0e7ef5873b49db76"
+  },
+  {
+    "STT": 594,
+    "list": "WA_NguoiDungFrm",
+    "func": "View",
+    "SQL": "API_NguoiDungFrm",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21082,
+    "_statementSha256": "af7238065c0b0cc8ca8027ec82d32e3b538eef9a021ff44dafd6c55ac9c1c405"
+  },
+  {
+    "STT": 595,
+    "list": "WA_NguoiDungFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21083,
+    "_statementSha256": "143e807c8d919554224b975e551142ae468430d577d261398f40315cf7204e36"
+  },
+  {
+    "STT": 596,
+    "list": "WA_NguoiDungFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21084,
+    "_statementSha256": "a8f9a26c97f62419552cc1bd56ae667591d7b043152ccd653e7dbf66c6422b96"
+  },
+  {
+    "STT": 597,
+    "list": "API_ComboPersonStatus",
+    "func": "View",
+    "SQL": "API_ComboPersonStatus",
+    "Para": "@Keyword=N'{Keyword}', @UserName=N'{User}'",
+    "_sourceLine": 21085,
+    "_statementSha256": "32b2ad8ac3a948cc2252e68f47fc4a894930777fc94cf1ef2eb23fd4510e94de"
+  },
+  {
+    "STT": 598,
+    "list": "WA_HopDongLaoDongFrm",
+    "func": "View",
+    "SQL": "API_HopDongLaoDong",
+    "Para": "@Keyword=N'{Keyword}', @NamLap=N'{NamLap}', @LoaiHD=N'{LoaiHD}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21086,
+    "_statementSha256": "32ba79df9d89cd1b967479bd9c233f250ae46110897fad952371ce54d1f9b895"
+  },
+  {
+    "STT": 599,
+    "list": "WA_HopDongLaoDongFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21087,
+    "_statementSha256": "fb2e9a464c9ec4e54ebe48dce522e2c9a199afbb7806efd698eedd9b874e244d"
+  },
+  {
+    "STT": 600,
+    "list": "WA_HopDongLaoDongFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21088,
+    "_statementSha256": "31953f598c72ed2c20d462ad911a7b82f14b66c0c614055c197ef1bb16f919ff"
+  },
+  {
+    "STT": 601,
+    "list": "API_HopDongLaoDong_ChiTiet",
+    "func": "View",
+    "SQL": "API_HopDongLaoDong_ChiTiet",
+    "Para": "@MaHopDong=N'{MaHopDong}'",
+    "_sourceLine": 21089,
+    "_statementSha256": "3758bfc6ee470f89aff17b9bb74754458878449b966cf7f44de750e50809cd6f"
+  },
+  {
+    "STT": 602,
+    "list": "API_HopDongLaoDong_ChiTiet",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21090,
+    "_statementSha256": "6548c0aaa415e49c81ff1235e402b01b8719fabd807f71f187c48b365b2459fc"
+  },
+  {
+    "STT": 603,
+    "list": "API_HopDongLaoDong_ChiTiet",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21091,
+    "_statementSha256": "e2a8c21035e7653b456a396f7214006fe4551b51278fe0124a7d7273ee8921db"
+  },
+  {
+    "STT": 604,
+    "list": "API_HopDongLaoDong_Attach",
+    "func": "View",
+    "SQL": "API_HopDongLaoDong_Attach",
+    "Para": "@MaHopDong=N'{MaHopDong}'",
+    "_sourceLine": 21092,
+    "_statementSha256": "b726d881d2875a2c7e2298d24ea426d9ba828d79f2ebfee92c04048f98c68382"
+  },
+  {
+    "STT": 605,
+    "list": "API_HopDongLaoDong_Attach",
+    "func": "Save",
+    "SQL": "API_HopDongLaoDong_Attach_Save",
+    "Para": "@Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21093,
+    "_statementSha256": "48e24e2e8381c12e0fb27c3da99a5a430e66c0873ae26973467d2bed3fa5697f"
+  },
+  {
+    "STT": 606,
+    "list": "API_HopDongLaoDong_Attach",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21094,
+    "_statementSha256": "d533b16c53e967bb7e8e06f6ea72c4ffb571038aef12c1ba74105dc5e8d71358"
+  },
+  {
+    "STT": 607,
+    "list": "API_HopDongLaoDong_NamLap",
+    "func": "View",
+    "SQL": "API_HopDongLaoDong_NamLap",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21095,
+    "_statementSha256": "d741ddad50e01bbe46187ff3e3077b55c834e4d91299b84db5e1cec17accad4b"
+  },
+  {
+    "STT": 608,
+    "list": "API_HopDongLaoDong_LoaiHD",
+    "func": "View",
+    "SQL": "API_HopDongLaoDong_LoaiHD",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21096,
+    "_statementSha256": "c61540c38a6fbb8f30c43cb7732df22b381aebdab22079f8a0ac56ecf1d498a5"
+  },
+  {
+    "STT": 720,
+    "list": "WA_BaoHiemFrm",
+    "func": "View",
+    "SQL": "API_BaoHiem",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21097,
+    "_statementSha256": "294b9a2146c8d053ab50293c19a65748e7b417eb4a1a1da0e6a19b2b2bfa90f6"
+  },
+  {
+    "STT": 721,
+    "list": "WA_BaoHiemFrm",
+    "func": "Save",
+    "SQL": "WA_BaoHiemFrm_Save",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21098,
+    "_statementSha256": "9a6eaacabeaae041e5f1fa3bcc2d4808f7dd0e1fd149af5716e177c60e77f76c"
+  },
+  {
+    "STT": 722,
+    "list": "WA_BaoHiemFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21099,
+    "_statementSha256": "fb1e08f9a6cce6bfe454046844de6cfa244f7726ca131dc1452fe3726edff192"
+  },
+  {
+    "STT": 723,
+    "list": "API_BaoHiem_Detail",
+    "func": "View",
+    "SQL": "API_BaoHiem_Detail",
+    "Para": "@DocumentID=N'{DocumentID}'",
+    "_sourceLine": 21100,
+    "_statementSha256": "b2afc448e715c1396195968daf2c68843936a64b321dafa40bfcf2586099942d"
+  },
+  {
+    "STT": 724,
+    "list": "API_BaoHiem_Detail",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21101,
+    "_statementSha256": "3795e41cf79d28000e0d9f3be8fc7c08aa098cc4263110020f271743217914c8"
+  },
+  {
+    "STT": 725,
+    "list": "API_BaoHiem_Detail",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21102,
+    "_statementSha256": "689d0d0ad3b883ad2294d03765a6ee9d534a6ce4c77990e320eea297aa795643"
+  },
+  {
+    "STT": 726,
+    "list": "HR_BangThamSoTbl",
+    "func": "View",
+    "SQL": "API_HR_BangThamSo_Lookup",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21103,
+    "_statementSha256": "b628c16a248ffc1fd353032234c0f2772db1129d96e4d0ef1bc4efdd0d483cd3"
+  },
+  {
+    "STT": 727,
+    "list": "WA_BaoHiemFrm_PersonID",
+    "func": "View",
+    "SQL": "WA_BaoHiem_PersonLookup",
+    "Para": "@BranchID=N'{BranchID}', @LoaiBaoHiem=N'{LoaiBaoHiem}', @DocumentID=N'{DocumentID}', @Keyword=N'{Keyword}'",
+    "_sourceLine": 21104,
+    "_statementSha256": "75eebebf14ea25a191a94d324d8f7d2cebad5922e166dc833205bc70d5b872d9"
+  },
+  {
+    "STT": 728,
+    "list": "WA_BaoHiemFrm_Calculate",
+    "func": "View",
+    "SQL": "TinhBHStp",
+    "Para": "@PeriodID=N'{PeriodID}', @LoaiBaoHiem=N'{LoaiBaoHiem}', @MucDong={MucDong}",
+    "_sourceLine": 21105,
+    "_statementSha256": "684d70f8215cb2b1704752baf54612f787b2175bfb0f685649a199b69762f66b"
+  },
+  {
+    "STT": 730,
+    "list": "WA_KinhPhiCongDoanFrm",
+    "func": "View",
+    "SQL": "API_KinhPhiCongDoan",
+    "Para": "@Keyword=N'{Keyword}',@BranchID=N'{BranchID}',@User=N'{User}',@PeriodID=N'{PeriodID}'",
+    "_sourceLine": 21106,
+    "_statementSha256": "8f92846990b1e3ae1ee6a526ed92a57b09604928a3d2a31a4a883df4495141de"
+  },
+  {
+    "STT": 731,
+    "list": "WA_KinhPhiCongDoanFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21107,
+    "_statementSha256": "65e9f8702a9a5513e8d8a7be7c2a295e8db755ababd31ad93b087dcc8f39c0c8"
+  },
+  {
+    "STT": 732,
+    "list": "WA_KinhPhiCongDoanFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21108,
+    "_statementSha256": "daa4514504fd547574b7badce72e54180be397b369bf18ffe08b46a7ddcb435e"
+  },
+  {
+    "STT": 733,
+    "list": "API_Calculate_MucDong_CongDoan",
+    "func": "View",
+    "SQL": "API_Calculate_MucDong_CongDoan",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21109,
+    "_statementSha256": "9d298080a4fed70488444dbf0e7d6be6a2979b3f528bf2470bba19e33077f83e"
+  },
+  {
+    "STT": 734,
+    "list": "WA_DanhSachUngVienFrm",
+    "func": "View",
+    "SQL": "API_QuanLyUngVien",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21110,
+    "_statementSha256": "381dbd65d05a28493b605b1b305f09b342f2f7f799d470b5f22c0f955d5ecb21"
+  },
+  {
+    "STT": 735,
+    "list": "WA_DanhSachUngVienFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21111,
+    "_statementSha256": "c1002fed4a308766a825e4e1aa26688358efd8dd1186387a55394b89aefdb064"
+  },
+  {
+    "STT": 736,
+    "list": "WA_DanhSachUngVienFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21112,
+    "_statementSha256": "d0d2359fe3c6698bf6fc4ccfb3ed9bc10da517c42da9291c212fb80a28116ea9"
+  },
+  {
+    "STT": 737,
+    "list": "API_QuanLyUngVien_PhongVan",
+    "func": "View",
+    "SQL": "API_QuanLyUngVien_PhongVan",
+    "Para": "@CandidateID=N'{CandidateID}'",
+    "_sourceLine": 21113,
+    "_statementSha256": "06ffb71a40123148660e983ec9190e17324746f236885de85a1543f11499b598"
+  },
+  {
+    "STT": 738,
+    "list": "API_QuanLyUngVien_KinhNghiem",
+    "func": "View",
+    "SQL": "API_QuanLyUngVien_KinhNghiem",
+    "Para": "@CandidateID=N'{CandidateID}'",
+    "_sourceLine": 21114,
+    "_statementSha256": "3bde207b7a722dca7766e8264496538ecff8120ea3bb963819e104e6778b84a0"
+  },
+  {
+    "STT": 739,
+    "list": "API_QuanLyUngVien_HocVan",
+    "func": "View",
+    "SQL": "API_QuanLyUngVien_HocVan",
+    "Para": "@CandidateID=N'{CandidateID}'",
+    "_sourceLine": 21115,
+    "_statementSha256": "9a3752190e3f80217ba68f112e8ffe31a5f08e10cadfb964413ac800e82f381c"
+  },
+  {
+    "STT": 740,
+    "list": "API_QuanLyUngVien_ChungChi",
+    "func": "View",
+    "SQL": "API_QuanLyUngVien_ChungChi",
+    "Para": "@CandidateID=N'{CandidateID}'",
+    "_sourceLine": 21116,
+    "_statementSha256": "cf2799168a1275f7205a09e01494a3180c019934bb4a3cdc8895fbe35d911747"
+  },
+  {
+    "STT": 741,
+    "list": "API_CandidateAttach",
+    "func": "SaveAvatar",
+    "SQL": "API_CandidateAttach_SaveAvatar",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21117,
+    "_statementSha256": "68af8725fa063d12a79749fb31b1c85374eb6cae28ef52f32726acd0f51d8efe"
+  },
+  {
+    "STT": 742,
+    "list": "API_CandidateAttach",
+    "func": "View",
+    "SQL": "API_TruyVanDong",
+    "Para": "@List='{List}', @Keyword=N'{Keyword}', @SortColumn='{SortColumn}', @SortDir='{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21118,
+    "_statementSha256": "27b3b7da221b318e2aec41b6a84f465e0c52ab1d7430e6daeab594d0d92d8e08"
+  },
+  {
+    "STT": 743,
+    "list": "API_PersonAttach",
+    "func": "View",
+    "SQL": "API_TruyVanDong",
+    "Para": "@List='{List}', @Keyword=N'{Keyword}', @SortColumn='{SortColumn}', @SortDir='{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21119,
+    "_statementSha256": "1d1c67c82f4f4a4728b19bf61dd9585031d411254b54283c0252a0c3ebcb4c46"
+  },
+  {
+    "STT": 744,
+    "list": "API_DanhSachChucDanh",
+    "func": "Execute",
+    "SQL": "API_DanhSachChucDanh",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21120,
+    "_statementSha256": "11ff6113dd95536162185289d0c3e1525bd9b04e3b0be1ba7975ee2861b77f82"
+  },
+  {
+    "STT": 748,
+    "list": "WA_ChucDanhFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21121,
+    "_statementSha256": "f117cef71c736bf791849b1dde61afc9e3212b176699010ac0dc734a21288088"
+  },
+  {
+    "STT": 749,
+    "list": "WA_ChucDanhFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21122,
+    "_statementSha256": "26ad992c5475d2eae9ba0a58ec754a34880348306bb12ed6fd9862c9813864f4"
+  },
+  {
+    "STT": 750,
+    "list": "WA_ChucDanhFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21123,
+    "_statementSha256": "4c7c3ef1a077c14c53050242a4d0e33ea8ca5afbb84999c5a32a53420e6f8574"
+  },
+  {
+    "STT": 782,
+    "list": "API_DanhSachChucVu",
+    "func": "View",
+    "SQL": "API_DanhSachChucVu",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21124,
+    "_statementSha256": "f1639ee83e964e1767080e6af47ad7f9d1a609f2815030787c0b0aedd747e6c1"
+  },
+  {
+    "STT": 814,
+    "list": "API_DanhSachChucDanh",
+    "func": "View",
+    "SQL": "API_DanhSachChucDanh",
+    "Para": "@Keyword='{Keyword}'",
+    "_sourceLine": 21126,
+    "_statementSha256": "8fddad42885cab63613482d0a2dae78dc12ed7cc705fd9feb481dd06663a1042"
+  },
+  {
+    "STT": 819,
+    "list": "API_HR_DropdownShifts",
+    "func": "View",
+    "SQL": "API_HR_DropdownShifts",
+    "Para": "",
+    "_sourceLine": 21127,
+    "_statementSha256": "c4c133d5426eba1266ef7cc0785c3a6065cc016a71a41175958bf02a230bf074"
+  },
+  {
+    "STT": 823,
+    "list": "API_CaLamViec_ChiTiet",
+    "func": "View",
+    "SQL": "API_CaLamViec_ChiTiet",
+    "Para": "@SapCaID=N'{SapCaID}'",
+    "_sourceLine": 21128,
+    "_statementSha256": "2abd8afe422c954479b4f30d6056407987ab97bb07ee031af28aecc2d34bb461"
+  },
+  {
+    "STT": 824,
+    "list": "WA_CaLamViecFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21129,
+    "_statementSha256": "4d762ce7a53022c723d6a29936f1c89902913cc9b355d68fd8d1560285299df0"
+  },
+  {
+    "STT": 825,
+    "list": "WA_CaLamViecFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21130,
+    "_statementSha256": "29c7c98f8e1ca2676a84c5e1f4ac39748b575756c84a10dfe69204a170b56146"
+  },
+  {
+    "STT": 826,
+    "list": "WA_CaLamViecFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21131,
+    "_statementSha256": "8b6f4a0029c585cfae5aefaaafcc2f3f85d67fd259e1b45769ceed110a8e2fc0"
+  },
+  {
+    "STT": 827,
+    "list": "API_CaLamViec_NhanVien",
+    "func": "View",
+    "SQL": "API_CaLamViec_NhanVien",
+    "Para": "@SapCaID=N'{SapCaID}'",
+    "_sourceLine": 21132,
+    "_statementSha256": "ecc6bbf0db21c06767b67ff8e7cd83e91a4e7d907768585c9e752e76d023dd5f"
+  },
+  {
+    "STT": 828,
+    "list": "API_CaLamViec_NhanVien",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21133,
+    "_statementSha256": "1c11c40d7ff81ce5b32594f8ce2f837709415939c39ff320552a335eab14c461"
+  },
+  {
+    "STT": 829,
+    "list": "API_CaLamViec_NhanVien",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21134,
+    "_statementSha256": "e93e5794347164bd505a5dd1fe97eccc01d8af5db2630116b5a7d039dc32a988"
+  },
+  {
+    "STT": 831,
+    "list": "API_Dropdown_ReportTemplates",
+    "func": "View",
+    "SQL": "API_Dropdown_ReportTemplates",
+    "Para": "",
+    "_sourceLine": 21135,
+    "_statementSha256": "d9a52dcf564e464a166af62f13a7b9e92ee03e44b2017c296b057ad500dbaa62"
+  },
+  {
+    "STT": 835,
+    "list": "WA_BaoCaoNhanSuReport",
+    "func": "View",
+    "SQL": "API_BaoCaoNhanSuReportStp",
+    "Para": "@BranchID=N'{BranchID}', @PhongBan=N'{PhongBan}', @FromDate='{FromDate}', @ToDate='{ToDate}', @Keyword=N'{Keyword}', @LoaiHopDong=N'{LoaiHopDong}', @ThieuHopDong='{ThieuHopDong}', @ThieuBaoHiem='{ThieuBaoHiem}', @Template=N'{Template}'",
+    "_sourceLine": 21136,
+    "_statementSha256": "9d020aa2e4a61948cdadaee95ec3341a69241030fd2cd6ad46e854f27c670cf7"
+  },
+  {
+    "STT": 836,
+    "list": "HR_HopDongAddfile",
+    "func": "View",
+    "SQL": "API_TruyVanDong",
+    "Para": "@List=N'HR_HopDongAddfile', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}'",
+    "_sourceLine": 21137,
+    "_statementSha256": "d8ef468d238bddc8adadedffbd7e0dc93656ec4f75e6a7ec298cb008e41bf7c3"
+  },
+  {
+    "STT": 837,
+    "list": "HR_GetForm",
+    "func": "View",
+    "SQL": "API_HR_GetForm",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21138,
+    "_statementSha256": "822a30a77c9aed4ac1b66c8f92903348cb5a1c78f6c146bf7c89591fa83ea75c"
+  },
+  {
+    "STT": 841,
+    "list": "HR_Documents",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21139,
+    "_statementSha256": "6c98f1ca7c7ea1a8ad40775f3ed70ae3882014fcbb0aa61ecb8c2723510514e1"
+  },
+  {
+    "STT": 842,
+    "list": "HR_Documents",
+    "func": "Edit",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21140,
+    "_statementSha256": "d3aedf08f52ae1fa133f6652b04f9e58fa017ac6dc4c71cdc26768e8489c6c42"
+  },
+  {
+    "STT": 843,
+    "list": "HR_Documents",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21141,
+    "_statementSha256": "3ba62e28803ec777b7d503c2778a379e45076048f5914f5c479306a0755436e5"
+  },
+  {
+    "STT": 845,
+    "list": "WA_PersonFullFrm",
+    "func": "View",
+    "SQL": "API_HoSoNhanVien",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}', @PhongBan=N'{PhongBan}', @NamLap=N'{NamLap}', @LoaiHD=N'{LoaiHD}', @PersonStatus=N'{PersonStatus}'",
+    "_sourceLine": 21142,
+    "_statementSha256": "72531db7bb9e123d6b58c04c7db5dde8eccfd9c4cd1e009fd82a2c8ba8367e38"
+  },
+  {
+    "STT": 846,
+    "list": "WA_PersonFullFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21143,
+    "_statementSha256": "ecc699ae57efda6eb697fd74397cd0258dd50934bdca960c72b857cb403ec15e"
+  },
+  {
+    "STT": 847,
+    "list": "WA_PersonFullFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21144,
+    "_statementSha256": "b17d33429984bbfdb77315b3c3c9325e019b52d0658e9f9e6e5c8ab3cee4505a"
+  },
+  {
+    "STT": 848,
+    "list": "API_PersonFull_T1_Salary",
+    "func": "View",
+    "SQL": "API_PersonFull_T1_Salary",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21145,
+    "_statementSha256": "3cb014bf9b7641d83b5c9f7509eda199777280b3d90d2a6d1e8978cf7d24fcbe"
+  },
+  {
+    "STT": 849,
+    "list": "API_PersonFull_T2_Allowance",
+    "func": "View",
+    "SQL": "API_PersonFull_T2_Allowance",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21146,
+    "_statementSha256": "ca063ea3347026fc931d8f7bce0fd79d089bce09d5caafd28e6e107b7167f017"
+  },
+  {
+    "STT": 850,
+    "list": "API_PersonFull_T3_KTKL",
+    "func": "View",
+    "SQL": "API_PersonFull_T3_KTKL",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21147,
+    "_statementSha256": "3260cc6545d1b290abdf9f42ed53802ab0efbc6c474319242e2567613dba4018"
+  },
+  {
+    "STT": 851,
+    "list": "API_PersonFull_T4_NghiPhep",
+    "func": "View",
+    "SQL": "API_PersonFull_T4_NghiPhep",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21148,
+    "_statementSha256": "82dbcb7485eda3986c669c023641340001a6cd9b429c457ea5e8f1a8b2fe2ab3"
+  },
+  {
+    "STT": 852,
+    "list": "API_PersonFull_T5_Relation",
+    "func": "View",
+    "SQL": "API_PersonFull_T5_Relation",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21149,
+    "_statementSha256": "3e0d77b4203dad4685cc9d7ff6ed65af9aeee232141f7ad51f75a4f0f8754d94"
+  },
+  {
+    "STT": 853,
+    "list": "API_PersonFull_T6_HopDong",
+    "func": "View",
+    "SQL": "API_PersonFull_T6_HopDong",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21150,
+    "_statementSha256": "96e823321e204ca270daa30aa242e1e6aaa3efd38e323f12b3ed3ebdc7aaa3d8"
+  },
+  {
+    "STT": 854,
+    "list": "API_PersonFull_T7_CongTac",
+    "func": "View",
+    "SQL": "API_PersonFull_T7_CongTac",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21151,
+    "_statementSha256": "e00e18201d48413b85f632fb1eaa3299f6d564d52485db964d6661ae082ddff6"
+  },
+  {
+    "STT": 855,
+    "list": "API_PersonFull_T8_Log",
+    "func": "View",
+    "SQL": "API_PersonFull_T8_Log",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21152,
+    "_statementSha256": "41f8d8f6233a939c2283db72a1611704aaf9bacee3db0d5dd7f36b7b9eb51a71"
+  },
+  {
+    "STT": 856,
+    "list": "API_PersonFull_T9_GiayTo",
+    "func": "View",
+    "SQL": "API_PersonFull_T9_GiayTo",
+    "Para": "@PersonID=N'{PersonID}'",
+    "_sourceLine": 21153,
+    "_statementSha256": "90544183c1f526ec3504fe170e716742688fe1ff35e950207968accc489e781d"
+  },
+  {
+    "STT": 857,
+    "list": "API_PersonFull_T1_Salary",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21154,
+    "_statementSha256": "f8d7b92cb4ee288750ac99e2a2e3f0bc50d7fe1fc2350446bf05bc646f4210aa"
+  },
+  {
+    "STT": 858,
+    "list": "API_PersonFull_T1_Salary",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21155,
+    "_statementSha256": "b2321f9ad35aab1405a2747fef938a4fb0ea825a126d4beada637f7d03228456"
+  },
+  {
+    "STT": 859,
+    "list": "API_PersonFull_T2_Allowance",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21156,
+    "_statementSha256": "347c6c4332c912f8f5e395e7b834fe3b315d80be4cae1f75da9fdaa3204c5823"
+  },
+  {
+    "STT": 860,
+    "list": "API_PersonFull_T2_Allowance",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21157,
+    "_statementSha256": "d4cfb8967c5731a51bb9a0c4b19f92fed8402de650d234cfd7d5af963508a29a"
+  },
+  {
+    "STT": 861,
+    "list": "API_PersonFull_T3_KTKL",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21158,
+    "_statementSha256": "8a800571d1a5b050f323e8951da5f72fae73454deb6593a7db8866a8b2767a27"
+  },
+  {
+    "STT": 862,
+    "list": "API_PersonFull_T3_KTKL",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21159,
+    "_statementSha256": "10bd249d08d31e309c8a1e84ee91d5d5ae1bfddcda8e4e50c020ba3b49549b73"
+  },
+  {
+    "STT": 863,
+    "list": "API_PersonFull_T4_NghiPhep",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21160,
+    "_statementSha256": "71897c8a70333c32729c6446c89ebec3a833a45761ee5908412271420a914a7d"
+  },
+  {
+    "STT": 864,
+    "list": "API_PersonFull_T4_NghiPhep",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21161,
+    "_statementSha256": "8d0403e2bd6836437c464e05cbd27493cd59d33c083536b3c1bb5af6352e6447"
+  },
+  {
+    "STT": 865,
+    "list": "API_PersonFull_T5_Relation",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21162,
+    "_statementSha256": "6e6f06ce42505675ec4af89fffa89c5b8960e27c6aca1fcb9ae0a70e345d263e"
+  },
+  {
+    "STT": 866,
+    "list": "API_PersonFull_T5_Relation",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21163,
+    "_statementSha256": "cf8fc9278ab3e5031020d6cd6bc2d7a8889dc97cd332e79fc7b4be48bbe55cf5"
+  },
+  {
+    "STT": 867,
+    "list": "API_PersonFull_T6_HopDong",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21164,
+    "_statementSha256": "abe056b561dd14404d1f5a4d9fa368b3ac554cbb1c57af0d9eca90bc2b9a22a4"
+  },
+  {
+    "STT": 868,
+    "list": "API_PersonFull_T6_HopDong",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21165,
+    "_statementSha256": "b00ba339e27c1de5bfb0e52739a0de6a2b533a30b8c27c59c0053d34ca18ccf4"
+  },
+  {
+    "STT": 869,
+    "list": "API_PersonFull_T7_CongTac",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21166,
+    "_statementSha256": "3789bbdab6c613c31def2cc5f5d559b3245affc5b45f17aa479e00fe7a7c0380"
+  },
+  {
+    "STT": 870,
+    "list": "API_PersonFull_T7_CongTac",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21167,
+    "_statementSha256": "40aec8307a73d5e7631bac238cb7eb4131cdb9312703107ea6a0f6eca9db5033"
+  },
+  {
+    "STT": 871,
+    "list": "API_PersonFull_T8_Log",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21168,
+    "_statementSha256": "e821b1b143793a19fee4db8b4a83a186d687c084dd8949224dbdcff3adab79c2"
+  },
+  {
+    "STT": 872,
+    "list": "API_PersonFull_T8_Log",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21169,
+    "_statementSha256": "0da01212bb64b801bacd7e49e14e314a164919ae5af27044aa35474f9109593a"
+  },
+  {
+    "STT": 873,
+    "list": "API_PersonFull_T9_GiayTo",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21170,
+    "_statementSha256": "18afb452752806696f4bd8d9351baab75121655db03e5ba84d412fc0d5f03e0f"
+  },
+  {
+    "STT": 874,
+    "list": "API_PersonFull_T9_GiayTo",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}'",
+    "_sourceLine": 21171,
+    "_statementSha256": "b8fb5d908cb4fc72801e97298c435f44483079ca2342f7d19c1db09f3ab3b4c7"
+  },
+  {
+    "STT": 875,
+    "list": "API_HR_Dashboard_Payroll",
+    "func": "Execute",
+    "SQL": "API_HR_Dashboard_Payroll",
+    "Para": "@PeriodID=N'{PeriodID}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21172,
+    "_statementSha256": "161149389861c78e252ff394da148d700931cd751d8e0d73892280ef8dd2be85"
+  },
+  {
+    "STT": 876,
+    "list": "API_HR_Dashboard_OverviewToday",
+    "func": "Execute",
+    "SQL": "API_HR_Dashboard_OverviewToday",
+    "Para": "@Date=N'{Date}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21173,
+    "_statementSha256": "02de1b23289ff55849e16e78fa3cb7160f4bf126f0208b1225451e6758892c9b"
+  },
+  {
+    "STT": 877,
+    "list": "API_HR_Dashboard_ContractsExpiring",
+    "func": "Execute",
+    "SQL": "API_HR_Dashboard_ContractsExpiring",
+    "Para": "@Days=N'{Days}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21174,
+    "_statementSha256": "893a7ab86327596fd8fefc76b6a12232c4444ac9df6cb7e87b31a1588942b5fc"
+  },
+  {
+    "STT": 878,
+    "list": "API_HR_Dashboard_Demographics",
+    "func": "Execute",
+    "SQL": "API_HR_Dashboard_Demographics",
+    "Para": "@UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21175,
+    "_statementSha256": "41b08362425c6ac1a2b6398f99a1198a72cde443495e583ddbdfe29014e6e825"
+  },
+  {
+    "STT": 883,
+    "list": "API_HR_Dashboard_Department",
+    "func": "Execute",
+    "SQL": "API_HR_Dashboard_Department",
+    "Para": "@UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21176,
+    "_statementSha256": "af6e75d79b52eeb6c0e35ae347a60d0baa1cb69b107160fd25d21a784dfae209"
+  },
+  {
+    "STT": 884,
+    "list": "API_HR_Dashboard_Birthdays",
+    "func": "Execute",
+    "SQL": "API_HR_Dashboard_Birthdays",
+    "Para": "@UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21177,
+    "_statementSha256": "8657085eb5cdf8c5b9c7d6dd70cd00001a565b252877705d709c8ab28e17a122"
+  },
+  {
+    "STT": 888,
+    "list": "API_DangKyFormWeb",
+    "func": "Execute",
+    "SQL": "API_DangKyFormWeb",
+    "Para": "@FormName=N'{List}', @TableName=N'{TableName}', @PrimaryKey=N'{PrimaryKey}', @CaptionVN=N'{CaptionVN}', @CaptionEN=N'{CaptionEN}', @FormType=N'{FormType}', @ViewProcedure=N'{ViewProcedure}', @ViewParameters=N'{ViewParameters}', @Overrides=N'{Overrides}', @OperationProfile=N'{OperationProfile}', @Operations=N'{Operations}', @ReplaceOperations=N'{ReplaceOperations}', @IncludeSaveOperation=N'{IncludeSaveOperation}', @IncludeDeleteOperation=N'{IncludeDeleteOperation}', @EmitResult=N'{EmitResult}', @ApiInsertedOutput=N'{ApiInsertedOutput}', @ApiDeletedOutput=N'{ApiDeletedOutput}', @FieldsInsertedOutput=N'{FieldsInsertedOutput}', @FieldsUpdatedOutput=N'{FieldsUpdatedOutput}', @FieldsDeletedOutput=N'{FieldsDeletedOutput}'",
+    "_sourceLine": 21178,
+    "_statementSha256": "f46eab3e128cb4333771098227617721940e1fd070e630295da173f72a99b9a7"
+  },
+  {
+    "STT": 889,
+    "list": "API_TheoDoiTaiNguyenFormWeb",
+    "func": "Execute",
+    "SQL": "API_TheoDoiTaiNguyenFormWeb",
+    "Para": "@FormName=N'{List}'",
+    "_sourceLine": 21179,
+    "_statementSha256": "59650b2d54c503a12c9cab350697d0b5c83c1fdd4e2a0136b28a2ecbfa0938cd"
+  },
+  {
+    "STT": 892,
+    "list": "WA_QuanLyNghiPhepNamFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21180,
+    "_statementSha256": "06cb15f7d3c84e36e4597efe6662d3eccf4b66ae6f86d4040f3cc69bac0f5bae"
+  },
+  {
+    "STT": 893,
+    "list": "WA_QuanLyNghiPhepNamFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'WA_QuanLyNghiPhepNamFrm', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21181,
+    "_statementSha256": "aede14a448b49e9f5520e77672cafd1ca8ca9e3c9da2b6093113f4091e4b7953"
+  },
+  {
+    "STT": 894,
+    "list": "API_HR_NghiPhep",
+    "func": "Execute",
+    "SQL": "API_HR_NghiPhep",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21182,
+    "_statementSha256": "6cac01c6793ce7c948e1c69f8945e36657d5011c124b4a4c686a4fb6913062da"
+  },
+  {
+    "STT": 895,
+    "list": "WA_HR_NghiPhepFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21183,
+    "_statementSha256": "6724c0cb47c89bddb45ea61c2c022032f35d2c0acedbc217c386e7ae18fa4661"
+  },
+  {
+    "STT": 896,
+    "list": "WA_HR_NghiPhepFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21184,
+    "_statementSha256": "cf59911d605fb97adbc7595583f431b81d4f284d9a712183582a2c283ea8699a"
+  },
+  {
+    "STT": 897,
+    "list": "WA_HR_NghiPhepFrm",
+    "func": "View",
+    "SQL": "API_HR_NghiPhep",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21185,
+    "_statementSha256": "d6302a480c92f7de27b1de67c8ed8cd2cd455d515272a5c66c15a4fc0a36f516"
+  },
+  {
+    "STT": 904,
+    "list": "WA_DonXinNghiPhepF",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21186,
+    "_statementSha256": "64ff68902ad4016435286c5225e155486fcf6fee68385c43fc3f4f3c20f95c82"
+  },
+  {
+    "STT": 905,
+    "list": "WA_DonXinNghiPhepF",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'WA_DonXinNghiPhepF', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21187,
+    "_statementSha256": "53e06798e7a8627e3a4163718d7eb94e78b3b26668450817b5700f2baa99798c"
+  },
+  {
+    "STT": 906,
+    "list": "WA_DonXinNghiPhepF",
+    "func": "View",
+    "SQL": "API_HR_NghiPhep",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21188,
+    "_statementSha256": "6083960fca1c69ff59132b43f180f1a251e0545d7a6da525f428aa3225f8ed24"
+  },
+  {
+    "STT": 930,
+    "list": "API_HR_NghiPhep_Attach_File",
+    "func": "Execute",
+    "SQL": "API_HR_NghiPhep_Attach_File",
+    "Para": "@UserAutoID=N'{UserAutoID}'",
+    "_sourceLine": 21189,
+    "_statementSha256": "b331ab33a038014361dd1df5a8ff4838b03828f3c2a611c96716ead408b54a21"
+  },
+  {
+    "STT": 931,
+    "list": "API_HR_NghiPhep_Attach_Metadata",
+    "func": "Execute",
+    "SQL": "API_HR_NghiPhep_Attach_Metadata",
+    "Para": "@DocumentID=N'{DocumentID}', @UserAutoID=N'{UserAutoID}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21190,
+    "_statementSha256": "3a6c7356e641914ffc983a2d435823a9a115719e049eab51511ea0c4930bee12"
+  },
+  {
+    "STT": 932,
+    "list": "API_HR_NghiPhep_Attach_Save",
+    "func": "Execute",
+    "SQL": "API_HR_NghiPhep_Attach_Save",
+    "Para": "@Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21191,
+    "_statementSha256": "9255f5b4c43e22fa3f211f4c9324282be5777c9ba008ab1de983183911ffd122"
+  },
+  {
+    "STT": 933,
+    "list": "WA_DonXinNghiPhepFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21192,
+    "_statementSha256": "ad0b4081a73446dc2f5a84aa97d2ced64156957e69b8f0cbc286a641933f8f29"
+  },
+  {
+    "STT": 934,
+    "list": "WA_DonXinNghiPhepFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'WA_DonXinNghiPhepFrm', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21193,
+    "_statementSha256": "f4e220cbdd82f40b957607eea1e3a880077d1d29345393dcdcf9959ca5ad59c0"
+  },
+  {
+    "STT": 935,
+    "list": "WA_DonXinNghiPhepFrm",
+    "func": "View",
+    "SQL": "API_HR_NghiPhep",
+    "Para": "@Keyword=N'{Keyword}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21194,
+    "_statementSha256": "18e1e29d55ee414892ea4340f90c6aa317f2b541e1f93e85566dd252c87f7baf"
+  },
+  {
+    "STT": 936,
+    "list": "API_HR_NghiPhep_ChiTiet",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21195,
+    "_statementSha256": "42d74c136a933d47ae3bc60b49e508073f54bd22671bad4cef25c1b42a5e5fc4"
+  },
+  {
+    "STT": 937,
+    "list": "API_HR_NghiPhep_ChiTiet",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'API_HR_NghiPhep_ChiTiet', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21196,
+    "_statementSha256": "95e528f86b6fccb6584b385ae2ecbe444c46adf6369bb0ae6425e354fd2e6761"
+  },
+  {
+    "STT": 938,
+    "list": "API_HR_NghiPhep_ChiTiet",
+    "func": "View",
+    "SQL": "API_HR_NghiPhep_ChiTiet",
+    "Para": "@DocumentID=N'{DocumentID}'",
+    "_sourceLine": 21197,
+    "_statementSha256": "36522fb44b7e25fa78886723af2f435fb615650786a53c96202ab1483ca2dc2b"
+  },
+  {
+    "STT": 939,
+    "list": "API_HR_NghiPhep_Attach",
+    "func": "Delete",
+    "SQL": "API_XoaDong",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21198,
+    "_statementSha256": "62accf5c52d104d637b1b6d048abe57b2a5075efc1f3cc45f40a351e186179ad"
+  },
+  {
+    "STT": 940,
+    "list": "API_HR_NghiPhep_Attach",
+    "func": "Save",
+    "SQL": "API_LuuDong",
+    "Para": "@List=N'API_HR_NghiPhep_Attach', @Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21199,
+    "_statementSha256": "621cc73c2d5d9a1e17ded380a8b874966a04d3f9d414020c6ae04c57d13a094b"
+  },
+  {
+    "STT": 941,
+    "list": "API_HR_NghiPhep_Attach",
+    "func": "View",
+    "SQL": "API_HR_NghiPhep_Attach",
+    "Para": "@DocumentID=N'{DocumentID}'",
+    "_sourceLine": 21200,
+    "_statementSha256": "bd7dadb8bef2225435ce0b41363a82743bc0322ea2a95a68d21d481b7b13babc"
+  },
+  {
+    "STT": 943,
+    "list": "API_HopDongLaoDong_Attach_Metadata",
+    "func": "Execute",
+    "SQL": "API_HopDongLaoDong_Attach_Metadata",
+    "Para": "@MaHopDong=N'{MaHopDong}', @UserAutoID=N'{UserAutoID}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21201,
+    "_statementSha256": "029d996fb0c8c7f748664b8df68e9df760b222bac2af7a38c176decb0d2e124f"
+  },
+  {
+    "STT": 944,
+    "list": "API_HopDongLaoDong_Attach_File",
+    "func": "Execute",
+    "SQL": "API_HopDongLaoDong_Attach_File",
+    "Para": "@UserAutoID=N'{UserAutoID}'",
+    "_sourceLine": 21202,
+    "_statementSha256": "da1e4ea181a720afc950b4989fee4fee9102345206e27b355998776d93f32364"
+  },
+  {
+    "STT": 945,
+    "list": "API_HopDongLaoDong_Attach_Save",
+    "func": "Execute",
+    "SQL": "API_HopDongLaoDong_Attach_Save",
+    "Para": "@Data=N'{JsonData}', @UserName=N'{User}'",
+    "_sourceLine": 21203,
+    "_statementSha256": "6706476073e69a009213672a9c39929cd8b448d464cf35ea9822a2cbd0398fc1"
+  },
+  {
+    "STT": 946,
+    "list": "API_HopDongLaoDong_Attach_Metadata",
+    "func": "View",
+    "SQL": "API_HopDongLaoDong_Attach_Metadata",
+    "Para": "@MaHopDong=N'{MaHopDong}', @UserAutoID=N'{UserAutoID}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21204,
+    "_statementSha256": "bc1b13c5f672a3af41c44a25473d9dae785234ae00c5a899d0f37b60cbe5f00a"
+  },
+  {
+    "STT": 947,
+    "list": "API_HopDongLaoDong_Attach_File",
+    "func": "View",
+    "SQL": "API_HopDongLaoDong_Attach_File",
+    "Para": "@UserAutoID=N'{UserAutoID}'",
+    "_sourceLine": 21205,
+    "_statementSha256": "025ec2670a3dda327e846eae07b1efaec5003ae36cd5f3a1671eca4968569dfd"
+  },
+  {
+    "STT": 948,
+    "list": "WA_HinhThucNghiListFrm",
+    "func": "View",
+    "SQL": "API_DanhSachHinhThucNghi",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21206,
+    "_statementSha256": "c0fa4cde3d042ad271627c839408eed19c00436acac60852d3e176bd1e5736fa"
+  },
+  {
+    "STT": 949,
+    "list": "API_LayQuyenCuaToi",
+    "func": "Execute",
+    "SQL": "API_LayQuyenCuaToi",
+    "Para": "@Username=N'{User}'",
+    "_sourceLine": 21207,
+    "_statementSha256": "3b6261273d1597ff3ee9ded85e96bf442d693c1915159b0e2880e1341f264407"
+  },
+  {
+    "STT": 976,
+    "list": "API_Web_GridFieldSchemaV2",
+    "func": "Execute",
+    "SQL": "API_Web_GridFieldSchemaV2",
+    "Para": "@WebFormName=N'{FormName}', @ERPFormID=N'{ERPFormID}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21208,
+    "_statementSha256": "7e2cd855549fce6875e68827863dd29751a1f8f9fabd5386ada5b7f68de55943"
+  },
+  {
+    "STT": 977,
+    "list": "API_Web_LookupSchemaV2",
+    "func": "Execute",
+    "SQL": "API_Web_LookupSchemaV2",
+    "Para": "@WebFormName=N'{FormName}', @ERPFormID=N'{ERPFormID}', @LookupKey=N'{LookupKey}', @Keyword=N'{Keyword}', @Page=N'{Page}', @PageSize=N'{Limit}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21209,
+    "_statementSha256": "3dd5dcfd1df9bbaa9698afcdac6fd2344658386b4b81640bdde909f53618532d"
+  },
+  {
+    "STT": 978,
+    "list": "API_Web_GridFieldCompareV2",
+    "func": "Execute",
+    "SQL": "API_Web_GridFieldCompareV2",
+    "Para": "@WebFormName=N'{WebFormName}', @ERPFormID=N'{ERPFormID}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21210,
+    "_statementSha256": "757864d54450e5a073d3a9ede4d41c92b9f7120c3ae147cf2c7115cc4523507c"
+  },
+  {
+    "STT": 979,
+    "list": "API_Web_GridFieldSchemaV2",
+    "func": "View",
+    "SQL": "API_Web_GridFieldSchemaV2",
+    "Para": "@WebFormName=N'{FormName}', @ERPFormID=N'{ERPFormID}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21211,
+    "_statementSha256": "093cff3e56e69655d3175ff141119574e9e57437a77d823fdf827476bbefb240"
+  },
+  {
+    "STT": 980,
+    "list": "API_Web_GridFieldCompareV2",
+    "func": "View",
+    "SQL": "API_Web_GridFieldCompareV2",
+    "Para": "@WebFormName=N'{FormName}', @ERPFormID=N'{ERPFormID}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21212,
+    "_statementSha256": "8091245180838d44c14daca244f3dc86e578c4222a8551ca27299e45facf2a75"
+  },
+  {
+    "STT": 981,
+    "list": "API_Web_LookupSchemaV2",
+    "func": "View",
+    "SQL": "API_Web_LookupSchemaV2",
+    "Para": "@WebFormName=N'{FormName}', @ERPFormID=N'{ERPFormID}', @LookupKey='{LookupKey}', @Keyword=N'{Keyword}', @Page={Page}, @PageSize={PageSize}, @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21213,
+    "_statementSha256": "a85cd94aac7c9e985b2fd0db0e130dcd1cf197f4a195d8114f018da5d81dd795"
+  },
+  {
+    "STT": 982,
+    "list": "API_BangThueTNCN_V2",
+    "func": "Execute",
+    "SQL": "API_BangThueTNCN_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21214,
+    "_statementSha256": "5e5adc628fcb63640ca7078e0fbee9b17e16a6571112deb82bb069190483db2f"
+  },
+  {
+    "STT": 983,
+    "list": "API_LuuDong_V2",
+    "func": "Execute",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21215,
+    "_statementSha256": "6ecc7c3bf417a6cf4edf6b71cdd4084f69977e0fa1c818bb4e584152b6e91da9"
+  },
+  {
+    "STT": 984,
+    "list": "API_XoaDong_V2",
+    "func": "Execute",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21216,
+    "_statementSha256": "8f8a7233bdfdd3d5addaf77729585b21ea51b7a63ef16f8514aa300a9c90b777"
+  },
+  {
+    "STT": 985,
+    "list": "WA_BangThueTNCNFrm",
+    "func": "View",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21217,
+    "_statementSha256": "77bdf46e2ad16d07985283ed7d845220c761fc8d0b95feaddc42a9be0dfe31a1"
+  },
+  {
+    "STT": 986,
+    "list": "WA_BangThueTNCNFrm",
+    "func": "Save",
+    "SQL": "API_LuuDong_V2",
+    "Para": "@List=N'{List}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21218,
+    "_statementSha256": "be4801959d459a722e0cfb7e462a9d13b571adb52d50e8f29c36be9042c6a0e0"
+  },
+  {
+    "STT": 987,
+    "list": "WA_BangThueTNCNFrm",
+    "func": "Delete",
+    "SQL": "API_XoaDong_V2",
+    "Para": "@List=N'{List}', @Ids=N'{Ids}', @UserName=N'{User}', @Data=N'{JsonData}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21219,
+    "_statementSha256": "6b1c645e2426c6b3ff35ed078dfb0d0d7b8d56e10667a54da57aef56641dcb64"
+  },
+  {
+    "STT": 988,
+    "list": "API_TruyVanDong_V2",
+    "func": "Execute",
+    "SQL": "API_TruyVanDong_V2",
+    "Para": "@List=N'{List}', @Keyword=N'{Keyword}', @SortColumn=N'{SortColumn}', @SortDir=N'{SortDir}', @Data=N'{JsonData}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21220,
+    "_statementSha256": "d6d50345466c5a40029fd65badd69c6c662781a2bba0b4553d613dcd1332f801"
+  },
+  {
+    "STT": 989,
+    "list": "API_Web_UpdateFieldFormat",
+    "func": "Execute",
+    "SQL": "API_Web_UpdateFieldFormat",
+    "Para": "@WebFormName=N'{FormName}', @FieldName=N'{FieldName}', @CaptionVN=N'{CaptionVN}', @CaptionEN=N'{CaptionEN}', @CaptionCH=N'{CaptionCH}', @FormatID=N'{FormatID}', @AlignX=N'{AlignX}', @MinWidth=N'{MinWidth}', @MaxWidth=N'{MaxWidth}', @UserName=N'{User}'",
+    "_sourceLine": 21221,
+    "_statementSha256": "6de08867c112d6239db9e834c8f62074863d893be2c2a627132f4a9674dced3c"
+  },
+  {
+    "STT": 990,
+    "list": "API_Web_UpdateFieldFormat",
+    "func": "View",
+    "SQL": "API_Web_UpdateFieldFormat",
+    "Para": "@WebFormName=N'{WebFormName}', @FieldName=N'{FieldName}', @CaptionVN=N'{CaptionVN}', @CaptionEN=N'{CaptionEN}', @CaptionCH=N'{CaptionCH}', @FormatID=N'{FormatID}', @AlignX=N'{AlignX}', @MinWidth={MinWidth}, @MaxWidth={MaxWidth}, @UserName=N'{UserName}'",
+    "_sourceLine": 21222,
+    "_statementSha256": "1aa150b90a7ec3e0ac94c823493ca2af1829d8585ff7b41bd6f156d06e304469"
+  },
+  {
+    "STT": 991,
+    "list": "API_Web_UpdateFieldFormat",
+    "func": "Save",
+    "SQL": "API_Web_UpdateFieldFormat",
+    "Para": "@WebFormName=N'{WebFormName}', @FieldName=N'{FieldName}', @CaptionVN=N'{CaptionVN}', @CaptionEN=N'{CaptionEN}', @CaptionCH=N'{CaptionCH}', @FormatID=N'{FormatID}', @AlignX=N'{AlignX}', @MinWidth={MinWidth}, @MaxWidth={MaxWidth}, @UserName=N'{UserName}'",
+    "_sourceLine": 21223,
+    "_statementSha256": "e3c72b248e3f353d928c188c999c96c2cc54f29de7f42466b760b9574b97e9fb"
+  },
+  {
+    "STT": 992,
+    "list": "API_Web_JoinFieldSchemaV2",
+    "func": "Execute",
+    "SQL": "API_Web_JoinFieldSchemaV2",
+    "Para": "@WebFormName=N'{FormName}', @DetailKey=N'{DetailKey}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21224,
+    "_statementSha256": "e3a0d10b4f9ea345146ce86fa30965ed2c36942f186e489d92a05f96e5a09b64"
+  },
+  {
+    "STT": 993,
+    "list": "API_Web_JoinFieldSchemaV2",
+    "func": "View",
+    "SQL": "API_Web_JoinFieldSchemaV2",
+    "Para": "@WebFormName=N'{FormName}', @DetailKey=N'{DetailKey}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21225,
+    "_statementSha256": "0af7f08221b46e26e0cfbf33d579ce1dc8ca1de0e728196f124cf2d8c9cfbfe9"
+  },
+  {
+    "STT": 994,
+    "list": "API_CaLamViec_ChiTiet",
+    "func": "Execute",
+    "SQL": "API_CaLamViec_ChiTiet",
+    "Para": "@SapCaID=N'{SapCaID}'",
+    "_sourceLine": 21227,
+    "_statementSha256": "0bf861af236125cf05ebe6487d3374cae1280d905d676082966e6616a1a7342f"
+  },
+  {
+    "STT": 995,
+    "list": "API_CaLamViec",
+    "func": "Execute",
+    "SQL": "API_CaLamViec",
+    "Para": "@Keyword=N'{Keyword}'",
+    "_sourceLine": 21228,
+    "_statementSha256": "faa80cd59ece1f268fbb2d1b832813a99e55380c0d23216af5dc876fd5212941"
+  },
+  {
+    "STT": 996,
+    "list": "API_Web_FieldContractResolveV2",
+    "func": "Execute",
+    "SQL": "API_Web_FieldContractResolveV2",
+    "Para": "@FormName=N'{FormName}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21229,
+    "_statementSha256": "39bbc54a336f7e34780f706b4587dbcc3ce53c118b1fbcb808b1a8045ee830f7"
+  },
+  {
+    "STT": 997,
+    "list": "API_Web_FieldContractResolveV2",
+    "func": "View",
+    "SQL": "API_Web_FieldContractResolveV2",
+    "Para": "@FormName=N'{FormName}', @UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21230,
+    "_statementSha256": "e11761e8735c599570ca55d949d5328c873585fa9d2c46bd511805a372a1f672"
+  },
+  {
+    "STT": 998,
+    "list": "API_Web_DiscoverFieldContractCandidatesV2",
+    "func": "Execute",
+    "SQL": "API_Web_DiscoverFieldContractCandidatesV2",
+    "Para": "",
+    "_sourceLine": 21231,
+    "_statementSha256": "763bce93143f34af7da438a61d5e4d1e171e6245fb6a4e70cbbbad549941cc8a"
+  },
+  {
+    "STT": 999,
+    "list": "API_Web_SeedSafeFieldContractsV2",
+    "func": "Execute",
+    "SQL": "API_Web_SeedSafeFieldContractsV2",
+    "Para": "@UserName=N'{User}'",
+    "_sourceLine": 21232,
+    "_statementSha256": "935283e22a5dac59f8fc5668f42fa9f4f21e77b615a1f641d8d3ccfbd94b05d2"
+  },
+  {
+    "STT": 1000,
+    "list": "API_Web_CutoverSafeFieldContractsV2",
+    "func": "Execute",
+    "SQL": "API_Web_CutoverSafeFieldContractsV2",
+    "Para": "@WebFormName=N'{FormName}', @UserName=N'{User}', @BatchID=N'{BatchID}'",
+    "_sourceLine": 21233,
+    "_statementSha256": "adb0ceb3e6b5aa4fecbe5cee3896f2da4dad7f4096ba5dfe47ad7fded29b2186"
+  },
+  {
+    "STT": 1001,
+    "list": "API_Web_RollbackFieldContractV2",
+    "func": "Execute",
+    "SQL": "API_Web_RollbackFieldContractV2",
+    "Para": "@WebFormName=N'{FormName}', @BatchID=N'{BatchID}', @TargetStatus=N'{TargetStatus}', @UserName=N'{User}'",
+    "_sourceLine": 21234,
+    "_statementSha256": "4b795db902d250a03b0029a20a6c11da499557699b60813d3b8aaa4589d15a14"
+  },
+  {
+    "STT": 1002,
+    "list": "API_HR_Dashboard_GetBranches",
+    "func": "Execute",
+    "SQL": "API_HR_Dashboard_GetBranches",
+    "Para": "@UserName=N'{User}', @BranchID=N'{BranchID}'",
+    "_sourceLine": 21235,
+    "_statementSha256": "91ad47139cb351eefced7ee3adaa9fe01ebbd2f7d7c504efc19e04b901a82db7"
+  }
+]

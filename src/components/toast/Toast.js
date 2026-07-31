@@ -1,67 +1,34 @@
 /**
- * Toast Component
- * Khác với Alert (Gây gián đoạn), Toast hiện lên lặng lẽ ở góc và tự biến mất sau 3s
+ * Lớp tương thích cho các màn hình còn gọi UIToast.
+ * Mọi thông báo được chuyển về Alert để toàn hệ thống chỉ dùng popup phía trên.
  */
 var UIToast = (function () {
+  var TYPE_CONFIG = {
+    success: { method: 'success', title: 'Thành công' },
+    error: { method: 'error', title: 'Lỗi' },
+    danger: { method: 'error', title: 'Lỗi' },
+    warning: { method: 'warning', title: 'Cảnh báo' },
+    info: { method: 'info', title: 'Thông báo' }
+  };
 
-  // Auto-init container
-  var container = null;
-  document.addEventListener('DOMContentLoaded', function() {
-    if (!document.getElementById('ui-toast-container')) {
-      container = document.createElement('div');
-      container.id = 'ui-toast-container';
-      document.body.appendChild(container);
-    } else {
-      container = document.getElementById('ui-toast-container');
+  function show(message, type, duration) {
+    var normalizedType = String(type || 'success').trim().toLowerCase();
+    var config = TYPE_CONFIG[normalizedType] || TYPE_CONFIG.info;
+    if (!window.Alert || typeof Alert[config.method] !== 'function') return null;
+    var t = Alert[config.method](config.title, String(message || ''), duration);
+    if (t && typeof t.close !== 'function') {
+      t.close = function () { hide(t); };
     }
-  });
+    return t;
+  }
 
-  /**
-   * Gọi thông báo
-   * @param {string} msg - Nội dung thông báo
-   * @param {string} type - 'success', 'error', 'warning', 'info'
-   */
-  function show(msg, type) {
-    if (!container) return; // Fallback
-
-    var toast = document.createElement('div');
-    toast.className = 'ui-toast ' + (type || 'success');
-
-    var iconMap = {
-      'success': 'check_circle',
-      'error': 'error',
-      'warning': 'warning',
-      'info': 'info'
-    };
-
-    var icon = document.createElement('span');
-    icon.className = 'material-symbols-outlined ui-toast-icon';
-    icon.innerText = iconMap[type || 'success'] || 'info';
-
-    var txt = document.createElement('div');
-    txt.className = 'ui-toast-content';
-    txt.innerText = msg;
-
-    toast.appendChild(icon);
-    toast.appendChild(txt);
-    container.appendChild(toast);
-
-    // Trigger animate in
-    requestAnimationFrame(function() {
-      toast.classList.add('show');
-    });
-
-    // Tự động tắt sau 3 giây
-    setTimeout(function() {
-      toast.classList.remove('show');
-      // Đợi animation chạy xong rồi xóa node
-      setTimeout(function() {
-        if (toast.parentNode) toast.remove();
-      }, 300);
-    }, 3000);
+  function hide(notification) {
+    if (!window.Alert || typeof Alert.hide !== 'function') return;
+    Alert.hide(notification);
   }
 
   return {
-    show: show
+    show: show,
+    hide: hide
   };
 })();

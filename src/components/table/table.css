@@ -596,3 +596,33 @@ body.dark-theme .data-table tbody tr:hover {
     color: #2563eb !important;
   }
 }
+
+.dynamic-grid-loading-state {
+  flex: 1;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.dynamic-grid-loading-icon {
+  color: var(--color-primary);
+  font-size: 22px;
+  animation: dynamic-grid-loading-spin 0.8s linear infinite;
+}
+
+@keyframes dynamic-grid-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dynamic-grid-loading-icon {
+    animation: none;
+  }
+}

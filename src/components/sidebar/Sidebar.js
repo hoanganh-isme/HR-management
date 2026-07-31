@@ -6,6 +6,7 @@
 var Sidebar = (function () {
 
   var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_CONTRACT_VERSION = 2;
   var NAV_CONFIG = [];
 
   function _buildConfigFromDB(dbMenus) {
@@ -75,7 +76,14 @@ var Sidebar = (function () {
     // Thử load từ cache giống Navbar
     try {
       var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
-      if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
+      if (
+        cached
+        && cached.contractVersion === CACHE_CONTRACT_VERSION
+        && cached.groupId === groupId
+        && cached.config
+        && cached.config.length > 0
+        && Array.isArray(cached.rawRecords)
+      ) {
         NAV_CONFIG = cached.config;
         _doRender(container);
         return;
@@ -102,7 +110,8 @@ var Sidebar = (function () {
             sessionStorage.setItem(CACHE_KEY, JSON.stringify({
               groupId: groupId,
               config: NAV_CONFIG,
-              rawRecords: records
+              rawRecords: records,
+              contractVersion: CACHE_CONTRACT_VERSION
             }));
           } catch (e) { }
         }

@@ -1,8 +1,9 @@
-version: '3'
 services:
   backend-app:
     build: ./backend-app
     container_name: backend_app
+    env_file:
+      - ./backend-app/.env
     ports:
       - "8083:8081"
     volumes:

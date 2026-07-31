@@ -1,60 +1,59 @@
--- ==============================================================================
--- SCRIPT ĐĂNG KÝ ROUTER CHO DASHBOARD VÀO BẢNG [WA_API]
--- Chạy script này để API_Gateway_Router có thể gọi được các Stored Procedure mới
--- ==============================================================================
-
--- 1. Đăng ký API Tổng quan hôm nay
-IF NOT EXISTS (SELECT 1 FROM [dbo].[WA_API] WHERE [list] = 'API_HR_Dashboard_OverviewToday' AND [func] = 'View')
-BEGIN
-    INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
-    VALUES ('API_HR_Dashboard_OverviewToday', 'View', 'API_HR_Dashboard_OverviewToday', '')
-END
+SET XACT_ABORT ON;
 GO
 
--- 2. Đăng ký API Cơ cấu nhân sự
-IF NOT EXISTS (SELECT 1 FROM [dbo].[WA_API] WHERE [list] = 'API_HR_Dashboard_Demographics' AND [func] = 'View')
-BEGIN
-    INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
-    VALUES ('API_HR_Dashboard_Demographics', 'View', 'API_HR_Dashboard_Demographics', '')
-END
+/* ============================================================================
+   KHÓA ĐƯỜNG GỌI TRỰC TIẾP DASHBOARD QUA WA_API
+   Tên file được giữ để các quy trình triển khai cũ không đăng ký lại route.
+   Dashboard mới chỉ gọi stored procedure qua backend đã xác minh token.
+   ============================================================================ */
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    DECLARE @DashboardRoutes table
+    (
+        [List] varchar(100) NOT NULL PRIMARY KEY
+    );
+
+    INSERT INTO @DashboardRoutes ([List])
+    VALUES
+        ('API_HR_Dashboard_GetBranches'),
+        ('API_HR_Dashboard_OverviewToday'),
+        ('API_HR_Dashboard_Demographics'),
+        ('API_HR_Dashboard_Department'),
+        ('API_HR_Dashboard_Birthdays'),
+        ('API_HR_Dashboard_Payroll'),
+        ('API_HR_Dashboard_ContractsExpiring');
+
+    DELETE Existing
+    FROM dbo.WA_API AS Existing
+    INNER JOIN @DashboardRoutes AS DashboardRoute
+        ON DashboardRoute.[List] = Existing.[list]
+    WHERE Existing.[func] = 'View';
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
 GO
 
--- 3. Đăng ký API Quỹ lương & Phúc lợi
-IF NOT EXISTS (SELECT 1 FROM [dbo].[WA_API] WHERE [list] = 'API_HR_Dashboard_Payroll' AND [func] = 'View')
-BEGIN
-    INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
-    VALUES ('API_HR_Dashboard_Payroll', 'View', 'API_HR_Dashboard_Payroll', '@PeriodID=''{PeriodID}''')
-END
-GO
-
--- 4. Đăng ký API Hợp đồng sắp hết hạn
-IF NOT EXISTS (SELECT 1 FROM [dbo].[WA_API] WHERE [list] = 'API_HR_Dashboard_ContractsExpiring' AND [func] = 'View')
-BEGIN
-    INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
-    VALUES ('API_HR_Dashboard_ContractsExpiring', 'View', 'API_HR_Dashboard_ContractsExpiring', '@Days={Days}')
-END
-GO
-
--- 5. Đăng ký API Phân bổ theo Phòng Ban
-IF NOT EXISTS (SELECT 1 FROM [dbo].[WA_API] WHERE [list] = 'API_HR_Dashboard_Department' AND [func] = 'View')
-BEGIN
-    INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
-    VALUES ('API_HR_Dashboard_Department', 'View', 'API_HR_Dashboard_Department', '')
-END
-GO
-
--- 6. Đăng ký API Sinh nhật trong tháng
-IF NOT EXISTS (SELECT 1 FROM [dbo].[WA_API] WHERE [list] = 'API_HR_Dashboard_Birthdays' AND [func] = 'View')
-BEGIN
-    INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
-    VALUES ('API_HR_Dashboard_Birthdays', 'View', 'API_HR_Dashboard_Birthdays', '')
-END
-GO
-
--- 7. Đăng ký API Lấy danh sách Chi nhánh (Filter)
-IF NOT EXISTS (SELECT 1 FROM [dbo].[WA_API] WHERE [list] = 'API_HR_Dashboard_GetBranches' AND [func] = 'View')
-BEGIN
-    INSERT INTO [dbo].[WA_API] ([list], [func], [SQL], [Para])
-    VALUES ('API_HR_Dashboard_GetBranches', 'View', 'API_HR_Dashboard_GetBranches', '')
-END
+/* Kết quả phải rỗng sau khi khóa đường gọi trực tiếp. */
+SELECT
+    A.[list],
+    A.[func],
+    A.[SQL],
+    A.[Para]
+FROM dbo.WA_API AS A
+WHERE A.[list] IN
+(
+    'API_HR_Dashboard_GetBranches',
+    'API_HR_Dashboard_OverviewToday',
+    'API_HR_Dashboard_Demographics',
+    'API_HR_Dashboard_Department',
+    'API_HR_Dashboard_Birthdays',
+    'API_HR_Dashboard_Payroll',
+    'API_HR_Dashboard_ContractsExpiring'
+)
+  AND A.[func] = 'View';
 GO

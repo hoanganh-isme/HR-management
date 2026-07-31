@@ -8,6 +8,7 @@ var DashboardPage = (function () {
   var _innerRoot = null;
   var _currentTemplate = null;
   var _currentBranch = ''; // State lưu trữ Chi nhánh đang chọn để lọc
+  var _lastDataErrorAt = 0;
 
   // ── Format helpers ─────────────────────────────────────────────
   function _fmtShort(n) {
@@ -23,7 +24,44 @@ var DashboardPage = (function () {
       ' - ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
   }
 
-  // ── Async Data Service (Lấy dữ liệu từ SP hoặc Fallback Mock) ──
+  function _periodId(monthOffset) {
+    var date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() + (monthOffset || 0));
+    return String(date.getFullYear()) + ('0' + (date.getMonth() + 1)).slice(-2);
+  }
+
+  function _dashboardBaseUrl() {
+    var dashboardConfig = window.API_CONFIG
+      && API_CONFIG.ENDPOINTS
+      && API_CONFIG.ENDPOINTS.DASHBOARD;
+    return dashboardConfig && dashboardConfig.BASE_API
+      ? String(dashboardConfig.BASE_API).replace(/\/+$/, '')
+      : '';
+  }
+
+  function _currentUserName() {
+    return window.AppSession && typeof AppSession.getUserName === 'function'
+      ? String(AppSession.getUserName() || '').trim()
+      : '';
+  }
+
+  function _isAdmin() {
+    return !!(window.AppSession
+      && typeof AppSession.isAdmin === 'function'
+      && AppSession.isAdmin());
+  }
+
+  function _notifyDataError(message) {
+    var now = Date.now();
+    if (now - _lastDataErrorAt < 5000) return;
+    _lastDataErrorAt = now;
+    if (window.Alert && typeof Alert.error === 'function') {
+      Alert.error('Lỗi dashboard', message || 'Không thể tải dữ liệu dashboard.');
+    }
+  }
+
+  // Dịch vụ dữ liệu chỉ gọi backend đã xác thực; không dùng dữ liệu giả khi lỗi.
   var HRDataService = {
     _getVal: function (obj, key, defaultVal) {
       if (!obj) return defaultVal;
@@ -45,48 +83,43 @@ var DashboardPage = (function () {
       return res;
     },
 
-    _fetchAPI: function (spName, params, mockFallback) {
-      return new Promise(function (resolve) {
-        if (typeof ApiClient !== 'undefined') {
-          var payload = Object.assign({ Func: 'View', List: spName, FormName: spName, Limit: 1000 }, params || {});
-          ApiClient.post('/api/API_Gateway_Router', payload)
-            .then(function (res) {
-              var data = null;
-              if (Array.isArray(res)) {
-                data = res;
-              } else if (res && typeof res === 'object') {
-                data = res.data || res.list || res.records || res.Data || res.List || res.Records;
-                if (!data && res.totalHeadcount !== undefined) {
-                  data = [res];
-                }
-              }
+    _fetchAPI: function (queryName, params) {
+      var endpoint = _dashboardBaseUrl();
+      var userName = _currentUserName();
+      if (!endpoint || typeof ApiClient === 'undefined' || !userName) {
+        _notifyDataError('Thiếu cấu hình hoặc phiên đăng nhập hợp lệ.');
+        return Promise.resolve([]);
+      }
 
-              if (!data || !Array.isArray(data) || data.length === 0 || (data.length === 1 && Object.keys(data[0]).length === 0)) {
-                console.warn('[' + spName + '] API trả về rỗng. Dùng dữ liệu mẫu (Mock).', res);
-                return resolve(mockFallback);
-              }
-              resolve(data);
-            })
-            .catch(function (err) {
-              console.error('[' + spName + '] Lỗi gọi API:', err);
-              resolve(mockFallback);
-            });
-        } else {
-          setTimeout(function () { resolve(mockFallback); }, 300);
+      return ApiClient.post(endpoint + '/query', {
+        list: queryName,
+        branchId: _currentBranch,
+        params: params || {}
+      }, {
+        headers: {
+          Username: userName
         }
+      }).then(function (response) {
+        var records = response && response.records;
+        return Array.isArray(records) ? records : [];
+      }).catch(function (error) {
+        console.error('[' + queryName + '] Lỗi tải dữ liệu dashboard:', error);
+        var message = error && error.status === 403
+          ? 'Tài khoản không có quyền xem dữ liệu này.'
+          : 'Không thể tải dữ liệu từ máy chủ.';
+        _notifyDataError(message);
+        return [];
       });
     },
 
     getBranches: function () {
-      var mock = [{ value: 'COBI', label: 'COBI' }, { value: 'DONGDU', label: 'DONGDU' }];
-      return this._fetchAPI('API_HR_Dashboard_GetBranches', {}, mock);
+      return this._fetchAPI('API_HR_Dashboard_GetBranches', {});
     },
 
     getOverviewToday: function () {
-      var mock = { totalHeadcount: 245, present: 230, late: 8, absent: 7, newHires: 12, probationExpiring: 4 };
-      return this._fetchAPI('API_HR_Dashboard_OverviewToday', { BranchID: _currentBranch }, [mock]).then(function (data) {
+      return this._fetchAPI('API_HR_Dashboard_OverviewToday', {}).then(function (data) {
         var raw = Array.isArray(data) ? data[0] : data;
-        if (!raw) raw = mock;
+        if (!raw) raw = {};
         return {
           totalHeadcount: HRDataService._getVal(raw, 'totalHeadcount', 0),
           present: HRDataService._getVal(raw, 'present', 0),
@@ -99,13 +132,7 @@ var DashboardPage = (function () {
     },
 
     getDemographicsData: function () {
-      var mock = [
-        { groupType: 'Gender', label: 'Nam', value: 120 }, { groupType: 'Gender', label: 'Nữ', value: 125 },
-        { groupType: 'Age', label: 'Dưới 25 tuổi', value: 50 }, { groupType: 'Age', label: '25-35 tuổi', value: 100 }, { groupType: 'Age', label: '36-45 tuổi', value: 80 }, { groupType: 'Age', label: 'Trên 45 tuổi', value: 15 },
-        { groupType: 'Contract', label: 'Có thời hạn', value: 180 }, { groupType: 'Contract', label: 'Không thời hạn', value: 50 }, { groupType: 'Contract', label: 'Thử việc', value: 15 }
-      ];
-      return this._fetchAPI('API_HR_Dashboard_Demographics', { BranchID: _currentBranch }, mock).then(function (data) {
-        var isMock = (data === mock);
+      return this._fetchAPI('API_HR_Dashboard_Demographics', {}).then(function (data) {
         var rsGender = data.filter(function (x) { return x.groupType === 'Gender'; });
         var rsAge = data.filter(function (x) { return x.groupType === 'Age'; });
         var rsContract = data.filter(function (x) { return x.groupType === 'Contract'; });
@@ -119,12 +146,7 @@ var DashboardPage = (function () {
     },
 
     getDepartmentHeadcount: function () {
-      var mock = [
-        { groupType: 'Dept', label: 'Phòng Kinh Doanh', value: 120 }, { groupType: 'Dept', label: 'Phòng Kỹ Thuật', value: 85 },
-        { groupType: 'Branch', label: 'COBI', value: 100 }, { groupType: 'Branch', label: 'DONGDU', value: 105 }
-      ];
-      return this._fetchAPI('API_HR_Dashboard_Department', { BranchID: _currentBranch }, mock).then(function (data) {
-        var isMock = (data === mock);
+      return this._fetchAPI('API_HR_Dashboard_Department', {}).then(function (data) {
         var rsDept = data.filter(function (x) { return x.groupType === 'Dept'; });
         var rsBranch = data.filter(function (x) { return x.groupType === 'Branch'; });
         return {
@@ -135,11 +157,7 @@ var DashboardPage = (function () {
     },
 
     getBirthdays: function () {
-      var mock = [
-        { empName: 'Trần Văn Demo (Kinh Doanh)', birthdayDate: '15/07', birthDay: 15 },
-        { empName: 'Lê Thị Mẫu (Kế Toán)', birthdayDate: '22/07', birthDay: 22 }
-      ];
-      return this._fetchAPI('API_HR_Dashboard_Birthdays', { BranchID: _currentBranch }, mock).then(function (data) {
+      return this._fetchAPI('API_HR_Dashboard_Birthdays', {}).then(function (data) {
         var rows = [];
         data.forEach(function (item) {
           rows.push({
@@ -148,56 +166,65 @@ var DashboardPage = (function () {
             birthDay: HRDataService._getVal(item, 'birthDay', 1)
           });
         });
-        return rows.length > 0 ? rows : mock;
+        return rows;
       });
     },
 
     getPayrollData: function (period) {
-      var mock = {
-        totalSalary: 2100e6, prevTotalSalary: 1880e6, pctChange: 11.7,
-        bonus: 210e6, prevBonus: 188e6, insurance: 451500000, prevInsurance: 404200000,
-        avgSalary: 8571400, sparkline: [40, 50, 45, 60, 55, 70, 65],
-        deptLabels: ['Kinh doanh', 'Kế toán', 'Kỹ thuật', 'Hành chính'],
-        deptValues: [45, 15, 30, 10]
+      var empty = {
+        totalSalary: 0,
+        prevTotalSalary: 0,
+        pctChange: 0,
+        bonus: 0,
+        prevBonus: 0,
+        insurance: 0,
+        prevInsurance: 0,
+        avgSalary: 0,
+        sparkline: [],
+        deptLabels: [],
+        deptValues: []
       };
-      return this._fetchAPI('API_HR_Dashboard_Payroll', { PeriodID: period, BranchID: _currentBranch }, null).then(function (data) {
-        if (!data || !Array.isArray(data) || data.length === 0) return mock;
-        var raw = Array.isArray(data[0]) ? data[0][0] : data[0];
-        if (!raw) return mock;
+      return this._fetchAPI('API_HR_Dashboard_Payroll', { PeriodID: period }).then(function (data) {
+        if (!data || !Array.isArray(data) || data.length === 0) return empty;
+        var hasMultipleResultSets = Array.isArray(data[0]);
+        var firstSet = hasMultipleResultSets ? data[0] : data;
+        var raw = firstSet[0];
+        if (!raw) return empty;
 
         var main = {
-          totalSalary: HRDataService._getVal(raw, 'totalSalary', mock.totalSalary),
-          prevTotalSalary: HRDataService._getVal(raw, 'prevTotalSalary', mock.prevTotalSalary),
-          bonus: HRDataService._getVal(raw, 'bonus', mock.bonus),
-          prevBonus: HRDataService._getVal(raw, 'prevBonus', mock.prevBonus),
-          insurance: HRDataService._getVal(raw, 'insurance', mock.insurance),
-          prevInsurance: HRDataService._getVal(raw, 'prevInsurance', mock.prevInsurance)
+          totalSalary: HRDataService._getVal(raw, 'totalSalary', 0),
+          prevTotalSalary: HRDataService._getVal(raw, 'prevTotalSalary', 0),
+          bonus: HRDataService._getVal(raw, 'bonus', 0),
+          prevBonus: HRDataService._getVal(raw, 'prevBonus', 0),
+          insurance: HRDataService._getVal(raw, 'insurance', 0),
+          prevInsurance: HRDataService._getVal(raw, 'prevInsurance', 0)
         };
 
-        main.avgSalary = main.totalSalary / 245;
+        var employeeCount = HRDataService._getVal(raw, 'employeeCount', 0);
+        main.avgSalary = employeeCount > 0 ? main.totalSalary / employeeCount : 0;
         main.pctChange = main.prevTotalSalary ? ((main.totalSalary - main.prevTotalSalary) / main.prevTotalSalary * 100) : 0;
-        main.sparkline = mock.sparkline;
+        main.sparkline = [];
 
-        var deptData = Array.isArray(data[1]) ? data[1] : (data.length > 1 ? data : []);
+        var deptData = hasMultipleResultSets && Array.isArray(data[1])
+          ? data[1]
+          : data.filter(function (item) {
+            return item && item.label !== undefined && item.value !== undefined;
+          });
         if (deptData.length > 0) {
           var mappedDept = HRDataService._mapArray(deptData, 'label', 'value');
           main.deptLabels = mappedDept.labels;
           main.deptValues = mappedDept.values;
         } else {
-          main.deptLabels = mock.deptLabels;
-          main.deptValues = mock.deptValues;
+          main.deptLabels = [];
+          main.deptValues = [];
         }
         return main;
       });
     },
 
     getContractsExpiring: function () {
-      var mock = [
-        { empName: 'Nguyễn Văn A (Kỹ thuật)', expireDate: '12/08/2026', statusLevel: 'danger' },
-        { empName: 'Trần Thị B (Kế toán)', expireDate: '15/08/2026', statusLevel: 'warning' }
-      ];
-      return this._fetchAPI('API_HR_Dashboard_ContractsExpiring', { Days: 30, BranchID: _currentBranch }, mock).then(function (data) {
-        if (!data || data === mock || !Array.isArray(data)) return mock;
+      return this._fetchAPI('API_HR_Dashboard_ContractsExpiring', { Days: 30 }).then(function (data) {
+        if (!data || !Array.isArray(data)) return [];
         var rows = [];
         data.forEach(function (item) {
           rows.push({
@@ -206,7 +233,7 @@ var DashboardPage = (function () {
             statusLevel: HRDataService._getVal(item, 'statusLevel', 'info')
           });
         });
-        return rows.length > 0 ? rows : mock;
+        return rows;
       });
     }
   };
@@ -473,7 +500,7 @@ var DashboardPage = (function () {
   // ── Mẫu 2: Tiền Lương (Payroll) ──────────────────────────────────
   function PayrollTemplate(root) {
     BaseDashboardTemplate.call(this, root);
-    this.period = { payroll: 'month' };
+    this.period = { payroll: _periodId(0) };
   }
   PayrollTemplate.prototype = Object.create(BaseDashboardTemplate.prototype);
   PayrollTemplate.prototype.constructor = PayrollTemplate;
@@ -487,7 +514,19 @@ var DashboardPage = (function () {
     var self = this;
     var sp = SectionPanel.create({
       icon: 'account_balance_wallet', title: 'TỔNG QUAN QUỸ LƯƠNG & PHÚC LỢI',
-      actions: [{ type: 'select', id: 'period-payroll', options: [{ value: 'week', label: 'Kỳ 1' }, { value: 'month', label: 'Tháng này' }], defaultValue: 'month', onChange: function (v) { self.period.payroll = v; self.updatePayroll(); } }]
+      actions: [{
+        type: 'select',
+        id: 'period-payroll',
+        options: [
+          { value: _periodId(0), label: 'Tháng này' },
+          { value: _periodId(-1), label: 'Tháng trước' }
+        ],
+        defaultValue: _periodId(0),
+        onChange: function (value) {
+          self.period.payroll = value;
+          self.updatePayroll();
+        }
+      }]
     });
 
     var grid = document.createElement('div'); grid.className = 'db-revenue-grid';
@@ -532,8 +571,8 @@ var DashboardPage = (function () {
 
       self.renderCompareBadges(grid, [
         { selector: '[data-rv-cmp="totalSalary"]', pct: d.pctChange, reverse: true },
-        { selector: '[data-rv-cmp="insurance"]', pct: (d.insurance - d.prevInsurance) / d.prevInsurance * 100, reverse: true },
-        { selector: '[data-rv-cmp="bonus"]', pct: (d.bonus - d.prevBonus) / d.prevBonus * 100, reverse: false }
+        { selector: '[data-rv-cmp="insurance"]', pct: d.prevInsurance ? (d.insurance - d.prevInsurance) / d.prevInsurance * 100 : 0, reverse: true },
+        { selector: '[data-rv-cmp="bonus"]', pct: d.prevBonus ? (d.bonus - d.prevBonus) / d.prevBonus * 100 : 0, reverse: false }
       ]);
       SparklineChart.redraw(self.refs.sparkCanvas, d.sparkline);
       _drawPie(self.refs.pieCanvas, d.deptLabels, d.deptValues);
@@ -594,7 +633,8 @@ var DashboardPage = (function () {
 
     var branchSelect = document.createElement('select');
     branchSelect.className = 'form-control db-filter-select';
-    branchSelect.innerHTML = '<option value="">Tất cả Chi nhánh</option>';
+    branchSelect.disabled = true;
+    branchSelect.innerHTML = '<option value="">Đang tải phạm vi chi nhánh...</option>';
 
     branchSelect.onchange = function (e) {
       _currentBranch = e.target.value;
@@ -605,16 +645,45 @@ var DashboardPage = (function () {
 
     container.insertBefore(headerRow, _innerRoot);
 
-    // Populate branches
-    HRDataService.getBranches().then(function (data) {
-      if (Array.isArray(data)) {
-        data.forEach(function (b) {
-          var opt = document.createElement('option');
-          opt.value = HRDataService._getVal(b, 'value', '');
-          opt.textContent = HRDataService._getVal(b, 'label', '');
-          if (opt.value) branchSelect.appendChild(opt);
-        });
+    // Chỉ hiển thị danh sách chi nhánh đã được backend giới hạn theo tài khoản.
+    return HRDataService.getBranches().then(function (data) {
+      var branches = Array.isArray(data) ? data.filter(function (branch) {
+        return !!String(HRDataService._getVal(branch, 'value', '')).trim();
+      }) : [];
+
+      branchSelect.innerHTML = '';
+      if (branches.length === 0) {
+        _currentBranch = '';
+        branchSelect.innerHTML = '<option value="">Không có chi nhánh được cấp</option>';
+        branchSelect.disabled = true;
+        return branches;
       }
+
+      if (branches.length > 1) {
+        var allAllowed = document.createElement('option');
+        allAllowed.value = '';
+        allAllowed.textContent = _isAdmin()
+          ? 'Tất cả chi nhánh'
+          : 'Tất cả chi nhánh được cấp';
+        branchSelect.appendChild(allAllowed);
+      }
+
+      branches.forEach(function (branch) {
+        var option = document.createElement('option');
+        option.value = String(HRDataService._getVal(branch, 'value', '')).trim();
+        option.textContent = HRDataService._getVal(branch, 'label', option.value);
+        branchSelect.appendChild(option);
+      });
+
+      if (branches.length === 1) {
+        _currentBranch = String(HRDataService._getVal(branches[0], 'value', '')).trim();
+        branchSelect.value = _currentBranch;
+        branchSelect.disabled = true;
+      } else {
+        _currentBranch = '';
+        branchSelect.disabled = false;
+      }
+      return branches;
     });
   }
 
@@ -628,10 +697,10 @@ var DashboardPage = (function () {
         _innerRoot = _container.querySelector('#dashboard-root');
         if (!_innerRoot) { _innerRoot = document.createElement('div'); _container.appendChild(_innerRoot); }
 
-        _buildHeaderControls(_container);
-
-        _currentTemplate = new HROverviewTemplate(_innerRoot);
-        _currentTemplate.render();
+        return _buildHeaderControls(_container).then(function () {
+          _currentTemplate = new HROverviewTemplate(_innerRoot);
+          _currentTemplate.render();
+        });
       })
       .catch(function () { _container.innerHTML = '<p style="color:red">Lỗi tải dashboard</p>'; });
   }

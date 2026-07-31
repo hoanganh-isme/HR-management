@@ -2,6 +2,22 @@
  * Dynamic Form Engine - Generic Metadata-Driven UI Engine
  */
 window.DynamicFormEngine = (function () {
+  var GRID_UI_TEXT = Object.freeze({
+    loading: 'Đang tải dữ liệu...',
+    refreshingAfterSave: 'Đang cập nhật dữ liệu vừa lưu...'
+  });
+
+  function _defaultPageSize() {
+    return typeof Pagination !== 'undefined' && typeof Pagination.getDefaultPageSize === 'function'
+      ? Pagination.getDefaultPageSize()
+      : 15;
+  }
+
+  function _refreshPageSize(value) {
+    return typeof Pagination !== 'undefined' && typeof Pagination.getRefreshPageSize === 'function'
+      ? Pagination.getRefreshPageSize(value)
+      : _defaultPageSize();
+  }
 
   var $container = null;
   var gridData = [];
@@ -15,10 +31,11 @@ window.DynamicFormEngine = (function () {
   var currentSortCol = '';
   var currentSortDir = '';
   var currentPage = 1;
-  var currentLimit = 15;
+  var currentLimit = _defaultPageSize();
   var totalRecords = 0;
   var totalPagesFromApi = 0;
   var lastTimestamp = '';
+  var dataLoadSequence = 0;
 
   var currentFormName = '';
   var formState = null;
@@ -29,6 +46,9 @@ window.DynamicFormEngine = (function () {
   var globalDictionary = {};
   var globalFormSchema = [];
   var globalRenderers = {};
+  var runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
+  var fieldContractState = null;
+  var pendingFieldSyncRender = false;
 
   var defaultPhoto = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
 
@@ -39,12 +59,153 @@ window.DynamicFormEngine = (function () {
     return window.AppConfig && AppConfig.apiGateway || (window.API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.ROUTER) || '';
   }
 
+  function _destroyTabulatorInstance() {
+    var instance = window.tabulatorInstance;
+    if (!instance) return;
+    window.tabulatorInstance = null;
+    try {
+      instance.destroy();
+    } catch (err) {
+      console.warn('[DynamicFormEngine] Không thể hủy grid cũ:', err);
+    }
+  }
+
+  function _cloneSchemaValue(value) {
+    if (Array.isArray(value)) return value.map(_cloneSchemaValue);
+    if (value && typeof value === 'object') {
+      var copy = {};
+      Object.keys(value).forEach(function (key) { copy[key] = _cloneSchemaValue(value[key]); });
+      return copy;
+    }
+    return value;
+  }
+
+  function _cloneSchema(schema) {
+    return Array.isArray(schema) ? schema.map(_cloneSchemaValue) : [];
+  }
+
+  function _setLegacyRuntimeSchemas() {
+    runtimeSchemas = {
+      grid: _cloneSchema(globalFormSchema),
+      edit: _cloneSchema(globalFormSchema),
+      add: _cloneSchema(globalFormSchema),
+      filters: _cloneSchema(globalFormSchema)
+    };
+  }
+
+  function _schemaFor(kind) {
+    var schema = runtimeSchemas && runtimeSchemas[kind];
+    return Array.isArray(schema) ? schema : globalFormSchema;
+  }
+  function _configuredFilterSchema() { return _schemaFor('filters').filter(function (field) { return field && field.showInFilter === true && field.supportsFilter !== false; }); }
+
+  function _hasConfiguredFilters() {
+    if (MODULE_CONFIG.HideFilterBtn) return false;
+
+    if (_usesUnifiedMetadata()) {
+      return _configuredFilterSchema().length > 0;
+    }
+
+    return _configuredFilterSchema().length > 0
+      || (Array.isArray(MODULE_CONFIG.Filters) && MODULE_CONFIG.Filters.length > 0);
+  }
+
+  function _gridSchemaSignature(schemas) {
+    var grid = schemas && Array.isArray(schemas.grid) ? schemas.grid : [];
+    return grid.map(function (field) {
+      return [
+        field && field.name,
+        field && field.label,
+        field && field.renderRule,
+        field && field.metadataSource,
+        field && field.serverSortable,
+        field && field.ShowInEdit,
+        field && field.IsReadOnlyEdit,
+        field && field.lookupKey,
+        field && field.dependsOn,
+        field && field.dataSource,
+        field && field.formatId,
+        field && field.formatType,
+        field && field.align,
+        field && field.minWidth,
+        field && field.maxWidth,
+        field && field.numberDecimal,
+        field && field.formatString,
+        field && field.maskString,
+        field && field.orderNo
+      ].join(':');
+    }).join('|');
+  }
+
+  function _flushPendingFieldSyncRender() {
+    if (!pendingFieldSyncRender || _isUserEditing()) return;
+    pendingFieldSyncRender = false;
+    if ($container && $container.querySelector('#dynamic-grid-container')) _loadData();
+  }
+
+  function _applyFieldSyncState(state) {
+    if (!state || !state.runtimeSchemas) return;
+    if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
+      && state.contextKey && state.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+    var previousSignature = _gridSchemaSignature(runtimeSchemas);
+    var nextSignature = _gridSchemaSignature(state.runtimeSchemas);
+    fieldContractState = state;
+    runtimeSchemas = state.runtimeSchemas;
+    if (previousSignature === nextSignature) return;
+    if (_isUserEditing()) {
+      pendingFieldSyncRender = true;
+      return;
+    }
+    pendingFieldSyncRender = false;
+    /* Schema/caption mới phải đi kèm dữ liệu mới, không chỉ dựng lại cột trên gridData cũ. */
+    if ($container && $container.querySelector('#dynamic-grid-container')) _loadData();
+  }
+
+  function _observeFieldSync() {
+    if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') return;
+    if (!_isUnifiedMetadataForm(currentFormName)) return;
+    var observedForm = currentFormName;
+    var observedContextKey = typeof FieldSyncService.getContextKey === 'function'
+      ? FieldSyncService.getContextKey(observedForm)
+      : '';
+    FieldSyncService.observeForm(observedForm, globalFormSchema.slice()).then(function (state) {
+      if (currentFormName !== observedForm || !state || !state.runtimeSchemas
+        || (observedContextKey && state.contextKey && state.contextKey !== observedContextKey)) return;
+      _applyFieldSyncState(state);
+    });
+  }
+
+  function _isUserEditing() {
+    if (_inlineEditMode || typeof document === 'undefined') return _inlineEditMode;
+    var active = document.activeElement;
+    if (!active || !/^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName || '')) return false;
+    return Boolean(($container && $container.contains(active)) || active.closest('.modal'));
+  }
+
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('erpFieldSyncUpdated', function (event) {
+      var detail = event && event.detail;
+      if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
+      if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
+        && detail.contextKey && detail.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+      _applyFieldSyncState(detail.state);
+    });
+    document.addEventListener('focusout', function () {
+      if (!pendingFieldSyncRender) return;
+      setTimeout(_flushPendingFieldSyncRender, 0);
+    });
+  }
+
   function _currentGroup() {
     return window.AppSession ? AppSession.getGroupId() : '';
   }
 
   function _currentUser() {
     return window.AppSession ? AppSession.getUserName() : '';
+  }
+
+  function _currentBranchId() {
+    return window.AppSession && typeof AppSession.getBranchId === 'function' ? AppSession.getBranchId() : '';
   }
 
   /**
@@ -91,6 +252,16 @@ window.DynamicFormEngine = (function () {
     }
   }
 
+  function _isHiddenTechnicalPrimaryKey(fieldName, primaryKey) {
+    if (!fieldName) return true;
+    var name = String(fieldName).trim().toLowerCase();
+    var pk = String(primaryKey || '').trim().toLowerCase();
+    if (pk && name === pk) return true;
+    if (name === 'userautoid' || name === 'autoid' || name === 'isdeleted' || name === 'bisdeleted' || name === 'stt_id') return true;
+    if (name.endsWith('autoid')) return true;
+    return false;
+  }
+
 
   /**
    * Đọc giá trị boolean từ API field có thể trả về camelCase hoặc PascalCase
@@ -130,6 +301,10 @@ window.DynamicFormEngine = (function () {
   /** Kiểm tra form hiện tại có phải Form Builder không */
   function _isFormBuilder() {
     return String(MODULE_CONFIG.FormName).toLowerCase() === 'frmformbuilder';
+  }
+
+  function _isUnifiedMetadataForm(formName) {
+    return /(?:Frm|Report)$/i.test(String(formName || '').trim());
   }
 
   /**
@@ -199,7 +374,311 @@ window.DynamicFormEngine = (function () {
     return p;
   }
 
-  function _hasPermission(action) {
+  function _hasContractValue(value) {
+    return value !== undefined && value !== null && value !== '';
+  }
+
+  function _padDatePart(value) {
+    return String(value || '').padStart(2, '0');
+  }
+
+  function _isDateField(field) {
+    if (!field || !field.name) return false;
+    var name = String(field.name).toLowerCase();
+    var rule = String(field.renderRule || field.formatId || field.FormatID || '').toLowerCase();
+    return name.indexOf('ngay') >= 0
+      || name.indexOf('date') >= 0
+      || rule === 'd'
+      || rule === 'dt'
+      || rule === 'date';
+  }
+
+  function _normalizeDateForContract(value) {
+    var raw = String(value || '').trim();
+    if (!raw) return raw;
+    raw = raw.split('T')[0].split(' ')[0];
+
+    var iso = raw.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (iso) {
+      return iso[1] + '-' + _padDatePart(iso[2]) + '-' + _padDatePart(iso[3]);
+    }
+
+    var vn = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (vn) {
+      return vn[3] + '-' + _padDatePart(vn[2]) + '-' + _padDatePart(vn[1]);
+    }
+
+    return raw;
+  }
+
+  function _normalizeDateFieldsForContract(data, schema) {
+    if (!data || typeof data !== 'object') return data;
+    (schema || []).forEach(function (field) {
+      if (!_isDateField(field) || data[field.name] === undefined) return;
+      data[field.name] = _normalizeDateForContract(data[field.name]);
+    });
+    return data;
+  }
+
+  function _toVietnameseDate(value) {
+    var iso = _normalizeDateForContract(value);
+    var match = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return String(value || '');
+    return match[3] + '/' + match[2] + '/' + match[1];
+  }
+
+  function _lookupFieldIndex(keys, configuredIndex, configuredField, fallbackIndex) {
+    var safeKeys = Array.isArray(keys) ? keys : [];
+    if (configuredIndex !== undefined && configuredIndex !== null && configuredIndex !== '') {
+      var parsedIndex = parseInt(configuredIndex, 10);
+      if (!isNaN(parsedIndex) && parsedIndex >= 0 && parsedIndex < safeKeys.length) return parsedIndex;
+    }
+    if (configuredField) {
+      var target = String(configuredField).toLowerCase();
+      var foundIndex = safeKeys.findIndex(function (key) {
+        return String(key).toLowerCase() === target;
+      });
+      if (foundIndex >= 0) return foundIndex;
+    }
+    return fallbackIndex;
+  }
+
+  function _phase2RegistryEntry() {
+    var registry = window.Phase2MigrationRegistry;
+    return registry && typeof registry.get === 'function' ? registry.get(MODULE_CONFIG.FormName) : null;
+  }
+  function _isHiddenTechnicalPrimaryKey(
+    fieldName,
+    primaryKey
+  ) {
+    return (
+      String(fieldName || '')
+        .trim()
+        .toLowerCase() === 'userautoid'
+
+      && String(primaryKey || '')
+        .trim()
+        .toLowerCase() === 'userautoid'
+    );
+  }
+  function _usesUnifiedFieldContract() {
+    return Boolean(fieldContractState && fieldContractState.active === true);
+  }
+
+  function _usesUnifiedMetadata() {
+    return Boolean(fieldContractState && fieldContractState.metadataActive === true);
+  }
+
+  function _gridLoadingText(value) {
+    var normalized = typeof value === 'string' ? value.trim() : '';
+    return normalized || GRID_UI_TEXT.loading;
+  }
+
+  function _showGridLoading(gridContainer, message) {
+    if (!gridContainer) return;
+    gridContainer.innerHTML = '';
+
+    var loadingState = document.createElement('div');
+    loadingState.className = 'dynamic-grid-loading-state';
+    loadingState.setAttribute('role', 'status');
+    loadingState.setAttribute('aria-live', 'polite');
+
+    var spinner = document.createElement('span');
+    spinner.className = 'material-symbols-outlined dynamic-grid-loading-icon';
+    spinner.setAttribute('aria-hidden', 'true');
+    spinner.textContent = 'progress_activity';
+
+    var label = document.createElement('span');
+    label.className = 'dynamic-grid-loading-label';
+    label.textContent = _gridLoadingText(message);
+
+    loadingState.appendChild(spinner);
+    loadingState.appendChild(label);
+    gridContainer.appendChild(loadingState);
+  }
+
+  function _registeredRuntimeProcedure(action) {
+    var routes = fieldContractState
+      && fieldContractState.schema
+      && fieldContractState.schema.runtimeRoutes;
+    var route = routes && routes[action];
+    return String(route && route.registeredProcedure || '')
+      .trim()
+      .replace(/[\[\]]/g, '')
+      .split('.')
+      .pop()
+      .toLowerCase();
+  }
+
+  function _usesV2DeleteRoute() {
+    /*
+     * Metadata và trạng thái cutover là hai trục độc lập. Chọn wire contract
+     * xóa theo procedure đang đăng ký để form metadata-only không gửi payload
+     * legacy vào API_XoaDong_V2.
+     */
+    return _registeredRuntimeProcedure('delete') === 'api_xoadong_v2';
+  }
+
+  function _contractWriteActive() {
+    return !_usesUnifiedMetadata() || Boolean(fieldContractState && fieldContractState.writeAvailable === true);
+  }
+
+  function _contractDeleteActive() {
+    return !_usesUnifiedMetadata() || Boolean(fieldContractState && fieldContractState.deleteAvailable === true);
+  }
+
+  function _contractControl() {
+    return fieldContractState && (
+      fieldContractState.contract
+      || fieldContractState.registryEntry
+      || fieldContractState.schema && fieldContractState.schema.contract
+      || null
+    );
+  }
+
+  function _contractBranchPolicy() {
+    var control = _contractControl() || {};
+    return String(
+      MODULE_CONFIG.BranchPolicy
+      || MODULE_CONFIG.branchPolicy
+      || control.BranchPolicy
+      || control.branchPolicy
+      || ''
+    ).trim().toUpperCase();
+  }
+
+  function _contractBranchColumn() {
+    var control = _contractControl() || {};
+    return String(
+      MODULE_CONFIG.BranchColumn
+      || MODULE_CONFIG.branchColumn
+      || control.BranchColumn
+      || control.branchColumn
+      || 'BranchID'
+    ).trim();
+  }
+
+  function _isBranchScopedWriteContract() {
+    return _contractBranchPolicy() === 'BRANCH_SCOPED';
+  }
+
+  function _isBranchPayloadField(fieldName) {
+    var name = String(fieldName || '').trim().toLowerCase();
+    var branchColumn = _contractBranchColumn().toLowerCase();
+    return name === 'branchid' || (branchColumn && name === branchColumn);
+  }
+
+  function _pickFieldValue(fieldName, sources) {
+    if (!fieldName) return '';
+    var target = String(fieldName).toLowerCase();
+    for (var i = 0; i < sources.length; i++) {
+      var source = sources[i];
+      if (!source || typeof source !== 'object') continue;
+      if (_hasContractValue(source[fieldName])) return source[fieldName];
+      var keys = Object.keys(source);
+      for (var k = 0; k < keys.length; k++) {
+        if (keys[k].toLowerCase() === target && _hasContractValue(source[keys[k]])) {
+          return source[keys[k]];
+        }
+      }
+    }
+    return '';
+  }
+
+  function _writeBranchIdFrom() {
+    if (!_isBranchScopedWriteContract()) return _currentBranchId();
+    var sources = Array.prototype.slice.call(arguments);
+    var branch = _pickFieldValue(_contractBranchColumn(), sources)
+      || _pickFieldValue('BranchID', sources);
+    return _hasContractValue(branch) ? String(branch).trim() : _currentBranchId();
+  }
+
+  function _removeBranchPayloadFields(payload) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+    Object.keys(payload).forEach(function (key) {
+      if (_isBranchPayloadField(key)) delete payload[key];
+    });
+    return payload;
+  }
+
+  function _prepareGatewayWriteRequest(request) {
+    if (!request || !_isBranchScopedWriteContract()) return request;
+    var func = String(request.Func || request.func || '').trim().toLowerCase();
+    if (func && func !== 'save') return request;
+
+    var sources = Array.prototype.slice.call(arguments, 1);
+    var jsonPayload = null;
+    if (typeof request.JsonData === 'string') {
+      try {
+        jsonPayload = JSON.parse(request.JsonData || '{}');
+      } catch (e) {
+        jsonPayload = null;
+      }
+    } else if (request.JsonData && typeof request.JsonData === 'object') {
+      jsonPayload = request.JsonData;
+    }
+
+    var branchValue = _writeBranchIdFrom.apply(null, sources.concat([request, jsonPayload || {}]));
+    if (_hasContractValue(branchValue)) {
+      request.BranchID = String(branchValue).trim();
+    } else if (!request.BranchID) {
+      request.BranchID = _currentBranchId();
+    }
+
+    if (jsonPayload && typeof jsonPayload === 'object' && !Array.isArray(jsonPayload)) {
+      _removeBranchPayloadFields(jsonPayload);
+      request.JsonData = JSON.stringify(jsonPayload);
+    }
+    return request;
+  }
+
+  function _canImportExcel() {
+    var action = String(MODULE_CONFIG.action || MODULE_CONFIG.Action || '').toLowerCase();
+    var readOnly = Boolean(
+      MODULE_CONFIG.ReadOnly
+      || MODULE_CONFIG.IsReadOnly
+      || MODULE_CONFIG.IsFullPageDetail
+      || MODULE_CONFIG.IsDetailAdd
+      || action === 'detail'
+    );
+    return Boolean(
+      !readOnly
+      && _hasPermission('EXPORT')
+    );
+  }
+
+  function _buildContractWritePayload(base, isEdit, originalRow) {
+    var source = base && typeof base === 'object' ? base : {};
+    var schema = _schemaFor(isEdit ? 'edit' : 'add');
+    var payload = {};
+    schema.forEach(function (field) {
+      var allowed = isEdit ? field.supportsUpdate === true : field.supportsInsert === true;
+      if (!allowed || !Object.prototype.hasOwnProperty.call(source, field.name)) return;
+      if (_isBranchScopedWriteContract() && _isBranchPayloadField(field.name)) return;
+      payload[field.name] = source[field.name];
+    });
+
+    if (isEdit && MODULE_CONFIG.PrimaryKey) {
+      var primaryKey = MODULE_CONFIG.PrimaryKey;
+      var primaryValue = Object.prototype.hasOwnProperty.call(source, primaryKey) ? source[primaryKey] : undefined;
+      if (!_hasContractValue(primaryValue) && originalRow) primaryValue = originalRow[primaryKey];
+      if (_hasContractValue(primaryValue)) payload[primaryKey] = primaryValue;
+    }
+    payload.IsEdit = isEdit ? 1 : 0;
+    return payload;
+  }
+
+  function _isPhase2ManagedForm() {
+    var registry = window.Phase2MigrationRegistry;
+    return Boolean(registry && typeof registry.isManagedForm === 'function' && registry.isManagedForm(MODULE_CONFIG.FormName));
+  }
+
+  function _hasPermission(action, options) {
+    var userOnly = Boolean(options && options.userOnly === true);
+    if (!userOnly && _usesUnifiedMetadata()) {
+      if ((action === 'ADD' || action === 'EDIT') && !_contractWriteActive()) return false;
+      if (action === 'DELETE' && !_contractDeleteActive()) return false;
+    }
     if (typeof window.AppPermissions !== 'undefined') {
       var module = MODULE_CONFIG.FormName;
       if (action === 'ADD') return window.AppPermissions.hasPermission(module, 'IsAdd');
@@ -226,6 +705,7 @@ window.DynamicFormEngine = (function () {
     }
 
     _persistFormState();
+    dataLoadSequence += 1;
 
     $container = container;
     // Keep DynamicFormEngine as the single CRUD path while allowing small,
@@ -233,12 +713,20 @@ window.DynamicFormEngine = (function () {
     MODULE_CONFIG = (window.ModuleDefinition && typeof ModuleDefinition.create === 'function')
       ? ModuleDefinition.create(config)
       : config;
+    /*
+     * PrimaryKey do route/menu khai báo là contract điều hướng và master-detail.
+     * Metadata chỉ được suy luận khóa khi caller chưa cung cấp; nếu ghi đè
+     * SapCaID bằng cột hiển thị SapCa thì tab con sẽ lọc nhầm SapCaID = "A".
+     */
+    var configuredPrimaryKey = MODULE_CONFIG.PrimaryKey || MODULE_CONFIG.primaryKey || '';
     currentFormName = config.FormName;
+    pendingFieldSyncRender = false;
     formState = window.DynamicFormState ? DynamicFormState.create(currentFormName) : null;
     attachmentManager = window.DynamicAttachmentManager ? DynamicAttachmentManager.create({ moduleConfig: MODULE_CONFIG, currentUser: _currentUser }) : null;
     detailManager = window.DynamicDetailManager ? DynamicDetailManager.create({
       moduleConfig: MODULE_CONFIG,
       currentUser: _currentUser,
+      currentBranch: _currentBranchId,
       getDictionary: function () { return globalDictionary; }
     }) : null;
 
@@ -265,6 +753,8 @@ window.DynamicFormEngine = (function () {
     globalDictionary = {};
     globalFormSchema = [];
     globalRenderers = {};
+    runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
+    fieldContractState = null;
 
     // API defaults: FormBuilder dùng API chuyên biệt, các form khác dùng generic No-Code API
     _setDefaults(MODULE_CONFIG, {
@@ -277,7 +767,7 @@ window.DynamicFormEngine = (function () {
     _loadSelectedRows();
 
 
-    // 1. Lấy Từ điển UI từ Database trước (Cơ chế Caching siêu tốc)
+    // 1. Lấy metadata. Form unified V2 không được gọi API legacy/SY_FormatFields.
     var configEndpoint = MODULE_CONFIG.ApiDictionary;
     var cacheKey = 'FormConfigCache_' + MODULE_CONFIG.FormName;
     var cachedData = null;
@@ -287,11 +777,9 @@ window.DynamicFormEngine = (function () {
       try { cachedData = window._uiConfigCache ? window._uiConfigCache[cacheKey] : null; } catch (e) { }
     }
 
-    var pConfig;
-    if (cachedData) {
-      pConfig = Promise.resolve(JSON.parse(cachedData));
-    } else {
-      pConfig = configEndpoint ? ApiClient.post(configEndpoint, { FormName: MODULE_CONFIG.FormName }).then(function (res) {
+    function loadLegacyMetadata() {
+      if (cachedData) return Promise.resolve(JSON.parse(cachedData));
+      return configEndpoint ? ApiClient.post(configEndpoint, { FormName: MODULE_CONFIG.FormName }).then(function (res) {
         if (res && res.code === 0 && !_isFormBuilder()) {
           window._uiConfigCache = window._uiConfigCache || {};
           window._uiConfigCache[cacheKey] = JSON.stringify(res);
@@ -300,12 +788,49 @@ window.DynamicFormEngine = (function () {
       }) : Promise.resolve(null);
     }
 
+    var pConfig;
+    if (!_isFormBuilder()
+      && _isUnifiedMetadataForm(MODULE_CONFIG.FormName)
+      && window.FieldSyncService
+      && typeof FieldSyncService.observeForm === 'function') {
+      pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
+        fieldContractState = state || null;
+        if (state && state.metadataActive === true && state.schema && state.runtimeSchemas) {
+          if (!configuredPrimaryKey) MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
+          return {
+            code: 0,
+            list: state.runtimeSchemas.grid,
+            _unifiedContract: true,
+            _fieldContractState: state
+          };
+        }
+        if (state && state.failClosed === true) {
+          throw new Error(state.error || 'Metadata V2 của form không sẵn sàng.');
+        }
+        if (state && state.error) {
+          throw new Error(state.error);
+        }
+        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
+          return loadLegacyMetadata().then(function (legacyResponse) {
+            if (legacyResponse && typeof legacyResponse === 'object') {
+              legacyResponse._fieldContractState = state || null;
+            }
+            return legacyResponse;
+          });
+        }
+        throw new Error('Form chưa được đăng ký metadata V2.');
+      });
+    } else {
+      pConfig = loadLegacyMetadata();
+    }
+
     pConfig.then(function (resConfig) {
 
       // 2. Lưu Từ điển vào biến toàn cục
       var dataList = resConfig ? (resConfig.list || resConfig.records) : null;
       var resolvedMetadata = null;
-      if (window.HRMetadataAdapter && typeof window.HRMetadataAdapter.resolve === 'function') {
+      var isUnifiedMetadata = Boolean(resConfig && resConfig._unifiedContract === true);
+      if (!isUnifiedMetadata && window.HRMetadataAdapter && typeof window.HRMetadataAdapter.resolve === 'function') {
         resolvedMetadata = window.HRMetadataAdapter.resolve(resConfig, MODULE_CONFIG.FormName, MODULE_CONFIG);
         dataList = resolvedMetadata.fields;
       }
@@ -319,7 +844,9 @@ window.DynamicFormEngine = (function () {
           // Map API fields → MODULE_CONFIG (chỉ ghi nếu API trả về giá trị)
           var _rowMap = { primaryKey: 'PrimaryKey' }; // Ngừng lấy formTitle và formSubtitle để ưu tiên router
           Object.keys(_rowMap).forEach(function (src) {
-            if (firstRow[src]) MODULE_CONFIG[_rowMap[src]] = firstRow[src];
+            if (firstRow[src] && !(src === 'primaryKey' && configuredPrimaryKey)) {
+              MODULE_CONFIG[_rowMap[src]] = firstRow[src];
+            }
           });
 
           // Sinh nhãn mặc định — caller có thể override từ config
@@ -353,11 +880,33 @@ window.DynamicFormEngine = (function () {
         }
 
         dataList.forEach(function (item) {
-          var fieldName = item.name || item.FieldName;
+          var fieldName =
+            item.name || item.FieldName;
+
           if (!fieldName) return;
 
-          // Xây Dictionary cho Table
-          globalDictionary[fieldName] = item.label || item.CaptionVN || fieldName;
+          var metadataPrimaryKey =
+            item.primaryKey
+            || item.PrimaryKey
+            || MODULE_CONFIG.PrimaryKey
+            || '';
+
+          var hideTechnicalPrimaryKey =
+            _isHiddenTechnicalPrimaryKey(
+              fieldName,
+              metadataPrimaryKey
+            );
+
+          /*
+           * Không đưa khóa kỹ thuật vào dictionary Grid.
+           * Field vẫn được giữ trong globalFormSchema để xử lý PK.
+           */
+          if (!hideTechnicalPrimaryKey) {
+            globalDictionary[fieldName] =
+              item.label
+              || item.CaptionVN
+              || fieldName;
+          }
 
 
           // Xây dựng Custom Renderers Động từ cấu hình DB (FormatID hoặc renderRule)
@@ -417,7 +966,7 @@ window.DynamicFormEngine = (function () {
           var finalRenderRule = (item.renderRule || '').toLowerCase().trim();
           var finalLabel = item.label || item.CaptionVN;
 
-          if (MODULE_CONFIG.fieldOverrides) {
+          if (!isUnifiedMetadata && MODULE_CONFIG.fieldOverrides) {
             var overrideKey = Object.keys(MODULE_CONFIG.fieldOverrides).find(function (k) {
               return k.toLowerCase() === fieldName.toLowerCase();
             });
@@ -455,15 +1004,38 @@ window.DynamicFormEngine = (function () {
             name: fieldName,
             label: finalLabel,
             required: _bool(item.required, item.IsRequired),
-            showInAdd: _bool(item.showInAdd, item.ShowInAdd),
-            showInEdit: _bool(item.showInEdit, item.ShowInEdit),
-            showInFilter: _bool(item.showInFilter, item.ShowInFilter),
+            showInAdd:
+              !hideTechnicalPrimaryKey
+              && _bool(
+                item.showInAdd,
+                item.ShowInAdd
+              ),
+
+            showInEdit:
+              !hideTechnicalPrimaryKey
+              && _bool(
+                item.showInEdit,
+                item.ShowInEdit
+              ),
+
+            showInFilter:
+              !hideTechnicalPrimaryKey
+              && _bool(
+                item.showInFilter,
+                item.ShowInFilter
+              ),
             isReadOnlyEdit: isReadOnlyEditVal,
             isReadOnlyAdd: isReadOnlyAddVal,
             position: finalPosition,
             orderNo: item.OrderNo || item.orderNo || 0,
             renderRule: finalRenderRule,
             dataSource: (item.dataSource || item.DataSource || '').trim(),
+            headers: (ff && ff.headers) || item.headers || item.Headers || null,
+            sourceFields: (ff && ff.sourceFields) || item.sourceFields || item.SourceFields || null,
+            valueField: (ff && ff.valueField) || item.valueField || item.ValueField || '',
+            displayField: (ff && ff.displayField) || item.displayField || item.DisplayField || '',
+            valueIndex: (ff && ff.valueIndex !== undefined) ? ff.valueIndex : (item.valueIndex !== undefined ? item.valueIndex : item.ValueIndex),
+            displayIndex: (ff && ff.displayIndex !== undefined) ? ff.displayIndex : (item.displayIndex !== undefined ? item.displayIndex : item.DisplayIndex),
             validateRule: rawValidate,
             dependsOn: (item.dependsOn || item.DependsOn || '').trim(),
             visibleRule: rawVisible,
@@ -491,6 +1063,12 @@ window.DynamicFormEngine = (function () {
                 orderNo: 999, // Xếp cuối theo mặc định
                 renderRule: (cf.renderRule || '').toLowerCase().trim(),
                 dataSource: cf.dataSource || '',
+                headers: cf.headers || null,
+                sourceFields: cf.sourceFields || null,
+                valueField: cf.valueField || '',
+                displayField: cf.displayField || '',
+                valueIndex: cf.valueIndex,
+                displayIndex: cf.displayIndex,
                 html: cf.html || ''
               });
             }
@@ -511,6 +1089,16 @@ window.DynamicFormEngine = (function () {
         }
       } else {
         console.warn('API Dictionary fetch failed or empty', resConfig);
+      }
+      if (isUnifiedMetadata) {
+        fieldContractState = resConfig._fieldContractState;
+        runtimeSchemas = resConfig._fieldContractState.runtimeSchemas;
+      } else {
+        if (resConfig && resConfig._fieldContractState) {
+          fieldContractState = resConfig._fieldContractState;
+        }
+        _setLegacyRuntimeSchemas();
+        _observeFieldSync();
       }
       // Tự động sinh mã HTML (Không cần file .html rời nữa)
       if (MODULE_CONFIG.UseSplitLayout && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
@@ -687,6 +1275,44 @@ window.DynamicFormEngine = (function () {
               };
               var btns = plugin.getExtraButtons(MODULE_CONFIG.FormName, getSelected, MODULE_CONFIG, onReload);
               if (btns && btns.length > 0) extraBtns = extraBtns.concat(btns);
+            }
+          });
+        }
+
+        function _openExcelImportModal() {
+          if (!_canImportExcel()) {
+            if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Trang này chưa hỗ trợ lấy dữ liệu từ Excel.');
+            return;
+          }
+          if (!window.tabulatorInstance || typeof ExcelImportModal === 'undefined') {
+            if (typeof Alert !== 'undefined') Alert.error('Lỗi', 'Chức năng lấy dữ liệu chưa sẵn sàng. Vui lòng tải lại trang.');
+            return;
+          }
+          var documentConfig = window.API_CONFIG
+            && API_CONFIG.ENDPOINTS
+            && API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
+          var importColumnLayout = window.TableColumnLayout
+            && typeof TableColumnLayout.capture === 'function'
+            ? TableColumnLayout.capture(window.tabulatorInstance)
+            : [];
+          ExcelImportModal.show({
+            formName: MODULE_CONFIG.FormName,
+            formTitle: MODULE_CONFIG.FormTitle || MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormName,
+            apiBase: documentConfig ? documentConfig.SERVICE_BASE : '',
+            columnLayout: importColumnLayout,
+            requestHeaders: {
+              Username: _currentUser(),
+              BranchID: _currentBranchId()
+            },
+            onSuccess: function () {
+              selectedRows = [];
+              currentPage = 1;
+              currentLimit = _refreshPageSize(currentLimit);
+              if (window.tabulatorInstance && typeof window.tabulatorInstance.deselectRow === 'function') {
+                window.tabulatorInstance.deselectRow();
+              }
+              _updateSelectionCounter();
+              _loadData({ loadingMessage: GRID_UI_TEXT.refreshingAfterSave });
             }
           });
         }
@@ -965,6 +1591,59 @@ window.DynamicFormEngine = (function () {
                 spanText.title = def.title || field; // tooltip for long names
                 label.appendChild(spanText);
 
+                // Nút icon ✏️ chỉnh sửa tiêu đề/định dạng cột trên Mobile/Touch
+                var btnEditCol = document.createElement('span');
+                btnEditCol.className = 'material-symbols-outlined btn-edit-col-caption';
+                btnEditCol.style.cssText = 'font-size: 16px; color: var(--color-primary, #4361ee); margin-left: auto; cursor: pointer; padding: 2px 4px; border-radius: 4px; transition: background 0.2s;';
+                btnEditCol.innerText = 'edit_note';
+                btnEditCol.title = 'Sửa tiêu đề & định dạng cột lưu SY_FmtFldTbl';
+                btnEditCol.onclick = function (e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (typeof ColumnCaptionEditorModal !== 'undefined') {
+                    ColumnCaptionEditorModal.show({
+                      formName: MODULE_CONFIG.FormName || '',
+                      fieldName: field,
+                      captionVN: def.title || def.captionVN || field,
+                      captionEN: def.captionEN || '',
+                      captionCH: def.captionCH || '',
+                      alignX: def.alignX || def.align || def.hozAlign || '',
+                      formatId: def.formatId || def.FormatID || '',
+                      minWidth: def.minWidth || 0,
+                      maxWidth: def.maxWidth || 0,
+                      onSuccess: function (updated) {
+                        if (!updated) return;
+                        if (updated.captionVN) spanText.textContent = updated.captionVN;
+
+                        // Cập nhật đối tượng def trong bộ nhớ
+                        if (def) {
+                          if (updated.captionVN) def.title = def.captionVN = updated.captionVN;
+                          if (updated.captionEN !== undefined) def.captionEN = updated.captionEN;
+                          if (updated.captionCH !== undefined) def.captionCH = updated.captionCH;
+                          if (updated.alignX !== undefined) def.alignX = def.align = def.hozAlign = updated.alignX;
+                          if (updated.formatId !== undefined) def.formatId = def.FormatID = updated.formatId;
+                          if (updated.minWidth !== undefined) def.minWidth = updated.minWidth;
+                          if (updated.maxWidth !== undefined) def.maxWidth = updated.maxWidth;
+                        }
+
+                        // Cập nhật cột trên Tabulator live table
+                        if (col && typeof col.updateDefinition === 'function') {
+                          var patch = {};
+                          if (updated.captionVN) patch.title = updated.captionVN;
+                          if (updated.alignX) {
+                            var alg = String(updated.alignX).toLowerCase();
+                            patch.hozAlign = (alg === 'right' || alg === 'r') ? 'right' : ((alg === 'center' || alg === 'c') ? 'center' : 'left');
+                          }
+                          if (updated.minWidth) patch.minWidth = updated.minWidth;
+                          if (updated.maxWidth) patch.maxWidth = updated.maxWidth;
+                          col.updateDefinition(patch);
+                        }
+                      }
+                    });
+                  }
+                };
+                label.appendChild(btnEditCol);
+
                 content.appendChild(label);
               }
             });
@@ -990,70 +1669,50 @@ window.DynamicFormEngine = (function () {
           };
         }));
 
+        if (_canImportExcel()) {
+          tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Lấy dữ liệu Excel', function () {
+            _openExcelImportModal();
+          }));
+        }
+
         if (_hasPermission('EXPORT')) {
           tabulatorActionMenu.appendChild(createMenuItem('download', 'Xuất dữ liệu Excel', function () {
             if (window.tabulatorInstance) {
               try {
-                // Xuất Excel có style (Màu nền, chữ đậm cho tiêu đề, hiển thị đúng thứ tự kéo thả)
-                var columns = window.tabulatorInstance.getColumns().filter(function (c) {
-                  return c.isVisible() && c.getField();
-                });
-                var data = window.tabulatorInstance.getData('active');
-                var title = MODULE_CONFIG.PageTitle || "Danh_sach_du_lieu";
 
-                var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
-                html += '<head><meta charset="utf-8"></head><body>';
-                html += '<h3 style="font-family: Arial, sans-serif;">' + title + '</h3>';
-                html += '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 13px;">';
-
-                function escapeHtml(text) {
-                  if (text == null) return '';
-                  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                }
-
-                // Tạo dòng Header với CSS inline
-                html += '<tr>';
-                columns.forEach(function (col) {
-                  var colTitle = col.getDefinition().title || '';
-                  html += '<th style="background-color: #f1f5f9; color: #1e293b; font-weight: bold; text-align: left; border: 1px solid #cbd5e1;">' + escapeHtml(colTitle) + '</th>';
-                });
-                html += '</tr>';
-
-                // Tạo các dòng Dữ liệu
-                data.forEach(function (row) {
-                  html += '<tr>';
-                  columns.forEach(function (col) {
-                    var field = col.getField();
-                    var val = row[field];
-
-                    // Map riêng cột PersonStatus sang chữ giống như UI đã xử lý
-                    if (field.toLowerCase() === 'personstatus') {
-                      val = row.PersonStatusName || row.personstatusname || val;
-                    }
-
-                    // Giữ định dạng chuỗi cho các số dễ bị Excel biến dạng (VD: Số điện thoại, CCCD)
-                    var valStr = escapeHtml(val);
-                    var tdStyle = 'border: 1px solid #e2e8f0; vertical-align: middle;';
-                    if (String(val).match(/^0[0-9]{8,11}$/)) {
-                      tdStyle += ' mso-number-format:"\\@";'; // Ép kiểu text cho số 0 ở đầu
-                    }
-
-                    html += '<td style="' + tdStyle + '">' + valStr + '</td>';
+                if (typeof XLSX !== 'undefined') {
+                  var columns = window.tabulatorInstance.getColumns().filter(function (c) {
+                    var f = c.getField();
+                    return c.isVisible() && f && f !== 'row_select' && f !== '__action__';
                   });
-                  html += '</tr>';
-                });
+                  var data = window.tabulatorInstance.getData('active');
+                  var title = MODULE_CONFIG.PageTitle || MODULE_CONFIG.FormTitle || "Danh_sach_du_lieu";
 
-                html += '</table></body></html>';
+                  var aoa = [];
+                  var headerRow = columns.map(function (col) {
+                    return col.getDefinition().title || col.getField();
+                  });
+                  aoa.push(headerRow);
 
-                var blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = title + ".xls";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                  data.forEach(function (row) {
+                    var dataRow = columns.map(function (col) {
+                      var field = col.getField();
+                      var val = row[field];
+                      if (field && field.toLowerCase() === 'personstatus') {
+                        val = row.PersonStatusName || row.personstatusname || val;
+                      }
+                      return val != null ? val : '';
+                    });
+                    aoa.push(dataRow);
+                  });
+
+                  var wb = XLSX.utils.book_new();
+                  var ws = XLSX.utils.aoa_to_sheet(aoa);
+                  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+                  XLSX.writeFile(wb, title + ".xlsx");
+                } else {
+                  window.tabulatorInstance.download("xlsx", (MODULE_CONFIG.PageTitle || "Data") + ".xlsx", { sheetName: "Du_Lieu" });
+                }
               } catch (e) {
                 console.error("Lỗi xuất Excel tùy chỉnh:", e);
                 // Fallback lại cách cũ nếu có lỗi
@@ -1204,6 +1863,7 @@ window.DynamicFormEngine = (function () {
             }
           } : 'DISABLED') : false,
           onDelete: (isFrm && !MODULE_CONFIG.HideDeleteBtn) ? (_hasPermission('DELETE') ? function () {
+            if (_usesUnifiedMetadata() && !_contractDeleteActive()) return Alert.info(MODULE_CONFIG.AlertTitleInfo, 'Chức năng xóa chưa có route nghiệp vụ hợp lệ.');
             if (!selectedRows || selectedRows.length === 0) return Alert.warning(MODULE_CONFIG.AlertTitleWarning, MODULE_CONFIG.WarnSelectDelete);
 
             // CHẶN XÓA NẾU HỢP ĐỒNG ĐÃ CHỐT
@@ -1221,12 +1881,45 @@ window.DynamicFormEngine = (function () {
                 return Alert.info(MODULE_CONFIG.AlertTitleInfo, MODULE_CONFIG.InfoDeleteDev);
               }
 
+              if (_usesV2DeleteRoute()) {
+                var primaryKey = MODULE_CONFIG.PrimaryKey;
+                var ids = selectedRows.map(function (row) { return row && row[primaryKey]; })
+                  .filter(_hasContractValue);
+                if (!primaryKey || ids.length !== selectedRows.length) {
+                  return Alert.error(MODULE_CONFIG.AlertTitleError, 'Dữ liệu xóa thiếu khóa chính hợp lệ.');
+                }
+                var deleteData = {};
+                deleteData[primaryKey] = ids.slice();
+                /* API_Gateway_Router resolves {Ids} from JsonData, not from a top-level parameter. */
+                deleteData.Ids = ids.slice();
+                return ApiClient.post(_gateway(), {
+                  List: MODULE_CONFIG.FormName,
+                  Func: 'Delete',
+                  Ids: JSON.stringify(ids),
+                  JsonData: JSON.stringify(deleteData),
+                  UserName: _currentUser(),
+                  BranchID: _currentBranchId()
+                }).then(function (res) {
+                  if (res && res.code === 0) {
+                    if (typeof UIToast !== 'undefined') UIToast.show(MODULE_CONFIG.ToastDelete, 'success');
+                    selectedRows = [];
+                    _updateSelectionCounter();
+                    _loadData();
+                  } else {
+                    Alert.error(MODULE_CONFIG.AlertTitleError, res && res.msg ? res.msg : MODULE_CONFIG.AlertDeleteFailed);
+                  }
+                }).catch(function () {
+                  Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
+                });
+              }
+
               // Xử lý từng dòng một (Vì API Gateway C# map JSON sang Model, thiếu field sẽ bị NULL update)
               var deletePromises = selectedRows.map(function (row) {
                 var payload = {
                   List: MODULE_CONFIG.FormName,
                   Func: 'Delete',
-                  UserName: _currentUser()
+                  UserName: _currentUser(),
+                  BranchID: _currentBranchId()
                 };
 
                 // Bơm toàn bộ dữ liệu gốc của row vào để C# binding không bị mất các cột Not Null (như Ngaytochuc)
@@ -1259,7 +1952,7 @@ window.DynamicFormEngine = (function () {
               if (typeof ConfirmModal !== 'undefined') {
                 ConfirmModal.show({
                   title: MODULE_CONFIG.AlertTitleConfirm,
-                  message: `Bạn có chắc muốn xóa ${selectedRows.length} dòng đã chọn?`,
+                  message: 'Bạn có chắc muốn xóa ' + selectedRows.length + ' dòng đã chọn?',
                   onConfirm: performDelete
                 });
               }
@@ -1273,8 +1966,8 @@ window.DynamicFormEngine = (function () {
                 });
               }
             }
-          } : false) : false,
-          onFilter: MODULE_CONFIG.HideFilterBtn ? false : function () {
+          } : 'DISABLED') : false,
+          onFilter: !_hasConfiguredFilters() ? false : function () {
             var filterContainer = $container.querySelector('#dynamic-filter-container');
             if (filterContainer) {
               if (filterContainer.style.display === 'none' || filterContainer.style.display === '') {
@@ -1344,8 +2037,6 @@ window.DynamicFormEngine = (function () {
           clearTimeout(_searchTimer);
           _searchTimer = setTimeout(function () {
             currentKeyword = quickSearchInput.value;
-            window.currentFilters = window.currentFilters || {};
-            window.currentFilters.keyword = currentKeyword;
             currentPage = 1;
             selectedRows = [];
             _updateSelectionCounter();
@@ -1371,28 +2062,36 @@ window.DynamicFormEngine = (function () {
         filterContainer.innerHTML = ''; // Xóa placeholder nếu có
 
         // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-        var dynamicFilters = globalFormSchema
-          .filter(function (f) { return f.showInFilter; })
+        var dynamicFilters = _configuredFilterSchema()
           .map(function (f) {
             // Chuyển đổi định dạng từ FormEngine sang FilterComponent
             var filterType = 'text';
-            if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
-            if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
+            var erpFilterType = Number(f.filterControlType);
+            if (erpFilterType === 3) filterType = 'select';
+            else if (erpFilterType === 6) filterType = 'select';
+            else if (erpFilterType === 9) filterType = 'date';
+            else if (f.renderRule === 'dt' || f.renderRule === 'd') filterType = 'date';
+            else if (f.renderRule === 'nm' || f.renderRule === 'n') filterType = 'number';
 
+            var filterLabel = f.label || f.name;
             var filterObj = {
               id: f.name,
-              label: f.label,
+              label: filterLabel,
               type: filterType,
-              placeholder: f.label
+              placeholder: filterLabel
             };
 
             // Parse DataSource cho trường Select/Dropdown
-            if (f.renderRule === 'sl' || f.renderRule === 'sw') {
+            if (erpFilterType === 6 || f.renderRule === 'sw') {
+              filterObj.type = 'select';
+              filterObj.options = [
+                { value: 1, label: 'Có' },
+                { value: 0, label: 'Không' }
+              ];
+            } else if (erpFilterType === 3 || f.renderRule === 'sl') {
               filterObj.type = 'select';
               filterObj.options = [];
-              if (f.renderRule === 'sw') {
-                filterObj.options = [{ value: 1, label: 'Có' }, { value: 0, label: 'Không' }];
-              } else if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
+              if (f.dataSource && f.dataSource.indexOf('STATIC:') === 0) {
                 var parts = f.dataSource.replace('STATIC:', '').split(',');
                 parts.forEach(function (p) {
                   var kv = p.split('|');
@@ -1501,34 +2200,33 @@ window.DynamicFormEngine = (function () {
 
         if (dynamicFilters.length > 0) {
           filters = filters.concat(dynamicFilters);
-        } else if (MODULE_CONFIG.Filters && MODULE_CONFIG.Filters.length > 0) {
+        } else if (!_usesUnifiedMetadata()
+          && MODULE_CONFIG.Filters
+          && MODULE_CONFIG.Filters.length > 0) {
           filters = filters.concat(MODULE_CONFIG.Filters);
         }
 
-        var filterNode = FilterComponent.create(filters, function (values) {
-          console.log('[DynamicFormEngine] Filter values callback received:', values);
-
-          // Lấy giá trị keyword từ ô Quick Search Bar để tránh bị đè mất
-          var quickSearch = document.getElementById('toolbar-quick-search');
-          if (quickSearch) {
-            values.keyword = quickSearch.value;
-          }
-
-          // Lưu lại toàn bộ các giá trị filter
-          window.currentFilters = values;
-          currentKeyword = values.keyword || '';
-          currentPage = 1; // Reset về trang 1 khi lọc mới
-          selectedRows = [];
-          _updateSelectionCounter();
-          _loadData();
-        });
-        filterContainer.appendChild(filterNode);
-        filterContainer.style.display = 'none'; // Ẩn mặc định, ấn Lọc mới hiện
+        if (filters.length > 0) {
+          var filterNode = FilterComponent.create(filters, function (values) {
+            var quickSearch = document.getElementById('toolbar-quick-search');
+            window.currentFilters = values || {};
+            currentKeyword = quickSearch ? quickSearch.value : currentKeyword;
+            currentPage = 1;
+            selectedRows = [];
+            _updateSelectionCounter();
+            _loadData();
+          });
+          filterContainer.appendChild(filterNode);
+          filterContainer.style.display = 'none';
+        } else {
+          filterContainer.innerHTML = '';
+          filterContainer.style.display = 'none';
+        }
       }
 
       if (!MODULE_CONFIG.NoAutoLoad) {
         if (MODULE_CONFIG.IsDetailAdd) {
-          _openModal(false, null);
+          _openModal(false, MODULE_CONFIG.DetailRowData || null);
         } else if (MODULE_CONFIG.action === 'detail' || MODULE_CONFIG.Action === 'detail') {
           _openModal(true, MODULE_CONFIG.DetailRowData, true);
         } else {
@@ -1545,7 +2243,17 @@ window.DynamicFormEngine = (function () {
   // ── Load Data ─────────────────────────────────────────────
   var savedScrollY = 0; // Lưu vị trí scroll
 
-  function _loadData() {
+  function _loadData(options) {
+    var loadOptions = options || {};
+    var loadRequestId = ++dataLoadSequence;
+    var requestedFormName = currentFormName;
+    var requestedContainer = $container;
+    var isLatestRequest = function () {
+      return loadRequestId === dataLoadSequence
+        && requestedFormName === currentFormName
+        && requestedContainer === $container;
+    };
+
     _persistFormState();
 
     if (MODULE_CONFIG.IsFullPageDetail && MODULE_CONFIG.DetailRowData) {
@@ -1554,27 +2262,40 @@ window.DynamicFormEngine = (function () {
     }
 
     var gridContainer = $container ? $container.querySelector('#dynamic-grid-container') : null;
-    var existingTable = gridContainer ? gridContainer.querySelector('.table-wrapper') : null;
+    var existingTable = gridContainer ? gridContainer.querySelector('.tabulator-wrapper') : null;
 
-    if (existingTable && typeof existingTable.showLoading === 'function') {
+    if (existingTable) {
       savedScrollY = window.scrollY;
-      existingTable.showLoading(MODULE_CONFIG.TextLoading);
-    } else if (gridContainer) {
-      gridContainer.innerHTML = '<div class="p-4 text-center" style="color:var(--color-text-secondary);">' + MODULE_CONFIG.TextLoading + '</div>';
+      // Hủy Tabulator khi element vẫn còn trong DOM; nếu xóa DOM trước,
+      // lần refresh sau Save có thể ném lỗi và làm mất state vừa tải.
+      _destroyTabulatorInstance();
     }
+    _showGridLoading(
+      gridContainer,
+      loadOptions.loadingMessage || MODULE_CONFIG.TextLoading
+    );
 
-    if (MODULE_CONFIG.ApiSearch) {
+    var searchEndpoint = _usesUnifiedFieldContract() ? _gateway() : MODULE_CONFIG.ApiSearch;
+    if (searchEndpoint) {
       // Gom các bộ lọc đang active (bỏ các trường rỗng)
       var activeFilters = {};
       if (window.currentFilters) {
+        var allowedContractFilters = null;
+        if (_usesUnifiedMetadata()) {
+          allowedContractFilters = Object.create(null);
+          _schemaFor('filters').forEach(function (field) { allowedContractFilters[String(field.name).toLowerCase()] = true; });
+        }
         for (var k in window.currentFilters) {
-          if (window.currentFilters[k] !== '' && window.currentFilters[k] !== null) {
+          var normalizedFilterKey = String(k).toLowerCase();
+          if (normalizedFilterKey === 'keyword') continue;
+          if (allowedContractFilters && !allowedContractFilters[normalizedFilterKey]) continue;
+          if (window.currentFilters[k] !== ''
+            && window.currentFilters[k] !== null
+            && window.currentFilters[k] !== undefined) {
             activeFilters[k] = window.currentFilters[k];
           }
         }
       }
-      // Thêm Keyword vào filter JSON
-      if (currentKeyword) activeFilters['Keyword'] = currentKeyword;
 
       // Đổi màu nút Lọc nếu có dữ liệu lọc
       var actionsContainer = document.getElementById('global-page-actions') || $container;
@@ -1624,6 +2345,7 @@ window.DynamicFormEngine = (function () {
         Func: 'View',
         UserName: _currentUser(),
         User: _currentUser(),
+        BranchID: _currentBranchId(),
         Page: currentPage,
         Limit: currentLimit,
         SortColumn: currentSortCol || '',
@@ -1632,7 +2354,7 @@ window.DynamicFormEngine = (function () {
       };
 
       // Gửi BranchID vào JsonData để backend API Gateway mapping thành tham số SP
-      if (_branchID) {
+      if (_branchID && !_usesUnifiedFieldContract()) {
         // Chỉ thêm nếu user chưa chủ động filter chi nhánh
         if (!activeFilters.BranchID && !activeFilters.ChiNhanhID) {
           activeFilters.BranchID = _branchID;
@@ -1650,32 +2372,71 @@ window.DynamicFormEngine = (function () {
         query.JsonData = JSON.stringify(activeFilters);
       }
 
+      /*
+       * API_TruyVanDong_V2 nhận paging trong @Data để giữ Para contract ổn
+       * định; Keyword vẫn chỉ nằm ở top-level query.Keyword.
+       */
+      if (_usesUnifiedFieldContract() && !MODULE_CONFIG.IsFullPageDetail) {
+        var safePageSize = Math.min(100000, Math.max(1, parseInt(currentLimit, 10) || 30));
+        var v2Data = Object.assign({}, activeFilters, {
+          page: currentPage,
+          pageSize: safePageSize
+        });
+        query.JsonData = JSON.stringify(v2Data);
+      }
+
       console.log('[DynamicFormEngine] Sending query to ApiSearch:', query);
-      ApiClient.post(MODULE_CONFIG.ApiSearch, query).then(function (result) {
+      ApiClient.post(searchEndpoint, query).then(function (result) {
+        if (!isLatestRequest()) return;
+        var resultCode = result && result.code;
+        if (resultCode !== undefined && resultCode !== null && String(resultCode) !== '0') {
+          var gatewayError = new Error(result.msg || 'Không thể tải dữ liệu từ API.');
+          gatewayError.code = resultCode;
+          gatewayError.response = result;
+          throw gatewayError;
+        }
+
         // Trả lại quyền sinh sát (tính phân trang) cho C# Backend
         totalRecords = result._recordtotal || 0;
         totalPagesFromApi = result._pagetotal || 0;
 
         lastTimestamp = result._timestamp || '';
-        var dataList = result.list || result.records || [];
+        var dataList = Array.isArray(result.list)
+          ? result.list
+          : (Array.isArray(result.records) ? result.records : []);
         gridData = dataList.map(function (item) {
+          var row = Object.assign({}, item);
           // Lấy khóa chính từ cấu hình, nếu không có thì tự động lấy cột đầu tiên của dữ liệu
-          var firstKey = Object.keys(item).length > 0 ? Object.keys(item)[0] : null;
-          item.id = item[MODULE_CONFIG.PrimaryKey] || (firstKey ? item[firstKey] : null) || Math.random();
-          return item;
+          var firstKey = Object.keys(row).length > 0 ? Object.keys(row)[0] : null;
+          var primaryValue = row[MODULE_CONFIG.PrimaryKey];
+          var firstValue = firstKey ? row[firstKey] : null;
+          row.id = _hasContractValue(primaryValue) ? primaryValue : (_hasContractValue(firstValue) ? firstValue : Math.random());
+          return row;
         });
 
         // Bỏ đồng bộ Kỳ (PeriodID) tự động để tránh tự động lọc ngoài ý muốn khi lưu/cập nhật dữ liệu
 
-        if (MODULE_CONFIG.IsFullPageDetail) {
-          var row = gridData.length > 0 ? gridData[0] : {};
-          _openModal(true, row, true);
-        } else {
-          _renderTable();
+        try {
+          if (MODULE_CONFIG.IsFullPageDetail) {
+            var row = gridData.length > 0 ? gridData[0] : {};
+            _openModal(true, row, true);
+          } else {
+            _renderTable();
+          }
+        } catch (renderError) {
+          // Response hợp lệ không được phép bị xóa chỉ vì lỗi lifecycle/render của grid.
+          console.error('Dữ liệu đã tải nhưng không thể dựng danh sách:', renderError);
+          if (typeof Alert !== 'undefined') {
+            Alert.error(MODULE_CONFIG.AlertTitleError, 'Dữ liệu đã tải nhưng không thể hiển thị bảng. Vui lòng thử tải lại.');
+          }
         }
       }).catch(function (err) {
+        if (!isLatestRequest()) return;
         console.error('Lỗi tải danh sách:', err);
-        if (typeof Alert !== 'undefined') Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertNetworkError);
+        var loadErrorMessage = err && err.response
+          ? 'Không thể tải dữ liệu từ API (mã ' + String(err.code) + '). Xem Console/Network để biết chi tiết.'
+          : MODULE_CONFIG.AlertNetworkError;
+        if (typeof Alert !== 'undefined') Alert.error(MODULE_CONFIG.AlertTitleError, loadErrorMessage);
         gridData = [];
         totalRecords = 0;
         totalPagesFromApi = 0;
@@ -1709,9 +2470,10 @@ window.DynamicFormEngine = (function () {
     lastSelectedIdx = -1;
 
     if (typeof Tabulator !== 'undefined') {
+      var gridSchema = _schemaFor('grid').slice();
       var dictionary = {};
-      if (globalFormSchema && globalFormSchema.length > 0) {
-        globalFormSchema.forEach(function (schema) {
+      if (gridSchema && gridSchema.length > 0) {
+        gridSchema.forEach(function (schema) {
           var pos = (schema.position || 'grid').toLowerCase();
           if (pos.indexOf('grid') > -1) {
             dictionary[schema.name] = schema.label;
@@ -1722,7 +2484,7 @@ window.DynamicFormEngine = (function () {
       }
 
       var customRenderers = globalRenderers;
-      globalFormSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
+      gridSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
       var renderers = Object.assign({}, customRenderers);
 
 
@@ -1752,7 +2514,7 @@ window.DynamicFormEngine = (function () {
       var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
       var rowKeys = Object.keys(sampleRow);
 
-      globalFormSchema.forEach(function (f) {
+      gridSchema.forEach(function (f) {
         var pos = (f.position || 'grid').toLowerCase();
         if (pos.indexOf('grid') > -1) {
           var fieldName = f.name;
@@ -1805,19 +2567,19 @@ window.DynamicFormEngine = (function () {
                 setTimeout(function () { fp.open(); }, 10);
               } else {
                 // Fallback
-                input.type = "date";
+                input.type = "text";
+                input.inputMode = "numeric";
+                input.placeholder = "dd/mm/yyyy";
                 if (parsedDate && !isNaN(parsedDate.getTime())) {
                   var y = parsedDate.getFullYear();
                   var m = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
                   var d = parsedDate.getDate().toString().padStart(2, '0');
-                  input.value = y + '-' + m + '-' + d;
+                  input.value = d + '/' + m + '/' + y;
                 }
                 input.focus();
                 input.addEventListener("blur", function () {
-                  var v = input.value;
+                  var v = _toVietnameseDate(input.value);
                   if (v) {
-                    var p = v.split('-');
-                    if (p.length === 3) v = p[2] + '/' + p[1] + '/' + p[0];
                     if (v !== cellValue) success(v); else cancel();
                   } else {
                     if (cellValue !== "") success(""); else cancel();
@@ -1829,11 +2591,22 @@ window.DynamicFormEngine = (function () {
             return input;
           };
 
-          var hasCombo = f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
+          var hasCombo = f.lookupKey || f.dataSource || f.api || f.listName || f.queryName || (f.renderRule && f.renderRule.toLowerCase() === 'combo');
 
           var customComboEditor = function (cell, onRendered, success, cancel) {
             var cellValue = cell.getValue();
             var rowData = cell.getRow().getData();
+            var isFieldSyncLookup = Boolean(
+              window.FieldControlResolver
+              && FieldControlResolver.isContractLookup(f)
+            );
+            var fieldSyncSearch = isFieldSyncLookup
+              ? FieldControlResolver.createLookupSearch(f, {
+                formName: MODULE_CONFIG.FormName,
+                getValues: function () { return rowData; },
+                pageSize: 30
+              })
+              : null;
 
             var endpointRaw = f.dataSource || f.api || f.listName || f.queryName || '';
             var maxCols = 4;
@@ -1845,7 +2618,9 @@ window.DynamicFormEngine = (function () {
             }
             var finalUrl;
             var fetchPayload = {};
-            if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
+            if (isFieldSyncLookup) {
+              finalUrl = '';
+            } else if (endpointRaw.indexOf('/') === -1 && !endpointRaw.startsWith('http')) {
               finalUrl = (typeof API_CONFIG !== 'undefined' ? API_CONFIG.BASE_URL : '') + _gateway();
               fetchPayload = { List: endpointRaw, FormName: endpointRaw, Func: 'View' };
             } else {
@@ -1861,6 +2636,9 @@ window.DynamicFormEngine = (function () {
             if (!fetchPayload.UserName) fetchPayload.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
 
             var searchApiCall = function (q, page) {
+              if (isFieldSyncLookup) {
+                return fieldSyncSearch(q, page);
+              }
               var payload = Object.assign({}, fetchPayload);
               var isGateway = finalUrl.indexOf(_gateway()) > -1;
               var dynamicFilters = {};
@@ -1890,23 +2668,35 @@ window.DynamicFormEngine = (function () {
                 var dataList = res.list || res.records;
                 var headers = ['Mã', 'Tên'];
                 var colFilterIndex = 1;
+                var displayKeysFull = [];
                 if (dataList && dataList.length > 0) {
                   var keys = Object.keys(dataList[0]);
                   if (keys.length > 0) {
-                    var displayKeysFull = keys;
+                    var configuredSourceFields = Array.isArray(f.sourceFields)
+                      ? f.sourceFields.filter(function (key) {
+                        return keys.some(function (sourceKey) {
+                          return String(sourceKey).toLowerCase() === String(key).toLowerCase();
+                        });
+                      })
+                      : [];
+                    displayKeysFull = configuredSourceFields.length ? configuredSourceFields : keys;
                     if (f.hiddenColumns && Array.isArray(f.hiddenColumns)) {
                       var hcols = f.hiddenColumns.map(function (c) { return c.toUpperCase(); });
-                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                      displayKeysFull = displayKeysFull.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
                     }
+                    comboLoading.dataset.lookupKeys = JSON.stringify(displayKeysFull);
+                    comboLoading.dataset.valueIndex = String(_lookupFieldIndex(displayKeysFull, f.valueIndex, f.valueField, 0));
                     var displayKeys = displayKeysFull.slice(0, maxCols);
-                    headers = displayKeys.map(function (k) {
-                      if (typeof globalDictionary !== 'undefined') {
-                        var kLower = k.toLowerCase();
-                        var matchKey = Object.keys(globalDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
-                        if (matchKey) return globalDictionary[matchKey].CaptionVN;
-                      }
-                      return k;
-                    });
+                    headers = Array.isArray(f.headers) && f.headers.length
+                      ? f.headers.slice(0, displayKeys.length)
+                      : displayKeys.map(function (k) {
+                        if (typeof globalDictionary !== 'undefined') {
+                          var kLower = k.toLowerCase();
+                          var matchKey = Object.keys(globalDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
+                          if (matchKey) return globalDictionary[matchKey].CaptionVN;
+                        }
+                        return k;
+                      });
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
                     if (displayKey) {
@@ -1924,6 +2714,8 @@ window.DynamicFormEngine = (function () {
                       var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
                     }
+                    var configuredDisplayIndex = _lookupFieldIndex(displayKeysFull, f.displayIndex, f.displayField, -1);
+                    if (configuredDisplayIndex >= 0) colFilterIndex = configuredDisplayIndex;
                     dataList.forEach(function (d) {
                       var rData = [];
                       displayKeysFull.forEach(function (k) { rData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
@@ -1933,7 +2725,7 @@ window.DynamicFormEngine = (function () {
                     dataList.forEach(function (d) { comboData.push(['', '']); });
                   }
                 }
-                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex };
+                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex, valueIndex: parseInt(comboLoading.dataset.valueIndex || '0', 10), forceMultiColumn: displayKeysFull.length > 1 };
               });
             };
 
@@ -1941,10 +2733,13 @@ window.DynamicFormEngine = (function () {
               placeholder: '-- Chọn --',
               headers: ['Mã', 'Tên'],
               showAddNew: false,
+              enablePagination: isFieldSyncLookup,
               onSearch: searchApiCall,
               onChange: function (val) { },
               onSelect: function (row) {
-                success(lazyCombo.querySelector('.ui-input').value);
+                var selectedValueIndex = parseInt(comboLoading.dataset.valueIndex || '0', 10);
+                if (isNaN(selectedValueIndex) || selectedValueIndex < 0) selectedValueIndex = 0;
+                success(row[selectedValueIndex] !== undefined ? row[selectedValueIndex] : row[0]);
               }
             });
 
@@ -1969,13 +2764,15 @@ window.DynamicFormEngine = (function () {
             if ((MODULE_CONFIG.FormType || '').toUpperCase() === 'REPORT') isEditable = false;
             if ((MODULE_CONFIG.FormName || '').toUpperCase().indexOf('REPORT') > -1) isEditable = false;
           }
+          if (!_contractWriteActive()) isEditable = false;
           if (f.ShowInEdit == 0 || f.IsReadOnlyEdit == 1) isEditable = false;
 
-          var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n';
+          var isNumeric = (f.formatId || f.FormatID || '').toLowerCase() === 'n' || f.renderRule === 'n';
 
           var colDef = {
             title: dictionary[fieldName] || fieldName,
             field: actualField,
+            headerSort: f.serverSortable !== false,
             editor: isEditable ? (isDateField ? customDateEditor : (hasCombo ? customComboEditor : "input")) : false,
             maxWidth: 400, // UX: Giới hạn độ rộng tối đa để text dài (như Mô tả) không đẩy vỡ khung Grid
             tooltip: true  // UX: Cho phép xem đầy đủ text khi hover chuột vào ô bị cắt chữ (...)
@@ -1983,14 +2780,36 @@ window.DynamicFormEngine = (function () {
           };
 
           if (isNumeric) {
-            colDef.bottomCalc = "sum";
-            colDef.bottomCalcFormatter = function (cell) {
-              var val = cell.getValue();
-              var n = parseFloat(val);
-              return isNaN(n) ? (val || '') : n.toLocaleString('vi-VN');
-            };
+            if (!colDef.formatter) {
+              colDef.formatter = function (cell) {
+                var value = cell.getValue();
+                var number = parseFloat(value);
+                if (isNaN(number)) return value || '';
+                var decimals = Number(f.numberDecimal);
+                var options = Number.isFinite(decimals) && decimals >= 0
+                  ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals }
+                  : undefined;
+                return number.toLocaleString('vi-VN', options);
+              };
+            }
+            // Removed bottomCalc to hide the footer row with zeros
+            // colDef.bottomCalc = "sum";
+            // colDef.bottomCalcFormatter = function (cell) {
+            //   var val = cell.getValue();
+            //   var n = parseFloat(val);
+            //   return isNaN(n) ? (val || '') : n.toLocaleString('vi-VN');
+            // };
             colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
+
+          if (!colDef.hozAlign && f.align) {
+            var align = String(f.align).toLowerCase();
+            if (align === 'r' || align === 'right') colDef.hozAlign = 'right';
+            if (align === 'c' || align === 'center') colDef.hozAlign = 'center';
+            if (align === 'l' || align === 'left') colDef.hozAlign = 'left';
+          }
+          if (Number(f.minWidth) > 0) colDef.minWidth = Number(f.minWidth);
+          if (Number(f.maxWidth) > 0) colDef.maxWidth = Number(f.maxWidth);
 
           // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {
@@ -2056,7 +2875,7 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          if (renderers[fieldName]) {
+          if (renderers[fieldName] && f.metadataSource !== 'FIELD_SYNC_V2') {
             colDef.formatter = function (cell) {
               return renderers[fieldName](cell.getValue(), cell.getData());
             };
@@ -2108,9 +2927,7 @@ window.DynamicFormEngine = (function () {
         });
       }
 
-      if (window.tabulatorInstance) {
-        window.tabulatorInstance.destroy();
-      }
+      _destroyTabulatorInstance();
 
       var tabulatorConfig = {
         data: gridData,
@@ -2170,12 +2987,18 @@ window.DynamicFormEngine = (function () {
         var field = cell.getField();
         var newVal = cell.getValue();
 
-        var endpoint = MODULE_CONFIG.ApiSave || _gateway();
+        var endpoint = _usesUnifiedFieldContract() ? _gateway() : (MODULE_CONFIG.ApiSave || _gateway());
         if (!endpoint) return;
 
+        if (!_contractWriteActive()) {
+          if (typeof Alert !== 'undefined') Alert.warning('Cảnh báo', 'Form chưa có route lưu dữ liệu hợp lệ.');
+          cell.restoreOldValue();
+          return;
+        }
+
         var schema = null;
-        if (globalFormSchema) {
-          schema = globalFormSchema.find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
+        if (_schemaFor('edit')) {
+          schema = _schemaFor('edit').find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
         }
 
         var isReport = false;
@@ -2200,8 +3023,8 @@ window.DynamicFormEngine = (function () {
 
         // Validate riêng cho các cột kiểu Date để chống lỗi SQL khi nhập thiếu năm (VD: "20/10")
         var isDateCol = field.toLowerCase().indexOf('ngay') >= 0;
-        if (!isDateCol && globalFormSchema) {
-          var schema = globalFormSchema.find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
+        if (!isDateCol && _schemaFor('edit')) {
+          var schema = _schemaFor('edit').find(function (s) { return s.name.toLowerCase() === field.toLowerCase(); });
           if (schema && (schema.renderRule === 'dt' || schema.formatId === 'd' || schema.FormatID === 'd')) {
             isDateCol = true;
           }
@@ -2222,9 +3045,22 @@ window.DynamicFormEngine = (function () {
         }
 
         // Xây dựng payload để lưu
-        var payloadObj = Object.assign({}, rowData);
-        payloadObj.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
-        payloadObj.IsEdit = 1;
+        var payloadObj = {};
+        if (_usesUnifiedFieldContract()) {
+          var changed = {};
+          changed[field] = newVal;
+          payloadObj = _buildContractWritePayload(changed, true, rowData);
+        } else if (_isPhase2ManagedForm()) {
+          payloadObj[MODULE_CONFIG.PrimaryKey] = rowData[MODULE_CONFIG.PrimaryKey];
+          payloadObj[field] = newVal;
+          payloadObj.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
+          payloadObj.IsEdit = 1;
+        } else {
+          Object.keys(rowData || {}).forEach(function (key) { payloadObj[key] = rowData[key]; });
+          payloadObj[field] = newVal;
+          payloadObj.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
+          payloadObj.IsEdit = 1;
+        }
 
         // Chuẩn hóa định dạng ngày tháng từ DD/MM/YYYY sang YYYY-MM-DD để SQL Server hiểu được
         Object.keys(payloadObj).forEach(function (k) {
@@ -2240,8 +3076,11 @@ window.DynamicFormEngine = (function () {
         var finalPayload = {
           List: MODULE_CONFIG.FormName,
           Func: 'Save',
-          JsonData: JSON.stringify(payloadObj)
+          JsonData: JSON.stringify(payloadObj),
+          UserName: _currentUser(),
+          BranchID: _writeBranchIdFrom(changed, payloadObj, rowData)
         };
+        _prepareGatewayWriteRequest(finalPayload, changed, payloadObj, rowData);
 
         ApiClient.post(endpoint, finalPayload)
           .then(function (res) {
@@ -2261,6 +3100,8 @@ window.DynamicFormEngine = (function () {
       // Bắt sự kiện click header để sort
       window.tabulatorInstance.on("headerClick", function (e, column) {
         var field = column.getField();
+        var definition = column.getDefinition ? column.getDefinition() : {};
+        if (definition && definition.headerSort === false) return;
         if (field !== "__action__" && field) {
           var currentDir = column.getDir() === "asc" ? "desc" : "asc";
           currentSortCol = field;
@@ -2309,8 +3150,6 @@ window.DynamicFormEngine = (function () {
   }
 
   function _updateSelectionCounter() {
-    _saveSelectedRows();
-
     if (!window.tabulatorInstance) {
       // Đồng bộ trạng thái checkbox
       var allTrs = $container.querySelectorAll('#dynamic-grid-container tbody tr');
@@ -2822,7 +3661,7 @@ window.DynamicFormEngine = (function () {
             valSpan = document.createElement('div');
             valSpan.className = 'inline-edit-field';
 
-            var fieldSchema = globalFormSchema.find(function (s) { return s.name === fName; });
+            var fieldSchema = _schemaFor('edit').find(function (s) { return s.name === fName; });
             var readOnlyKeys = MODULE_CONFIG.ReadOnlyKeyFields || [];
             var isReadOnly = fieldSchema ? fieldSchema.isReadOnlyEdit : (fName === MODULE_CONFIG.PrimaryKey || readOnlyKeys.indexOf(fName) >= 0);
             var isDate = fName.toLowerCase().indexOf('ngay') >= 0 || (fieldSchema && fieldSchema.renderRule === 'dt');
@@ -2836,15 +3675,12 @@ window.DynamicFormEngine = (function () {
               valSpan.appendChild(roInput);
             } else if (isDate) {
               var dInput = document.createElement('input');
-              dInput.type = 'date';
+              dInput.type = 'text';
+              dInput.inputMode = 'numeric';
+              dInput.placeholder = 'dd/mm/yyyy';
               dInput.name = fName;
               dInput.className = 'ui-input form-inline-input';
-              if (rawVal) {
-                try {
-                  var d = new Date(rawVal);
-                  if (!isNaN(d.getTime())) dInput.value = d.toISOString().split('T')[0];
-                } catch (e) { }
-              }
+              dInput.value = _toVietnameseDate(rawVal);
               valSpan.appendChild(dInput);
             } else if (fName === 'GioiTinh') {
               var sel = document.createElement('select');
@@ -3112,7 +3948,15 @@ window.DynamicFormEngine = (function () {
         var pkValKV = row[pkFieldKV] || '';
         var filterKV = {};
         filterKV[tabDef.filterField || pkFieldKV] = pkValKV;
-        var payloadKV = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterKV) };
+        var payloadKV = {
+          List: tabDef.api,
+          Func: 'View',
+          Limit: 500,
+          JsonData: JSON.stringify(filterKV),
+          UserName: _currentUser(),
+          User: _currentUser(),
+          BranchID: _currentBranchId()
+        };
         var MONEY_KV = ['MucLuong', 'LuongBaoHiem', 'PCCongTac', 'PCTrachNhiem', 'PCKhac', 'LuongCoBan', 'MucDong'];
         var DATE_KV = ['NgaySinh', 'NgayVaoLam', 'NgayHopDong', 'NgayHetHopDong', 'NgayThuViec', 'SocialDate', 'NgayKetThucBH', 'ThoiGianHuongBHYT', 'NgayKyHopDong', 'NgayCoHieuLuc', 'NgayHetHieuLuc', 'NgayThayDoi', 'NgayCapNhat', 'FromDate', 'ToDate', 'LogDate', 'GiamTruTuThang', 'GiamTruDenThang'];
 
@@ -3185,7 +4029,15 @@ window.DynamicFormEngine = (function () {
         var pkVal = row[pkField] || '';
         var filterData = {};
         filterData[tabDef.filterField || pkField] = pkVal;
-        var payload = { List: tabDef.api, Func: 'View', Limit: 500, JsonData: JSON.stringify(filterData) };
+        var payload = {
+          List: tabDef.api,
+          Func: 'View',
+          Limit: 500,
+          JsonData: JSON.stringify(filterData),
+          UserName: _currentUser(),
+          User: _currentUser(),
+          BranchID: _currentBranchId()
+        };
 
         ApiClient.post(MODULE_CONFIG.ApiSearch || _gateway(), payload).then(function (res) {
           var data = res.list || res.records || [];
@@ -3487,6 +4339,25 @@ window.DynamicFormEngine = (function () {
     };
   }
 
+  function _isMasterDetailModule(cfg) {
+    if (!cfg) return false;
+    if (Array.isArray(cfg.DetailTabs) && cfg.DetailTabs.length > 0) return true;
+
+    var cType = String(cfg.ContractType || cfg.contractType || '').toUpperCase();
+    if (cType.indexOf('MASTER_DETAIL') !== -1) return true;
+    if (Array.isArray(cfg.datasets) && cfg.datasets.length > 0) return true;
+    if (Array.isArray(cfg.Datasets) && cfg.Datasets.length > 0) return true;
+
+    if (fieldContractState && fieldContractState.schema && fieldContractState.schema.contract) {
+      var fc = fieldContractState.schema.contract;
+      var fcType = String(fc.contractType || fc.ContractType || '').toUpperCase();
+      if (fcType.indexOf('MASTER_DETAIL') !== -1) return true;
+      if (Array.isArray(fc.datasets) && fc.datasets.length > 0) return true;
+    }
+
+    return false;
+  }
+
   function _openAddForm() {
     // Ensure AttachmentApi is configured for Wizard Add Mode
     var isPersonForm = !!MODULE_CONFIG.isPersonForm;
@@ -3499,13 +4370,13 @@ window.DynamicFormEngine = (function () {
     if (MODULE_CONFIG.WizardSteps && MODULE_CONFIG.WizardSteps.length > 0 && typeof WizardForm !== 'undefined') {
       WizardForm.open({
         steps: MODULE_CONFIG.WizardSteps,
-        formSchema: globalFormSchema,
+        formSchema: _schemaFor('add'),
         moduleConfig: MODULE_CONFIG,
         currentUser: _currentUser(),
         userBranches: _getUserBranches(),   // Danh sách chi nhánh của user
         saveData: _saveData
       });
-    } else if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+    } else if (_isMasterDetailModule(MODULE_CONFIG)) {
       window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&action=add';
     } else {
       _openModal(false, null, false);
@@ -3514,33 +4385,63 @@ window.DynamicFormEngine = (function () {
 
 
 
+  function _getRowPrimaryKey(row) {
+    if (!row || typeof row !== 'object') return '';
+    var candidates = [
+      MODULE_CONFIG.PrimaryKey,
+      MODULE_CONFIG.primaryKey,
+      fieldContractState && fieldContractState.schema && fieldContractState.schema.primaryKey,
+      fieldContractState && fieldContractState.schema && fieldContractState.schema.contract && fieldContractState.schema.contract.expectedPrimaryKey
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      var k = candidates[i];
+      if (k && _hasContractValue(row[k])) return k;
+    }
+    var rowKeys = Object.keys(row);
+    for (var c = 0; c < candidates.length; c++) {
+      var cand = candidates[c];
+      if (!cand) continue;
+      var match = rowKeys.find(function (rk) { return rk.toLowerCase() === String(cand).toLowerCase(); });
+      if (match && _hasContractValue(row[match])) return match;
+    }
+    var idKey = rowKeys.find(function (rk) { return /id$/i.test(rk) && _hasContractValue(row[rk]); });
+    if (idKey) return idKey;
+    return rowKeys[0] || 'id';
+  }
+
   function _openEditForm(row) {
-    if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
+    var pkField = _getRowPrimaryKey(row);
+    var pkVal = row ? row[pkField] : null;
+
+    if (!row || !_hasContractValue(pkVal)) {
       _openModal(true, row, true);
       return;
     }
 
-    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+    if (_isMasterDetailModule(MODULE_CONFIG)) {
       // Save row data to session storage for faster and accurate load
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
       // Redirect to detail page
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]) + '&action=edit';
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(pkVal) + '&action=edit';
     } else {
       _openModal(true, row, false);
     }
   }
 
   function _openViewForm(row) {
-    if (!row || !row[MODULE_CONFIG.PrimaryKey]) {
+    var pkField = _getRowPrimaryKey(row);
+    var pkVal = row ? row[pkField] : null;
+
+    if (!row || !_hasContractValue(pkVal)) {
       _openModal(true, row, true);
       return;
     }
 
-    if (window.APP_MODULES && window.APP_MODULES[(MODULE_CONFIG.FormName || '').toUpperCase()]) {
+    if (_isMasterDetailModule(MODULE_CONFIG)) {
       // Save row data to session storage for faster and accurate load
       sessionStorage.setItem('HR_Detail_Row_' + MODULE_CONFIG.FormName, JSON.stringify(row));
       // Redirect to detail page without &action=edit to trigger View mode
-      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(row[MODULE_CONFIG.PrimaryKey]);
+      window.location.hash = '#/detail?module=' + encodeURIComponent(MODULE_CONFIG.FormName) + '&id=' + encodeURIComponent(pkVal);
     } else {
       _openModal(true, row, true); // true for forceDetail (view mode)
     }
@@ -3607,7 +4508,7 @@ window.DynamicFormEngine = (function () {
     table.style.width = 'max-content';
     table.style.minWidth = '100%';
 
-    var formSchema = globalFormSchema;
+    var formSchema = _schemaFor(isAdd ? 'add' : 'edit').slice();
     formSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
 
     var editableFields = [];
@@ -3726,7 +4627,8 @@ window.DynamicFormEngine = (function () {
               if (matched && newDisplayInput) newDisplayInput.value = matched[1];
               inputEl.replaceChild(newCombo, comboLoading);
             } else {
-              ApiClient.post(MODULE_CONFIG.ApiSearch, { FormName: field.dataSource, Limit: 1000 }).then(function (res) {
+              var rowDataSource = String(field.dataSource || '').split('|')[0];
+              ApiClient.post(MODULE_CONFIG.ApiSearch, { FormName: rowDataSource, List: rowDataSource, Func: 'View', Limit: 1000 }).then(function (res) {
                 var comboData = [];
                 var headers = ['Mã', 'Tên'];
                 var colFilterIndex = 1;
@@ -3734,12 +4636,23 @@ window.DynamicFormEngine = (function () {
                 if (dataList && dataList.length > 0) {
                   var keys = Object.keys(dataList[0]);
                   if (keys.length > 0) {
-                    var displayKeysFull = keys;
+                    var configuredSourceFields = Array.isArray(field.sourceFields)
+                      ? field.sourceFields.filter(function (key) {
+                        return keys.some(function (sourceKey) {
+                          return String(sourceKey).toLowerCase() === String(key).toLowerCase();
+                        });
+                      })
+                      : [];
+                    var displayKeysFull = configuredSourceFields.length ? configuredSourceFields : keys;
                     if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
                       var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
-                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                      displayKeysFull = displayKeysFull.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
                     }
-                    headers = displayKeysFull;
+                    comboLoading.dataset.lookupKeys = JSON.stringify(displayKeysFull);
+                    comboLoading.dataset.valueIndex = String(_lookupFieldIndex(displayKeysFull, field.valueIndex, field.valueField, 0));
+                    headers = Array.isArray(field.headers) && field.headers.length
+                      ? field.headers.slice(0, displayKeysFull.length)
+                      : displayKeysFull;
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeysFull.find(function (k) { return labelRegex.test(k); });
                     colFilterIndex = displayKey ? displayKeysFull.indexOf(displayKey) : (displayKeysFull.length > 1 ? 1 : 0);
@@ -3748,6 +4661,8 @@ window.DynamicFormEngine = (function () {
                       var keyIdx = displayKeysFull.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
                     }
+                    var configuredDisplayIndex = _lookupFieldIndex(displayKeysFull, field.displayIndex, field.displayField, -1);
+                    if (configuredDisplayIndex >= 0) colFilterIndex = configuredDisplayIndex;
                     dataList.forEach(function (d) {
                       var rd = [];
                       displayKeysFull.forEach(function (k) { rd.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
@@ -3761,11 +4676,17 @@ window.DynamicFormEngine = (function () {
                   onF2: function () {
                     newCombo.querySelector('.ui-input').focus();
                   },
-                  onSelect: function (r) { hiddenInput.value = r[0]; },
+                  onSelect: function (r) {
+                    var selectedValueIndex = parseInt(comboLoading.dataset.valueIndex || '0', 10);
+                    if (isNaN(selectedValueIndex) || selectedValueIndex < 0) selectedValueIndex = 0;
+                    hiddenInput.value = r[selectedValueIndex] !== undefined ? r[selectedValueIndex] : r[0];
+                  },
                   onChange: function (val) { hiddenInput.value = val; } // Hỗ trợ gõ tay khách mới
                 });
                 var newDisplayInput = newCombo.querySelector('input.ui-input');
-                var matched = comboData.find(function (r) { return r[0] == field.value; });
+                var valueIndex = parseInt(comboLoading.dataset.valueIndex || '0', 10);
+                if (isNaN(valueIndex) || valueIndex < 0) valueIndex = 0;
+                var matched = comboData.find(function (r) { return r[valueIndex] == field.value; });
                 if (matched && newDisplayInput) newDisplayInput.value = matched[colFilterIndex];
                 inputEl.replaceChild(newCombo, comboLoading);
               }).catch(function (err) {
@@ -4070,12 +4991,12 @@ window.DynamicFormEngine = (function () {
           var attachApi = (MODULE_CONFIG && MODULE_CONFIG.isCandidateForm && MODULE_CONFIG.useCandidateAttachmentApi)
             ? 'API_CandidateAttach' : 'API_PersonAttach';
 
-            var fetchData = {};
-            (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) fetchData[key] = imgIdVal; });
-            var fetchPayload = {
-              List: attachApi,
-              Func: 'View',
-              JsonData: JSON.stringify(fetchData),
+          var fetchData = {};
+          (MODULE_CONFIG.AttachmentKeyFields || [MODULE_CONFIG.PrimaryKey]).forEach(function (key) { if (key) fetchData[key] = imgIdVal; });
+          var fetchPayload = {
+            List: attachApi,
+            Func: 'View',
+            JsonData: JSON.stringify(fetchData),
             UserName: (typeof _currentUser === 'function') ? _currentUser() : 'Unknown'
           };
 
@@ -4211,7 +5132,7 @@ window.DynamicFormEngine = (function () {
     }
 
     // KHAI BÁO CẤU TRÚC FORM (SCHEMA-DRIVEN UI LẤY TỪ DB)
-    var formSchema = globalFormSchema;
+    var formSchema = _schemaFor(isEdit ? 'edit' : 'add').slice();
 
     // Sắp xếp lại theo OrderNo (Nếu có)
     formSchema.sort(function (a, b) { return (a.orderNo || 0) - (b.orderNo || 0); });
@@ -4246,13 +5167,13 @@ window.DynamicFormEngine = (function () {
         var hiddenEl = document.createElement('input');
         hiddenEl.type = 'hidden';
         hiddenEl.name = field.name;
-        hiddenEl.value = row ? (row[field.name] || '') : '';
+        hiddenEl.value = row && _hasContractValue(row[field.name]) ? row[field.name] : '';
         body.appendChild(hiddenEl);
         return;
       }
 
       // Tự động gán giá trị cũ (nếu đang Sửa 1 dòng).
-      field.value = (isEdit && row) ? (row[field.name] || '') : '';
+      field.value = (row && _hasContractValue(row[field.name])) ? row[field.name] : '';
 
       // Khởi tạo Ô nhập liệu tuỳ thuộc vào quy tắc renderRule
       var inputEl;
@@ -4262,9 +5183,43 @@ window.DynamicFormEngine = (function () {
         inputEl = UIInput.createDate(field);
       } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
         inputEl = UIInput.createTime(field);
-      } else if (field.renderRule === 'sl' || field.renderRule === 'select') {
+      } else if (
+        window.FieldControlResolver
+        && FieldControlResolver.isContractLookup(field)
+      ) {
+        var contractLookupWrapper = document.createElement('div');
+        contractLookupWrapper.className = 'form-group';
+        if (field.label) {
+          var contractLookupLabel = document.createElement('label');
+          contractLookupLabel.innerText = field.label;
+          if (field.required) contractLookupLabel.innerHTML += ' <span style="color:var(--color-danger)">*</span>';
+          contractLookupWrapper.appendChild(contractLookupLabel);
+        }
+        var contractLookupValue = document.createElement('input');
+        contractLookupValue.type = 'hidden';
+        contractLookupValue.name = field.name;
+        contractLookupValue.value = _hasContractValue(field.value) ? field.value : '';
+        contractLookupWrapper.appendChild(contractLookupValue);
+
+        var contractLookupCombo = FieldControlResolver.createCombo(field, {
+          formName: MODULE_CONFIG.FormName,
+          getValues: function () { return currentModalFormState; },
+          hiddenInput: contractLookupValue,
+          value: field.value,
+          disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
+          onSelect: function (value) {
+            currentModalFormState[field.name] = value;
+          }
+        });
+        contractLookupWrapper.appendChild(contractLookupCombo);
+        inputEl = contractLookupWrapper;
+      } else if (field.renderRule === 'sl' || field.renderRule === 'select' || field.renderRule === 'combo' || field.renderRule === 'lookup') {
         var formGroupWrapper = document.createElement('div');
         formGroupWrapper.className = 'form-group';
+        var strictLookup = Array.isArray(MODULE_CONFIG.StrictLookupFields)
+          && MODULE_CONFIG.StrictLookupFields.some(function (name) {
+            return String(name).toLowerCase() === String(field.name).toLowerCase();
+          });
 
         if (field.label) {
           var lbl = document.createElement('label');
@@ -4304,6 +5259,7 @@ window.DynamicFormEngine = (function () {
             var lazyStaticCombo = UIControls.createDataComboBox({
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
+              readonlyInput: strictLookup,
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
               onSearch: function (q, page) {
                 return new Promise(function (resolve) {
@@ -4416,18 +5372,30 @@ window.DynamicFormEngine = (function () {
                 var dataList = res.list || res.records;
                 var headers = ['Mã', 'Tên'];
                 var colFilterIndex = 1;
+                var displayKeysFull = [];
                 if (dataList && dataList.length > 0) {
                   var keys = Object.keys(dataList[0]);
                   comboLoading.dataset.lastKeys = JSON.stringify(keys); // Lưu lại keys để dùng cho auto-fill
                   if (keys.length > 0) {
-                    var displayKeysFull = keys;
+                    var configuredSourceFields = Array.isArray(field.sourceFields)
+                      ? field.sourceFields.filter(function (key) {
+                        return keys.some(function (sourceKey) {
+                          return String(sourceKey).toLowerCase() === String(key).toLowerCase();
+                        });
+                      })
+                      : [];
+                    displayKeysFull = configuredSourceFields.length ? configuredSourceFields : keys;
                     if (field.hiddenColumns && Array.isArray(field.hiddenColumns)) {
                       var hcols = field.hiddenColumns.map(function (c) { return c.toUpperCase(); });
-                      displayKeysFull = keys.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
+                      displayKeysFull = displayKeysFull.filter(function (k) { return hcols.indexOf(k.toUpperCase()) === -1; });
                     }
+                    comboLoading.dataset.lookupKeys = JSON.stringify(displayKeysFull);
+                    comboLoading.dataset.valueIndex = String(_lookupFieldIndex(displayKeysFull, field.valueIndex, field.valueField, 0));
                     // Dùng từ điển hiện tại của form để dịch tiêu đề lưới (nếu có), CHỈ HIỆN MAX CỘT ĐƯỢC CHỈ ĐỊNH (mặc định 4)
                     var displayKeys = displayKeysFull.slice(0, maxCols);
-                    headers = displayKeys.map(function (k) {
+                    headers = Array.isArray(field.headers) && field.headers.length
+                      ? field.headers.slice(0, displayKeys.length)
+                      : displayKeys.map(function (k) {
                       if (typeof currentDictionary !== 'undefined') {
                         var kLower = k.toLowerCase();
                         var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
@@ -4452,6 +5420,8 @@ window.DynamicFormEngine = (function () {
                       var keyIdx = displayKeys.findIndex(function (k) { return k.toLowerCase() === 'keyid'; });
                       if (keyIdx > -1) colFilterIndex = keyIdx;
                     }
+                    var configuredDisplayIndex = _lookupFieldIndex(displayKeysFull, field.displayIndex, field.displayField, -1);
+                    if (configuredDisplayIndex >= 0) colFilterIndex = configuredDisplayIndex;
                     dataList.forEach(function (d) {
                       var rowData = [];
                       displayKeysFull.forEach(function (k) { rowData.push(d[k] !== null && d[k] !== undefined ? d[k] : ''); });
@@ -4461,26 +5431,29 @@ window.DynamicFormEngine = (function () {
                     dataList.forEach(function (d) { comboData.push(['', '']); });
                   }
                 }
-                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex, forceMultiColumn: displayKeysFull.length > 1 };
+                return { headers: headers, data: comboData, colFilterIndex: colFilterIndex, valueIndex: parseInt(comboLoading.dataset.valueIndex || '0', 10), forceMultiColumn: displayKeysFull.length > 1 };
               });
             };
 
             var lazyCombo = UIControls.createDataComboBox({
               placeholder: '-- Vui lòng chọn --',
               headers: ['Mã', 'Tên'],
+              readonlyInput: strictLookup,
               disabled: (isViewMode || (isEdit && field.isReadOnlyEdit) || (!isEdit && field.isReadOnlyAdd)),
               showAddNew: (typeof MODULE_CONFIG !== 'undefined' && MODULE_CONFIG.HideAddNewInDropdowns) ? false : true,
               onF2: function () {
                 lazyCombo.querySelector('.ui-input').focus();
               },
               onSearch: searchApiCall,
-              onChange: function (val) { hiddenInput.value = val; }, // Hỗ trợ gõ tay
+              onChange: strictLookup ? undefined : function (val) { hiddenInput.value = val; },
               onSelect: function (row) {
-                hiddenInput.value = row[0];
+                var selectedValueIndex = parseInt(comboLoading.dataset.valueIndex || '0', 10);
+                if (isNaN(selectedValueIndex) || selectedValueIndex < 0) selectedValueIndex = 0;
+                hiddenInput.value = row[selectedValueIndex] !== undefined ? row[selectedValueIndex] : row[0];
 
                 // === AUTO FILL LOGIC ===
                 // Lấy lại danh sách keys đã lưu
-                var savedKeysStr = comboLoading.dataset.lastKeys;
+                var savedKeysStr = comboLoading.dataset.lookupKeys || comboLoading.dataset.lastKeys;
                 if (savedKeysStr) {
                   var keys = JSON.parse(savedKeysStr);
                   // Duyệt qua các cột trả về từ API
@@ -4521,7 +5494,8 @@ window.DynamicFormEngine = (function () {
             if (field.value) {
               searchApiCall('', 1).then(function (res) {
                 var displayInput = lazyCombo.querySelector('input.ui-input');
-                var matched = res.data.find(function (r) { return String(r[0]) === String(field.value); });
+                var valueIndex = res.valueIndex || 0;
+                var matched = res.data.find(function (r) { return String(r[valueIndex]) === String(field.value); });
                 if (matched && displayInput) displayInput.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
                 else if (displayInput) displayInput.value = field.value; // Fallback
               }).catch(function (err) {
@@ -4538,7 +5512,8 @@ window.DynamicFormEngine = (function () {
                 if (displayInput) displayInput.value = 'Đang tải...';
                 searchApiCall('', 1).then(function (res) {
                   var displayInp = lazyCombo.querySelector('input.ui-input');
-                  var matched = res.data.find(function (r) { return String(r[0]) === String(hiddenInput.value); });
+                  var valueIndex = res.valueIndex || 0;
+                  var matched = res.data.find(function (r) { return String(r[valueIndex]) === String(hiddenInput.value); });
                   if (matched && displayInp) displayInp.value = matched[res.colFilterIndex !== undefined ? res.colFilterIndex : 1];
                   else if (displayInp) displayInp.value = hiddenInput.value; // Fallback
                 });
@@ -4748,7 +5723,7 @@ window.DynamicFormEngine = (function () {
       }
 
       // Gán giá trị mặc định vào currentModalFormState
-      currentModalFormState[field.name] = field.value || '';
+      currentModalFormState[field.name] = _hasContractValue(field.value) ? field.value : '';
     });
 
     // Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule
@@ -4757,7 +5732,7 @@ window.DynamicFormEngine = (function () {
     }
 
     // Xử lý Disable ban đầu cho các trường có DependsOn nếu BẤT KỲ trường cha nào đang trống
-    globalFormSchema.forEach(function (f) {
+    formSchema.forEach(function (f) {
       if (f.dependsOn) {
         var parents = f.dependsOn.split(',').map(function (p) { return p.trim(); });
         var hasEmptyParent = parents.some(function (p) { return !currentModalFormState[p]; });
@@ -4782,7 +5757,7 @@ window.DynamicFormEngine = (function () {
         currentModalFormState[changedName] = e.target.value;
 
         // 1. Tính toán giá trị tự động (FormulaRule)
-        globalFormSchema.forEach(function (f) {
+        formSchema.forEach(function (f) {
           if (f.formulaRule) {
             var formula = f.formulaRule;
             for (var key in currentModalFormState) {
@@ -4804,7 +5779,7 @@ window.DynamicFormEngine = (function () {
         });
 
         // 2. Trigger API (Gọi API ngoài)
-        var changedSchema = globalFormSchema.find(function (s) { return s.name === changedName; });
+        var changedSchema = formSchema.find(function (s) { return s.name === changedName; });
         if (changedSchema && changedSchema.triggerApi && e.target.value) {
           var apiEndpoint = changedSchema.triggerApi;
           var payload = Object.assign({}, currentModalFormState);
@@ -4824,7 +5799,7 @@ window.DynamicFormEngine = (function () {
         }
 
         // 3. Tìm các trường phụ thuộc vào trường vừa đổi (DependsOn)
-        globalFormSchema.forEach(function (f) {
+        formSchema.forEach(function (f) {
           if (f.dependsOn) {
             var parents = f.dependsOn.split(',').map(function (p) { return p.trim(); });
             if (parents.includes(changedName)) {
@@ -4905,6 +5880,7 @@ window.DynamicFormEngine = (function () {
 
         // Tab panel
         var panel = document.createElement('div');
+        panel.className = 'detail-tab-panel';
         panel.style.display = idx === 0 ? 'block' : 'none';
         panel.style.minHeight = '120px';
         panel.style.overflowX = 'auto';
@@ -4973,7 +5949,7 @@ window.DynamicFormEngine = (function () {
     btnSave.className = 'btn btn-primary';
     btnSave.textContent = isEdit ? MODULE_CONFIG.BtnSaveEdit : MODULE_CONFIG.BtnSaveAdd;
 
-    var hasWritableFields = globalFormSchema.some(function (field) {
+    var hasWritableFields = formSchema.some(function (field) {
       var isVisible = isEdit ? (String(field.showInEdit) === '1' || field.showInEdit === true) : (String(field.showInAdd) === '1' || field.showInAdd === true);
       var isReadOnly = isViewMode || (isEdit ? field.isReadOnlyEdit : field.isReadOnlyAdd);
       return isVisible && !isReadOnly;
@@ -4990,9 +5966,16 @@ window.DynamicFormEngine = (function () {
     // Đây là extension point cho các form muốn thêm nút vào thanh thao tác mà không sửa Engine
     if (MODULE_CONFIG.customFooterButtons && MODULE_CONFIG.customFooterButtons.length > 0) {
       MODULE_CONFIG.customFooterButtons.forEach(function (btnDef) {
+        if (
+          (isViewMode && btnDef.showInView === false)
+          || (!isViewMode && isEdit && btnDef.showInEdit === false)
+          || (!isViewMode && !isEdit && btnDef.showInAdd === false)
+        ) return;
+
         var customBtn = document.createElement('button');
         customBtn.type = 'button';
         customBtn.className = 'btn ' + (btnDef.className || 'btn-outline-secondary');
+        if (btnDef.title) customBtn.title = btnDef.title;
         if (btnDef.icon) {
           customBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 18px; margin-right: 4px; vertical-align: middle;">' + btnDef.icon + '</span> ' + (btnDef.label || '');
         } else {
@@ -5000,7 +5983,38 @@ window.DynamicFormEngine = (function () {
         }
         if (typeof btnDef.onClick === 'function') {
           customBtn.onclick = function () {
-            btnDef.onClick({ row: row, body: body, btnSave: btnSave, isEdit: isEdit });
+            btnDef.onClick({
+              row: row,
+              body: body,
+              button: customBtn,
+              btnSave: btnSave,
+              isEdit: isEdit,
+              isViewMode: isViewMode,
+              MODULE_CONFIG: MODULE_CONFIG,
+              actionConfig: btnDef.actionConfig || {}
+            });
+          };
+        } else if (btnDef.action) {
+          customBtn.onclick = function () {
+            if (!window.FormActionRegistry) {
+              if (window.Alert) Alert.error('Không thể thực hiện', 'FormActionRegistry chưa sẵn sàng.');
+              return;
+            }
+            FormActionRegistry.execute(btnDef.action, {
+              row: row,
+              body: body,
+              button: customBtn,
+              btnSave: btnSave,
+              isEdit: isEdit,
+              isViewMode: isViewMode,
+              MODULE_CONFIG: MODULE_CONFIG,
+              actionConfig: btnDef.actionConfig || {}
+            }).catch(function (error) {
+              console.error('[DynamicFormEngine] Action failed:', btnDef.action, error);
+              if (window.Alert) {
+                Alert.error('Không thể thực hiện', error && error.message || 'Vui lòng thử lại.');
+              }
+            });
           };
         }
         footer.appendChild(customBtn);
@@ -5024,6 +6038,7 @@ window.DynamicFormEngine = (function () {
       pageWrap.style.cssText = 'padding: 24px; background: var(--color-surface, #fff); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); min-height: calc(100vh - 100px);';
 
       var header = document.createElement('div');
+      header.className = 'full-page-detail__header';
       header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--color-border);';
       var defaultTitle = 'Thông tin chi tiết';
       var baseTitle = MODULE_CONFIG.TitleView || MODULE_CONFIG.FormTitle || defaultTitle;
@@ -5035,8 +6050,10 @@ window.DynamicFormEngine = (function () {
 
       footer.style.padding = '0';
       footer.style.border = 'none';
+      footer.classList.add('full-page-detail__actions');
       header.appendChild(footer);
 
+      body.classList.add('full-page-detail__body');
       pageWrap.appendChild(header);
       pageWrap.appendChild(body);
       $container.appendChild(pageWrap);
@@ -5113,9 +6130,13 @@ window.DynamicFormEngine = (function () {
   }
 
   function _saveGridData(rows, modal, body, btnSave, isAdd) {
-    var endpoint = MODULE_CONFIG.ApiSave;
+    var endpoint = _usesUnifiedFieldContract() ? _gateway() : MODULE_CONFIG.ApiSave;
     if (!endpoint) {
       Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertApiMissing);
+      return;
+    }
+    if (!_contractWriteActive()) {
+      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Form chưa có route lưu dữ liệu hợp lệ.');
       return;
     }
 
@@ -5124,7 +6145,7 @@ window.DynamicFormEngine = (function () {
 
     var payloads = [];
     rows.forEach(function (targetRow, rowIdx) {
-      var payload = _buildPayload(targetRow, !isAdd);
+      var rawPayload = Object.assign({}, targetRow);
 
       var inputs = body.querySelectorAll('input[data-row-index="' + rowIdx + '"], select[data-row-index="' + rowIdx + '"], textarea[data-row-index="' + rowIdx + '"]');
       var hasData = false;
@@ -5132,12 +6153,20 @@ window.DynamicFormEngine = (function () {
         var fieldName = el.getAttribute('data-field-name');
         var val = el.value.trim();
         if (fieldName) {
-          payload[fieldName] = val;
+          rawPayload[fieldName] = val;
           if (val && fieldName !== MODULE_CONFIG.PrimaryKey && fieldName !== 'OrderNo') {
             hasData = true;
           }
         }
       });
+      _normalizeDateFieldsForContract(rawPayload, _schemaFor(!isAdd ? 'edit' : 'add'));
+
+      var payload = _usesUnifiedFieldContract()
+        ? _buildContractWritePayload(rawPayload, !isAdd, targetRow)
+        : _buildPayload(rawPayload, !isAdd);
+      if (endpoint === _gateway()) {
+        payload._TopLevelBranchID = _writeBranchIdFrom(rawPayload, payload, targetRow);
+      }
 
       if (isAdd) {
         if (hasData) payloads.push(payload);
@@ -5156,11 +6185,16 @@ window.DynamicFormEngine = (function () {
     var finalPayloads = payloads;
     if (endpoint === _gateway()) {
       finalPayloads = payloads.map(function (p) {
-        return {
+        var topLevelBranchID = p._TopLevelBranchID || _currentBranchId();
+        delete p._TopLevelBranchID;
+        var request = {
           List: MODULE_CONFIG.FormName,
           Func: 'Save',
-          JsonData: JSON.stringify(p)
+          JsonData: JSON.stringify(p),
+          UserName: _currentUser(),
+          BranchID: topLevelBranchID
         };
+        return _prepareGatewayWriteRequest(request, p);
       });
     }
 
@@ -5188,9 +6222,13 @@ window.DynamicFormEngine = (function () {
 
   // ── Save ──────────────────────────────────────────────────
   function _saveData(isEdit, rowData, modal, body, btnSave) {
-    var endpoint = MODULE_CONFIG.ApiSave;
+    var endpoint = _usesUnifiedFieldContract() ? _gateway() : MODULE_CONFIG.ApiSave;
     if (!endpoint) {
       Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertApiMissing);
+      return;
+    }
+    if (!_contractWriteActive()) {
+      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Form chưa có route lưu dữ liệu hợp lệ.');
       return;
     }
 
@@ -5212,8 +6250,10 @@ window.DynamicFormEngine = (function () {
 
     // 2. Validate Required và ValidateRule
     var isInvalid = false;
-    for (var i = 0; i < globalFormSchema.length; i++) {
-      var field = globalFormSchema[i];
+    var validationSchema = _schemaFor(isEdit ? 'edit' : 'add');
+    _normalizeDateFieldsForContract(formInputData, validationSchema);
+    for (var i = 0; i < validationSchema.length; i++) {
+      var field = validationSchema[i];
       var val = formInputData[field.name];
 
       // Hỗ trợ Partial Update (ví dụ từ WizardForm truyền fakeBody chỉ chứa các trường thay đổi)
@@ -5222,7 +6262,7 @@ window.DynamicFormEngine = (function () {
         val = rowData[field.name];
       }
 
-      if (field.required && !val) {
+      if (field.required && !_hasContractValue(val)) {
         Alert.warning(MODULE_CONFIG.WarnMissingInfo, MODULE_CONFIG.WarnMissingInput.replace('{0}', field.label));
         isInvalid = true;
         break;
@@ -5295,15 +6335,17 @@ window.DynamicFormEngine = (function () {
 
     // 4. Xây dựng danh sách Payload
     var payloads = [];
-    var singlePayload = _buildPayload(formInputData, isEdit);
-    singlePayload.OrderNo = rowData && rowData.OrderNo ? rowData.OrderNo : 0;
+    var singlePayload = _usesUnifiedFieldContract()
+      ? _buildContractWritePayload(formInputData, isEdit, rowData)
+      : _buildPayload(formInputData, isEdit);
+    if (!_usesUnifiedFieldContract()) singlePayload.OrderNo = rowData && rowData.OrderNo ? rowData.OrderNo : 0;
 
     if (isEdit && rowData && MODULE_CONFIG.PrimaryKey) {
       var pkKey = MODULE_CONFIG.PrimaryKey;
-      if (singlePayload[pkKey] !== undefined && singlePayload[pkKey] !== rowData[pkKey]) {
+      if (singlePayload[pkKey] !== undefined && singlePayload[pkKey] !== rowData[pkKey] && !_usesUnifiedFieldContract()) {
         singlePayload['Old' + pkKey] = rowData[pkKey];
       }
-      if (!singlePayload[pkKey]) {
+      if (!_hasContractValue(singlePayload[pkKey])) {
         singlePayload[pkKey] = rowData[pkKey];
       }
     }
@@ -5313,10 +6355,24 @@ window.DynamicFormEngine = (function () {
 
     // Helper finalize save
     function _finalizeSave(isEdit, modal) {
+      function _completeSaveUi(savedData) {
+        if (MODULE_CONFIG.IsFullPageDetail && body && body._keepOpenAfterSave) {
+          MODULE_CONFIG.DetailRowData = Object.assign({}, MODULE_CONFIG.DetailRowData || {}, savedData || {});
+          try {
+            sessionStorage.setItem(
+              'HR_Detail_Row_' + MODULE_CONFIG.FormName,
+              JSON.stringify(MODULE_CONFIG.DetailRowData)
+            );
+          } catch (e) { }
+          return;
+        }
+        modal.closeNow(savedData);
+      }
+
       if (window._pendingWizardAvatar) {
         if (!MODULE_CONFIG.AttachmentApi) {
           Alert.success('Thành công', 'Cập nhật hồ sơ thành công (chưa cấu hình lưu ảnh)!');
-          modal.closeNow(singlePayload);
+          _completeSaveUi(singlePayload);
           _postFinalizeSave();
           return;
         }
@@ -5348,17 +6404,17 @@ window.DynamicFormEngine = (function () {
           }
           window._pendingWizardAvatar = null;
           Alert.success('Thành công', 'Cập nhật hồ sơ và ảnh đại diện thành công!');
-          modal.closeNow(singlePayload);
+          _completeSaveUi(singlePayload);
           _postFinalizeSave();
         }).catch(function () {
           window._pendingWizardAvatar = null;
           Alert.warning('Cảnh báo', 'Lưu hồ sơ thành công nhưng không lưu được ảnh!');
-          modal.closeNow(singlePayload);
+          _completeSaveUi(singlePayload);
           _postFinalizeSave();
         });
       } else {
         Alert.success('Thành công', isEdit ? MODULE_CONFIG.ToastEdit : MODULE_CONFIG.ToastAdd);
-        modal.closeNow(singlePayload);
+        _completeSaveUi(singlePayload);
         _postFinalizeSave();
       }
 
@@ -5388,34 +6444,70 @@ window.DynamicFormEngine = (function () {
       finalPayload = {
         List: MODULE_CONFIG.FormName,
         Func: 'Save',
-        JsonData: JSON.stringify(payloads[0])
+        JsonData: JSON.stringify(payloads[0]),
+        UserName: _currentUser(),
+        BranchID: _writeBranchIdFrom(formInputData, payloads[0], rowData)
       };
+      _prepareGatewayWriteRequest(finalPayload, formInputData, payloads[0], rowData);
     }
     ApiClient.post(endpoint, finalPayload)
       .then(function (res) {
         if (res && res.code === 0) {
-          var masterDetailKey = formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]);
+          /*
+           * Save V2 là nguồn sự thật cho khóa mới. Không dùng lại SapCaID rỗng
+           * của form add hoặc một giá trị cũ từ rowData khi DB vừa sinh khóa.
+           */
+          var responsePrimaryValue = res.primaryValue !== undefined
+            ? res.primaryValue
+            : (res.PrimaryValue !== undefined ? res.PrimaryValue : res.primary_value);
+          var masterDetailKey = _hasContractValue(responsePrimaryValue)
+            ? responsePrimaryValue
+            : (formInputData[MODULE_CONFIG.PrimaryKey] || (rowData && rowData[MODULE_CONFIG.PrimaryKey]));
+
+          if (!_hasContractValue(masterDetailKey)) {
+            Alert.error(MODULE_CONFIG.AlertTitleError, 'Master đã phản hồi thành công nhưng không trả về SapCaID.');
+            _restoreSaveBtn();
+            return;
+          }
+
+          if (MODULE_CONFIG.PrimaryKey) {
+            singlePayload[MODULE_CONFIG.PrimaryKey] = masterDetailKey;
+            if (rowData) rowData[MODULE_CONFIG.PrimaryKey] = masterDetailKey;
+          }
+
           var detailSave = body._detailPanels && detailManager
             ? detailManager.savePanels(body._detailPanels, masterDetailKey)
             : Promise.resolve([]);
 
           detailSave.then(function (detailResults) {
-              var allOk = detailResults.every(function (dr) { return dr && (dr.code === 0 || dr.code === '0'); });
-              if (allOk) {
-                _finalizeSave(isEdit, modal);
-              } else {
-                var firstErr = detailResults.find(function (dr) { return dr && dr.code !== 0 && dr.code !== '0'; });
-                var dMsg = firstErr && firstErr.msg ? firstErr.msg : 'Lưu chi tiết thất bại';
-                if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
-                  dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';
-                }
-                Alert.error(MODULE_CONFIG.AlertTitleError, dMsg);
-                _restoreSaveBtn();
+            var isOkResult = function (dr) {
+              if (!dr) return false;
+              var c = dr.code;
+              var m = String(dr.msg || '').toUpperCase();
+              return c === 0 || c === '0' || c === 1 || c === '1' || m === 'SUCCESS' || m === 'LƯU THÀNH CÔNG!';
+            };
+            var allOk = detailResults.every(isOkResult);
+            if (allOk) {
+              _finalizeSave(isEdit, modal);
+            } else {
+              var firstErr = detailResults.find(function (dr) { return !isOkResult(dr); });
+              var dMsg = firstErr && firstErr.msg ? firstErr.msg : 'Lưu chi tiết thất bại';
+              if (dMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || dMsg.indexOf('Cannot insert duplicate key') !== -1) {
+                dMsg = 'Lỗi: Có dữ liệu bị trùng lặp. Vui lòng kiểm tra lại mã hoặc thông tin!';
               }
-            }).catch(function (err) {
-              Alert.error(MODULE_CONFIG.AlertTitleError, 'Lỗi lưu thông tin chi tiết: ' + err.message);
+              Alert.error(
+                MODULE_CONFIG.AlertTitleError,
+                'Master đã lưu thành công nhưng detail thất bại: ' + dMsg
+              );
               _restoreSaveBtn();
-            });
+            }
+          }).catch(function (err) {
+            Alert.error(
+              MODULE_CONFIG.AlertTitleError,
+              'Master đã lưu thành công nhưng detail thất bại: ' + err.message
+            );
+            _restoreSaveBtn();
+          });
         } else {
           var mMsg = res && res.msg ? res.msg : MODULE_CONFIG.AlertSaveFailed;
           if (mMsg.indexOf('Violation of PRIMARY KEY constraint') !== -1 || mMsg.indexOf('Cannot insert duplicate key') !== -1) {
@@ -5443,22 +6535,34 @@ window.DynamicFormEngine = (function () {
       }
     });
 
-    var endpoint = MODULE_CONFIG.ApiSave || _gateway();
+    var endpoint = _usesUnifiedFieldContract() ? _gateway() : (MODULE_CONFIG.ApiSave || _gateway());
     if (!endpoint) {
       Alert.error(MODULE_CONFIG.AlertTitleError, MODULE_CONFIG.AlertApiMissing);
       return;
     }
+    if (!_contractWriteActive()) {
+      Alert.warning(MODULE_CONFIG.AlertTitleInfo, 'Form chưa có route lưu dữ liệu hợp lệ.');
+      return;
+    }
 
-    // Merge với original row
-    var payloadObj = Object.assign({}, originalRow, formInputData);
-    payloadObj.UserName = _currentUser();
-    payloadObj.IsEdit = 1;
+    var payloadObj;
+    if (_usesUnifiedFieldContract()) {
+      payloadObj = _buildContractWritePayload(formInputData, true, originalRow);
+    } else {
+      // Legacy cần full row vì API cũ không hỗ trợ patch an toàn.
+      payloadObj = Object.assign({}, originalRow, formInputData);
+      payloadObj.UserName = _currentUser();
+      payloadObj.IsEdit = 1;
+    }
 
     var finalPayload = {
       List: MODULE_CONFIG.FormName,
       Func: 'Save',
-      JsonData: JSON.stringify(payloadObj)
+      JsonData: JSON.stringify(payloadObj),
+      UserName: _currentUser(),
+      BranchID: _writeBranchIdFrom(formInputData, payloadObj, originalRow)
     };
+    _prepareGatewayWriteRequest(finalPayload, formInputData, payloadObj, originalRow);
 
     if (btnSave) {
       btnSave.disabled = true;
@@ -5550,10 +6654,20 @@ window.DynamicFormEngine = (function () {
     else _loadData();
   }
 
+  function getRuntimeSchemas() {
+    return {
+      grid: _cloneSchema(_schemaFor('grid')),
+      edit: _cloneSchema(_schemaFor('edit')),
+      add: _cloneSchema(_schemaFor('add')),
+      filters: _cloneSchema(_schemaFor('filters'))
+    };
+  }
+
   return {
     render: render,
     reload: reload,
     getSelectedRows: getSelectedRows,
-    reloadDetailTabs: reloadDetailTabs
+    reloadDetailTabs: reloadDetailTabs,
+    getRuntimeSchemas: getRuntimeSchemas
   };
 })();

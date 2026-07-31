@@ -1,6 +1,6 @@
 /**
  * Tabs Component
- * Quản lý chuyển đổi các Tab (Ví dụ: Tab Bàn tiệc, Tab Khác...)
+ * Quản lý chuyển đổi các Tab (Ví dụ: Tab Thông tin, Tab Khác...)
  */
 var UITabs = (function () {
 

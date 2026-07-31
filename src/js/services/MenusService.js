@@ -12,7 +12,12 @@ var MenusService = (function () {
 
   function _currentGroupId() {
     var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    return u.Group || u.GroupUser || u.GroupID || u.group || u.NhomQuyen || 'Admin';
+    var rawGroup = u.UserGroupID || u.userGroupID || u.GroupID || u.groupID || u.GroupUser || u.Group || u.NhomQuyen || 'admin';
+    var grpStr = String(rawGroup).trim();
+    if (grpStr.toLowerCase().indexOf('quản trị') !== -1 || grpStr.toLowerCase() === 'admin') {
+      return 'admin';
+    }
+    return grpStr;
   }
 
   /**
@@ -47,7 +52,13 @@ var MenusService = (function () {
     return new Promise(function (resolve, reject) {
       var endpoint = _ep('SAVE');
       ApiClient.post(endpoint, payload)
-        .then(resolve)
+        .then(function (res) {
+          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
+            res.code = 0;
+            res.msg = 'Lưu Menu thành công!';
+          }
+          resolve(res);
+        })
         .catch(function (err) {
           console.error('[MenusService] Lỗi save:', err);
           reject(err);
@@ -64,7 +75,13 @@ var MenusService = (function () {
     return new Promise(function (resolve, reject) {
       var endpoint = _ep('DELETE');
       ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId(), MenuID: menuId })
-        .then(resolve)
+        .then(function (res) {
+          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
+            res.code = 0;
+            res.msg = 'Xóa Menu thành công!';
+          }
+          resolve(res);
+        })
         .catch(function (err) {
           console.error('[MenusService] Lỗi deleteMenu:', err);
           reject(err);

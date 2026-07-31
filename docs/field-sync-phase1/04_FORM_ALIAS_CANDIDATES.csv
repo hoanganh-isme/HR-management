@@ -1,0 +1,4 @@
+WebFormName,ERPFormID,SharedTable,WebPrimaryKey,ERPPrimaryKey,ViewProcedure,ViewFields,ERPArtifact,Status,DecisionReason
+"WA_BangThueTNCNFrm","HR_BangThueTNCNFrm","HR_BangThueTNCNTbl","Bac","Bac","API_TruyVanDong","Dynamic; fallback table. API_BangThueTNCN confirms Bac;Tu;Den;ThueSuat","NhanSu2/Layout/X26DIMTUTAC/HR_BangThueTNCNFrm.dat; NhanSu2/Layout/X26DIM_TT/HR_BangThueTNCNFrm.dat","CONFIRMED_FOR_SHADOW","Table và khóa chính trùng, artifact ERP tồn tại; vẫn cần parity live trước khi pilot."
+"WA_ChucDanhFrm","HR_ChucDanhFrm","HR_ChucDanhTbl","ChucDanhChuyenMon","ChucDanh","API_DanhSachChucDanh","ChucDanhChuyenMon;MoTa","NhanSu2/Layout/X26DIMTUTAC/HR_ChucDanhFrm.dat","NOT_CONFIRMED","Cùng table và artifact nhưng khóa chính lệch; không tự suy diễn alias theo prefix."
+

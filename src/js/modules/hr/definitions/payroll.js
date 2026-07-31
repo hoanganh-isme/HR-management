@@ -106,12 +106,20 @@
               var loadingMsg = null;
               if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
 
+              var _closeMsg = function (msg) {
+                if (!msg) return;
+                if (typeof msg.close === 'function') msg.close();
+                else if (typeof UIToast !== 'undefined' && typeof UIToast.hide === 'function') UIToast.hide(msg);
+                else if (typeof Alert !== 'undefined' && typeof Alert.hide === 'function') Alert.hide(msg);
+                else if (typeof msg.remove === 'function') msg.remove();
+              };
+
               ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, lookupPayload).then(function (res) {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 var dataList = res.list || res.records || [];
                 _showMultiSelectModal(dataList, ctx);
               }).catch(function (err) {
-                if (loadingMsg) loadingMsg.close();
+                _closeMsg(loadingMsg);
                 if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách', 'error');
                 else alert('Lỗi khi tải danh sách');
               });

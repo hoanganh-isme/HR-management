@@ -15,6 +15,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    IF LOWER(LTRIM(RTRIM(ISNULL(@FormName, '')))) = LOWER('WA_BangThueTNCNFrm')
+        THROW 52601, N'FORM_BUILDER_WRITE_BLOCKED_PHASE2: không đồng bộ SY_FormatFields cho form pilot.', 1;
+
     -- Bảng tạm chứa danh sách cột lấy được từ metadata
     DECLARE @Columns TABLE (
         name NVARCHAR(128),

@@ -64,28 +64,41 @@ var UIInput = (function () {
   /**
    * Ô chọn Ngày
    */
+  function _padDatePart(value) {
+    return String(value || '').padStart(2, '0');
+  }
+
+  function _normalizeDateInput(value) {
+    var rawVal = String(value || '').trim();
+    if (!rawVal) return '';
+    rawVal = rawVal.split('T')[0].split(' ')[0];
+
+    var isoMatch = rawVal.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (isoMatch) {
+      return isoMatch[1] + '-' + _padDatePart(isoMatch[2]) + '-' + _padDatePart(isoMatch[3]);
+    }
+
+    var vnMatch = rawVal.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (vnMatch) {
+      return vnMatch[3] + '-' + _padDatePart(vnMatch[2]) + '-' + _padDatePart(vnMatch[1]);
+    }
+
+    return rawVal;
+  }
+
+  function _toVietnameseDate(value) {
+    var iso = _normalizeDateInput(value);
+    var match = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return String(value || '');
+    return match[3] + '/' + match[2] + '/' + match[1];
+  }
+
   function createDate(config) {
-    if (config.value) {
-      var rawVal = String(config.value).trim();
-      if (rawVal.indexOf('T') !== -1) {
-        config.value = rawVal.split('T')[0];
-      } else if (rawVal.indexOf('/') !== -1) {
-        var parts = rawVal.split(' ')[0].split('/');
-        if (parts.length === 3) {
-          if (parts[0].length === 4) { // YYYY/MM/DD
-            config.value = parts[0] + '-' + parts[1] + '-' + parts[2];
-          } else { // DD/MM/YYYY
-            config.value = parts[2] + '-' + parts[1] + '-' + parts[0];
-          }
-        }
-      } else if (rawVal.indexOf(' ') !== -1) {
-        config.value = rawVal.split(' ')[0];
-      }
-    }
-    var obj = _createBaseWrapper(config, 'text');
-    if (config.value) {
-      obj.input.value = config.value;
-    }
+    var normalizedValue = _normalizeDateInput(config.value);
+    var displayValue = _toVietnameseDate(normalizedValue);
+    var inputConfig = Object.assign({}, config, { value: normalizedValue || '' });
+    var obj = _createBaseWrapper(inputConfig, 'text');
+    if (normalizedValue) obj.input.value = normalizedValue;
 
     // Thêm icon lịch (tùy chọn)
     var icon = document.createElement('span');
@@ -110,14 +123,25 @@ var UIInput = (function () {
         altInput: true,
         altFormat: "d/m/Y",
         dateFormat: "Y-m-d",
-        defaultDate: config.value ? new Date(config.value) : null,
+        defaultDate: normalizedValue || null,
         locale: "vn",
         allowInput: true
       });
     } else {
-      // Fallback nếu không có flatpickr
-      obj.input.type = 'date';
-      if (config.value) obj.input.value = config.value;
+      /*
+       * Không dùng native input[type=date] ở fallback vì trình duyệt/OS có thể
+       * hiển thị mm/dd/yyyy. Giữ text dd/mm/yyyy để UI nhân sự thống nhất.
+       * DynamicFormEngine sẽ chuẩn hóa về yyyy-mm-dd trước khi gửi API.
+       */
+      obj.input.type = 'text';
+      obj.input.inputMode = 'numeric';
+      obj.input.placeholder = config.placeholder || 'dd/mm/yyyy';
+      obj.input.pattern = '\\d{1,2}/\\d{1,2}/\\d{4}';
+      obj.input.value = displayValue || '';
+      obj.input.onblur = function () {
+        var normalized = _normalizeDateInput(obj.input.value);
+        obj.input.value = _toVietnameseDate(normalized);
+      };
     }
 
     return obj.wrapper;

@@ -36,7 +36,7 @@ window.AppSession = (function () {
   }
 
   function isAdmin() {
-    return String(getGroupId()).toLowerCase() === 'admin';
+    return String(getGroupId()).trim().toLowerCase() === 'admin';
   }
 
   function getBranchId() {
@@ -48,9 +48,22 @@ window.AppSession = (function () {
     return readJSON(window.localStorage, KEYS.systemBranches, []) || [];
   }
 
+  function withActorContext(payload) {
+    var request = Object.assign({}, payload || {});
+    request.UserName = getUserName();
+    request.BranchID = getBranchId();
+    return request;
+  }
+
   function loadSystemBranches(apiClient, endpoint) {
     if (!apiClient || typeof apiClient.post !== 'function') return Promise.resolve(getBranches());
-    return apiClient.post(endpoint, { List: 'CF_BranchListFrm', FormName: 'CF_BranchListFrm', Func: 'View', Limit: 1000 }).then(function (response) {
+    var payload = withActorContext({
+      List: 'CF_BranchListFrm',
+      FormName: 'CF_BranchListFrm',
+      Func: 'View',
+      Limit: 1000
+    });
+    return apiClient.post(endpoint, payload).then(function (response) {
       var branches = Array.isArray(response) ? response : (response.data || response.list || response.records || []);
       setJSON(window.localStorage, KEYS.systemBranches, branches);
       return branches;
@@ -76,6 +89,7 @@ window.AppSession = (function () {
     isAdmin: isAdmin,
     getBranchId: getBranchId,
     getBranches: getBranches,
+    withActorContext: withActorContext,
     loadSystemBranches: loadSystemBranches
   });
 })();

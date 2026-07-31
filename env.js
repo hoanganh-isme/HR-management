@@ -17,11 +17,43 @@ var HRM_FRONTEND_ORIGIN = (typeof window !== 'undefined' && window.location && /
     ? window.location.origin
     : '';
 var HRM_LOCAL_DOCUMENT_DEVELOPMENT = isLocalDocumentDevelopment();
+var HRM_DOCUMENT_SERVICE_BASE = HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE ||
+    (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8081' : HRM_FRONTEND_ORIGIN + '/docserver');
+
+/*
+ * Phase 3: registry quản lý nhóm form CRUD một bảng. Focus/visibility/manual refresh
+ * làm mới metadata ngay; polling chỉ là safety net khi tab được mở lâu.
+ * Cấu hình được inject từ môi trường vẫn có quyền override các giá trị này,
+ * kể cả enabled:false để rollback khẩn cấp.
+ */
+var HRM_EXISTING_FIELD_SYNC = HRM_RUNTIME_CONFIG.FIELD_SYNC || {};
+var HRM_USES_LEGACY_PILOT_CONFIG = Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'pilotForms')
+  && !Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'rolloutMode');
+
+HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
+    enabled: true,
+    shadowMode: false,
+    rolloutMode: 'registry',
+    includeForms: [],
+    excludeForms: [],
+    fallbackToLegacy: false,
+    pollSeconds: 360,
+    metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
+}, HRM_EXISTING_FIELD_SYNC);
+
+// Cấu hình production cũ chỉ có pilotForms tiếp tục giữ đúng phạm vi pilot.
+if (HRM_USES_LEGACY_PILOT_CONFIG) {
+  HRM_RUNTIME_CONFIG.FIELD_SYNC.rolloutMode = 'pilot';
+}
+
+if (typeof window !== 'undefined') {
+    window.HRM_RUNTIME_CONFIG = HRM_RUNTIME_CONFIG;
+}
 
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
     API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
-    DOCUMENT_SERVICE_BASE: HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8081' : HRM_FRONTEND_ORIGIN + '/docserver'),
+    DOCUMENT_SERVICE_BASE: HRM_DOCUMENT_SERVICE_BASE,
     ONLYOFFICE_PUBLIC_URL: HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8001' : HRM_FRONTEND_ORIGIN + '/onlyoffice'),
 
     // Tự động phát hiện HOST chạy (Local dev vs Production)
@@ -67,10 +99,13 @@ window.API_CONFIG = {
 
     ENDPOINTS: {
         ROUTER: '/api/API_Gateway_Router',
+        DASHBOARD: {
+            BASE_API: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/dashboard'
+        },
         AUTH: {
             LOGIN: '/api/login',
             LOGOUT: '/logout',
-            USER_INFO: '/api/API_UserInfo',
+            USER_INFO: '/api/userinfo',
         },
 
         DOCUMENT_MANAGER: {

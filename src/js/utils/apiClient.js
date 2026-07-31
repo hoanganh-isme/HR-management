@@ -36,10 +36,37 @@ const ApiClient = (function () {
     }
 
     /**
+     * Một số SQL API response có thể chứa U+0000 trong giá trị chuỗi.
+     * NUL thô làm JSON.parse thất bại; NUL đã escape vẫn gây lỗi cho Grid/export.
+     * Chỉ loại đúng NUL, không trim khoảng trắng hoặc tab/newline hợp lệ.
+     */
+    function parseJsonResponse(text) {
+        let nulCount = 0;
+        const withoutRawNul = String(text || '').replace(/\u0000/g, function () {
+            nulCount += 1;
+            return '';
+        });
+        const parsed = JSON.parse(withoutRawNul, function (_key, value) {
+            if (typeof value !== 'string' || value.indexOf('\u0000') === -1) return value;
+            return value.replace(/\u0000/g, function () {
+                nulCount += 1;
+                return '';
+            });
+        });
+        if (nulCount > 0) {
+            console.warn('[ApiClient] Đã loại ' + nulCount + ' ký tự NUL khỏi JSON response.');
+        }
+        return parsed;
+    }
+
+    /**
      * Hàm gọi API cốt lõi
      */
     async function request(endpoint, options = {}) {
         const baseUrl = getBaseUrl();
+        const logoutOnUnauthorized = options.logoutOnUnauthorized !== false;
+        const requestOptions = { ...options };
+        delete requestOptions.logoutOnUnauthorized;
         // Nếu endpoint đã là URL đầy đủ thì không nối BaseUrl nữa
         const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
 
@@ -47,7 +74,7 @@ const ApiClient = (function () {
         const headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            ...(options.headers || {})
+            ...(requestOptions.headers || {})
         };
 
         // Gắn Bearer Token nếu có
@@ -57,7 +84,7 @@ const ApiClient = (function () {
         }
 
         const config = {
-            ...options,
+            ...requestOptions,
             headers
         };
 
@@ -65,7 +92,7 @@ const ApiClient = (function () {
             const response = await fetch(url, config);
 
             // Xử lý status 401 (Hết hạn token / Chưa đăng nhập)
-            if (response.status === 401) {
+            if (response.status === 401 && logoutOnUnauthorized) {
                 console.warn('[ApiClient] 401 Unauthorized. Token expired?');
                 if (typeof window.logoutApp === 'function') {
                     window.logoutApp();
@@ -80,7 +107,8 @@ const ApiClient = (function () {
             if (!response.ok) {
                 let errorData;
                 try {
-                    errorData = await response.json();
+                    const errorText = await response.text();
+                    errorData = errorText ? parseJsonResponse(errorText) : {};
                 } catch (e) {
                     errorData = { message: response.statusText || 'Lỗi kết nối Server' };
                 }
@@ -94,10 +122,19 @@ const ApiClient = (function () {
             const textResponse = await response.text();
             try {
                 // Trả về Object nếu JSON hợp lệ
-                return textResponse ? JSON.parse(textResponse) : {};
+                return textResponse ? parseJsonResponse(textResponse) : {};
             } catch (err) {
+                const contentType = response.headers && typeof response.headers.get === 'function'
+                    ? String(response.headers.get('content-type') || '').toLowerCase()
+                    : '';
+                if (contentType.indexOf('json') !== -1) {
+                    const parseError = new Error('Phản hồi JSON từ Server không hợp lệ.');
+                    parseError.code = 'INVALID_JSON_RESPONSE';
+                    parseError.cause = err;
+                    throw parseError;
+                }
                 // Trả về text nguyên bản nếu trả v\u1ec1 \u0111\u1ecbnh d\u1ea1ng kh\u00e1c (plain text)
-                return textResponse;
+                return textResponse.replace(/\u0000/g, '');
             }
 
         } catch (error) {
@@ -123,6 +160,63 @@ const ApiClient = (function () {
         return request(endpoint, options).then(normalizeResponse);
     }
 
+    function upload(endpoint, formData, options = {}) {
+        const baseUrl = getBaseUrl();
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+        return new Promise(function (resolve, reject) {
+            const xhr = new XMLHttpRequest();
+            xhr.open(options.method || 'POST', url, true);
+            xhr.setRequestHeader('Accept', 'application/json');
+            const token = getAuthToken();
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            Object.keys(options.headers || {}).forEach(function (name) {
+                if (options.headers[name] !== undefined && options.headers[name] !== null) {
+                    xhr.setRequestHeader(name, String(options.headers[name]));
+                }
+            });
+            if (typeof options.onProgress === 'function') {
+                xhr.upload.onprogress = function (event) {
+                    options.onProgress(event.loaded, event.lengthComputable ? event.total : 0);
+                };
+            }
+            const signal = options.signal;
+            const abort = function () { xhr.abort(); };
+            if (signal) {
+                if (signal.aborted) {
+                    reject(new DOMException('Đã hủy upload.', 'AbortError'));
+                    return;
+                }
+                signal.addEventListener('abort', abort, { once: true });
+            }
+            xhr.onload = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                let payload = {};
+                try {
+                    payload = xhr.responseText ? parseJsonResponse(xhr.responseText) : {};
+                } catch {
+                    payload = { message: 'Phản hồi JSON từ Server không hợp lệ.' };
+                }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve(payload);
+                    return;
+                }
+                const error = new Error(payload.message || 'Upload dữ liệu import thất bại.');
+                error.status = xhr.status;
+                error.data = payload;
+                reject(error);
+            };
+            xhr.onerror = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                reject(new Error('Không thể kết nối Server để upload dữ liệu import.'));
+            };
+            xhr.onabort = function () {
+                if (signal) signal.removeEventListener('abort', abort);
+                reject(new DOMException('Đã hủy upload.', 'AbortError'));
+            };
+            xhr.send(formData);
+        });
+    }
+
     return {
         /**
          * G\u1eedi request GET
@@ -131,20 +225,24 @@ const ApiClient = (function () {
             return request(endpoint, { ...options, method: 'GET' });
         },
 
-        /**
-         * G\u1eedi request POST (Dữ liệu truyền vào th\u00f4ng qua body)
-         */
         post: function (endpoint, data, options = {}) {
+            var payload = data;
+            if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+                payload = Object.assign({}, payload);
+                if (!payload.UserName) {
+                    var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
+                        || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
+                        || localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    if (uName) payload.UserName = uName;
+                }
+            }
             return request(endpoint, {
                 ...options,
                 method: 'POST',
-                body: JSON.stringify(data)
+                body: JSON.stringify(payload)
             });
         },
 
-        /**
-         * G\u1eedi request PUT (Th\u01b0\u1eddng d\u00f9ng \u0111\u1ec3 update)
-         */
         put: function (endpoint, data, options = {}) {
             return request(endpoint, {
                 ...options,
@@ -153,16 +251,13 @@ const ApiClient = (function () {
             });
         },
 
-        /**
-         * G\u1eedi request DELETE
-         */
         delete: function (endpoint, options = {}) {
             return request(endpoint, { ...options, method: 'DELETE' });
         },
 
         normalizeResponse: normalizeResponse,
         requestRecords: requestRecords,
-
+        upload: upload,
         // Expose cookie helpers to be used globally (e.g., in login and logout)
         setCookie: setCookie,
         getCookie: getCookie,

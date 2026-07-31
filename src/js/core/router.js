@@ -20,6 +20,189 @@ var Router = (function () {
     { path: '/detail', template: 'src/pages/detail/detail.html', script: 'src/pages/detail/detail.js', perm: '', title: 'Chi tiết', pageFn: 'DetailPage', hideHeader: true }
   ];
 
+  function _menuValue(menu, names) {
+    for (var i = 0; i < names.length; i++) {
+      var value = menu && menu[names[i]];
+      if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    }
+    return '';
+  }
+
+  function _parseMenuDatasets(menu) {
+    var source = _menuValue(menu, ['DatasetsJson', 'datasetsJson', 'Datasets', 'datasets']);
+    if (!source) return [];
+    var parsed = source;
+    if (!Array.isArray(parsed)) {
+      try {
+        parsed = JSON.parse(source);
+      } catch (e) {
+        console.warn('[Router] DatasetsJson không hợp lệ cho form:', menu && (menu.FormName || menu.formName));
+        return [];
+      }
+    }
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map(function (dataset, index) {
+      return { dataset: dataset, sourceIndex: index };
+    }).sort(function (left, right) {
+      var leftOrder = parseInt(_menuValue(left.dataset, ['sortOrder', 'SortOrder']), 10);
+      var rightOrder = parseInt(_menuValue(right.dataset, ['sortOrder', 'SortOrder']), 10);
+      if (!leftOrder) leftOrder = left.sourceIndex + 1;
+      if (!rightOrder) rightOrder = right.sourceIndex + 1;
+      return leftOrder - rightOrder || left.sourceIndex - right.sourceIndex;
+    }).map(function (item) {
+      return item.dataset;
+    });
+  }
+
+  function _datasetBool(value) {
+    return value === true || value === 1 || value === '1' || String(value || '').toLowerCase() === 'true';
+  }
+
+  function _datasetLabel(dataset, index) {
+    var explicit = _menuValue(dataset, ['label', 'Label', 'title', 'Title']);
+    if (explicit) return String(explicit);
+    var key = String(_menuValue(dataset, ['datasetKey', 'DatasetKey']) || '').trim();
+    if (!key) return 'Chi tiết ' + (index + 1);
+    if (/^DETAIL_TAB_\d+$/i.test(key)) return 'Chi tiết ' + (index + 1);
+    if (/\s|[^\x00-\x7F]/.test(key)) return key;
+    return key.replace(/_/g, ' ').replace(/(^|\s)\S/g, function (letter) { return letter.toUpperCase(); });
+  }
+
+  function _datasetsToDetailTabs(datasets) {
+    return (datasets || []).map(function (dataset, index) {
+      var datasetKey = String(_menuValue(dataset, ['datasetKey', 'DatasetKey']) || '');
+      var apiList = String(_menuValue(dataset, ['apiList', 'ApiList', 'list', 'List', 'tableName', 'TableName', 'datasetKey', 'DatasetKey']) || '');
+      var primaryKey = String(_menuValue(dataset, ['primaryKey', 'PrimaryKey', 'expectedPrimaryKey', 'ExpectedPrimaryKey']) || 'UserAutoID');
+      var parentField = String(_menuValue(dataset, ['parentField', 'ParentField']) || '');
+      var childField = String(_menuValue(dataset, ['childField', 'ChildField', 'filterField', 'FilterField']) || parentField);
+      var readOnly = _datasetBool(_menuValue(dataset, ['isReadOnly', 'IsReadOnly', 'readOnly', 'ReadOnly']));
+      return {
+        label: _datasetLabel(dataset, index),
+        api: apiList,
+        tableName: String(_menuValue(dataset, ['tableName', 'TableName']) || ''),
+        primaryKey: primaryKey,
+        parentField: parentField,
+        filterField: childField,
+        editable: !readOnly,
+        metadataMode: readOnly ? 'JOIN_RESULT_SET_READONLY' : 'JOIN_RESULT_SET_EDITABLE',
+        joinContractKey: datasetKey,
+        fields: Array.isArray(dataset.fields) ? dataset.fields.slice() : [],
+        headers: dataset.headers && typeof dataset.headers === 'object' ? Object.assign({}, dataset.headers) : {}
+      };
+    }).filter(function (tab) {
+      return tab.api && tab.joinContractKey;
+    });
+  }
+
+  function _matchesDetailTabBehavior(tab, behavior, index) {
+    if (!behavior) return false;
+    var matchIndex = parseInt(behavior.matchIndex, 10);
+    if (matchIndex && matchIndex === index + 1) return true;
+
+    var matches = [
+      [behavior.matchDatasetKey, tab.joinContractKey],
+      [behavior.matchTableName, tab.tableName],
+      [behavior.matchApi, tab.api]
+    ];
+    return matches.some(function (pair) {
+      if (!pair[0] || !pair[1]) return false;
+      var a = String(pair[0]).trim().toLowerCase();
+      var b = String(pair[1]).trim().toLowerCase();
+      return a === b || a.replace(/_/g, '') === b.replace(/_/g, '');
+    });
+  }
+
+  function _applyDetailTabBehaviors(tabs, behaviors) {
+    if (!Array.isArray(behaviors) || behaviors.length === 0) return tabs;
+    return (tabs || []).map(function (tab, index) {
+      var behavior = behaviors.find(function (candidate) {
+        return _matchesDetailTabBehavior(tab, candidate, index);
+      });
+      if (!behavior) return tab;
+
+      /*
+       * Menu/registry tiếp tục là nguồn sự thật cho nhãn, API, khóa nối và
+       * quyền sửa. Behavior bổ sung cách hiển thị, customButtons, lookupConfig; riêng bảng dữ
+       * liệu phát sinh có thể forceReadOnly để bảo vệ dữ liệu do SP tạo.
+       */
+      var next = Object.assign({}, behavior, tab);
+      next.fields = Array.isArray(tab.fields) && tab.fields.length
+        ? tab.fields.slice()
+        : (Array.isArray(behavior.fields) ? behavior.fields.slice() : []);
+      next.headers = Object.assign({}, behavior.headers || {}, tab.headers || {});
+      next.lookupConfig = Object.assign({}, behavior.lookupConfig || {}, tab.lookupConfig || {});
+      next.fieldTypes = Object.assign({}, behavior.fieldTypes || {}, tab.fieldTypes || {});
+      next.customButtons = Array.isArray(behavior.customButtons) && behavior.customButtons.length
+        ? behavior.customButtons.slice()
+        : (Array.isArray(tab.customButtons) ? tab.customButtons.slice() : []);
+      next.readOnlyFields = Array.isArray(behavior.readOnlyFields) && behavior.readOnlyFields.length
+        ? behavior.readOnlyFields.slice()
+        : (Array.isArray(tab.readOnlyFields) ? tab.readOnlyFields.slice() : []);
+
+      if (behavior.forceReadOnly === true) {
+        next.editable = false;
+        next.metadataMode = 'JOIN_RESULT_SET_READONLY';
+      }
+      delete next.matchIndex;
+      delete next.matchDatasetKey;
+      delete next.matchTableName;
+      delete next.matchApi;
+      delete next.forceReadOnly;
+      return next;
+    });
+  }
+
+  function _findModuleConfig(menu, url) {
+    if (!window.APP_MODULES) return null;
+    var formKey = String(_menuValue(menu, ['FormKey', 'formKey']) || '');
+    var formName = String(_menuValue(menu, ['FormName', 'formName']) || '');
+    var candidates = [formKey, formKey.toUpperCase()];
+    for (var i = 0; i < candidates.length; i++) {
+      if (candidates[i] && window.APP_MODULES[candidates[i]]) return window.APP_MODULES[candidates[i]];
+    }
+    if (formName) {
+      var targetName = formName.toLowerCase();
+      for (var key in window.APP_MODULES) {
+        if (window.APP_MODULES[key].FormName && window.APP_MODULES[key].FormName.toLowerCase() === targetName) {
+          return window.APP_MODULES[key];
+        }
+      }
+    }
+    var deducedKey = String(url || '').trim().replace(/-/g, '_').toUpperCase();
+    if (deducedKey === 'FORM_BUILDER') {
+      return { FormName: 'SY_FormatFields', PageTitle: 'Cấu hình động', UseSplitLayout: false };
+    }
+    return window.APP_MODULES[deducedKey] || null;
+  }
+
+  function _buildDynamicConfig(menu, route, url) {
+    var existingConfig = _findModuleConfig(menu, url);
+    var config = Object.assign({}, existingConfig || {});
+    var formName = String(_menuValue(menu, ['FormName', 'formName']) || config.FormName || '');
+    var contractType = String(_menuValue(menu, ['ContractType', 'contractType']) || config.ContractType || '');
+    var tableName = String(_menuValue(menu, ['TableName', 'tableName']) || config.TableName || '');
+    var primaryKey = String(_menuValue(menu, ['PrimaryKey', 'primaryKey']) || config.PrimaryKey || '');
+    var datasets = _parseMenuDatasets(menu);
+
+    config.FormName = formName;
+    config.PageTitle = route.title;
+    config.PageSubtitle = route.subTitle;
+    if (contractType) config.ContractType = contractType;
+    if (tableName) config.TableName = tableName;
+    if (primaryKey) config.PrimaryKey = primaryKey;
+    if (datasets.length) {
+      config.datasets = datasets;
+      var generatedTabs = _datasetsToDetailTabs(datasets);
+      if (Array.isArray(config.DetailTabBehaviors) && config.DetailTabBehaviors.length > 0) {
+        config.DetailTabs = _applyDetailTabBehaviors(generatedTabs, config.DetailTabBehaviors);
+      } else if (!Array.isArray(config.DetailTabs) || config.DetailTabs.length === 0) {
+        config.DetailTabs = generatedTabs;
+      }
+    }
+    return config;
+  }
+
   function addDynamicRoutes(menus) {
     if (!menus || !Array.isArray(menus)) return;
 
@@ -45,6 +228,9 @@ var Router = (function () {
         existingRoute.title = m.MenuName || m.VN || m.label || existingRoute.title || '';
         existingRoute.subTitle = m.SubTitle || m.subTitle || existingRoute.subTitle || '';
         if (m.HideHeader || m.hideHeader) existingRoute.hideHeader = true;
+        if (existingRoute.pageFn === 'DynamicFormEngine') {
+          existingRoute.config = _buildDynamicConfig(m, existingRoute, url);
+        }
 
         _routeMap[path] = existingRoute;
         if (path === currentHash) needsReload = true;
@@ -59,44 +245,10 @@ var Router = (function () {
         hideHeader: m.HideHeader || m.hideHeader || false
       };
 
-      var formKey = m.FormKey || m.formKey;
-      var formName = m.FormName || m.formName || '';
-
-      var existingConfig = null;
-
-      // 1. Tìm config dựa vào FormKey hoặc FormName
-      if (window.APP_MODULES) {
-        if (formKey && window.APP_MODULES[formKey]) {
-          existingConfig = window.APP_MODULES[formKey];
-        } else if (formName) {
-          var targetName = formName.toLowerCase();
-          for (var k in window.APP_MODULES) {
-            if (window.APP_MODULES[k].FormName && window.APP_MODULES[k].FormName.toLowerCase() === targetName) {
-              existingConfig = window.APP_MODULES[k];
-              formKey = k;
-              break;
-            }
-          }
-        }
-
-        // 2. Fallback: tự suy luận từ urlPara (vd: form-builder -> FORM_BUILDER)
-        if (!existingConfig) {
-          var deducedKey = url.trim().replace(/-/g, '_').toUpperCase();
-          if (deducedKey === 'FORM_BUILDER') {
-            existingConfig = { FormName: 'SY_FormatFields', PageTitle: 'Cấu hình động', UseSplitLayout: false };
-            formKey = deducedKey;
-          } else if (window.APP_MODULES[deducedKey]) {
-            existingConfig = window.APP_MODULES[deducedKey];
-            formKey = deducedKey;
-          }
-        }
-      }
-
-      // Đã loại bỏ nhánh custom vì toàn bộ custom đã nằm trong ROUTES
       // Mặc định những route mới từ DB không nằm trong ROUTES sẽ dùng DynamicFormEngine
       route.script = 'src/js/core/DynamicFormEngine.js';
       route.pageFn = 'DynamicFormEngine';
-      route.config = Object.assign({ FormName: formName, PageTitle: route.title, PageSubtitle: route.subTitle }, existingConfig || {});
+      route.config = _buildDynamicConfig(m, route, url);
 
       ROUTES.push(route);
       _routeMap[path] = route; // Update Map
@@ -165,6 +317,16 @@ var Router = (function () {
 
   function _findRoute(path) {
     return _routeMap[path] || null;
+  }
+
+  function getConfigByFormName(formName) {
+    var target = String(formName || '').toLowerCase();
+    if (!target) return null;
+    for (var i = 0; i < ROUTES.length; i++) {
+      var config = ROUTES[i] && ROUTES[i].config;
+      if (config && String(config.FormName || '').toLowerCase() === target) return config;
+    }
+    return null;
   }
 
   // ── Page Transition ────────────────────────────────────────────────────
@@ -424,6 +586,7 @@ var Router = (function () {
     init: init,
     ROUTES: ROUTES,
     addDynamicRoutes: addDynamicRoutes,
+    getConfigByFormName: getConfigByFormName,
     fetchTemplate: fetchTemplate   // Cho page modules dùng chung cache layer
   };
 })();

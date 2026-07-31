@@ -25,11 +25,17 @@ function loadDotEnv(filePath) {
 }
 
 function readDevelopmentSqlApiBase() {
-    const envFile = path.join(repositoryRoot, 'env.js');
-    if (!fs.existsSync(envFile)) return '';
-    const contents = fs.readFileSync(envFile, 'utf8');
-    const match = contents.match(/API_BASE\s*:\s*['"`](.*?)['"`]/);
-    return match && match[1] ? match[1].trim() : '';
+    const candidates = [
+        path.join(repositoryRoot, 'env.js'),
+        path.join(backendRoot, 'env.js')
+    ];
+    for (const envFile of candidates) {
+        if (!fs.existsSync(envFile)) continue;
+        const contents = fs.readFileSync(envFile, 'utf8');
+        const match = contents.match(/API_BASE\s*:\s*['"`](.*?)['"`]/);
+        if (match && match[1]) return match[1].trim();
+    }
+    return '';
 }
 
 function trimTrailingSlash(value) {

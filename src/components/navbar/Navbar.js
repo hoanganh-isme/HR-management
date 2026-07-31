@@ -352,6 +352,18 @@ var Navbar = (function () {
   }
 
   var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_CONTRACT_VERSION = 2;
+
+  function _isCurrentMenuCache(cached, groupId) {
+    return !!(
+      cached
+      && cached.contractVersion === CACHE_CONTRACT_VERSION
+      && cached.groupId === groupId
+      && cached.config
+      && cached.config.length > 0
+      && Array.isArray(cached.rawRecords)
+    );
+  }
 
   function render(containerId) {
     var container = document.getElementById(containerId);
@@ -372,7 +384,7 @@ var Navbar = (function () {
             sessionStorage.removeItem(CACHE_KEY);
             cached = null;
           }
-          if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
+          if (_isCurrentMenuCache(cached, groupId)) {
             NAV_CONFIG = cached.config;
             if (cached.rawRecords && window.Router && typeof Router.addDynamicRoutes === 'function') {
               Router.addDynamicRoutes(cached.rawRecords);
@@ -390,7 +402,7 @@ var Navbar = (function () {
       // Fallback: không có SystemDataService → dùng cache như cũ
       try {
         var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
-        if (cached && cached.groupId === groupId && cached.config && cached.config.length > 0) {
+        if (_isCurrentMenuCache(cached, groupId)) {
           NAV_CONFIG = cached.config;
           if (cached.rawRecords && window.Router && typeof Router.addDynamicRoutes === 'function') {
             Router.addDynamicRoutes(cached.rawRecords);
@@ -424,7 +436,8 @@ var Navbar = (function () {
               groupId: groupId,
               config: NAV_CONFIG,
               rawRecords: records,
-              syncVer: syncVer || ''
+              syncVer: syncVer || '',
+              contractVersion: CACHE_CONTRACT_VERSION
             }));
           } catch (e) { }
         }

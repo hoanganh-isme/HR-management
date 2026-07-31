@@ -337,6 +337,32 @@ var UITable = (function () {
           spanTxt.style.pointerEvents = 'none'; // Prevent child interference
           th.appendChild(spanTxt);
 
+          // Ctrl + Double Click vào tiêu đề cột để mở modal chỉnh sửa (WinForms ERP style)
+          th.addEventListener('dblclick', function (e) {
+            if (e.ctrlKey || e.metaKey) {
+              e.stopPropagation();
+              e.preventDefault();
+              var fieldName = h.field || h.name || (config.columns && config.columns[idx] && config.columns[idx].field) || '';
+              if (fieldName && typeof ColumnCaptionEditorModal !== 'undefined') {
+                ColumnCaptionEditorModal.show({
+                  formName: config.formName || window._currentFormName || '',
+                  fieldName: fieldName,
+                  captionVN: typeof h === 'object' ? (h.label || h.caption) : h,
+                  alignX: h.align,
+                  formatId: h.formatId,
+                  minWidth: parseInt(h.minWidth) || 0,
+                  maxWidth: parseInt(h.maxWidth) || 0,
+                  onSuccess: function (updated) {
+                    if (updated.captionVN) {
+                      h.label = updated.captionVN;
+                      spanTxt.innerText = updated.captionVN;
+                    }
+                  }
+                });
+              }
+            }
+          });
+
           if (h.width) {
             th.style.width = h.width;
             th.style.minWidth = h.width; // Ép cứng chiều rộng ban đầu
@@ -791,6 +817,64 @@ var UITable = (function () {
           }
         });
       }
+
+      menuItems.push({
+        icon: 'edit_note',
+        label: 'Sửa tiêu đề & định dạng cột...',
+        onClick: function () {
+          var targetTh = e.target ? e.target.closest('th') : null;
+          if (!targetTh && triggerTd && triggerTr) {
+            var idx = Array.from(triggerTr.children).indexOf(triggerTd);
+            var thead = triggerTr.closest('table') ? triggerTr.closest('table').querySelector('thead') : null;
+            if (thead && thead.rows[0] && idx >= 0) {
+              targetTh = thead.rows[0].children[idx];
+            }
+          }
+          var caption = targetTh ? targetTh.innerText.trim() : (triggerTd ? triggerTd.innerText.trim() : '');
+          var fieldName = targetTh ? (targetTh.dataset.field || caption) : caption;
+          if (typeof ColumnCaptionEditorModal !== 'undefined') {
+              var colDef = {};
+              if (window.tabulatorInstance && fieldName) {
+                try {
+                  var c = window.tabulatorInstance.getColumn(fieldName);
+                  if (c && typeof c.getDefinition === 'function') colDef = c.getDefinition() || {};
+                } catch (err) {}
+              }
+              ColumnCaptionEditorModal.show({
+                formName: window._currentFormName || '',
+                fieldName: fieldName,
+                captionVN: colDef.title || caption,
+                captionEN: colDef.captionEN || '',
+                captionCH: colDef.captionCH || '',
+                alignX: colDef.alignX || colDef.align || colDef.hozAlign || '',
+                formatId: colDef.formatId || colDef.FormatID || '',
+                minWidth: colDef.minWidth || 0,
+                maxWidth: colDef.maxWidth || 0,
+                onSuccess: function (updated) {
+                  if (!updated) return;
+                  if (typeof h === 'object') {
+                    if (updated.captionVN) h.label = h.title = h.captionVN = updated.captionVN;
+                    if (updated.captionEN !== undefined) h.captionEN = updated.captionEN;
+                    if (updated.captionCH !== undefined) h.captionCH = updated.captionCH;
+                    if (updated.alignX !== undefined) h.alignX = h.align = h.hozAlign = updated.alignX;
+                    if (updated.formatId !== undefined) h.formatId = h.FormatID = updated.formatId;
+                    if (updated.minWidth !== undefined) h.minWidth = updated.minWidth;
+                    if (updated.maxWidth !== undefined) h.maxWidth = updated.maxWidth;
+                  }
+                  if (colDef) {
+                    if (updated.captionVN) colDef.title = colDef.captionVN = updated.captionVN;
+                    if (updated.captionEN !== undefined) colDef.captionEN = updated.captionEN;
+                    if (updated.captionCH !== undefined) colDef.captionCH = updated.captionCH;
+                    if (updated.alignX !== undefined) colDef.alignX = colDef.align = colDef.hozAlign = updated.alignX;
+                    if (updated.formatId !== undefined) colDef.formatId = colDef.FormatID = updated.formatId;
+                    if (updated.minWidth !== undefined) colDef.minWidth = updated.minWidth;
+                    if (updated.maxWidth !== undefined) colDef.maxWidth = updated.maxWidth;
+                  }
+                }
+              });
+          }
+        }
+      });
 
       UIContextMenu.show(e, menuItems);
     }

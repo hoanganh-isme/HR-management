@@ -12,6 +12,8 @@ UIControls.createDataComboBox = function (options) {
   input.type = 'text';
   input.className = 'ui-input';
   input.placeholder = (options.placeholder !== undefined) ? options.placeholder : 'Tìm kiếm...';
+  input.setAttribute('aria-haspopup', 'listbox');
+  input.setAttribute('aria-expanded', 'false');
   if (options.id) input.id = options.id;
 
   // Actions block – chỉ giữ nút mũi tên
@@ -62,6 +64,8 @@ UIControls.createDataComboBox = function (options) {
   // Table wrapper (scrollable)
   var tableWrapper = document.createElement('div');
   tableWrapper.className = 'dd-table-wrapper';
+  tableWrapper.setAttribute('role', 'status');
+  tableWrapper.setAttribute('aria-live', 'polite');
 
   // Footer "+ Thêm mới" & Phân trang
   var footer = document.createElement('div');
@@ -91,6 +95,7 @@ UIControls.createDataComboBox = function (options) {
   // Pagination Elements
   var currentPage = 1;
   var currentQuery = '';
+  var requestSequence = 0;
   
   var paginationWrapper = document.createElement('div');
   paginationWrapper.className = 'dd-pagination';
@@ -149,7 +154,46 @@ UIControls.createDataComboBox = function (options) {
   // ── Data & Render ───────────────────────────────────────────────
   var fullData = options.data || [];
 
+  function renderState(type, message, allowRetry) {
+    tableWrapper.innerHTML = '';
+    var state = document.createElement('div');
+    state.className = 'dd-state dd-state-' + type;
+
+    var icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined dd-state-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = type === 'error' ? 'cloud_off' : (type === 'empty' ? 'search_off' : 'progress_activity');
+    state.appendChild(icon);
+
+    var text = document.createElement('span');
+    text.className = 'dd-state-text';
+    text.textContent = message;
+    state.appendChild(text);
+
+    if (allowRetry) {
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'dd-retry-btn';
+      retry.textContent = options.retryText || 'Thử lại';
+      retry.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        loadData(currentQuery, currentPage);
+      });
+      state.appendChild(retry);
+    }
+
+    tableWrapper.appendChild(state);
+  }
+
   function renderTable(displayData) {
+    if (!Array.isArray(displayData) || displayData.length === 0) {
+      renderState(
+        'empty',
+        currentQuery ? (options.noResultsText || 'Không tìm thấy kết quả phù hợp.') : (options.emptyText || 'Chưa có dữ liệu.')
+      );
+      return;
+    }
     if (UIControls.utils) {
       tableWrapper.innerHTML = UIControls.utils.createDropdownTableHTML(
         options.headers || [], displayData, options.colHighlightIndex !== undefined ? options.colHighlightIndex : (options.colFilterIndex || 0), options
@@ -210,12 +254,17 @@ UIControls.createDataComboBox = function (options) {
     currentQuery = q;
     currentPage = page;
     if (typeof options.onSearch === 'function') {
-      tableWrapper.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">Đang tải...</div>';
+      var requestId = ++requestSequence;
+      tableWrapper.setAttribute('aria-busy', 'true');
+      renderState('loading', q ? (options.searchingText || 'Đang tìm...') : (options.loadingText || 'Đang tải danh sách...'));
       Promise.resolve(options.onSearch(q, page)).then(function (result) {
+        if (requestId !== requestSequence) return;
+        var hasMore;
         if (result && !Array.isArray(result) && result.data) {
           if (result.headers) options.headers = result.headers;
           if (result.colFilterIndex !== undefined) options.colFilterIndex = result.colFilterIndex;
           if (result.forceMultiColumn !== undefined) options.forceMultiColumn = result.forceMultiColumn;
+          if (result.hasMore !== undefined) hasMore = result.hasMore === true;
           result = result.data;
         }
         if (Array.isArray(result)) {
@@ -226,15 +275,22 @@ UIControls.createDataComboBox = function (options) {
             lblPage.textContent = 'Trang ' + page + ' (' + result.length + ')';
             btnPrev.disabled = (page <= 1);
             btnPrev.style.opacity = (page <= 1) ? '0.5' : '1';
-            btnNext.disabled = (result.length < 200);
-            btnNext.style.opacity = (result.length < 200) ? '0.5' : '1';
+            var canLoadNext = hasMore !== undefined
+              ? hasMore
+              : result.length >= Math.max(1, Number(options.pageSize) || 200);
+            btnNext.disabled = !canLoadNext;
+            btnNext.style.opacity = canLoadNext ? '1' : '0.5';
           }
           if (UIControls.utils) {
             UIControls.utils.computeDropdownPosition(container, dropdown);
           }
         }
-      }).catch(function () {
-        tableWrapper.innerHTML = '<div style="padding:12px;text-align:center;color:#ef4444;font-size:13px">Lỗi tải dữ liệu</div>';
+        tableWrapper.setAttribute('aria-busy', 'false');
+      }).catch(function (error) {
+        if (requestId !== requestSequence) return;
+        tableWrapper.setAttribute('aria-busy', 'false');
+        renderState('error', error && error.userMessage ? error.userMessage : (options.errorText || 'Không tải được danh sách.'), true);
+        if (typeof options.onError === 'function') options.onError(error);
       });
     } else {
       var lval = q.toLowerCase();
@@ -263,6 +319,7 @@ UIControls.createDataComboBox = function (options) {
       UIControls.utils.computeDropdownPosition(container, dropdown);
     }
     dropdown.classList.add('active');
+    input.setAttribute('aria-expanded', 'true');
     attachScrollListeners();
     setTimeout(function () { 
       if (document.activeElement !== input) {
@@ -274,6 +331,7 @@ UIControls.createDataComboBox = function (options) {
   function hideDropdown() {
     detachScrollListeners();
     dropdown.classList.remove('active');
+    input.setAttribute('aria-expanded', 'false');
     if (dropdown.parentNode) dropdown.parentNode.removeChild(dropdown);
   }
 
@@ -286,7 +344,7 @@ UIControls.createDataComboBox = function (options) {
     if (typeof options.onSearch === 'function') {
       // Server-side: debounce 300ms rồi gọi API
       clearTimeout(_searchDebounce);
-      tableWrapper.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted,#94a3b8);font-size:13px">Đang tìm...</div>';
+      renderState('loading', options.searchingText || 'Đang tìm...');
       _searchDebounce = setTimeout(function () {
         loadData(val, 1);
       }, 300);

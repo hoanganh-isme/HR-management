@@ -44,11 +44,11 @@ var MenusPage = (function () {
     if (!globalActions) return;
 
     globalActions.innerHTML = '';
-    
+
     if (typeof UIActionToolbar !== 'undefined') {
       var permKey = _getPermKey();
       var hasAdd = Permission.canAdd(permKey);
-      
+
       var toolbar = UIActionToolbar.create({
         onAdd: hasAdd ? function () { _openModal(false); } : 'DISABLED',
         onEdit: false,
@@ -66,13 +66,13 @@ var MenusPage = (function () {
           }
         ]
       });
-      
+
       // Override text for "Thêm"
       var btnAdd = toolbar.querySelector('.btn-primary, [title*="Thêm"]');
       if (btnAdd) {
-        btnAdd.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">add</span><span class="d-none d-sm-inline">Thêm Nhóm Cha</span>';
+        btnAdd.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">add</span><span class="d-none d-sm-inline">Thêm danh mục</span>';
       }
-      
+
       globalActions.appendChild(toolbar);
     }
   }
@@ -1001,6 +1001,11 @@ var MenusPage = (function () {
     });
     selectParent.innerHTML = opts;
 
+    var contractTypeSelect = $container.querySelector('#menu-contract-type');
+    if (contractTypeSelect) {
+      contractTypeSelect.onchange = _updateContractTypeUI;
+    }
+
     // Render Icon Grid picker
     var iconGrid = $container.querySelector('#modal-icon-picker-grid');
     if (iconGrid && iconGrid.children.length === 0) {
@@ -1035,6 +1040,45 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = menu.icon || '';
       $container.querySelector('#menu-icon-preview').textContent = menu.icon || 'label';
       $container.querySelector('#menu-is-disable').checked = (menu.isDisable == 1 || menu.isDisable === '1' || menu.isDisable === true);
+      // V2 & V3 Config
+      var tabEl = $container.querySelector('#menu-tablename'); if (tabEl) tabEl.value = menu.tableName || '';
+      var pkEl = $container.querySelector('#menu-primarykey'); if (pkEl) pkEl.value = menu.primaryKey || '';
+      var delEl = $container.querySelector('#menu-allow-hard-delete'); if (delEl) delEl.checked = (menu.allowHardDelete == 1 || menu.allowHardDelete === true);
+      var rawCType = (menu.contractType || '').toUpperCase();
+      if (rawCType.indexOf('MASTER_DETAIL') !== -1) {
+        rawCType = 'MASTER_DETAIL';
+      } else if (rawCType.indexOf('JOIN_VIEW') !== -1) {
+        rawCType = 'JOIN_VIEW';
+      }
+      var cTypeEl = $container.querySelector('#menu-contract-type');
+      if (cTypeEl) cTypeEl.value = rawCType || 'SIMPLE_TABLE';
+      var cViewEl = $container.querySelector('#menu-custom-view-proc'); if (cViewEl) cViewEl.value = menu.customViewProc || menu.viewProcedure || '';
+      var cSaveEl = $container.querySelector('#menu-custom-save-proc'); if (cSaveEl) cSaveEl.value = menu.customSaveProc || menu.saveProcedure || '';
+      var cDelEl = $container.querySelector('#menu-custom-delete-proc'); if (cDelEl) cDelEl.value = menu.customDeleteProc || menu.deleteProcedure || '';
+
+      var dsList = Array.isArray(menu.datasets) ? menu.datasets : [];
+      if ((!dsList || !dsList.length) && menu.datasetsJson) {
+        try {
+          dsList = typeof menu.datasetsJson === 'string' ? JSON.parse(menu.datasetsJson) : menu.datasetsJson;
+        } catch (e) { dsList = []; }
+      }
+      currentSubDatasets = Array.isArray(dsList)
+        ? JSON.parse(JSON.stringify(dsList))
+          .map(function (ds, index) {
+            ds.label = (ds.label || '').trim();
+            ds.sortOrder = parseInt(ds.sortOrder, 10) || (index + 1);
+            ds._sourceIndex = index;
+            return ds;
+          })
+          .sort(function (left, right) {
+            return left.sortOrder - right.sortOrder || left._sourceIndex - right._sourceIndex;
+          })
+          .map(function (ds, index) {
+            delete ds._sourceIndex;
+            ds.sortOrder = index + 1;
+            return ds;
+          })
+        : [];
     } else {
       title.textContent = 'Thêm mới Menu';
       isEditInp.value = '0';
@@ -1050,10 +1094,227 @@ var MenusPage = (function () {
       $container.querySelector('#menu-icon').value = '';
       $container.querySelector('#menu-icon-preview').textContent = 'label';
       $container.querySelector('#menu-is-disable').checked = false;
+      // V2 & V3 Config
+      var tabEl = $container.querySelector('#menu-tablename'); if (tabEl) tabEl.value = '';
+      var pkEl = $container.querySelector('#menu-primarykey'); if (pkEl) pkEl.value = '';
+      var delEl = $container.querySelector('#menu-allow-hard-delete'); if (delEl) delEl.checked = false;
+      var cTypeEl = $container.querySelector('#menu-contract-type'); if (cTypeEl) cTypeEl.value = 'SIMPLE_TABLE';
+      var cViewEl = $container.querySelector('#menu-custom-view-proc'); if (cViewEl) cViewEl.value = '';
+      var cSaveEl = $container.querySelector('#menu-custom-save-proc'); if (cSaveEl) cSaveEl.value = '';
+      var cDelEl = $container.querySelector('#menu-custom-delete-proc'); if (cDelEl) cDelEl.value = '';
+
+      currentSubDatasets = [];
+    }
+
+    _updateContractTypeUI();
+    _renderSubDatasetsUI();
+
+    function _autoUpdateUrlPara() {
+      var isEditVal = $container.querySelector('#menu-is-edit').value === '1';
+      var urlInp = $container.querySelector('#menu-urlpara');
+      if (!urlInp) return;
+
+      var idVal = $container.querySelector('#menu-id').value.trim();
+      var parentVal = $container.querySelector('#menu-parent').value;
+
+      if (!idVal) {
+        if (!isEditVal) urlInp.value = '';
+        return;
+      }
+
+      var fullId = idVal;
+      if (parentVal && idVal.indexOf(parentVal) !== 0) {
+        fullId = parentVal + idVal;
+      }
+      urlInp.value = '#/' + fullId;
+    }
+
+    var menuIdInput = $container.querySelector('#menu-id');
+    var menuParentSelect = $container.querySelector('#menu-parent');
+    if (menuIdInput) menuIdInput.oninput = _autoUpdateUrlPara;
+    if (menuParentSelect) menuParentSelect.onchange = _autoUpdateUrlPara;
+
+    var btnAddDs = $container.querySelector('#btn-add-subdataset');
+    if (btnAddDs) {
+      btnAddDs.onclick = function () {
+        var masterPkEl = $container.querySelector('#menu-primarykey');
+        var defaultMasterKey = masterPkEl ? masterPkEl.value.trim() : '';
+
+        var num = 1;
+        while (currentSubDatasets.some(function (ds) {
+          return String(ds.datasetKey || '').toUpperCase() === 'DETAIL_TAB_' + num;
+        })) {
+          num += 1;
+        }
+        currentSubDatasets.push({
+          datasetKey: 'DETAIL_TAB_' + num,
+          label: '',
+          sortOrder: currentSubDatasets.length + 1,
+          tableName: '',
+          primaryKey: 'UserAutoID',
+          parentField: defaultMasterKey,
+          childField: defaultMasterKey,
+          viewProcedure: '',
+          isReadOnly: false
+        });
+        _renderSubDatasetsUI();
+      };
     }
 
     modal.style.display = 'flex';
     setTimeout(function () { $container.querySelector('#menu-id').focus(); }, 100);
+  }
+
+  var currentSubDatasets = [];
+
+  function _fallbackDatasetLabel(datasetKey, index) {
+    var key = String(datasetKey || '').trim();
+    if (!key || /^DETAIL_TAB_\d+$/i.test(key)) return 'Chi tiết ' + (index + 1);
+    return key.replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\S/g, function (letter) {
+      return letter.toUpperCase();
+    });
+  }
+
+  function _normalizeSubDatasetOrder() {
+    currentSubDatasets.forEach(function (ds, index) {
+      ds.sortOrder = index + 1;
+    });
+  }
+
+  function _renderSubDatasetsUI() {
+    var container = $container.querySelector('#subdatasets-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!currentSubDatasets.length) {
+      container.innerHTML = '<div style="font-size:12px; color:var(--color-text-secondary); text-align:center; padding:12px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px;">Chưa có Tab con nào. Nhấn "Thêm Tab Con" để bắt đầu cấu hình.</div>';
+      return;
+    }
+
+    currentSubDatasets.forEach(function (ds, idx) {
+      var displayLabel = (ds.label || '').trim() || _fallbackDatasetLabel(ds.datasetKey, idx);
+      var card = document.createElement('div');
+      card.className = 'subdataset-card';
+      card.style.cssText = 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; position:relative; box-shadow:0 1px 2px rgba(0,0,0,0.03);';
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #edf2f7; padding-bottom:6px;">
+          <span style="font-weight:700; font-size:12px; color:var(--color-primary); display:flex; align-items:center; gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:16px;">tab</span> Tab #${idx + 1}: <span class="subds-card-label" style="color:#2d3748;">${displayLabel}</span>
+          </span>
+          <button type="button" class="btn-remove-subds" data-idx="${idx}" title="Xóa Tab con này" style="border:none; background:transparent; color:#e53e3e; cursor:pointer; padding:2px; display:flex; align-items:center; border-radius:4px;">
+            <span class="material-symbols-outlined" style="font-size:18px;">delete</span>
+          </button>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-4">
+            <label style="font-size:11px; font-weight:600; color:#4a5568; margin-bottom:2px; display:block;">Tên Tab hiển thị</label>
+            <input type="text" class="ui-input subds-label" data-idx="${idx}" value="${ds.label || ''}" placeholder="VD: Nhân viên" style="font-size:11px; padding:5px 8px; background:#fff; border-radius:4px;">
+          </div>
+          <div class="col-5">
+            <label style="font-size:11px; font-weight:600; color:#4a5568; margin-bottom:2px; display:block;">Bảng Vật Lý (TableName)</label>
+            <input type="text" class="ui-input subds-table" data-idx="${idx}" value="${ds.tableName || ''}" placeholder="VD: HR_SapCaNhanVienTbl" style="font-size:11px; padding:5px 8px; background:#fff; border-radius:4px;">
+          </div>
+          <div class="col-3">
+            <label style="font-size:11px; font-weight:600; color:#4a5568; margin-bottom:2px; display:block;">Khóa Chính</label>
+            <input type="text" class="ui-input subds-pk" data-idx="${idx}" value="${ds.primaryKey || ''}" placeholder="VD: UserAutoID" style="font-size:11px; padding:5px 8px; background:#fff; border-radius:4px;">
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label style="font-size:11px; font-weight:600; color:#4a5568; margin-bottom:2px; display:block;">Khóa Nối Bên Cha (ParentField)</label>
+            <input type="text" class="ui-input subds-parentfield" data-idx="${idx}" value="${ds.parentField || ''}" placeholder="VD: MasterID" style="font-size:11px; padding:5px 8px; background:#fff; border-radius:4px;">
+          </div>
+          <div class="col-6">
+            <label style="font-size:11px; font-weight:600; color:#4a5568; margin-bottom:2px; display:block;">Khóa Nối Bên Con (ChildField)</label>
+            <input type="text" class="ui-input subds-childfield" data-idx="${idx}" value="${ds.childField || ''}" placeholder="VD: MasterID" style="font-size:11px; padding:5px 8px; background:#fff; border-radius:4px;">
+          </div>
+        </div>
+        <div class="row g-2 align-items-center">
+          <div class="col-8">
+            <label style="font-size:11px; font-weight:600; color:#4a5568; margin-bottom:2px; display:block;">Proc / View Đọc Tab Con (ViewProcedure)</label>
+            <input type="text" class="ui-input subds-viewproc" data-idx="${idx}" value="${ds.viewProcedure || ''}" placeholder="VD: API_CaLamViecBranch_NhanVien" style="font-size:11px; padding:5px 8px; background:#fff; border-radius:4px;">
+          </div>
+          <div class="col-4" style="padding-top:16px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#2d3748; cursor:pointer; margin:0; user-select:none;">
+              <input type="checkbox" class="subds-readonly" data-idx="${idx}" ${ds.isReadOnly ? 'checked' : ''} style="width:14px; height:14px; accent-color:var(--color-primary);">
+              <span>Chỉ Xem (ReadOnly)</span>
+            </label>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+
+    container.querySelectorAll('input').forEach(function (input) {
+      input.oninput = function () {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        if (!currentSubDatasets[idx]) return;
+        if (this.classList.contains('subds-label')) {
+          currentSubDatasets[idx].label = this.value;
+          var cardTitle = this.closest('.subdataset-card').querySelector('.subds-card-label');
+          if (cardTitle) {
+            cardTitle.textContent = this.value.trim() || _fallbackDatasetLabel(currentSubDatasets[idx].datasetKey, idx);
+          }
+        }
+        if (this.classList.contains('subds-table')) currentSubDatasets[idx].tableName = this.value.trim();
+        if (this.classList.contains('subds-pk')) currentSubDatasets[idx].primaryKey = this.value.trim();
+        if (this.classList.contains('subds-parentfield')) currentSubDatasets[idx].parentField = this.value.trim();
+        if (this.classList.contains('subds-childfield')) currentSubDatasets[idx].childField = this.value.trim();
+        if (this.classList.contains('subds-viewproc')) currentSubDatasets[idx].viewProcedure = this.value.trim();
+      };
+      input.onchange = function () {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        if (!currentSubDatasets[idx]) return;
+        if (this.classList.contains('subds-readonly')) currentSubDatasets[idx].isReadOnly = this.checked;
+      };
+    });
+
+    container.querySelectorAll('.btn-remove-subds').forEach(function (btn) {
+      btn.onclick = function () {
+        var idx = parseInt(this.getAttribute('data-idx'));
+        currentSubDatasets.splice(idx, 1);
+        _normalizeSubDatasetOrder();
+        _renderSubDatasetsUI();
+      };
+    });
+  }
+
+  function _updateContractTypeUI() {
+    var typeEl = $container.querySelector('#menu-contract-type');
+    var procContainer = $container.querySelector('#menu-custom-proc-container');
+    var dsContainer = $container.querySelector('#menu-subdatasets-container');
+    var viewGroup = $container.querySelector('#group-custom-view');
+    var saveGroup = $container.querySelector('#group-custom-save');
+    var delGroup = $container.querySelector('#group-custom-delete');
+
+    if (!typeEl || !procContainer) return;
+    var val = typeEl.value;
+
+    if (val === 'MASTER_DETAIL') {
+      procContainer.style.display = 'block';
+      if (dsContainer) dsContainer.style.display = 'block';
+      if (viewGroup) viewGroup.style.display = 'block';
+      if (saveGroup) saveGroup.style.display = 'none';
+      if (delGroup) delGroup.style.display = 'none';
+    } else if (val === 'JOIN_VIEW') {
+      procContainer.style.display = 'block';
+      if (dsContainer) dsContainer.style.display = 'none';
+      if (viewGroup) viewGroup.style.display = 'block';
+      if (saveGroup) saveGroup.style.display = 'none';
+      if (delGroup) delGroup.style.display = 'none';
+    } else if (val === 'CUSTOM_API') {
+      procContainer.style.display = 'block';
+      if (dsContainer) dsContainer.style.display = 'none';
+      if (viewGroup) viewGroup.style.display = 'block';
+      if (saveGroup) saveGroup.style.display = 'block';
+      if (delGroup) delGroup.style.display = 'block';
+    } else {
+      procContainer.style.display = 'none';
+      if (dsContainer) dsContainer.style.display = 'none';
+      if (viewGroup) viewGroup.style.display = 'none';
+      if (saveGroup) saveGroup.style.display = 'none';
+      if (delGroup) delGroup.style.display = 'none';
+    }
   }
 
   function _closeModal() {
@@ -1063,6 +1324,15 @@ var MenusPage = (function () {
   // ════════════════════════════════════════════════════════
   //  SAVE
   // ════════════════════════════════════════════════════════
+  function _latinize(str) {
+    if (!str) return '';
+    return String(str)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D');
+  }
+
   function _saveMenu() {
     var id = $container.querySelector('#menu-id').value.trim();
     var label = $container.querySelector('#menu-label').value.trim();
@@ -1077,10 +1347,51 @@ var MenusPage = (function () {
     var isEdit = $container.querySelector('#menu-is-edit').value === '1';
     var oldId = $container.querySelector('#menu-old-id').value;
 
+    // V2 & V3 Config
+    var tabEl = $container.querySelector('#menu-tablename');
+    var pkEl = $container.querySelector('#menu-primarykey');
+    var delEl = $container.querySelector('#menu-allow-hard-delete');
+    var cTypeEl = $container.querySelector('#menu-contract-type');
+    var cViewEl = $container.querySelector('#menu-custom-view-proc');
+    var cSaveEl = $container.querySelector('#menu-custom-save-proc');
+    var cDelEl = $container.querySelector('#menu-custom-delete-proc');
+
+    var tableName = tabEl ? tabEl.value.trim() : '';
+    var primaryKey = pkEl ? pkEl.value.trim() : '';
+    var allowHardDelete = (delEl && delEl.checked) ? 1 : 0;
+    var contractType = cTypeEl ? cTypeEl.value : 'SIMPLE_TABLE';
+    var customViewProc = cViewEl ? cViewEl.value.trim() : '';
+    var customSaveProc = cSaveEl ? cSaveEl.value.trim() : '';
+    var customDeleteProc = cDelEl ? cDelEl.value.trim() : '';
+
     if (!id || !label || !formName) {
       Alert.error('Thiếu thông tin', 'Vui lòng nhập Menu ID, Tên Menu (VN) và Tên Form hệ thống');
       return;
     }
+
+    var subDsPayload = (contractType === 'MASTER_DETAIL' && Array.isArray(currentSubDatasets) && currentSubDatasets.length)
+      ? currentSubDatasets.map(function (ds, i) {
+          var displayLabel = (ds.label || '').trim() || _fallbackDatasetLabel(ds.datasetKey, i);
+          var rawKey = (ds.datasetKey || '').trim();
+          var safeKey = rawKey && /^[A-Za-z0-9_]+$/.test(rawKey)
+            ? rawKey.toUpperCase()
+            : _latinize(displayLabel).toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+          if (!safeKey) safeKey = 'DETAIL_TAB_' + (i + 1);
+
+          return {
+            datasetKey: safeKey,
+            label: displayLabel,
+            sortOrder: i + 1,
+            apiList: (ds.apiList || safeKey).trim(),
+            tableName: (ds.tableName || '').trim(),
+            primaryKey: (ds.primaryKey || 'UserAutoID').trim(),
+            parentField: (ds.parentField || '').trim(),
+            childField: (ds.childField || '').trim(),
+            viewProcedure: (ds.viewProcedure || '').trim(),
+            isReadOnly: !!ds.isReadOnly
+          };
+        })
+      : [];
 
     var payload = {
       NhomNguoiDangThaoTac: MenusService.currentGroupId(),
@@ -1095,7 +1406,16 @@ var MenusPage = (function () {
       URLPara: urlPara,
       Icon: icon,
       IsDisable: isDisable,
-      IsEdit: isEdit ? 1 : 0
+      IsEdit: isEdit ? 1 : 0,
+      // Pass V2 & V3 parameters to Backend
+      TableName: tableName,
+      PrimaryKey: primaryKey,
+      AllowHardDelete: allowHardDelete,
+      ContractType: contractType,
+      CustomViewProc: customViewProc,
+      CustomSaveProc: customSaveProc,
+      CustomDeleteProc: customDeleteProc,
+      DatasetsJson: subDsPayload.length ? JSON.stringify(subDsPayload) : ''
     };
 
     var btn = $container.querySelector('#btn-save-menu');
@@ -1106,6 +1426,12 @@ var MenusPage = (function () {
       .then(function (res) {
         if (res && res.code === 0) {
           Alert.success('Thành công', 'Đã lưu Menu thành công!');
+          try {
+            if (window.FieldSyncService && formName) {
+              FieldSyncService.clearCache(formName);
+              FieldSyncService.fetchManagedState(formName, null, true).catch(function () {});
+            }
+          } catch (e) {}
           _closeModal();
           if (window.Navbar) Navbar.clearMenuCache();
           _loadMenus();

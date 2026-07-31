@@ -135,6 +135,14 @@ var WizardForm = (function () {
       /* ── Slide animation ─────────────────────────────────────────── */
       '.wz-body .wz-step-content { animation:wz-slidein 0.22s cubic-bezier(0.16,1,0.3,1); }',
 
+      /* ── Avatar Layout ───────────────────────────────────────────── */
+      '.wz-step-body-wrapper { display:flex; gap:24px; align-items:flex-start; margin-top:16px; }',
+      '.wz-avatar-col { width:180px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
+      '.wz-avatar-frame { width:150px; height:150px; border-radius:50%; overflow:hidden; border:4px solid var(--color-primary,#4338ca); box-shadow:0 6px 16px rgba(67,56,202,0.16); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:transform 0.2s ease; }',
+      '.wz-avatar-frame:hover { transform:scale(1.05); }',
+      '.wz-avatar-btn { border-radius:16px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
+      '.wz-avatar-btn:hover { background-color:var(--color-primary,#4338ca); color:#fff; }',
+
       /* ── Empty state ────────────────────────────────────────────── */
       '.wz-no-branch { text-align:center; padding:32px 20px; color:var(--color-text-secondary); }',
       '.wz-no-branch .material-symbols-outlined { font-size:40px; display:block; margin-bottom:8px; opacity:0.4; }',
@@ -142,7 +150,10 @@ var WizardForm = (function () {
       /* ── Form group compact ─────────────────────────────────────── */
       '.wz-fields-grid .form-group { margin-bottom:0; width:100% !important; }',
       '.wz-fields-grid > div { width:100% !important; min-width:0; }',
-      '.wz-fields-grid .form-control, .wz-fields-grid input, .wz-fields-grid select, .wz-fields-grid textarea { width:100% !important; box-sizing:border-box; }',
+      '.wz-fields-grid .form-control, .wz-fields-grid input:not([type="checkbox"]):not([type="radio"]):not(.modern-checkbox), .wz-fields-grid select, .wz-fields-grid textarea { width:100% !important; box-sizing:border-box; }',
+      '.wz-fields-grid .modern-checkbox-wrapper { width:auto !important; display:inline-flex !important; align-items:center !important; gap:8px !important; margin-top:22px; padding:6px 12px; border-radius:8px; background:rgba(0,0,0,0.02); border:1px solid var(--color-border,#e2e8f0); cursor:pointer; }',
+      '.wz-fields-grid .modern-checkbox-wrapper:hover { background:rgba(79,70,229,0.06); border-color:var(--color-primary,#4f46e5); }',
+      '.wz-fields-grid .modern-checkbox-wrapper label { margin:0 !important; font-size:13.5px !important; font-weight:600 !important; color:var(--color-text,#1e293b) !important; cursor:pointer !important; white-space:nowrap !important; }',
       '.wz-fields-grid .combo-box-wrapper, .wz-fields-grid .select2-container { width:100% !important; }',
 
       /* ── Avatar Layout ───────────────────────────────────────────── */
@@ -910,17 +921,6 @@ var WizardForm = (function () {
           }, 0);
         }
 
-        // --- Custom override cho Giới Tính và Trạng Thái ---
-        if (fn === 'GioiTinh') {
-          field.renderRule = 'sl';
-          field.dataSource = 'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác';
-        }
-        if (fn === 'PersonStatus') {
-          field.renderRule = 'sl';
-          field.dataSource = 'API_ComboPersonStatus';
-        }
-        // ----------------------------------------------------
-
         var inputEl;
         if (field.renderRule === 'sw' || field.renderRule === 'boolean') {
           inputEl = UIInput.createSwitch(field);
@@ -928,7 +928,15 @@ var WizardForm = (function () {
           inputEl = UIInput.createDate(field);
         } else if (field.renderRule === 'tm' || field.renderRule === 'time') {
           inputEl = UIInput.createTime(field);
-        } else if (field.renderRule === 'sl' || field.renderRule === 'select') {
+        } else if (
+          field.renderRule === 'sl'
+          || field.renderRule === 'select'
+          || field.renderRule === 'combo'
+          || (
+            window.FieldControlResolver
+            && FieldControlResolver.isContractLookup(field)
+          )
+        ) {
           inputEl = _buildSelectField(field);
         } else if (field.renderRule === 'ta' || field.renderRule === 'textarea') {
           inputEl = UIInput.createTextarea ? UIInput.createTextarea(field) : UIInput.createText(field);
@@ -983,6 +991,20 @@ var WizardForm = (function () {
       hiddenIn.name = field.name;
       hiddenIn.value = field.value || '';
       fgw.appendChild(hiddenIn);
+
+      var contractCombo = window.FieldControlResolver
+        && FieldControlResolver.createCombo(field, {
+          formName: moduleConfig.FormName,
+          getValues: function () { return formState; },
+          hiddenInput: hiddenIn,
+          value: field.value,
+          disabled: field.readOnly === true,
+          onSelect: function (value) { formState[field.name] = value; }
+        });
+      if (contractCombo) {
+        fgw.appendChild(contractCombo);
+        return fgw;
+      }
 
       var ds = field.dataSource || '';
       if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {
@@ -1728,9 +1750,6 @@ var WizardForm = (function () {
           }, 0);
         }
 
-        if (fn === 'GioiTinh') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'STATIC:Nam|Nam,Nữ|Nữ,Khác|Khác'; }
-        if (fn === 'PersonStatus') { fCopy.renderRule = 'sl'; fCopy.dataSource = 'API_ComboPersonStatus'; }
-
         var inputEl;
         if (fCopy.renderRule === 'sw' || fCopy.renderRule === 'boolean') {
           inputEl = UIInput.createSwitch(fCopy);
@@ -1738,7 +1757,15 @@ var WizardForm = (function () {
           inputEl = UIInput.createDate(fCopy);
         } else if (fCopy.renderRule === 'tm' || fCopy.renderRule === 'time') {
           inputEl = UIInput.createTime(fCopy);
-        } else if (fCopy.renderRule === 'sl' || fCopy.renderRule === 'select') {
+        } else if (
+          fCopy.renderRule === 'sl'
+          || fCopy.renderRule === 'select'
+          || fCopy.renderRule === 'combo'
+          || (
+            window.FieldControlResolver
+            && FieldControlResolver.isContractLookup(fCopy)
+          )
+        ) {
           inputEl = _buildSelectFieldEdit(fCopy);
         } else if (fCopy.renderRule === 'ta' || fCopy.renderRule === 'textarea') {
           inputEl = UIInput.createTextarea ? UIInput.createTextarea(fCopy) : UIInput.createText(fCopy);
@@ -1776,6 +1803,20 @@ var WizardForm = (function () {
       hiddenIn.name = field.name;
       hiddenIn.value = field.value || '';
       fgw.appendChild(hiddenIn);
+
+      var contractCombo = window.FieldControlResolver
+        && FieldControlResolver.createCombo(field, {
+          formName: moduleConfig.FormName,
+          getValues: function () { return formState; },
+          hiddenInput: hiddenIn,
+          value: field.value,
+          disabled: field.readOnly === true,
+          onSelect: function (value) { formState[field.name] = value; }
+        });
+      if (contractCombo) {
+        fgw.appendChild(contractCombo);
+        return fgw;
+      }
 
       var ds = field.dataSource || '';
       if (field.name === 'BranchID' && userBranches && userBranches.length > 0) {

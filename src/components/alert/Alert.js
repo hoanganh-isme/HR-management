@@ -66,9 +66,16 @@ var Alert = (function () {
     setTimeout(function() {
       removeToast(toast);
     }, duration);
+
+    toast.close = function() {
+      removeToast(toast);
+    };
+
+    return toast;
   }
 
   function removeToast(toast) {
+    if (!toast || !toast.classList) return;
     toast.classList.remove('show');
     setTimeout(function() {
       if (toast.parentNode) {
@@ -78,9 +85,10 @@ var Alert = (function () {
   }
 
   return {
-    success: function(title, message, duration) { show('success', title, message, duration); },
-    error: function(title, message, duration) { show('danger', title, message, duration); },
-    warning: function(title, message, duration) { show('warning', title, message, duration); },
-    info: function(title, message, duration) { show('info', title, message, duration); }
+    success: function(title, message, duration) { return show('success', title, message, duration); },
+    error: function(title, message, duration) { return show('danger', title, message, duration); },
+    warning: function(title, message, duration) { return show('warning', title, message, duration); },
+    info: function(title, message, duration) { return show('info', title, message, duration); },
+    hide: removeToast
   };
 })();

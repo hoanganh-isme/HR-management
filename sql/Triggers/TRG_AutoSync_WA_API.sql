@@ -1,6 +1,3 @@
-USE [QLTiec]
-GO
-
 -- =========================================================================================
 -- TRIGGER: TỰ ĐỘNG CẬP NHẬT BẢNG WA_API KHI TẠO/SỬA STORED PROCEDURE
 -- Giúp hệ thống đạt cảnh giới "Self-Aware" (Tự nhận thức): Cứ code SP là tự map API
@@ -31,10 +28,11 @@ BEGIN
                 WHEN name = '@UserName' THEN 'User'
                 WHEN name = '@Keyword' THEN 'Keyword'
                 WHEN name = '@Page' THEN 'Page'
-                WHEN name = '@Limit' THEN 'Limit'
+                WHEN name = '@Limit' OR name = '@PageSize' THEN 'Limit'
                 -- Khai báo thông minh cho các biến Framework:
                 WHEN name = '@JsonData' OR name = '@Data' OR name = '@FilterJSON' THEN 'JsonData'
-                WHEN name = '@List' OR name = '@FormName' THEN 'List'
+                WHEN name = '@List' THEN 'List'
+                WHEN name = '@FormName' OR name = '@WebFormName' THEN 'FormName'
                 WHEN name = '@SortColumn' THEN 'SortColumn'
                 WHEN name = '@SortDir' THEN 'SortDir'
                 -- Biến lạ thì lấy luôn tên (bỏ dấu @)
@@ -44,8 +42,15 @@ BEGIN
         WHERE object_id = OBJECT_ID(@SchemaName + '.' + @ObjectName)
         ORDER BY parameter_id;
         
-        -- Kiểm tra xem API này đã được khai báo trong WA_API chưa
-        IF NOT EXISTS (SELECT 1 FROM WA_API WHERE [SQL] = @ObjectName)
+        -- DDL synchronization owns only its auxiliary Execute route.  It must
+        -- never rewrite a curated View/Save/Delete registration.
+        IF NOT EXISTS (
+            SELECT 1
+            FROM WA_API
+            WHERE [list] = @ObjectName
+              AND [func] = 'Execute'
+              AND [SQL] = @ObjectName
+        )
         BEGIN
             -- NẾU CHƯA: Tự động Insert 1 dòng mới tinh. 
             -- Tạm gán List và Func bằng tên API, anh có thể vào sửa lại List/Func sau cho đẹp
@@ -63,7 +68,9 @@ BEGIN
             -- Trigger sẽ tự động cập nhật lại cột Para cho khớp với code mới nhất!
             UPDATE WA_API
             SET Para = @ParaTemplate
-            WHERE [SQL] = @ObjectName;
+            WHERE [list] = @ObjectName
+              AND [func] = 'Execute'
+              AND [SQL] = @ObjectName;
         END
     END
 END
