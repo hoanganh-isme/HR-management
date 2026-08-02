@@ -118,7 +118,7 @@ app.use('/api/metadata', createFieldSyncRouter({
     config: fieldSyncConfig,
     repository: fieldContractRepository
 }));
-const dashboardRepository = createDashboardRepository({ sqlServer });
+const dashboardRepository = createDashboardRepository({ sqlServer, gateway: fieldSyncGateway });
 app.use('/api/dashboard', createDashboardRouter({
     gateway: fieldSyncGateway,
     repository: dashboardRepository
@@ -239,7 +239,9 @@ async function fetchSetupInfo(authToken) {
     const now = Date.now();
     if (_setupCache && (now - _setupCacheTime) < SETUP_CACHE_TTL) return _setupCache;
     try {
-        const url = `${SQL_API_BASE}/api/API_LayGiaTriSetup`;
+        const payload = { List: 'API_LayGiaTriSetup', Func: 'Execute' };
+        const qs = encodeURIComponent(JSON.stringify(payload));
+        const url = `${SQL_API_BASE}/api/API_Gateway_Router?q=${qs}`;
         const headers = {};
         if (authToken) headers['Authorization'] = authToken;
         const resp = await axiosGetWithRetry(url, { headers, timeout: 8000 }, 3, 1000);

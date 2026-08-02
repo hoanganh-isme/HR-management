@@ -131,8 +131,8 @@ export function createContractDocumentDb(config) {
         if (!isAdmin) {
             try {
                 const permissionResponse = await postJson(
-                    `${config.sqlApiBase}/api/API_LayQuyenCuaToi`,
-                    { Username: context.userName },
+                    `${config.sqlApiBase}/api/API_Gateway_Router`,
+                    { List: 'API_LayQuyenCuaToi', Func: 'Execute', Username: context.userName, User: context.userName },
                     context,
                     10000
                 );

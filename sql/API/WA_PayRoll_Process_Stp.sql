@@ -1,10 +1,11 @@
 USE [X26DIMTUTAC]
 GO
+/****** Object:  StoredProcedure [dbo].[WA_PayRoll_Process_Stp]    Script Date: 8/1/2026 1:12:29 AM ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
-CREATE OR ALTER PROCEDURE [dbo].[WA_PayRoll_Process_Stp] 
+ALTER PROCEDURE [dbo].[WA_PayRoll_Process_Stp] 
     @PeriodID VARCHAR(10)
 AS
 BEGIN
@@ -59,12 +60,14 @@ BEGIN
             ORDER BY PeriodID DESC
         ) Old
         LEFT JOIN (
-            SELECT BH.PersonID, BH.MucDong 
+            SELECT BH.PersonID, MAX(BH.MucDong) AS MucDong 
             FROM dbo.HR_BaoHiemChiTietTbl BH 
             INNER JOIN (SELECT PersonID, MAX(DocumentID) as MaxDoc FROM dbo.HR_BaoHiemChiTietTbl GROUP BY PersonID) L 
             ON BH.PersonID = L.PersonID AND BH.DocumentID = L.MaxDoc
+            GROUP BY BH.PersonID
         ) B ON P.PersonID = B.PersonID
-        WHERE ISNULL(P.PersonID, '') <> '';
+        WHERE ISNULL(P.PersonID, '') <> ''
+        GROUP BY P.PersonID, P.PersonName, B.MucDong, T.LuongTong, T.SoNguoiPhuThuoc, T.LuongCoBan, T.IsBH, T.IsHuuTri, Old.LuongTong, Old.SoNguoiPhuThuoc, Old.LuongCoBan, Old.IsBH, Old.IsHuuTri;
 
         -- 4. Bảng tạm tính
         DROP TABLE IF EXISTS #ChamCong, #BaoHiemClean, #PhuCap, #LuongKhoan, #TmpPayrollDetail, #NhanVienPhanLoai;

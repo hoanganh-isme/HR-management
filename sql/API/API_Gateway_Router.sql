@@ -24,6 +24,7 @@ BEGIN
 
     DECLARE @TargetStore NVARCHAR(200);
     DECLARE @ParaTemplate NVARCHAR(MAX);
+    DECLARE @FinalSQL NVARCHAR(MAX);
     
     -- 1. Tra cứu cấu hình từ bảng WA_API
     SELECT @TargetStore = LTRIM(RTRIM([SQL])), 
@@ -44,6 +45,14 @@ BEGIN
     DECLARE @ManagerID VARCHAR(50) = '';
     DECLARE @EmployeeID VARCHAR(50) = '';
     
+    IF ISNULL(@UserName, '') = ''
+    BEGIN
+        SELECT TOP 1 @UserName = LTRIM(RTRIM(UserName))
+        FROM SY_User 
+        WHERE ISNULL(Disable, 0) = 0 
+        ORDER BY CASE WHEN LOWER(UserGroupID) = 'admin' THEN 0 ELSE 1 END;
+    END
+
     IF ISNULL(@UserName, '') <> ''
     BEGIN
         -- Móc toàn bộ thông tin ngữ cảnh từ bảng tài khoản cốt lõi (SY_User)
@@ -135,7 +144,13 @@ BEGIN
     END
     
     -- Xóa rác (dấu phẩy thừa)
+    WHILE CHARINDEX(',,', @ParaTemplate) > 0 SET @ParaTemplate = REPLACE(@ParaTemplate, ',,', ',');
     WHILE CHARINDEX(', ,', @ParaTemplate) > 0 SET @ParaTemplate = REPLACE(@ParaTemplate, ', ,', ',');
+    
+    SET @ParaTemplate = LTRIM(RTRIM(@ParaTemplate));
+    IF LEFT(@ParaTemplate, 1) = ',' SET @ParaTemplate = LTRIM(SUBSTRING(@ParaTemplate, 2, LEN(@ParaTemplate)));
+    IF RIGHT(@ParaTemplate, 1) = ',' SET @ParaTemplate = RTRIM(LEFT(@ParaTemplate, LEN(@ParaTemplate) - 1));
+
     IF @ParaTemplate <> ''
         SET @FinalSQL = 'EXEC ' + QUOTENAME(@TargetStore) + ' ' + @ParaTemplate;
     ELSE

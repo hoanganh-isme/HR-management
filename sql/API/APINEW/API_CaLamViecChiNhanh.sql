@@ -37,9 +37,33 @@ BEGIN
 END
 GO
 
+-- Read Model View chuẩn ERP Desktop cho Nhân viên Ca Chi Nhánh
+CREATE OR ALTER VIEW dbo.HR_SapCaNhanVienChiNhanhView
+AS
+SELECT 
+    D.UserAutoID,
+    D.SapCaID,
+    D.PersonID,
+    P.PersonName,
+    P.PhongBan,
+    P.TitleName,
+    D.BranchID,
+    D.ShiftID,
+    D.Thu2,
+    D.Thu3,
+    D.Thu4,
+    D.Thu5,
+    D.Thu6,
+    D.Thu7,
+    D.ChuNhat,
+    D.GhiChu
+FROM dbo.HR_SapCaNhanVienChiNhanhTbl D
+LEFT JOIN dbo.HR_PersonTbl P ON P.PersonID = D.PersonID;
+GO
+
 -- =========================================================================
 -- 2. DETAIL API 1: API_CaLamViecChiNhanh_NhanVien (Tab 1: Nhân viên)
--- Description: API truy vấn danh sách nhân viên gán ca (HR_SapCaNhanVienChiNhanhTbl)
+-- Description: API truy vấn danh sách nhân viên gán ca dùng Read Model VIEW (SELECT *)
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_CaLamViecChiNhanh_NhanVien
 (
@@ -57,10 +81,10 @@ BEGIN
     IF (@SapCaID = N'' AND ISJSON(@Data) = 1)
         SET @SapCaID = ISNULL(JSON_VALUE(@Data, '$.SapCaID'), ISNULL(JSON_VALUE(@Data, '$.parentId'), ''));
 
-    SELECT TOP 1000 D.*
-    FROM dbo.HR_SapCaNhanVienChiNhanhTbl D
-    WHERE (@SapCaID = N'' OR D.SapCaID = @SapCaID)
-    ORDER BY D.UserAutoID ASC;
+    SELECT TOP 1000 *
+    FROM dbo.HR_SapCaNhanVienChiNhanhView
+    WHERE (@SapCaID = N'' OR SapCaID = @SapCaID)
+    ORDER BY UserAutoID ASC;
 END
 GO
 
@@ -98,58 +122,45 @@ END
 GO
 
 -- =========================================================================
--- 4. METADATA + ROUTES
--- Idempotent registration for the branch shift master/detail contract.
--- Fixes API_LuuDong_V2 rejecting detail Save with
--- PHASE3_TABLE_PRIMARY_KEY_CONTRACT_MISMATCH.
+-- 3. CONTRACT REGISTRATION + ROUTES (Nạp Contract Detail cho API_LuuDong_V2 & WA_API)
 -- =========================================================================
 DECLARE @Now datetime2(3) = SYSUTCDATETIME();
 DECLARE @Actor varchar(100) = 'API_CaLamViecChiNhanh.sql';
 
-IF OBJECT_ID(N'dbo.SY_FrmLstTbl', N'U') IS NOT NULL
+IF OBJECT_ID(N'dbo.WA_FieldContractRegistry', N'U') IS NOT NULL
 BEGIN
-    DECLARE @FormContracts TABLE
-    (
-        FormID varchar(100) NOT NULL PRIMARY KEY,
-        CaptionVN nvarchar(200) NULL,
-        CaptionEN nvarchar(200) NULL,
-        TableName sysname NOT NULL,
-        PrimaryKey sysname NOT NULL
-    );
-
-    INSERT INTO @FormContracts (FormID, CaptionVN, CaptionEN, TableName, PrimaryKey)
-    VALUES
-        ('WA_CaLamViecCNFrm', N'Ca làm việc chi nhánh', N'Branch work shift', N'HR_SapCaChiNhanhTbl', N'SapCaID'),
-        ('API_CaLamViecChiNhanh_NhanVien', N'Nhân viên ca chi nhánh', N'Branch shift employees', N'HR_SapCaNhanVienChiNhanhTbl', N'UserAutoID'),
-        ('API_CaLamViecChiNhanh_ChiTiet', N'Bảng ca chi tiết chi nhánh', N'Branch shift detail', N'HR_SapCaChiNhanhChiTietTbl', N'UserAutoID');
-
-    UPDATE RegisteredForm
-    SET
-        RegisteredForm.FormType = 'LIST',
-        RegisteredForm.CaptionVN = SourceContract.CaptionVN,
-        RegisteredForm.CaptionEN = SourceContract.CaptionEN,
-        RegisteredForm.TableName = SourceContract.TableName,
-        RegisteredForm.PrimaryKey = SourceContract.PrimaryKey
-    FROM dbo.SY_FrmLstTbl AS RegisteredForm
-    INNER JOIN @FormContracts AS SourceContract
-        ON SourceContract.FormID COLLATE DATABASE_DEFAULT = RegisteredForm.FormID COLLATE DATABASE_DEFAULT;
-
-    INSERT INTO dbo.SY_FrmLstTbl
-        (FormID, FormType, CaptionVN, CaptionEN, TableName, PrimaryKey)
-    SELECT
-        SourceContract.FormID,
-        'LIST',
-        SourceContract.CaptionVN,
-        SourceContract.CaptionEN,
-        SourceContract.TableName,
-        SourceContract.PrimaryKey
-    FROM @FormContracts AS SourceContract
-    WHERE NOT EXISTS
-    (
-        SELECT 1
-        FROM dbo.SY_FrmLstTbl AS RegisteredForm
-        WHERE RegisteredForm.FormID COLLATE DATABASE_DEFAULT = SourceContract.FormID COLLATE DATABASE_DEFAULT
-    );
+    IF EXISTS (SELECT 1 FROM dbo.WA_FieldContractRegistry WHERE WebFormName = 'API_CaLamViecChiNhanh_NhanVien')
+    BEGIN
+        UPDATE dbo.WA_FieldContractRegistry
+        SET 
+            ExpectedTableName = 'HR_SapCaNhanVienChiNhanhTbl',
+            ExpectedPrimaryKey = 'UserAutoID',
+            SaveProcedure = 'API_LuuDong_V2',
+            DeleteProcedure = 'API_XoaDong_V2',
+            UpdatedAt = @Now
+        WHERE WebFormName = 'API_CaLamViecChiNhanh_NhanVien';
+    END
+    ELSE
+    BEGIN
+        INSERT INTO dbo.WA_FieldContractRegistry
+        (
+            WebFormName, ERPFormID, PermissionFormName, ContractType,
+            ExpectedTableName, ExpectedPrimaryKey, ViewList, ViewProcedure,
+            SaveProcedure, DeleteProcedure, WritePolicy, BranchPolicy,
+            DeletePolicy, RolloutStatus, RolloutReason, SchemaVersion,
+            IsEnabled, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy
+        )
+        VALUES
+        (
+            'API_CaLamViecChiNhanh_NhanVien', 'API_CaLamViecChiNhanh_NhanVien', 'WA_CaLamViecCNFrm',
+            'MASTER_DETAIL_SIMPLE', N'HR_SapCaNhanVienChiNhanhTbl', N'UserAutoID',
+            'API_CaLamViecChiNhanh_NhanVien', N'API_CaLamViecChiNhanh_NhanVien',
+            N'API_LuuDong_V2', N'API_XoaDong_V2',
+            'SAFE_TABLE_COLUMNS', 'BRANCH_SCOPED', 'AUTO_SCHEMA',
+            'ACTIVE', N'BRANCH_SHIFT_EMPLOYEES_EDITABLE',
+            2, 1, @Now, @Actor, @Now, @Actor
+        );
+    END;
 END;
 
 IF OBJECT_ID(N'dbo.WA_API', N'U') IS NOT NULL

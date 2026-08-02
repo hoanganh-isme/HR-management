@@ -36,8 +36,8 @@
           var input = document.getElementById('payroll-process-period');
           var periodId = input && input.value;
           if (!periodId) return;
-          if (global.LoadingSpinner) LoadingSpinner.show(true, 'Đang tính toán bảng lương kỳ ' + periodId + '...');
-          ApiClient.post(gateway(), { List: 'WA_PayRoll_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId }) }).then(function (result) {
+          if (global.LoadingSpinner) LoadingSpinner.show('Đang tính toán bảng lương kỳ ' + periodId + '...');
+          ApiClient.post(gateway(), { List: 'HR_PayRoll_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId }) }).then(function (result) {
             if (global.LoadingSpinner) LoadingSpinner.hide();
             var data = Array.isArray(result) ? result[0] : (result.records && result.records[0] || result);
             var code = data && (data.code !== undefined ? data.code : data.Code);

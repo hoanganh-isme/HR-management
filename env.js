@@ -28,7 +28,7 @@ var HRM_DOCUMENT_SERVICE_BASE = HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE ||
  */
 var HRM_EXISTING_FIELD_SYNC = HRM_RUNTIME_CONFIG.FIELD_SYNC || {};
 var HRM_USES_LEGACY_PILOT_CONFIG = Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'pilotForms')
-  && !Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'rolloutMode');
+    && !Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'rolloutMode');
 
 HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     enabled: true,
@@ -43,7 +43,7 @@ HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
 
 // Cấu hình production cũ chỉ có pilotForms tiếp tục giữ đúng phạm vi pilot.
 if (HRM_USES_LEGACY_PILOT_CONFIG) {
-  HRM_RUNTIME_CONFIG.FIELD_SYNC.rolloutMode = 'pilot';
+    HRM_RUNTIME_CONFIG.FIELD_SYNC.rolloutMode = 'pilot';
 }
 
 if (typeof window !== 'undefined') {

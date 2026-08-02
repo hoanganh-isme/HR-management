@@ -7,6 +7,7 @@
   };
   definitions.payroll['WA_LUONGKHOANFRM'] = {
     FormName: 'WA_LuongKhoanFrm',
+    PrimaryKey: 'UserAutoID',
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã hoặc tên nhân viên...'
   };
@@ -37,7 +38,100 @@
           TitleName: 'Chức vụ',
           GhiChu: 'Ghi chú',
           NoiDungPhuCap: 'Nội dung phụ cấp'
-        }
+        },
+        lookupConfig: {
+          PersonID: {
+            apiList: 'HR_PersonTbl',
+            headers: ['Mã nhân viên', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+            sourceFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName'],
+            valueFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName'],
+            valueIndex: 0,
+            displayIndex: 0,
+            strictSelection: false
+          }
+        },
+        customButtons: [
+          {
+            id: 'btn-chon-nhanvien',
+            label: 'Chọn nhiều nhân viên',
+            icon: 'group_add',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
+
+              var _closeMsg = function (msg) {
+                if (!msg) return;
+                if (typeof msg.close === 'function') msg.close();
+                else if (typeof UIToast !== 'undefined' && typeof UIToast.hide === 'function') UIToast.hide(msg);
+                else if (typeof Alert !== 'undefined' && typeof Alert.hide === 'function') Alert.hide(msg);
+                else if (typeof msg.remove === 'function') msg.remove();
+              };
+
+              var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
+                || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
+                || localStorage.getItem('username') || sessionStorage.getItem('username') || 'admin';
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, {
+                List: 'HR_PersonTbl',
+                Func: 'View',
+                Keyword: '',
+                UserName: uName,
+                User: uName
+              }).then(function (res) {
+                _closeMsg(loadingMsg);
+                var rawList = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
+                var dataList = rawList.map(function (r) {
+                  if (Array.isArray(r)) {
+                    return { PersonID: r[0] || '', PersonName: r[1] || '', PhongBan: r[2] || '', TitleName: r[3] || '' };
+                  }
+                  return r;
+                });
+                _showNhanVienModal(dataList, ctx);
+              }).catch(function () {
+                _closeMsg(loadingMsg);
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách nhân viên', 'error');
+              });
+
+              function _showNhanVienModal(dataList, ctx) {
+                UIControls.utils.showMultiSelectGridModal({
+                  title: 'Chọn nhân viên',
+                  dataList: dataList,
+                  ctx: ctx,
+                  keyField: 'PersonID',
+                  headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ', 'Cảnh báo'],
+                  fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', '_warning_'],
+                  onRowRender: function (rData, isDuplicate) {
+                    var warningText = isDuplicate ? 'Đã có trên form' : '';
+                    return {
+                      warningText: warningText,
+                      warningStyle: warningText ? 'color: red;' : ''
+                    };
+                  },
+                  onConfirm: function (selectedRows) {
+                    var added = 0;
+                    selectedRows.forEach(function (rowData) {
+                      var newRow = {};
+                      newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                      newRow['PersonID'] = rowData.PersonID || '';
+                      newRow['PersonName'] = rowData.PersonName || '';
+                      newRow['PhongBan'] = rowData.PhongBan || '';
+                      newRow['TitleName'] = rowData.TitleName || '';
+                      newRow['GhiChu'] = '';
+                      newRow['NoiDungPhuCap'] = '';
+                      ctx.panel._currentRows.push(newRow);
+                      added++;
+                    });
+                    if (added > 0) {
+                      if (typeof ctx.renderGrid === 'function') ctx.renderGrid(ctx.tabDef, ctx.panel);
+                      if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                    }
+                  }
+                });
+              }
+            }
+          }
+        ]
       }
     ]
   };

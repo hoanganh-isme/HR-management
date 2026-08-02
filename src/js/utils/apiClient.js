@@ -32,7 +32,17 @@ const ApiClient = (function () {
      * Lấy auth token từ Cookie
      */
     function getAuthToken() {
-        return getCookie('auth_token') || null;
+        let token = getCookie('auth_token');
+        if (!token) {
+            try {
+                const userStr = localStorage.getItem('pmql_user');
+                if (userStr) {
+                    const userObj = JSON.parse(userStr);
+                    token = userObj.access_token || userObj.token || null;
+                }
+            } catch (e) {}
+        }
+        return token || null;
     }
 
     /**
@@ -230,9 +240,26 @@ const ApiClient = (function () {
             if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
                 payload = Object.assign({}, payload);
                 if (!payload.UserName) {
-                    var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
-                        || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
-                        || localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    var uName = '';
+                    try {
+                        if (window.AppSession && typeof AppSession.getUserName === 'function') {
+                            uName = AppSession.getUserName();
+                        }
+                        if (!uName && window.Auth && typeof window.Auth.getUser === 'function') {
+                            var uObj = window.Auth.getUser();
+                            if (uObj) uName = uObj.username || uObj.UserName;
+                        }
+                        if (!uName) {
+                            var pmqlStr = localStorage.getItem('pmql_user') || sessionStorage.getItem('pmql_user');
+                            if (pmqlStr) {
+                                var parsedUser = JSON.parse(pmqlStr);
+                                uName = parsedUser.UserName || parsedUser.username || parsedUser.UserNameID || '';
+                            }
+                        }
+                    } catch (e) {}
+                    if (!uName) {
+                        uName = localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    }
                     if (uName) payload.UserName = uName;
                 }
             }

@@ -14,6 +14,15 @@
 
   function requireAuthentication() {
     var token = global.ApiClient && ApiClient.getCookie ? ApiClient.getCookie('auth_token') : null;
+    if (!token) {
+      try {
+        var userStr = global.localStorage.getItem('pmql_user');
+        if (userStr) {
+          var userObj = JSON.parse(userStr);
+          token = userObj.access_token || userObj.token || null;
+        }
+      } catch (e) {}
+    }
     if (token) return true;
     global.location.href = 'login.html';
     return false;

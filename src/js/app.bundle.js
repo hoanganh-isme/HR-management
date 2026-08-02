@@ -33,7 +33,17 @@ const ApiClient = (function () {
      * Lấy auth token từ Cookie
      */
     function getAuthToken() {
-        return getCookie('auth_token') || null;
+        let token = getCookie('auth_token');
+        if (!token) {
+            try {
+                const userStr = localStorage.getItem('pmql_user');
+                if (userStr) {
+                    const userObj = JSON.parse(userStr);
+                    token = userObj.access_token || userObj.token || null;
+                }
+            } catch (e) {}
+        }
+        return token || null;
     }
 
     /**
@@ -231,9 +241,26 @@ const ApiClient = (function () {
             if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
                 payload = Object.assign({}, payload);
                 if (!payload.UserName) {
-                    var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
-                        || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
-                        || localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    var uName = '';
+                    try {
+                        if (window.AppSession && typeof AppSession.getUserName === 'function') {
+                            uName = AppSession.getUserName();
+                        }
+                        if (!uName && window.Auth && typeof window.Auth.getUser === 'function') {
+                            var uObj = window.Auth.getUser();
+                            if (uObj) uName = uObj.username || uObj.UserName;
+                        }
+                        if (!uName) {
+                            var pmqlStr = localStorage.getItem('pmql_user') || sessionStorage.getItem('pmql_user');
+                            if (pmqlStr) {
+                                var parsedUser = JSON.parse(pmqlStr);
+                                uName = parsedUser.UserName || parsedUser.username || parsedUser.UserNameID || '';
+                            }
+                        }
+                    } catch (e) {}
+                    if (!uName) {
+                        uName = localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    }
                     if (uName) payload.UserName = uName;
                 }
             }
@@ -1656,7 +1683,7 @@ var SystemDataService = (function () {
     if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE) {
       return Promise.reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE');
     }
-    return ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE).then(function (response) {
+    return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayGiaTriSetup', Func: 'Execute' }).then(function (response) {
       var found = records(response).find(function (row) { return row.CodeID === codeId; });
       return found ? found.CodeValue : null;
     });
@@ -17060,6 +17087,16 @@ window.DynamicAttachmentManager = (function () {
     HidePrintBtn: true
   };
 
+  definitions.attendance['WA_TIMESHEETFRM'] = {
+    FormName: 'WA_TimeSheetFrm',
+    PrimaryKey: 'UserAutoID',
+    UpdateStatusAction: 'hr.timesheet.update_status',
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    HidePrintBtn: true
+  };
+
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
@@ -17290,7 +17327,7 @@ window.DynamicAttachmentManager = (function () {
           list: 'WA_CaLamViecCNFrm',
           func: 'HR_SapCaChiNhanh_Process_Stp',
           idField: 'SapCaID',
-          leaveMessage: 'Đơn nghỉ phép đã duyệt, chưa hủy sẽ được procedure hiện có đưa vào bảng ca.'
+          leaveMessage: 'Các đơn nghỉ phép đã được duyệt sẽ được tự động tích hợp vào lịch làm việc.'
         }
       }
     ],
@@ -17370,6 +17407,14 @@ window.DynamicAttachmentManager = (function () {
                       newRow['PhongBan'] = rowData.PhongBan || '';
                       newRow['TitleName'] = rowData.TitleName || '';
                       newRow['BranchID'] = rowData.BranchID || ctx.row['BranchID'] || '';
+                      newRow['ShiftID'] = rowData.ShiftID || '';
+                      newRow['Thu2'] = false;
+                      newRow['Thu3'] = false;
+                      newRow['Thu4'] = false;
+                      newRow['Thu5'] = false;
+                      newRow['Thu6'] = false;
+                      newRow['Thu7'] = false;
+                      newRow['ChuNhat'] = false;
                       newRow['GhiChu'] = '';
                       ctx.panel._currentRows.push(newRow);
                       added++;
@@ -17399,15 +17444,42 @@ window.DynamicAttachmentManager = (function () {
               }
               return [d.PersonID || '', d.PersonName || '', d.PhongBan || d.BoPhan || '', d.TitleName || d.ChucVu || '', d.BranchID || ''];
             }
+          },
+          ShiftID: {
+            apiList: 'HR_ShiftListCNFrm',
+            headers: ['Chi nhánh', 'Mã ca', 'Tên ca', 'Loại ca'],
+            sourceFields: ['BranchID', 'ShiftID', 'ShiftName', 'LoaiCa'],
+            valueFields: ['BranchID', 'ShiftID'],
+            valueIndex: 1,
+            displayIndex: 1,
+            strictSelection: true,
+            masterFilters: { BranchID: 'BranchID' }
           }
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fieldTypes: {
+          Thu2: 'boolean',
+          Thu3: 'boolean',
+          Thu4: 'boolean',
+          Thu5: 'boolean',
+          Thu6: 'boolean',
+          Thu7: 'boolean',
+          ChuNhat: 'boolean'
+        },
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ tên',
+          BranchID: 'Chi nhánh',
           PhongBan: 'Bộ phận',
           TitleName: 'Chức vụ',
-          BranchID: 'Chi nhánh',
+          ShiftID: 'Ca',
+          Thu2: 'T2',
+          Thu3: 'T3',
+          Thu4: 'T4',
+          Thu5: 'T5',
+          Thu6: 'T6',
+          Thu7: 'T7',
+          ChuNhat: 'CN',
           GhiChu: 'Ghi chú'
         }
       },
@@ -17641,7 +17713,7 @@ window.DynamicAttachmentManager = (function () {
           Thu7: 'boolean',
           ChuNhat: 'boolean'
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           SapCa: 'Sắp ca',
           PersonID: 'Mã nhân viên',
@@ -17691,14 +17763,14 @@ window.DynamicAttachmentManager = (function () {
     FormName: 'WA_QuanLyNghiPhepNamFrm',
     PrimaryKey: 'PersonID',
     ModalWidth: '960px',
-    hideDetailTabsInEditMode: true,
-    UseSplitLayout: true,
-    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem chi tiết',
     DetailTabs: [
       {
-        label: 'Chi tiết phép năm',
+        tabId: 'DETAIL_TAB_1',
+        label: 'Chi tiết Phép năm',
         api: 'API_QuanLyNghiPhepNam_ChiTiet',
         filterField: 'PersonID',
+        tableName: 'HR_PersonNghiPhepTbl',
+        primaryKey: 'UserAutoID',
         fields: [
           'Nam', 'SoNgay', 'GhiChu', 'PhepThamNien', 'SoNgayDaSuDung',
           'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat'
@@ -17796,6 +17868,7 @@ window.DynamicAttachmentManager = (function () {
   };
   definitions.payroll['WA_LUONGKHOANFRM'] = {
     FormName: 'WA_LuongKhoanFrm',
+    PrimaryKey: 'UserAutoID',
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã hoặc tên nhân viên...'
   };
@@ -17826,7 +17899,100 @@ window.DynamicAttachmentManager = (function () {
           TitleName: 'Chức vụ',
           GhiChu: 'Ghi chú',
           NoiDungPhuCap: 'Nội dung phụ cấp'
-        }
+        },
+        lookupConfig: {
+          PersonID: {
+            apiList: 'HR_PersonTbl',
+            headers: ['Mã nhân viên', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+            sourceFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName'],
+            valueFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName'],
+            valueIndex: 0,
+            displayIndex: 0,
+            strictSelection: false
+          }
+        },
+        customButtons: [
+          {
+            id: 'btn-chon-nhanvien',
+            label: 'Chọn nhiều nhân viên',
+            icon: 'group_add',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
+
+              var _closeMsg = function (msg) {
+                if (!msg) return;
+                if (typeof msg.close === 'function') msg.close();
+                else if (typeof UIToast !== 'undefined' && typeof UIToast.hide === 'function') UIToast.hide(msg);
+                else if (typeof Alert !== 'undefined' && typeof Alert.hide === 'function') Alert.hide(msg);
+                else if (typeof msg.remove === 'function') msg.remove();
+              };
+
+              var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
+                || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
+                || localStorage.getItem('username') || sessionStorage.getItem('username') || 'admin';
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, {
+                List: 'HR_PersonTbl',
+                Func: 'View',
+                Keyword: '',
+                UserName: uName,
+                User: uName
+              }).then(function (res) {
+                _closeMsg(loadingMsg);
+                var rawList = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
+                var dataList = rawList.map(function (r) {
+                  if (Array.isArray(r)) {
+                    return { PersonID: r[0] || '', PersonName: r[1] || '', PhongBan: r[2] || '', TitleName: r[3] || '' };
+                  }
+                  return r;
+                });
+                _showNhanVienModal(dataList, ctx);
+              }).catch(function () {
+                _closeMsg(loadingMsg);
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách nhân viên', 'error');
+              });
+
+              function _showNhanVienModal(dataList, ctx) {
+                UIControls.utils.showMultiSelectGridModal({
+                  title: 'Chọn nhân viên',
+                  dataList: dataList,
+                  ctx: ctx,
+                  keyField: 'PersonID',
+                  headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ', 'Cảnh báo'],
+                  fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', '_warning_'],
+                  onRowRender: function (rData, isDuplicate) {
+                    var warningText = isDuplicate ? 'Đã có trên form' : '';
+                    return {
+                      warningText: warningText,
+                      warningStyle: warningText ? 'color: red;' : ''
+                    };
+                  },
+                  onConfirm: function (selectedRows) {
+                    var added = 0;
+                    selectedRows.forEach(function (rowData) {
+                      var newRow = {};
+                      newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                      newRow['PersonID'] = rowData.PersonID || '';
+                      newRow['PersonName'] = rowData.PersonName || '';
+                      newRow['PhongBan'] = rowData.PhongBan || '';
+                      newRow['TitleName'] = rowData.TitleName || '';
+                      newRow['GhiChu'] = '';
+                      newRow['NoiDungPhuCap'] = '';
+                      ctx.panel._currentRows.push(newRow);
+                      added++;
+                    });
+                    if (added > 0) {
+                      if (typeof ctx.renderGrid === 'function') ctx.renderGrid(ctx.tabDef, ctx.panel);
+                      if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                    }
+                  }
+                });
+              }
+            }
+          }
+        ]
       }
     ]
   };
@@ -19067,8 +19233,8 @@ var DocumentExportPlugin = (function (global) {
           var input = document.getElementById('payroll-process-period');
           var periodId = input && input.value;
           if (!periodId) return;
-          if (global.LoadingSpinner) LoadingSpinner.show(true, 'Đang tính toán bảng lương kỳ ' + periodId + '...');
-          ApiClient.post(gateway(), { List: 'WA_PayRoll_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId }) }).then(function (result) {
+          if (global.LoadingSpinner) LoadingSpinner.show('Đang tính toán bảng lương kỳ ' + periodId + '...');
+          ApiClient.post(gateway(), { List: 'HR_PayRoll_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId }) }).then(function (result) {
             if (global.LoadingSpinner) LoadingSpinner.hide();
             var data = Array.isArray(result) ? result[0] : (result.records && result.records[0] || result);
             var code = data && (data.code !== undefined ? data.code : data.Code);
@@ -19109,13 +19275,15 @@ var DocumentExportPlugin = (function (global) {
 
 /* --- timesheet-actions.js --- */
 (function (global) {
-  var ACTION_NAME = 'hr.timesheet.process';
+  var PROCESS_ACTION = 'hr.timesheet.process';
+  var UPDATE_STATUS_ACTION = 'hr.timesheet.update_status';
 
   function gateway() { return AppConfig.apiGateway; }
   function rowsOf(response) { return response ? (response.list || response.records || (Array.isArray(response) ? response : [])) : []; }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]; }); }
 
-  function run(context) {
+  // 1. Chức năng Tạo bảng chấm công hàng ngày (HR_TimeSheetDay_Process_Stp)
+  function runProcessDay(context) {
     var loading = global.UIToast ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
     return ApiClient.post(gateway(), { List: 'SY_Period', Func: 'View', Limit: 1000 }).then(function (periodResponse) {
       var periods = rowsOf(periodResponse).sort(function (a, b) { return String(b.PeriodID).localeCompare(String(a.PeriodID)); });
@@ -19124,10 +19292,39 @@ var DocumentExportPlugin = (function (global) {
         if (global.Alert) Alert.warning('Cảnh báo', 'Không tìm thấy kỳ chấm công nào trong hệ thống!');
         return;
       }
-      return ApiClient.post(gateway(), { List: 'API_DanhSachChiNhanh', Func: 'View', Limit: 1000 }).then(function (branchResponse) {
+
+      var userBranchId = global.AppSession ? global.AppSession.getBranchId() : '';
+      var cachedBranches = global.AppSession ? global.AppSession.getBranches() : [];
+
+      var fetchBranches = (cachedBranches && cachedBranches.length > 0)
+        ? Promise.resolve(cachedBranches)
+        : (function () {
+            var branchPayload = global.AppSession && typeof global.AppSession.withActorContext === 'function'
+              ? global.AppSession.withActorContext({ List: 'CF_BranchListFrm', Func: 'View', Limit: 1000 })
+              : { List: 'CF_BranchListFrm', Func: 'View', Limit: 1000 };
+            return ApiClient.post(gateway(), branchPayload).then(rowsOf);
+          })();
+
+      return fetchBranches.then(function (branchRows) {
         if (loading && global.UIToast) UIToast.hide(loading);
-        var periodOptions = periods.map(function (period) { return '<option value="' + escapeHtml(period.PeriodID) + '">' + escapeHtml(period.PeriodID) + ' (' + escapeHtml(period.PeriodName || period.PeriodID) + ')</option>'; }).join('');
-        var branchOptions = '<option value="">-- Tất cả Chi nhánh --</option>' + rowsOf(branchResponse).map(function (branch) { return '<option value="' + escapeHtml(branch.BranchID) + '">' + escapeHtml(branch.BranchName || branch.BranchID) + '</option>'; }).join('');
+
+        var branches = branchRows || [];
+        var activeFilters = global.currentFilters || {};
+        var selectedPeriod = activeFilters.PeriodID || (periods[0] && periods[0].PeriodID);
+        var selectedBranch = activeFilters.BranchID || userBranchId || (branches.length === 1 ? (branches[0].BranchID || branches[0].branchID) : '');
+
+        var periodOptions = periods.map(function (period) {
+          var isSelected = String(period.PeriodID) === String(selectedPeriod) ? ' selected' : '';
+          return '<option value="' + escapeHtml(period.PeriodID) + '"' + isSelected + '>' + escapeHtml(period.PeriodID) + ' (' + escapeHtml(period.PeriodName || period.PeriodID) + ')</option>';
+        }).join('');
+
+        var branchOptions = '<option value="">-- Tất cả Chi nhánh --</option>' + branches.map(function (branch) {
+          var bId = branch.BranchID || branch.branchID || branch.Branch || '';
+          var bName = branch.BranchName || branch.branchName || bId;
+          var isSelected = String(bId) === String(selectedBranch) ? ' selected' : '';
+          return '<option value="' + escapeHtml(bId) + '"' + isSelected + '>' + escapeHtml(bName) + '</option>';
+        }).join('');
+
         ConfirmModal.show({
           title: 'Tạo Bảng Chấm Công Hàng Ngày',
           message: '<div style="text-align:left;margin-top:10px;"><label style="font-weight:600;display:block;margin-bottom:8px;">Chọn kỳ chấm công:</label><select id="timesheet-process-period" class="ui-input" style="width:100%;height:38px;">' + periodOptions + '</select><label style="font-weight:600;display:block;margin:12px 0 8px;">Chọn chi nhánh:</label><select id="timesheet-process-branch" class="ui-input" style="width:100%;height:38px;">' + branchOptions + '</select></div>',
@@ -19139,12 +19336,17 @@ var DocumentExportPlugin = (function (global) {
             var periodId = period && period.value;
             var branchId = branch && branch.value;
             if (!periodId) return;
-            if (global.LoadingSpinner) LoadingSpinner.show(true, 'Đang tạo bảng chấm công kỳ ' + periodId + '...');
-            ApiClient.post(gateway(), { List: 'WA_TimeSheetDay_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId, BranchID: branchId }) }).then(function (result) {
+            if (global.LoadingSpinner) LoadingSpinner.show('Đang tạo bảng chấm công kỳ ' + periodId + '...');
+
+            var processPayload = global.AppSession && typeof global.AppSession.withActorContext === 'function'
+              ? global.AppSession.withActorContext({ List: 'HR_TimeSheetDay_Process_Stp', Func: 'View', JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId, BranchID: branchId }) })
+              : { List: 'HR_TimeSheetDay_Process_Stp', Func: 'View', JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId, BranchID: branchId }) };
+
+            ApiClient.post(gateway(), processPayload).then(function (result) {
               if (global.LoadingSpinner) LoadingSpinner.hide();
               var data = Array.isArray(result) ? result[0] : (result.records && result.records[0] || result);
-              var code = data && (data.code !== undefined ? data.code : data.Code);
-              var message = data && (data.msg || data.Msg || data.message) || 'Thành công';
+              var code = data && (data.code !== undefined ? data.code : (data.Code !== undefined ? data.Code : 0));
+              var message = data && (data.msg || data.Msg || data.message) || ('Tạo bảng chấm công thành công cho kỳ ' + periodId + '!');
               if (code == 0) {
                 if (global.Alert) Alert.success('Thành công', message);
                 global.currentFilters = Object.assign({}, global.currentFilters || {}, { PeriodID: periodId, BranchID: branchId });
@@ -19163,20 +19365,119 @@ var DocumentExportPlugin = (function (global) {
     });
   }
 
+  // 2. Chức năng Xử lý chấm công (HR_TimeSheet_UpdateDailyStatus_Stp)
+  function runUpdateDailyStatus(context) {
+    var loading = global.UIToast ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
+    return ApiClient.post(gateway(), { List: 'SY_Period', Func: 'View', Limit: 1000 }).then(function (periodResponse) {
+      var periods = rowsOf(periodResponse).sort(function (a, b) { return String(b.PeriodID).localeCompare(String(a.PeriodID)); });
+      if (loading && global.UIToast) UIToast.hide(loading);
+
+      if (!periods.length) {
+        if (global.Alert) Alert.warning('Cảnh báo', 'Không tìm thấy kỳ chấm công nào trong hệ thống!');
+        return;
+      }
+
+      var activeFilters = global.currentFilters || {};
+      var selectedPeriod = activeFilters.PeriodID || (periods[0] && periods[0].PeriodID);
+
+      var periodOptions = periods.map(function (period) {
+        var isSelected = String(period.PeriodID) === String(selectedPeriod) ? ' selected' : '';
+        return '<option value="' + escapeHtml(period.PeriodID) + '"' + isSelected + '>' + escapeHtml(period.PeriodID) + ' (' + escapeHtml(period.PeriodName || period.PeriodID) + ')</option>';
+      }).join('');
+
+      ConfirmModal.show({
+        title: 'Xử lý Chấm Công Tổng Hợp',
+        message: '<div style="text-align:left;margin-top:10px;"><label style="font-weight:600;display:block;margin-bottom:8px;">Chọn kỳ chấm công cần xử lý:</label><select id="timesheet-updatestatus-period" class="ui-input" style="width:100%;height:38px;">' + periodOptions + '</select></div>',
+        confirmText: 'Xử lý',
+        confirmClass: 'btn-warning',
+        onConfirm: function () {
+          var periodSelect = document.getElementById('timesheet-updatestatus-period');
+          var periodId = periodSelect && periodSelect.value;
+          if (!periodId) return;
+
+          if (global.LoadingSpinner) LoadingSpinner.show('Đang xử lý chấm công kỳ ' + periodId + '...');
+
+          var payload = global.AppSession && typeof global.AppSession.withActorContext === 'function'
+            ? global.AppSession.withActorContext({
+                List: 'HR_TimeSheet_UpdateDailyStatus_Stp',
+                Func: 'View',
+                Period: periodId,
+                PeriodID: periodId,
+                JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId })
+              })
+            : {
+                List: 'HR_TimeSheet_UpdateDailyStatus_Stp',
+                Func: 'View',
+                Period: periodId,
+                PeriodID: periodId,
+                JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId })
+              };
+
+          ApiClient.post(gateway(), payload).then(function (result) {
+            if (global.LoadingSpinner) LoadingSpinner.hide();
+            var data = Array.isArray(result) ? result[0] : (result.records && result.records[0] || result);
+            var code = data && (data.code !== undefined ? data.code : (data.Code !== undefined ? data.Code : 0));
+            var message = data && (data.msg || data.Msg || data.message) || ('Xử lý chấm công thành công cho kỳ ' + periodId + '!');
+
+            if (code == 0) {
+              if (global.Alert) Alert.success('Thành công', message);
+              global.currentFilters = Object.assign({}, global.currentFilters || {}, { PeriodID: periodId });
+              if (typeof context.onReload === 'function') context.onReload();
+            } else if (global.Alert) Alert.error('Lỗi xử lý chấm công', message);
+          }).catch(function (error) {
+            if (global.LoadingSpinner) LoadingSpinner.hide();
+            if (global.Alert) Alert.error('Lỗi kết nối', error.message || 'Không thể kết nối đến máy chủ.');
+          });
+        }
+      });
+    }).catch(function () {
+      if (loading && global.UIToast) UIToast.hide(loading);
+      if (global.Alert) Alert.error('Lỗi', 'Không thể tải danh sách kỳ chấm công.');
+    });
+  }
+
   function register() {
     if (!global.FormActionRegistry) return;
-    FormActionRegistry.register(ACTION_NAME, run);
+    FormActionRegistry.register(PROCESS_ACTION, runProcessDay);
+    FormActionRegistry.register(UPDATE_STATUS_ACTION, runUpdateDailyStatus);
+
     global.FormActionPlugins = (global.FormActionPlugins || []).filter(function (plugin) { return plugin.id !== 'timesheet_day_plugin'; });
     global.FormActionPlugins.push({
       id: 'timesheet_day_plugin',
       getExtraButtons: function (formName, getSelected, config, onReload) {
-        if (!config || config.ProcessAction !== ACTION_NAME) return [];
-        return [{ text: 'Tạo bảng chấm công', icon: 'today', type: 'primary', onClick: function () { FormActionRegistry.execute(ACTION_NAME, { config: config, onReload: onReload }); } }];
+        var fName = String(formName || (config && config.FormName) || '').toLowerCase();
+        var buttons = [];
+
+        // Trang Xử lý chấm công hàng ngày (WA_TimeSheetDayFrm) -> Nút "Tạo bảng chấm công"
+        if (fName === 'wa_timesheetdayfrm' || (config && config.ProcessAction && !config.UpdateStatusAction)) {
+          buttons.push({
+            text: 'Tạo bảng chấm công',
+            icon: 'today',
+            type: 'primary',
+            onClick: function () {
+              FormActionRegistry.execute(PROCESS_ACTION, { config: config, onReload: onReload });
+            }
+          });
+        }
+
+        // Trang Bảng chấm công tổng hợp (WA_TimeSheetFrm) -> Nút "Xử lý chấm công"
+        if (fName === 'wa_timesheetfrm' || (config && config.UpdateStatusAction && !config.ProcessAction)) {
+          buttons.push({
+            text: 'Xử lý chấm công',
+            icon: 'settings',
+            type: 'warning',
+            onClick: function () {
+              FormActionRegistry.execute(UPDATE_STATUS_ACTION, { config: config, onReload: onReload });
+            }
+          });
+        }
+
+        return buttons;
       }
     });
   }
 
-  global.TimesheetActions = { register: register, run: run };
+  global.TimesheetActions = { register: register, run: runProcessDay, runUpdateDailyStatus: runUpdateDailyStatus };
   register();
 })(window);
 
@@ -19224,7 +19525,11 @@ var DocumentExportPlugin = (function (global) {
 
   function responseMessage(response, fallback) {
     var data = responseData(response);
-    return data.msg || data.Msg || data.message || data.Message || fallback;
+    var msg = data.msg || data.Msg || data.message || data.Message;
+    if (!msg || msg === 'OK' || msg === '0' || msg === 'SUCCESS') {
+      return fallback || 'Đã cập nhật lịch làm việc thành công.';
+    }
+    return msg;
   }
 
   function configOf(context) {
@@ -19286,7 +19591,6 @@ var DocumentExportPlugin = (function (global) {
       User: currentUser(),
       BranchID: currentBranch()
     };
-    // API_Gateway_Router hỗ trợ thay thế trực tiếp {SapCaID} trong WA_API.
     payload[config.idField] = shiftId;
 
     setButtonLoading(context.button, true);
@@ -19296,7 +19600,7 @@ var DocumentExportPlugin = (function (global) {
         if (global.Alert) {
           Alert.success(
             config.successTitle || 'Sắp ca thành công',
-            responseMessage(response, config.successMessage || 'Bảng ca chi tiết đã được cập nhật.')
+            responseMessage(response, config.successMessage || 'Bảng ca chi tiết đã được cập nhật tự động.')
           );
         }
         if (global.DynamicFormEngine && typeof DynamicFormEngine.reloadDetailTabs === 'function') {
@@ -19306,7 +19610,7 @@ var DocumentExportPlugin = (function (global) {
           if (refresh) refresh.click();
         }
       } else if (global.Alert) {
-        Alert.error(config.errorTitle || 'Không thể sắp ca', responseMessage(response, 'Procedure trả về lỗi.'));
+        Alert.error(config.errorTitle || 'Không thể sắp ca', responseMessage(response, 'Đã xảy ra lỗi khi thực thi sắp ca.'));
       }
       return response;
     }).catch(function (error) {
@@ -19364,7 +19668,7 @@ var DocumentExportPlugin = (function (global) {
 
     var needsSave = !context.isViewMode && config.saveBeforeRun !== false;
     if (needsSave) {
-      message += '<br><br><span style="color:#b45309;">Dữ liệu master và nhân viên sẽ được lưu trước khi chạy.</span>';
+      message += '<br><br><span style="color:#b45309;">Thông tin bảng ca và danh sách nhân viên sẽ được lưu tự động trước khi sắp ca.</span>';
     }
     if (config.leaveMessage) {
       message += '<br><span style="color:var(--color-text-secondary);">' + escapeHtml(config.leaveMessage) + '</span>';
@@ -27046,6 +27350,15 @@ window.DynamicFormEngine = (function () {
 
   function requireAuthentication() {
     var token = global.ApiClient && ApiClient.getCookie ? ApiClient.getCookie('auth_token') : null;
+    if (!token) {
+      try {
+        var userStr = global.localStorage.getItem('pmql_user');
+        if (userStr) {
+          var userObj = JSON.parse(userStr);
+          token = userObj.access_token || userObj.token || null;
+        }
+      } catch (e) {}
+    }
     if (token) return true;
     global.location.href = 'login.html';
     return false;
@@ -27251,9 +27564,9 @@ var Router = (function () {
        * liệu phát sinh có thể forceReadOnly để bảo vệ dữ liệu do SP tạo.
        */
       var next = Object.assign({}, behavior, tab);
-      next.fields = Array.isArray(tab.fields) && tab.fields.length
-        ? tab.fields.slice()
-        : (Array.isArray(behavior.fields) ? behavior.fields.slice() : []);
+      next.fields = Array.isArray(behavior.fields) && behavior.fields.length
+        ? behavior.fields.slice()
+        : (Array.isArray(tab.fields) ? tab.fields.slice() : []);
       next.headers = Object.assign({}, behavior.headers || {}, tab.headers || {});
       next.lookupConfig = Object.assign({}, behavior.lookupConfig || {}, tab.lookupConfig || {});
       next.fieldTypes = Object.assign({}, behavior.fieldTypes || {}, tab.fieldTypes || {});
@@ -27644,7 +27957,7 @@ var Router = (function () {
     if (typeof ApiClient === 'undefined' || typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION) {
       return Promise.resolve();
     }
-    return ApiClient.get(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION, { silent: true }).then(function (res) {
+    return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayPhienBanQuyen', Func: 'Execute' }, { silent: true }).then(function (res) {
       var localVer = localStorage.getItem('pmql_permission_ver');
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
@@ -27655,7 +27968,7 @@ var Router = (function () {
       if ((svVersion && svVersion !== localVer) || isEmptyCache) {
         var userJson = localStorage.getItem('pmql_user');
         var userObj = userJson ? JSON.parse(userJson) : {};
-        return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {
+        return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayQuyenCuaToi', Func: 'Execute', User: userObj.UserName, Username: userObj.UserName }, { silent: true }).then(function (permRes) {
           var permMap = {};
           var permList = permRes.list || permRes.records || [];
           if (permList.length > 0) { localStorage.setItem('debug_perm_row', JSON.stringify(permList[0])); }

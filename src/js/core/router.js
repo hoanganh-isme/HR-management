@@ -127,9 +127,9 @@ var Router = (function () {
        * liệu phát sinh có thể forceReadOnly để bảo vệ dữ liệu do SP tạo.
        */
       var next = Object.assign({}, behavior, tab);
-      next.fields = Array.isArray(tab.fields) && tab.fields.length
-        ? tab.fields.slice()
-        : (Array.isArray(behavior.fields) ? behavior.fields.slice() : []);
+      next.fields = Array.isArray(behavior.fields) && behavior.fields.length
+        ? behavior.fields.slice()
+        : (Array.isArray(tab.fields) ? tab.fields.slice() : []);
       next.headers = Object.assign({}, behavior.headers || {}, tab.headers || {});
       next.lookupConfig = Object.assign({}, behavior.lookupConfig || {}, tab.lookupConfig || {});
       next.fieldTypes = Object.assign({}, behavior.fieldTypes || {}, tab.fieldTypes || {});
@@ -520,7 +520,7 @@ var Router = (function () {
     if (typeof ApiClient === 'undefined' || typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION) {
       return Promise.resolve();
     }
-    return ApiClient.get(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION, { silent: true }).then(function (res) {
+    return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayPhienBanQuyen', Func: 'Execute' }, { silent: true }).then(function (res) {
       var localVer = localStorage.getItem('pmql_permission_ver');
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
@@ -531,7 +531,7 @@ var Router = (function () {
       if ((svVersion && svVersion !== localVer) || isEmptyCache) {
         var userJson = localStorage.getItem('pmql_user');
         var userObj = userJson ? JSON.parse(userJson) : {};
-        return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {
+        return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayQuyenCuaToi', Func: 'Execute', User: userObj.UserName, Username: userObj.UserName }, { silent: true }).then(function (permRes) {
           var permMap = {};
           var permList = permRes.list || permRes.records || [];
           if (permList.length > 0) { localStorage.setItem('debug_perm_row', JSON.stringify(permList[0])); }

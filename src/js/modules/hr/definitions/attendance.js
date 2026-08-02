@@ -33,6 +33,16 @@
     HidePrintBtn: true
   };
 
+  definitions.attendance['WA_TIMESHEETFRM'] = {
+    FormName: 'WA_TimeSheetFrm',
+    PrimaryKey: 'UserAutoID',
+    UpdateStatusAction: 'hr.timesheet.update_status',
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    HidePrintBtn: true
+  };
+
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
@@ -263,7 +273,7 @@
           list: 'WA_CaLamViecCNFrm',
           func: 'HR_SapCaChiNhanh_Process_Stp',
           idField: 'SapCaID',
-          leaveMessage: 'Đơn nghỉ phép đã duyệt, chưa hủy sẽ được procedure hiện có đưa vào bảng ca.'
+          leaveMessage: 'Các đơn nghỉ phép đã được duyệt sẽ được tự động tích hợp vào lịch làm việc.'
         }
       }
     ],
@@ -343,6 +353,14 @@
                       newRow['PhongBan'] = rowData.PhongBan || '';
                       newRow['TitleName'] = rowData.TitleName || '';
                       newRow['BranchID'] = rowData.BranchID || ctx.row['BranchID'] || '';
+                      newRow['ShiftID'] = rowData.ShiftID || '';
+                      newRow['Thu2'] = false;
+                      newRow['Thu3'] = false;
+                      newRow['Thu4'] = false;
+                      newRow['Thu5'] = false;
+                      newRow['Thu6'] = false;
+                      newRow['Thu7'] = false;
+                      newRow['ChuNhat'] = false;
                       newRow['GhiChu'] = '';
                       ctx.panel._currentRows.push(newRow);
                       added++;
@@ -372,15 +390,42 @@
               }
               return [d.PersonID || '', d.PersonName || '', d.PhongBan || d.BoPhan || '', d.TitleName || d.ChucVu || '', d.BranchID || ''];
             }
+          },
+          ShiftID: {
+            apiList: 'HR_ShiftListCNFrm',
+            headers: ['Chi nhánh', 'Mã ca', 'Tên ca', 'Loại ca'],
+            sourceFields: ['BranchID', 'ShiftID', 'ShiftName', 'LoaiCa'],
+            valueFields: ['BranchID', 'ShiftID'],
+            valueIndex: 1,
+            displayIndex: 1,
+            strictSelection: true,
+            masterFilters: { BranchID: 'BranchID' }
           }
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fieldTypes: {
+          Thu2: 'boolean',
+          Thu3: 'boolean',
+          Thu4: 'boolean',
+          Thu5: 'boolean',
+          Thu6: 'boolean',
+          Thu7: 'boolean',
+          ChuNhat: 'boolean'
+        },
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ tên',
+          BranchID: 'Chi nhánh',
           PhongBan: 'Bộ phận',
           TitleName: 'Chức vụ',
-          BranchID: 'Chi nhánh',
+          ShiftID: 'Ca',
+          Thu2: 'T2',
+          Thu3: 'T3',
+          Thu4: 'T4',
+          Thu5: 'T5',
+          Thu6: 'T6',
+          Thu7: 'T7',
+          ChuNhat: 'CN',
           GhiChu: 'Ghi chú'
         }
       },
@@ -614,7 +659,7 @@
           Thu7: 'boolean',
           ChuNhat: 'boolean'
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           SapCa: 'Sắp ca',
           PersonID: 'Mã nhân viên',

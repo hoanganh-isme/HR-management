@@ -41,7 +41,11 @@
 
   function responseMessage(response, fallback) {
     var data = responseData(response);
-    return data.msg || data.Msg || data.message || data.Message || fallback;
+    var msg = data.msg || data.Msg || data.message || data.Message;
+    if (!msg || msg === 'OK' || msg === '0' || msg === 'SUCCESS') {
+      return fallback || 'Đã cập nhật lịch làm việc thành công.';
+    }
+    return msg;
   }
 
   function configOf(context) {
@@ -103,7 +107,6 @@
       User: currentUser(),
       BranchID: currentBranch()
     };
-    // API_Gateway_Router hỗ trợ thay thế trực tiếp {SapCaID} trong WA_API.
     payload[config.idField] = shiftId;
 
     setButtonLoading(context.button, true);
@@ -113,7 +116,7 @@
         if (global.Alert) {
           Alert.success(
             config.successTitle || 'Sắp ca thành công',
-            responseMessage(response, config.successMessage || 'Bảng ca chi tiết đã được cập nhật.')
+            responseMessage(response, config.successMessage || 'Bảng ca chi tiết đã được cập nhật tự động.')
           );
         }
         if (global.DynamicFormEngine && typeof DynamicFormEngine.reloadDetailTabs === 'function') {
@@ -123,7 +126,7 @@
           if (refresh) refresh.click();
         }
       } else if (global.Alert) {
-        Alert.error(config.errorTitle || 'Không thể sắp ca', responseMessage(response, 'Procedure trả về lỗi.'));
+        Alert.error(config.errorTitle || 'Không thể sắp ca', responseMessage(response, 'Đã xảy ra lỗi khi thực thi sắp ca.'));
       }
       return response;
     }).catch(function (error) {
@@ -181,7 +184,7 @@
 
     var needsSave = !context.isViewMode && config.saveBeforeRun !== false;
     if (needsSave) {
-      message += '<br><br><span style="color:#b45309;">Dữ liệu master và nhân viên sẽ được lưu trước khi chạy.</span>';
+      message += '<br><br><span style="color:#b45309;">Thông tin bảng ca và danh sách nhân viên sẽ được lưu tự động trước khi sắp ca.</span>';
     }
     if (config.leaveMessage) {
       message += '<br><span style="color:var(--color-text-secondary);">' + escapeHtml(config.leaveMessage) + '</span>';

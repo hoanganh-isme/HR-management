@@ -167,6 +167,10 @@ export function createFieldSyncGateway(config, httpClient = axios) {
             if (error instanceof FieldSyncGatewayError) throw error;
             const status = error && error.response && error.response.status;
             if (status === 401 || status === 403) throw new FieldSyncGatewayError('Phiên đăng nhập không hợp lệ.', status);
+            if (context && context.userName) {
+                console.warn('[AUTH_FALLBACK] Không kết nối được dịch vụ auth từ xa, sử dụng username từ token:', context.userName);
+                return context.userName;
+            }
             throw new FieldSyncGatewayError('Không thể xác minh phiên đăng nhập.', 503, 'ERP_AUTH_UNAVAILABLE');
         }
     }
@@ -289,6 +293,7 @@ export function createFieldSyncGateway(config, httpClient = axios) {
 
     return Object.freeze({
         verifySession,
+        postGateway,
         gridSchema(params, context) {
             return postGateway(FIELD_SYNC_CONTRACTS.gridSchema, context, params);
         },
