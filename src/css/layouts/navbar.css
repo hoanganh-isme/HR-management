@@ -907,19 +907,23 @@ body.dark-theme .navbar-user:hover {
 
 /* sidebar-header */
 .sidebar-header {
-  height: var(--header-height);
+  height: 68px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--spacing-md);
+  justify-content: flex-start;
+  padding: 0 18px;
   font-size: 17px;
   font-weight: 700;
   color: var(--color-text);
   letter-spacing: -0.01em;
   white-space: nowrap;
-  gap: 8px;
+  gap: 9px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid #edf1f6;
+}
+
+body.dark-theme .sidebar-header {
+  border-bottom-color: var(--color-border);
 }
 
 .sidebar-nav {
@@ -1077,50 +1081,414 @@ body.dark-theme .icon-btn:hover {
   height: 8px;
   background: var(--color-danger);
   border-radius: 50%;
+  border: 2px solid var(--color-sidebar);
+}
+/* ═══════════════════════════════════════════
+   FLOATING CARD VERTICAL SIDEBAR LAYOUT
+   (Mẫu HRM Dashboard hiện đại theo mockup)
+   ═══════════════════════════════════════════ */
+
+/* Re-enforce logo sizing failsafe */
+img.sidebar-brand-logo,
+.sidebar-brand-logo,
+.app-sidebar img.app-logo-light,
+.app-sidebar img.app-logo-dark {
+  width: 36px !important;
+  height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  object-fit: contain !important;
+  flex-shrink: 0 !important;
+  display: block !important;
 }
 
-/* Mobile: show hamburger, hide sidebar in vertical mode */
-@media (max-width: 1024px) {
-  .vertical-layout-shell .app-sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    height: 100%;
-    height: 100dvh;
-    transform: translateX(-100%);
-    z-index: 10002;
-  }
+body:not(.dark-theme) .app-logo-dark {
+  display: none !important;
+}
 
-  .vertical-layout-shell .app-sidebar.open {
-    transform: translateX(0);
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
-  }
+body.dark-theme .app-logo-light {
+  display: none !important;
+}
 
-  .vertical-layout-shell .btn-close-sidebar {
+.vertical-layout-shell {
+  display: flex !important;
+  min-height: 100vh !important;
+  background-color: var(--color-background-soft, #f8fafc) !important;
+  padding: 10px !important;
+  gap: 12px !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+body.dark-theme .vertical-layout-shell {
+  background-color: #0f172a !important;
+}
+
+/* ── Header layering and interaction polish ───────────────────────────────
+   Keep header popovers in their own stacking context so they cannot be
+   clipped by the scrollable report/table content below.  The table action
+   menu is appended to body and intentionally remains above this context. */
+.app-shell__main {
+  overflow: visible !important;
+}
+
+.app-shell__header {
+  position: relative;
+  z-index: 50;
+  isolation: isolate;
+}
+
+.app-shell__header > .app-header {
+  position: relative;
+  z-index: 60;
+  overflow: visible;
+}
+
+.app-shell__header .header-right,
+.app-shell__header .navbar-user {
+  position: relative;
+  z-index: 70;
+}
+
+.app-shell__header .navbar-user {
+  min-width: 0;
+}
+
+.app-shell__header .user-dropdown {
+  right: 0;
+  left: auto;
+  top: calc(100% + 10px);
+  min-width: 220px;
+  max-width: min(280px, calc(100vw - 24px));
+  z-index: 5000;
+  transform-origin: top right;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+}
+
+/* The report table menu is body-level (z-index: 9999); do not let the user
+   popover compete with it when both are opened in quick succession. */
+body > .tabulator-action-menu {
+  z-index: 9999 !important;
+}
+
+@media (min-width: 769px) {
+  .app-shell__header .search-box {
     display: flex !important;
+    width: min(320px, 30vw);
+    min-width: 220px;
+    height: 40px;
+    padding: 0 14px;
+    border: 1px solid #e1e7ef;
+    border-radius: 12px;
+    background: #f8fafc;
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
   }
 
-  .btn-hamburger {
-    display: flex !important;
+  .app-shell__header .search-box:focus-within {
+    border-color: #8fb5ff;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(60, 80, 224, 0.12);
   }
 
-  .search-box {
-    display: none !important;
+  .app-shell__header .search-box input {
+    width: 100%;
+    min-width: 0;
+    font-size: 13px;
   }
 }
 
 @media (max-width: 768px) {
-  .user-info {
-    display: none !important;
+  .app-shell__header .user-dropdown {
+    max-width: calc(100vw - 24px);
   }
+}
 
-  .vertical-main .app-header {
+/* ── Responsive navigation drawer ─────────────────────────────── */
+.sidebar-brand-link,
+.mobile-header-brand {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sidebar-brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 0;
+}
+
+.mobile-header-brand {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.mobile-header-brand:hover {
+  background: var(--color-background, #f5f7fb);
+}
+
+.mobile-header-brand img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+@media (max-width: 1024px) {
+  .app-shell__header .app-header {
+    min-height: 64px;
     padding: 0 16px;
   }
 
-
-  .header-right {
+  .app-shell__header .header-left {
+    flex: 1 1 auto;
+    min-width: 0;
     gap: 8px;
+  }
+
+  .app-shell__header .header-right {
+    flex: 0 0 auto;
+    gap: 10px;
+  }
+
+  .app-shell__header .btn-hamburger {
+    display: inline-flex !important;
+    flex: 0 0 38px;
+    border: 1px solid transparent;
+  }
+
+  .app-shell__header .btn-hamburger:hover,
+  .app-shell__header .btn-hamburger:focus-visible {
+    color: var(--color-primary);
+    background: #eef4ff;
+    border-color: #dbe7ff;
+  }
+
+  .app-shell__header .mobile-header-brand {
+    display: inline-flex;
+    flex: 0 0 38px;
+  }
+
+  .app-shell__header .header-welcome,
+  .app-shell__header .search-box {
+    display: none !important;
+  }
+
+  .app-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0;
+    width: min(288px, 84vw) !important;
+    max-width: none !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    border: 0 !important;
+    border-right: 1px solid #e6ebf2 !important;
+    border-radius: 0 14px 14px 0 !important;
+    background: var(--color-surface, #ffffff) !important;
+    transform: translate3d(-102%, 0, 0) !important;
+    visibility: hidden;
+    transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 240ms ease !important;
+    z-index: 10005 !important;
+    overflow: hidden !important;
+  }
+
+  .app-sidebar.open {
+    transform: translate3d(0, 0, 0) !important;
+    visibility: visible;
+    box-shadow: 14px 0 42px rgba(15, 23, 42, 0.2) !important;
+  }
+
+  .app-sidebar .sidebar-header {
+    position: relative;
+    height: 72px;
+    justify-content: center;
+    padding: 0 54px;
+    border-bottom: 1px solid #edf1f6;
+  }
+
+  .app-sidebar .sidebar-brand-link {
+    justify-content: center;
+  }
+
+  .app-sidebar .sidebar-brand-title {
+    display: none;
+  }
+
+  .app-sidebar .btn-close-sidebar {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    display: inline-flex !important;
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    color: #667085;
+    background: transparent;
+    transform: translateY(-50%);
+  }
+
+  .app-sidebar .btn-close-sidebar:hover,
+  .app-sidebar .btn-close-sidebar:focus-visible {
+    color: var(--color-primary);
+    background: #eef4ff;
+  }
+
+  .app-sidebar .sidebar-section-label,
+  .app-sidebar .sidebar-footer {
+    display: none;
+  }
+
+  .app-sidebar .sidebar-nav {
+    padding: 16px 14px 24px;
+  }
+
+  .app-sidebar .sidebar-group {
+    margin: 0 0 12px;
+  }
+
+  .app-sidebar .sidebar-group__trigger,
+  .app-sidebar .nav-group-accordion-btn {
+    min-height: 30px;
+    margin: 0;
+    padding: 8px 6px 5px;
+    color: #667085;
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .app-sidebar .sidebar-group__trigger .sidebar-menu__icon,
+  .app-sidebar .nav-group-accordion-btn .sidebar-menu__icon,
+  .app-sidebar .sidebar-menu__chevron,
+  .app-sidebar .nav-group-accordion-btn .chevron {
+    display: none;
+  }
+
+  .app-sidebar .sidebar-group__children,
+  .app-sidebar .nav-group-accordion-content {
+    display: block !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  .app-sidebar .sidebar-menu__item,
+  .app-sidebar .nav-item {
+    min-height: 42px;
+    margin: 1px 0;
+    padding: 9px 10px;
+    gap: 11px;
+    border-radius: 10px;
+    color: #52627a;
+    font-size: 13px;
+    font-weight: 450;
+    white-space: normal;
+  }
+
+  .app-sidebar .sidebar-menu__item--active,
+  .app-sidebar .nav-item.active {
+    background: #eef4ff !important;
+    color: var(--color-primary) !important;
+  }
+
+  .app-sidebar .sidebar-menu__item--active::before,
+  .app-sidebar .nav-item.active::before {
+    display: none;
+  }
+
+  .sidebar-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    display: block !important;
+    background: rgba(15, 23, 42, 0.48) !important;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 220ms ease, visibility 220ms ease !important;
+    z-index: 10000 !important;
+  }
+
+  .sidebar-overlay.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-shell__header .app-header {
+    min-height: 60px;
+    padding: 0 12px;
+    border-radius: 0 0 12px 12px;
+  }
+
+  .app-shell__header .header-right {
+    gap: 7px;
+  }
+
+  .app-shell__header .header-lang-btn {
+    display: none !important;
+  }
+
+  .app-shell__header .navbar-user {
+    gap: 0;
+    padding: 2px;
+  }
+
+  .app-shell__header .navbar-user .expand-icon {
+    display: none;
+  }
+
+  .app-shell__header .navbar-icon-btn,
+  .app-shell__header .btn-hamburger {
+    width: 36px;
+    height: 36px;
+  }
+
+  .app-sidebar {
+    width: min(280px, 86vw) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell__header .app-header {
+    min-height: 56px;
+    padding: 0 10px;
+  }
+
+  .app-shell__header .header-right {
+    gap: 5px;
+  }
+
+  .app-shell__header .mobile-header-brand,
+  .app-shell__header .mobile-header-brand img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .app-sidebar {
+    width: min(272px, 88vw) !important;
+  }
+
+  .app-sidebar .sidebar-nav {
+    padding: 14px 12px 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar,
+  .sidebar-overlay {
+    transition: none !important;
   }
 }

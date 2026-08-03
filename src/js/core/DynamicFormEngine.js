@@ -98,9 +98,19 @@ window.DynamicFormEngine = (function () {
     return Array.isArray(schema) ? schema : globalFormSchema;
   }
   function _configuredFilterSchema() { return _schemaFor('filters').filter(function (field) { return field && field.showInFilter === true && field.supportsFilter !== false; }); }
+  function _reportFilterSchema() {
+    return Array.isArray(MODULE_CONFIG.ReportFilters)
+      ? MODULE_CONFIG.ReportFilters.filter(function (field) { return field && field.name; })
+      : [];
+  }
+  function _activeFilterSchema() {
+    var reportFilters = _reportFilterSchema();
+    return reportFilters.length > 0 ? reportFilters : _configuredFilterSchema();
+  }
 
   function _hasConfiguredFilters() {
     if (MODULE_CONFIG.HideFilterBtn) return false;
+    if (_reportFilterSchema().length > 0) return true;
 
     if (_usesUnifiedMetadata()) {
       return _configuredFilterSchema().length > 0;
@@ -135,6 +145,49 @@ window.DynamicFormEngine = (function () {
         field && field.orderNo
       ].join(':');
     }).join('|');
+  }
+
+  /*
+   * Report viewer capability: a report may expose its result schema from the
+   * stored procedure instead of maintaining a second list of day columns in
+   * the UI metadata. Existing CRUD forms continue to use their configured
+   * grid schema unchanged.
+   */
+  function _dynamicResultColumnsEnabled() {
+    return Boolean(MODULE_CONFIG && (
+      MODULE_CONFIG.DynamicResultColumns === true
+      || MODULE_CONFIG.dynamicResultColumns === true
+    ));
+  }
+
+  function _rowSelectionEnabled() {
+    return !(MODULE_CONFIG && (
+      MODULE_CONFIG.SelectableRows === false
+      || MODULE_CONFIG.selectableRows === false
+    ));
+  }
+
+  function _applyDynamicResultSchema(result, rows) {
+    if (!_dynamicResultColumnsEnabled()) return;
+    if (!window.DynamicResultSchema || typeof DynamicResultSchema.build !== 'function') return;
+
+    var nextGrid = DynamicResultSchema.build({
+      result: result,
+      rows: rows,
+      existingGrid: _schemaFor('grid')
+    });
+    if (!Array.isArray(nextGrid) || nextGrid.length === 0) return;
+
+    runtimeSchemas = runtimeSchemas || {};
+    runtimeSchemas.grid = nextGrid;
+    if (!Array.isArray(runtimeSchemas.edit)) runtimeSchemas.edit = [];
+    if (!Array.isArray(runtimeSchemas.add)) runtimeSchemas.add = [];
+
+    nextGrid.forEach(function (field) {
+      if (field && field.name && !globalDictionary[field.name]) {
+        globalDictionary[field.name] = field.label || field.name;
+      }
+    });
   }
 
   function _flushPendingFieldSyncRender() {
@@ -343,6 +396,14 @@ window.DynamicFormEngine = (function () {
 
   /** Đọc selectedRows từ sessionStorage (silent fail, trả mảng rỗng nếu lỗi) */
   function _loadSelectedRows() {
+    // Selection is transient UI state. Read-only reports deliberately disable
+    // it, so purge any value left by an older bundle before rendering a badge.
+    if (!_rowSelectionEnabled()) {
+      selectedRows = [];
+      if (formState) formState.setSelectedRows([]);
+      _persistFormState();
+      return;
+    }
     selectedRows = formState ? formState.get().selectedRows || [] : [];
   }
 
@@ -1332,6 +1393,7 @@ window.DynamicFormEngine = (function () {
         tabulatorActionBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">table_chart</span> <span>Tùy chọn bảng</span> <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span>';
 
         var tabulatorActionMenu = document.createElement('div');
+        tabulatorActionMenu.className = 'tabulator-action-menu';
         tabulatorActionMenu.style.cssText = 'display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 200px; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #ccc); box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius: 8px; z-index: 9999; padding: 8px;';
 
         // Helper tạo item
@@ -1807,19 +1869,26 @@ window.DynamicFormEngine = (function () {
         // Bật/tắt menu
         tabulatorActionBtn.addEventListener('click', function (e) {
           e.stopPropagation();
+          var userProfile = document.getElementById('vertical-user-profile');
+          var userDropdown = document.getElementById('vertical-user-dropdown');
+          if (userProfile && userDropdown) {
+            userProfile.classList.remove('open');
+            userDropdown.classList.remove('open');
+          }
           var isVisible = tabulatorActionMenu.style.display === 'block';
           document.querySelectorAll('.dropdown-menu-custom').forEach(function (el) { el.style.display = 'none'; });
 
           if (!isVisible) {
             var rect = tabulatorActionBtn.getBoundingClientRect();
             tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
-            // Đẩy sang trái một chút nếu nút nằm ở góc phải
-            tabulatorActionMenu.style.left = (rect.right - 200) + 'px';
-            // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
-            if (parseInt(tabulatorActionMenu.style.left) < 10) {
-              tabulatorActionMenu.style.left = '10px';
-            }
             tabulatorActionMenu.style.display = 'block';
+
+            // Định vị theo kích thước thật của menu để không tràn cạnh màn hình
+            // trên các độ rộng desktop/tablet khác nhau.
+            var menuWidth = tabulatorActionMenu.getBoundingClientRect().width;
+            var maxLeft = Math.max(12, window.innerWidth - menuWidth - 12);
+            var preferredLeft = rect.right - menuWidth;
+            tabulatorActionMenu.style.left = Math.max(12, Math.min(preferredLeft, maxLeft)) + 'px';
           } else {
             tabulatorActionMenu.style.display = 'none';
           }
@@ -2044,6 +2113,15 @@ window.DynamicFormEngine = (function () {
           }, 500); // Tự động tìm sau 0.5s
         });
 
+        // Nếu người dùng đã nhập ở thanh search chung trước khi grid khởi tạo,
+        // tiếp tục dùng lại từ khóa đó thay vì bắt họ nhập lại.
+        if (window.__globalSearchKeyword) {
+          quickSearchInput.value = String(window.__globalSearchKeyword);
+          setTimeout(function () {
+            quickSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }, 0);
+        }
+
         searchWrapper.appendChild(quickSearchInput);
 
         // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
@@ -2062,10 +2140,10 @@ window.DynamicFormEngine = (function () {
         filterContainer.innerHTML = ''; // Xóa placeholder nếu có
 
         // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-        var dynamicFilters = _configuredFilterSchema()
+        var dynamicFilters = _activeFilterSchema()
           .map(function (f) {
             // Chuyển đổi định dạng từ FormEngine sang FilterComponent
-            var filterType = 'text';
+            var filterType = f.type || 'text';
             var erpFilterType = Number(f.filterControlType);
             if (erpFilterType === 3) filterType = 'select';
             else if (erpFilterType === 6) filterType = 'select';
@@ -2078,8 +2156,16 @@ window.DynamicFormEngine = (function () {
               id: f.name,
               label: filterLabel,
               type: filterType,
-              placeholder: filterLabel
+              placeholder: f.placeholder || filterLabel,
+              readOnly: f.readOnly === true,
+              submit: f.submit !== false
             };
+            var defaultValue = typeof f.defaultValue === 'function'
+              ? f.defaultValue({ userName: _currentUser(), branchId: _currentBranchId() })
+              : f.defaultValue;
+            if (defaultValue !== undefined && defaultValue !== null) {
+              filterObj.defaultValue = defaultValue;
+            }
 
             // Parse DataSource cho trường Select/Dropdown
             if (erpFilterType === 6 || f.renderRule === 'sw') {
@@ -2101,14 +2187,29 @@ window.DynamicFormEngine = (function () {
                 filterObj.dataSource = f.dataSource;
                 // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
                 var apiSearchUrl = MODULE_CONFIG.ApiSearch || _gateway();
-                ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
+                var lookupPayload = {
+                  List: f.dataSource,
+                  FormName: f.dataSource,
+                  Func: 'View',
+                  Limit: 1000,
+                  UserName: _currentUser(),
+                  User: _currentUser(),
+                  BranchID: _currentBranchId()
+                };
+                if (f.dataSourceParams && typeof f.dataSourceParams === 'object') {
+                  Object.assign(lookupPayload, f.dataSourceParams);
+                  lookupPayload.JsonData = JSON.stringify(f.dataSourceParams);
+                }
+                ApiClient.post(apiSearchUrl, lookupPayload).then(function (res) {
                   var dataList = res.list || res.records || [];
                   var options = [];
                   if (dataList && dataList.length > 0) {
                     var keys = Object.keys(dataList[0]);
-                    var valKey = keys[0];
+                    var valKey = f.valueField && keys.indexOf(f.valueField) >= 0 ? f.valueField : keys[0];
                     var labelRegex = /name|tên|ten|label|desc|title/i;
-                    var displayKey = keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0];
+                    var displayKey = f.displayField && keys.indexOf(f.displayField) >= 0
+                      ? f.displayField
+                      : (keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0]);
                     dataList.forEach(function (row) {
                       options.push({ value: row[valKey], label: row[displayKey] });
                     });
@@ -2118,7 +2219,10 @@ window.DynamicFormEngine = (function () {
                   var selectEl = document.getElementById(f.name);
                   if (selectEl) {
                     var hasSavedValue = window.currentFilters && window.currentFilters[f.name] !== undefined;
-                    var currentValue = hasSavedValue ? window.currentFilters[f.name] : '';
+                    var hasDefaultValue = defaultValue !== undefined && defaultValue !== null && defaultValue !== '';
+                    var currentValue = hasSavedValue
+                      ? window.currentFilters[f.name]
+                      : (hasDefaultValue ? defaultValue : '');
 
                     selectEl.innerHTML = '<option value="">-- Tất cả --</option>';
                     options.forEach(function (opt) {
@@ -2130,7 +2234,10 @@ window.DynamicFormEngine = (function () {
                     });
 
                     // Tự động chọn kỳ gần nhất nếu chưa có filter được thiết lập
-                    if (!hasSavedValue && options.length > 0 && (f.name.toLowerCase().indexOf('period') >= 0 || f.name.toLowerCase().indexOf('ky') >= 0)) {
+                    if (!hasSavedValue && !hasDefaultValue && options.length > 0
+                      && (f.autoSelect === 'closest-period'
+                        || f.name.toLowerCase().indexOf('period') >= 0
+                        || f.name.toLowerCase().indexOf('ky') >= 0)) {
                       var now = new Date();
                       var cy = now.getFullYear();
                       var cm = now.getMonth() + 1;
@@ -2283,7 +2390,9 @@ window.DynamicFormEngine = (function () {
         var allowedContractFilters = null;
         if (_usesUnifiedMetadata()) {
           allowedContractFilters = Object.create(null);
-          _schemaFor('filters').forEach(function (field) { allowedContractFilters[String(field.name).toLowerCase()] = true; });
+          _activeFilterSchema().forEach(function (field) {
+            if (field.submit !== false) allowedContractFilters[String(field.name).toLowerCase()] = true;
+          });
         }
         for (var k in window.currentFilters) {
           var normalizedFilterKey = String(k).toLowerCase();
@@ -2404,6 +2513,7 @@ window.DynamicFormEngine = (function () {
         var dataList = Array.isArray(result.list)
           ? result.list
           : (Array.isArray(result.records) ? result.records : []);
+        _applyDynamicResultSchema(result, dataList);
         gridData = dataList.map(function (item) {
           var row = Object.assign({}, item);
           // Lấy khóa chính từ cấu hình, nếu không có thì tự động lấy cột đầu tiên của dữ liệu
@@ -2491,6 +2601,7 @@ window.DynamicFormEngine = (function () {
 
 
       var tabulatorColumns = [];
+      var rowSelectionEnabled = _rowSelectionEnabled();
       var isMobile = window.innerWidth <= 768;
 
       // Đọc cấu hình cột đã lưu từ LocalStorage
@@ -2506,10 +2617,13 @@ window.DynamicFormEngine = (function () {
         if (storedOrderStr) savedOrder = JSON.parse(storedOrderStr);
       } catch (e) { }
 
-      // Cột Checkbox của Tabulator
-      tabulatorColumns.push({
-        formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: !isMobile
-      });
+      // Report viewers follow the desktop behavior: data is read-only and does
+      // not expose a row-selection checkbox or a persisted selection badge.
+      if (rowSelectionEnabled) {
+        tabulatorColumns.push({
+          formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: !isMobile
+        });
+      }
 
       var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
       var rowKeys = Object.keys(sampleRow);
@@ -2886,8 +3000,8 @@ window.DynamicFormEngine = (function () {
 
       // Khôi phục vị trí cột nếu đã có dữ liệu lưu
       if (savedOrder && savedOrder.length > 0) {
-        // tabulatorColumns[0] là checkbox, tách riêng ra
-        var checkboxCol = tabulatorColumns.shift();
+        // Tách checkbox riêng nếu màn hiện tại có bật chọn dòng.
+        var checkboxCol = rowSelectionEnabled ? tabulatorColumns.shift() : null;
         tabulatorColumns.sort(function (a, b) {
           var idxA = savedOrder.indexOf(a.field);
           var idxB = savedOrder.indexOf(b.field);
@@ -2896,7 +3010,7 @@ window.DynamicFormEngine = (function () {
           if (idxB === -1) idxB = 9999;
           return idxA - idxB;
         });
-        tabulatorColumns.unshift(checkboxCol);
+        if (checkboxCol) tabulatorColumns.unshift(checkboxCol);
       }
 
       // Tạo thanh Pagination trước
@@ -2933,7 +3047,7 @@ window.DynamicFormEngine = (function () {
         data: gridData,
         columns: tabulatorColumns,
         layout: "fitDataFill",
-        selectableRows: true, // bật chọn dòng
+        selectableRows: rowSelectionEnabled,
         selectableRowsRangeMode: "click", // Shift + click range
         height: "100%", // Chiếm 100% chiều cao của flex container
         movableColumns: true, // Cho phép kéo thả cột
@@ -2949,10 +3063,12 @@ window.DynamicFormEngine = (function () {
       window.tabulatorInstance = new Tabulator(tableWrapper, tabulatorConfig);
 
       // Bắt sự kiện chọn dòng để update biến selectedRows
-      window.tabulatorInstance.on("rowSelectionChanged", function (data, rows) {
-        selectedRows = data;
-        _updateSelectionCounter();
-      });
+      if (rowSelectionEnabled) {
+        window.tabulatorInstance.on("rowSelectionChanged", function (data, rows) {
+          selectedRows = data;
+          _updateSelectionCounter();
+        });
+      }
 
       // Bắt sự kiện kéo thả cột để lưu vị trí mới vào LocalStorage
       window.tabulatorInstance.on("columnMoved", function (column) {
@@ -2966,20 +3082,22 @@ window.DynamicFormEngine = (function () {
       });
 
       // Hack cho Mobile/Touch: Cho phép click vào bất kỳ đâu trên dòng để CHỌN NHIỀU (Toggle) mà không cần giữ Ctrl
-      tableWrapper.addEventListener('click', function (e) {
-        if (e.target.closest('.tabulator-header')) return;
-        // Bỏ qua nếu click vào nút, link, hoặc input (như checkbox của Tabulator)
-        if (e.target.closest('button, a, input, select, textarea')) return;
+      if (rowSelectionEnabled) {
+        tableWrapper.addEventListener('click', function (e) {
+          if (e.target.closest('.tabulator-header')) return;
+          // Bỏ qua nếu click vào nút, link, hoặc input (như checkbox của Tabulator)
+          if (e.target.closest('button, a, input, select, textarea')) return;
 
-        var rowEl = e.target.closest('.tabulator-row');
-        if (rowEl) {
-          var row = window.tabulatorInstance.getRow(rowEl);
-          if (row && typeof row.toggleSelect === 'function') {
-            e.stopPropagation(); // Ngăn Tabulator clear các dòng khác
-            row.toggleSelect();
+          var rowEl = e.target.closest('.tabulator-row');
+          if (rowEl) {
+            var row = window.tabulatorInstance.getRow(rowEl);
+            if (row && typeof row.toggleSelect === 'function') {
+              e.stopPropagation(); // Ngăn Tabulator clear các dòng khác
+              row.toggleSelect();
+            }
           }
-        }
-      }, true);
+        }, true);
+      }
 
       // Bắt sự kiện chỉnh sửa ô để lưu tự động vào DB
       window.tabulatorInstance.on("cellEdited", function (cell) {
@@ -3150,6 +3268,16 @@ window.DynamicFormEngine = (function () {
   }
 
   function _updateSelectionCounter() {
+    if (!_rowSelectionEnabled()) {
+      selectedRows = [];
+      var staleCounter = document.getElementById('selection-counter');
+      if (staleCounter) {
+        staleCounter.style.display = 'none';
+        staleCounter.innerHTML = '';
+      }
+      return;
+    }
+
     if (!window.tabulatorInstance) {
       // Đồng bộ trạng thái checkbox
       var allTrs = $container.querySelectorAll('#dynamic-grid-container tbody tr');

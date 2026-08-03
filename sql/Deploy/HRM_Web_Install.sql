@@ -195,8 +195,8 @@ VALUES
 ('WA_TimeSheetFrm', 'HR_PayRoll_Process_Stp', N'HR_PayRoll_Process_Stp', N'@PeriodID=N''{PeriodID}'''),
 ('WA_TimeSheetDayFrm', 'View', N'API_XuLyChamCongHangNgay', N'@Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''),
 ('WA_TimeSheetDay_Process_Stp', 'View', N'WA_TimeSheetDay_Process_Stp', N'@PeriodID=N''{PeriodID}'', @BranchID=N''{BranchID}'''),
-('WA_TimeSheetCTReport', 'View', N'API_BaoCaoChamCongChiTiet', N'@Template=''{Template}'', @Ngay=''{Ngay}'', @PeriodID=N''{PeriodID}'', @BranchID=N''{BranchID}'', @Keyword=N''{Keyword}'''),
-('WA_TimeSheetTH2Report', 'View', N'API_BaoCaoChamCongTongHop', N'@PeriodID=N''{PeriodID}'', @PhongBan=N''{PhongBan}'', @Keyword=N''{Keyword}'''),
+('WA_TimeSheetCTReport', 'View', N'API_BaoCaoChamCongChiTiet', N'@Ngay=N''{Ngay}'', @PeriodID=N''{PeriodID}'', @BranchID=N''{BranchID}'', @Keyword=N''{Keyword}'', @ReadOnly=1'),
+('WA_TimeSheetTH2Report', 'View', N'HR_TimeSheetTH2ReportStp', N'@PeriodID=N''{PeriodID}'', @BranchID1=N''{BranchID1}'', @User=''{User}'', @ReadOnly=1'),
 ('WA_CaLamViecFrm', 'View', N'API_CaLamViec', N'@Keyword=N''{Keyword}'''),
 ('WA_CaLamViecFrm', 'Save', N'API_LuuDong', N'@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('WA_CaLamViecFrm', 'Delete', N'API_XoaDong', N'@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
@@ -222,7 +222,8 @@ VALUES
 ('WA_TitleListFrm', 'View', N'API_TruyVanDong', N'@List=N''{List}'', @Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''),
 ('WA_ShiftListFrm', 'View', N'API_TruyVanDong', N'@List=N''{List}'', @Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''),
 ('WA_HinhThucNghiListFrm', 'View', N'API_DanhSachHinhThucNghi', N'@Keyword=N''{Keyword}'''),
-('CF_BranchListFrm', 'View', N'API_DanhSachChiNhanh', N'@Keyword=N''{Keyword}''');
+('API_ReportTemplateOptions', 'View', N'API_ReportTemplateOptions', N'@ReportName=N''{ReportName}'''),
+('CF_BranchListFrm', 'View', N'API_DanhSachChiNhanh', N'@Keyword=N''{Keyword}'', @UserBranchID=N''{BranchID}''');
 
 CREATE TABLE #FormatManifest (
     FormName varchar(100) NOT NULL,

@@ -12,15 +12,22 @@ GO
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_BaoCaoChamCongTongHop
 (
+    @Template VARCHAR(50) = '',
     @PeriodID NVARCHAR(50) = '',
+    @BranchID1 NVARCHAR(MAX) = '',
+    @User VARCHAR(50) = '',
     @PhongBan NVARCHAR(50) = '',
-    @Keyword NVARCHAR(200) = ''
+    @Keyword NVARCHAR(200) = '',
+    @ReadOnly BIT = 0
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
+    SET @Template = LTRIM(RTRIM(ISNULL(@Template, '')));
     SET @PeriodID = LTRIM(RTRIM(ISNULL(@PeriodID, '')));
+    SET @BranchID1 = LTRIM(RTRIM(ISNULL(@BranchID1, '')));
+    SET @User = LTRIM(RTRIM(ISNULL(@User, '')));
     SET @PhongBan = LTRIM(RTRIM(ISNULL(@PhongBan, '')));
     SET @Keyword = LTRIM(RTRIM(ISNULL(@Keyword, '')));
 
@@ -41,12 +48,67 @@ BEGIN
     END
 
     -- Gọi xử lý đồng bộ dữ liệu chấm công như bản Desktop
-    EXEC dbo.HR_TimeSheetDay_Process_Stp 
-        @Period = @PeriodID, 
-        @BranchID = '';
+    -- Keep the same branch-permission contract as the desktop report.
+    -- Template is retained for the future PDF renderer; it does not alter
+    -- the read-only data set shown by this procedure.
+    DROP TABLE IF EXISTS #UserAllowedBranch;
+    DROP TABLE IF EXISTS #FinalBranch;
 
-    EXEC dbo.HR_TimeSheet_UpdateDailyStatus_Stp 
-        @Period = @PeriodID;
+    CREATE TABLE #UserAllowedBranch
+    (
+        BranchID NVARCHAR(100),
+        BranchName NVARCHAR(200)
+    );
+
+    CREATE TABLE #FinalBranch
+    (
+        BranchID NVARCHAR(100) PRIMARY KEY
+    );
+
+    DECLARE @ApplyBranchFilter BIT = 0;
+
+    IF @User <> ''
+    BEGIN
+        INSERT INTO #UserAllowedBranch (BranchID, BranchName)
+        EXEC dbo.HR_Branch_GetByUserStp @UserName = @User;
+
+        SET @ApplyBranchFilter = 1;
+    END;
+
+    IF @BranchID1 <> ''
+    BEGIN
+        SET @ApplyBranchFilter = 1;
+
+        INSERT INTO #FinalBranch (BranchID)
+        SELECT DISTINCT LTRIM(RTRIM(S.value))
+        FROM dbo.SY_String2TableFnc(REPLACE(@BranchID1, ',', ';')) S
+        WHERE LTRIM(RTRIM(ISNULL(S.value, ''))) <> ''
+          AND (
+                @User = ''
+                OR EXISTS (
+                    SELECT 1
+                    FROM #UserAllowedBranch UA
+                    WHERE LTRIM(RTRIM(UA.BranchID)) = LTRIM(RTRIM(S.value))
+                )
+          );
+    END
+    ELSE IF @User <> ''
+    BEGIN
+        INSERT INTO #FinalBranch (BranchID)
+        SELECT DISTINCT LTRIM(RTRIM(BranchID))
+        FROM #UserAllowedBranch
+        WHERE LTRIM(RTRIM(ISNULL(BranchID, ''))) <> '';
+    END;
+
+    IF ISNULL(@ReadOnly, 0) = 0
+    BEGIN
+        EXEC dbo.HR_TimeSheetDay_Process_Stp
+            @Period = @PeriodID,
+            @BranchID = @BranchID1;
+
+        EXEC dbo.HR_TimeSheet_UpdateDailyStatus_Stp
+            @Period = @PeriodID;
+    END;
 
     -- Tính toán ngày bắt đầu và kết thúc của Kỳ
     DECLARE 
@@ -67,6 +129,8 @@ BEGIN
     IF @FromDate IS NULL RETURN;
 
     -- Cập nhật ngày lễ, công phép từ đơn nghỉ phép vào bảng chấm công
+    IF ISNULL(@ReadOnly, 0) = 0
+    BEGIN
     ;WITH CTE_NghiPhep AS
     (
         SELECT 
@@ -115,6 +179,7 @@ BEGIN
     LEFT JOIN CTE_CongLe CL 
         ON CL.PersonID = TS.PersonID
     WHERE TS.PeriodID = @PeriodID;
+    END;
 
     -- Dựng chuỗi cột ngày động [1] -> [31]
     SET @MaxDay = DAY(@ToDate);
@@ -492,6 +557,7 @@ BEGIN
         ON CKP.PersonID = TS.PersonID 
 
     WHERE TS.PeriodID = @PeriodID 
+      AND (@ApplyBranchFilter = 0 OR P.BranchID IN (SELECT BranchID FROM #FinalBranch))
       AND (@PhongBan = '''' OR P.PhongBan = @PhongBan)
       AND (
             @Keyword = ''''
@@ -539,7 +605,7 @@ BEGIN
           @MaxDay INT,
           @PhongBan NVARCHAR(50),
           @Keyword NVARCHAR(200),
-          @BranchID NVARCHAR(MAX)', 
+          @ApplyBranchFilter BIT',
         @PeriodID = @PeriodID, 
         @FromDate = @FromDate, 
         @ToDate = @ToDate, 
@@ -547,6 +613,6 @@ BEGIN
         @MaxDay = @MaxDay,
         @PhongBan = @PhongBan,
         @Keyword = @Keyword,
-        @BranchID = '';
+        @ApplyBranchFilter = @ApplyBranchFilter;
 END
 GO

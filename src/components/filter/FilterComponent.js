@@ -42,8 +42,34 @@ var FilterComponent = (function () {
     wrapper.appendChild(gridContainer);
 
     var inputs = {};
+    var filterById = {};
+
+    function defaultValueFor(filter) {
+      return filter.defaultValue !== undefined && filter.defaultValue !== null
+        ? filter.defaultValue
+        : '';
+    }
+
+    function initialValueFor(filter) {
+      if (typeof window !== 'undefined'
+        && window.currentFilters
+        && window.currentFilters[filter.id] !== undefined) {
+        return window.currentFilters[filter.id];
+      }
+      return defaultValueFor(filter);
+    }
+
+    function collectValues() {
+      var values = {};
+      for (var key in inputs) {
+        var filter = filterById[key];
+        if (!filter || filter.submit !== false) values[key] = inputs[key].value;
+      }
+      return values;
+    }
 
     filters.forEach(function (f) {
+      filterById[f.id] = f;
       var controlWrapper;
       var config = { id: f.id, label: f.label, placeholder: f.placeholder };
 
@@ -63,11 +89,7 @@ var FilterComponent = (function () {
           hiddenInput.id = f.id;
           hiddenInput.name = f.id;
 
-          if (typeof window !== 'undefined' && window.currentFilters && window.currentFilters[f.id] !== undefined) {
-            hiddenInput.value = window.currentFilters[f.id];
-          } else {
-            hiddenInput.value = '';
-          }
+          hiddenInput.value = initialValueFor(f);
           controlWrapper.appendChild(hiddenInput);
 
           var comboLoading = UIControls.createDataComboBox({ placeholder: 'Đang tải...' });
@@ -207,8 +229,14 @@ var FilterComponent = (function () {
           });
         }
 
-        if (typeof window !== 'undefined' && window.currentFilters && window.currentFilters[f.id] !== undefined) {
-          inp.value = window.currentFilters[f.id];
+        inp.value = initialValueFor(f);
+
+        if (f.readOnly === true) {
+          inp.readOnly = true;
+          inp.setAttribute('aria-readonly', 'true');
+          inp.style.background = 'var(--color-surface-elevated, #f8fafc)';
+          inp.style.color = 'var(--color-text-secondary, #64748b)';
+          inp.style.cursor = 'not-allowed';
         }
 
         inputs[f.id] = inp;
@@ -225,9 +253,7 @@ var FilterComponent = (function () {
       keywordInput.addEventListener('input', function () {
         clearTimeout(_liveTimer);
         _liveTimer = setTimeout(function () {
-          var values = {};
-          for (var k in inputs) { values[k] = inputs[k].value; }
-          onSearch(values);
+          onSearch(collectValues());
           // KHÔNG đóng panel — để người dùng tiếp tục tinh chỉnh
         }, 400);
       });
@@ -235,9 +261,7 @@ var FilterComponent = (function () {
       keywordInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
           clearTimeout(_liveTimer);
-          var values = {};
-          for (var k in inputs) { values[k] = inputs[k].value; }
-          onSearch(values);
+          onSearch(collectValues());
         }
       });
     }
@@ -253,16 +277,16 @@ var FilterComponent = (function () {
     btnReset.onmouseout = function() { this.style.background = 'var(--color-surface, #fff)'; this.style.color = 'var(--color-text-secondary, #64748b)'; };
     btnReset.onclick = function () {
       for (var key in inputs) {
-        inputs[key].value = '';
+        inputs[key].value = defaultValueFor(filterById[key]);
         var wrapper = inputs[key].closest('.form-group') || inputs[key].parentElement;
         if (wrapper) {
           var displayInput = wrapper.querySelector('.combo-box-container input.ui-input');
-          if (displayInput) {
-            displayInput.value = '';
+          if (displayInput && inputs[key].type !== 'hidden') {
+            displayInput.value = inputs[key].value;
           }
         }
       }
-      if (typeof onSearch === 'function') onSearch({});
+      if (typeof onSearch === 'function') onSearch(collectValues());
     };
 
     var btnSearch = document.createElement('button');
@@ -271,10 +295,7 @@ var FilterComponent = (function () {
     btnSearch.style.cssText = 'font-weight: 600; border-radius: 6px; padding: 8px 16px; border: none; cursor: pointer; transition: all 0.2s;';
     btnSearch.onclick = function () {
       if (typeof onSearch === 'function') {
-        var values = {};
-        for (var key in inputs) {
-          values[key] = inputs[key].value;
-        }
+        var values = collectValues();
         console.log('[FilterComponent] Submitting values:', values);
         onSearch(values);
 

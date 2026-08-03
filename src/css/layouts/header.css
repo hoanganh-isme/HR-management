@@ -87,3 +87,18 @@
   }
 }
 
+/* Soft shell header: light separation, no heavy top bar. */
+.app-shell__header > .app-header {
+  min-height: 58px;
+  padding: 0 20px;
+  border: 1px solid #e7ecf3;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 3px 14px rgba(15, 23, 42, 0.04);
+}
+
+.app-shell__header .header-left,
+.app-shell__header .header-right {
+  gap: 12px;
+}
+

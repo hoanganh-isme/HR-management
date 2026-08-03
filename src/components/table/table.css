@@ -18,95 +18,112 @@
 }
 
 .data-table th {
-  background: var(--color-surface);
-  padding: 16px 24px;
+  background: var(--color-surface-subtle, #f8fafc);
+  padding: 10px 14px;
   font-size: 13px;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
+  text-transform: none;
+  color: var(--color-text-secondary, #667085);
   font-weight: 600;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
+  letter-spacing: 0.2px;
+  border-bottom: 1px solid var(--color-border, #e7eaf0);
+  border-right: none;
   white-space: nowrap;
 }
 
 .data-table td {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  font-weight: 500;
+  padding: 10px 14px;
+  height: 44px;
+  border-bottom: 1px solid var(--color-border, #e7eaf0);
+  border-right: none;
+  font-size: 13.5px;
+  color: var(--color-text, #101828);
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+}
+
+.table-wrapper {
+  border: 1px solid #edf0f4;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.data-table th {
+  background: #f8fafc;
+  color: #667085;
+  font-weight: 550;
+}
+
+.data-table td {
+  border-bottom-color: #eef1f5;
 }
 
 .data-table th:last-child,
 .data-table td:last-child {
-  padding-right: 32px;
   border-right: none;
+}
+
+/* Opt-in full spreadsheet grid lines */
+.data-table--bordered th,
+.data-table--bordered td,
+.data-table--spreadsheet th,
+.data-table--spreadsheet td {
+  border-right: 1px solid var(--color-border, #e7eaf0);
 }
 
 .data-table tbody tr {
   cursor: pointer;
-  transition:
-    background 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: background 0.15s ease-in-out;
 }
 
 .data-table tbody tr:hover {
-  background: rgba(148, 163, 184, 0.05);
+  background: var(--color-surface-subtle, #f8fafc);
 }
 
 .data-table tbody tr.active {
-  background-color: var(--color-primary-light);
-  box-shadow: inset 4px 0 0 var(--color-primary);
-}
-
-.data-table tbody tr td {
-  transition:
-    color 0.2s ease,
-    font-weight 0.2s ease;
+  background-color: var(--color-primary-soft, #eff6ff);
 }
 
 .data-table tbody tr.active td {
-  color: var(--color-primary);
+  color: var(--color-text, #101828);
+}
+
+/* ════ SEMANTIC COLUMN STYLING (Section II.3 & VII) ════ */
+.data-table .column-primary {
+  font-weight: 600;
+  color: var(--color-text, #101828);
+}
+
+.data-table .column-identity {
+  font-weight: 600;
+  color: var(--color-primary, #2563eb);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table .column-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table .column-date {
+  color: var(--color-text-secondary, #667085);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-table .column-status {
   font-weight: 600;
 }
 
-/* ════ DESKTOP & GLOBAL DATA HIGHLIGHTING ════ */
-/* Highlight Name */
-.data-table tbody tr td[data-label="Họ tên"],
-.data-table tbody tr td[data-label="Họ Tên"],
-.data-table tbody tr td[data-label="HỌ TÊN"] {
-  font-weight: 700 !important;
-  color: var(--color-text-primary, #1e293b);
+.data-table .column-select {
+  width: 40px;
+  text-align: center;
 }
 
-/* Highlight Employee Code */
-.data-table tbody tr td[data-label="Mã nhân viên"],
-.data-table tbody tr td[data-label="Mã NV"],
-.data-table tbody tr td[data-label="MÃ NHÂN VIÊN"] {
-  font-weight: 700;
-  color: var(--color-primary);
-}
-
-/* Style Department */
-.data-table tbody tr td[data-label="Bộ phận"],
-.data-table tbody tr td[data-label="Phòng ban"],
-.data-table tbody tr td[data-label="BỘ PHẬN"] {
-  color: var(--color-text-secondary);
-  font-weight: 600;
-}
-
-/* Style Status / Trạng thái if any */
-.data-table tbody tr td[data-label="Trạng thái"],
-.data-table tbody tr td[data-label="Trạng Thái"],
-.data-table tbody tr td[data-label="TRẠNG THÁI"] {
-  font-weight: 600;
-  color: var(--color-success, #10b981);
+.data-table .column-actions {
+  width: 80px;
+  text-align: center;
 }
 
 /* ════ DARK THEME OVERRIDES ════ */

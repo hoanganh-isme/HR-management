@@ -128,11 +128,22 @@ const ApiClient = (function () {
                 throw error;
             }
 
-            // Parse k\u1ebft qu\u1ea3
+            // Parse kết quả
             const textResponse = await response.text();
             try {
                 // Trả về Object nếu JSON hợp lệ
-                return textResponse ? parseJsonResponse(textResponse) : {};
+                const parsed = textResponse ? parseJsonResponse(textResponse) : {};
+                if (parsed && (parsed.code === 2 || parsed.code === '2') && !options.silent) {
+                    console.warn('[ApiClient] Phiên làm việc đã hết hạn (code: 2). Tự động đăng xuất.');
+                    if (typeof window.logoutApp === 'function') {
+                        window.logoutApp();
+                    } else {
+                        deleteCookie('auth_token');
+                        localStorage.removeItem('pmql_user');
+                        window.location.href = 'login.html';
+                    }
+                }
+                return parsed;
             } catch (err) {
                 const contentType = response.headers && typeof response.headers.get === 'function'
                     ? String(response.headers.get('content-type') || '').toLowerCase()

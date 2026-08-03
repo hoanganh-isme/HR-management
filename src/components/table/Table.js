@@ -221,16 +221,15 @@ var UITable = (function () {
               }
 
               if (fieldName.includes('cmnd') || fieldName.includes('cccd') || fieldName.includes('dienthoai') || fieldName.includes('sohopdong') || fieldName.includes('personid') || fieldName.includes('manhanvien') || fieldName === 'id' || fieldName === 'manv' || headerLabel.includes('cccd') || headerLabel.includes('mã nhân viên') || headerLabel.includes('điện thoại') || headerLabel.includes('hợp đồng')) {
-                td.style.color = 'var(--color-primary)';
-                td.style.fontWeight = '600';
-                td.style.fontVariantNumeric = 'tabular-nums';
+                td.classList.add('column-identity');
               } else if (fieldName.includes('ngay') || fieldName.includes('date') || headerLabel.includes('ngày') || headerLabel.includes('date')) {
-                td.style.color = '#475569'; // Slate 600 - subtle and premium for dates
-                td.style.fontWeight = '500';
-                td.style.fontVariantNumeric = 'tabular-nums'; // Ensures numbers align vertically without looking like a typewriter
+                td.classList.add('column-date');
               } else if (fieldName.includes('status') || fieldName.includes('trangthai') || headerLabel.includes('trạng thái')) {
-                td.style.color = '#10b981';
-                td.style.fontWeight = '700';
+                td.classList.add('column-status');
+              } else if (fieldName.includes('hoten') || fieldName.includes('fullname') || headerLabel.includes('họ tên') || headerLabel.includes('họ và tên')) {
+                td.classList.add('column-primary');
+              } else if (typeof val === 'number' || fieldName.includes('songay') || fieldName.includes('tong') || fieldName.includes('count') || fieldName.includes('soluong')) {
+                td.classList.add('column-number');
               }
               if (col.render) {
                 var rendered = col.render(val, row);

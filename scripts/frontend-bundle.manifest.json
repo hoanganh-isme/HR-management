@@ -7,7 +7,6 @@
   "css": [
     "src/css/design-tokens.css",
     "src/css/global.css",
-    "src/css/layouts/navbar.css",
     "src/css/layouts/sidebar.css",
     "src/css/layouts/header.css",
     "src/css/layouts/dashboard.css",
@@ -56,7 +55,8 @@
     "src/components/responsive-data-renderer/responsive-data-renderer.css",
     "src/components/column-caption-editor/column-caption-editor.css",
     "src/components/excel-import/excel-import.css",
-    "src/css/modules/contract-document.css"
+    "src/css/modules/contract-document.css",
+    "src/css/layouts/navbar.css"
   ],
   "js": [
     "src/js/utils/apiClient.js",
@@ -74,6 +74,7 @@
     "src/js/utils/UITooltip.js",
     "src/js/utils/PrintUtils.js",
     "src/js/utils/TableColumnLayout.js",
+    "src/js/utils/DynamicResultSchema.js",
     "src/js/services/SystemDataService.js",
     "src/js/services/MenusService.js",
     "src/js/services/PeriodManager.js",

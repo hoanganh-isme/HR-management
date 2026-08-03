@@ -43,6 +43,108 @@
     HidePrintBtn: true
   };
 
+  definitions.attendance['WA_TIMESHEETCTREPORT'] = {
+    FormName: 'WA_TimeSheetCTReport',
+    PrimaryKey: 'UserAutoID',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    SelectableRows: false,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'Template',
+        label: 'Chọn mẫu',
+        renderRule: 'sl',
+        dataSource: 'API_ReportTemplateOptions',
+        dataSourceParams: { ReportName: 'HR_TimeSheetCTReport' },
+        valueField: 'Template',
+        displayField: 'TemplateName',
+        submit: false
+      },
+      {
+        name: 'PeriodID',
+        label: 'Kỳ',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period'
+      },
+      {
+        name: 'Ngay',
+        label: 'Ngày',
+        renderRule: 'd',
+        type: 'date'
+      },
+      {
+        name: 'BranchID',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      }
+    ]
+  };
+
+  /*
+   * Read-only report: its grid schema comes from the desktop stored procedure
+   * result so adding/removing result columns does not require UI metadata edits.
+   * Template is a presentation/PDF choice and does not change the read-only
+   * dataset, therefore the grid request does not submit it to the procedure.
+   */
+  definitions.attendance['WA_TIMESHEETTH2REPORT'] = {
+    FormName: 'WA_TimeSheetTH2Report',
+    PrimaryKey: 'UserAutoID',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    SelectableRows: false,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'Template',
+        label: 'Chọn mẫu',
+        renderRule: 'sl',
+        dataSource: 'API_ReportTemplateOptions',
+        dataSourceParams: { ReportName: 'HR_TimeSheetTH2Report' },
+        valueField: 'Template',
+        displayField: 'TemplateName',
+        submit: false
+      },
+      {
+        name: 'PeriodID',
+        label: 'Kỳ',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period'
+      },
+      {
+        name: 'BranchID1',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      },
+      {
+        name: 'ReportUser',
+        label: 'Người dùng',
+        type: 'text',
+        readOnly: true,
+        submit: false,
+        defaultValue: function (context) {
+          return context && context.userName ? context.userName : '';
+        }
+      }
+    ]
+  };
+
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',

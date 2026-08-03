@@ -123,9 +123,13 @@ var ReportFilterDialog = (function () {
 
     // ── Date range (dr): Từ ngày + Đến ngày trên cùng hàng ──
     if (rule === 'dr') {
+      var fromWrap = UIInput.createDate({ name: name + '_From', value: defaultVal, placeholder: 'Từ ngày' });
+      var toWrap = UIInput.createDate({ name: name + '_To', placeholder: 'Đến ngày' });
+      var fromInput = fromWrap.querySelector('input');
+      var toInput = toWrap.querySelector('input');
+
       var row = document.createElement('div');
       row.className = 'rfd-row';
-
       var lbl = document.createElement('label');
       lbl.className = 'rfd-label';
       lbl.textContent = label;
@@ -133,25 +137,12 @@ var ReportFilterDialog = (function () {
 
       var rangeWrap = document.createElement('div');
       rangeWrap.className = 'rfd-date-range';
-
-      var fromInput = document.createElement('input');
-      fromInput.type = 'date';
-      fromInput.className = 'ui-input rfd-input';
-      fromInput.dataset.fieldName = name + '_From';
-      if (defaultVal) fromInput.value = defaultVal;
-
+      rangeWrap.appendChild(fromWrap);
       var sep = document.createElement('span');
       sep.className = 'rfd-date-sep';
       sep.textContent = 'Đến';
-
-      var toInput = document.createElement('input');
-      toInput.type = 'date';
-      toInput.className = 'ui-input rfd-input';
-      toInput.dataset.fieldName = name + '_To';
-
-      rangeWrap.appendChild(fromInput);
       rangeWrap.appendChild(sep);
-      rangeWrap.appendChild(toInput);
+      rangeWrap.appendChild(toWrap);
       row.appendChild(rangeWrap);
       if (visibleRule) row.dataset.visibleRule = visibleRule;
 
@@ -172,15 +163,13 @@ var ReportFilterDialog = (function () {
 
     // ── Date (dt) ──
     if (rule === 'dt') {
-      var input = document.createElement('input');
-      input.type = 'date';
+      var dateWrap = UIInput.createDate({ label: '', name: name, value: defaultVal, required: required });
+      var input = dateWrap.querySelector('input');
       input.className = 'ui-input rfd-input';
       input.dataset.fieldName = name;
-      input.required = required;
-      if (defaultVal) input.value = defaultVal;
 
       return {
-        row: _buildRow(label, required, input, visibleRule),
+        row: _buildRow(label, required, dateWrap, visibleRule),
         getValue: function () { var o = {}; o[name] = input.value; return o; },
         setValue: function (v) { input.value = v || ''; }
       };

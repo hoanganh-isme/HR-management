@@ -339,6 +339,10 @@ var Router = (function () {
   }
 
   function _fadeIn($el) {
+    if (!$el) return;
+    /* Let the active page CSS choose block/flex. Forcing inline display:block
+       collapses the full-height flex chain used by dynamic data grids. */
+    $el.style.display = '';
     $el.style.opacity = '1';
     $el.style.transition = 'opacity 180ms ease';
   }
