@@ -8,7 +8,7 @@ GO
 
 -- =========================================================================
 -- [API_BangChamCongTongHop] - BẢNG CHẤM CÔNG TỔNG HỢP CHO WEB APP
--- Tự động ánh xạ tiêu đề tiếng Việt qua từ điển SY_FmtFldTbl của V2
+-- Tự động ánh xạ tiêu đề tiếng Việt qua bảng từ điển SY_FmtFldTbl của V2
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_BangChamCongTongHop
 (
@@ -39,11 +39,10 @@ BEGIN
         SET @BranchID = @JsonBranchID;
     END
 
-    -- Truy vấn dữ liệu bảng chấm công kết hợp thông tin nhân viên từ HR_PersonView (Bao gồm GioiTinh, PersonName, PhongBan, BranchID, LoaiHD)
+    -- Truy vấn dữ liệu bảng chấm công và thông tin nhân viên (Gồm cả cột mới như GioiTinh, PersonName, PhongBan, BranchID, LoaiHD)
     SELECT TOP 1000
         t.*,
         A.PersonName,
-        A.GioiTinh,
         A.PhongBan,
         A.BranchID,
         A.LoaiHD
@@ -71,8 +70,6 @@ BEGIN
 END
 GO
 
--- Cấu hình định tuyến Gateway
-DELETE FROM dbo.WA_API WHERE list = 'WA_TimeSheetFrm' AND func = 'View';
 
 INSERT INTO dbo.WA_API (list, func, [SQL], Para)
 VALUES (
