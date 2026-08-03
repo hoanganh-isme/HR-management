@@ -24,6 +24,7 @@ function assertTemplateBasename(value) {
 }
 
 async function writeAtomic(filePath, contents) {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
     const temporaryFile = `${filePath}.new`;
     await fs.writeFile(temporaryFile, contents);
     try {
@@ -200,6 +201,14 @@ export function createContractDocumentStore(config) {
         return updated;
     }
 
+    async function syncAppliedTemplateFile(workspaceId, buffer) {
+        const { metadata } = await readTemplateWorkspace(workspaceId);
+        if (!metadata || !metadata.templateFile) return;
+        const template = await resolveTemplate(metadata.templateFile);
+        await writeAtomic(template.filePath, buffer);
+        console.log(`[Store Sync] Synchronized late OnlyOffice callback (${buffer.length} bytes) to ${template.filePath}`);
+    }
+
     async function applyTemplateWorkspace(workspaceId) {
         const { paths, metadata } = await readTemplateWorkspace(workspaceId);
         const template = await resolveTemplate(metadata.templateFile);
@@ -211,7 +220,7 @@ export function createContractDocumentStore(config) {
         const backupPath = path.join(config.paths.templateBackupsDir, backupName);
         await writeAtomic(backupPath, originalBuffer);
         await writeAtomic(template.filePath, editedBuffer);
-        await fs.rm(paths.directory, { recursive: true, force: true });
+        await updateTemplateWorkspaceMetadata(workspaceId, { applied: true, appliedAt: new Date().toISOString() });
         return { templateFile: template.fileName, backupName };
     }
 
@@ -267,6 +276,7 @@ export function createContractDocumentStore(config) {
         readTemplateWorkspaceFile,
         updateTemplateWorkspaceMetadata,
         updateTemplateWorkspaceFile,
+        syncAppliedTemplateFile,
         applyTemplateWorkspace,
         deleteTemplateWorkspace,
         cleanupExpired,

@@ -16,6 +16,7 @@ var UIFileUpload = (function () {
     input.type = 'file';
     if (config.id) input.id = config.id;
     if (config.accept) input.accept = config.accept;
+    if (config.multiple) input.multiple = true;
 
     var icon = document.createElement('span');
     icon.className = 'material-symbols-outlined ui-upload-icon';
@@ -36,6 +37,7 @@ var UIFileUpload = (function () {
 
     // Xử lý sự kiện Drag & Drop css ảo diệu
     wrapper.addEventListener('dragover', function(e) {
+      e.preventDefault();
       wrapper.classList.add('dragover');
     });
 
@@ -44,13 +46,27 @@ var UIFileUpload = (function () {
     });
 
     wrapper.addEventListener('drop', function(e) {
+      e.preventDefault();
       wrapper.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        if (typeof config.onChange === 'function') {
+          if (config.multiple) {
+            config.onChange(Array.from(e.dataTransfer.files));
+          } else {
+            config.onChange(e.dataTransfer.files[0]);
+          }
+        }
+      }
     });
 
     if (typeof config.onChange === 'function') {
       input.addEventListener('change', function(e) {
         if (e.target.files && e.target.files.length > 0) {
-          config.onChange(e.target.files[0]);
+          if (config.multiple) {
+            config.onChange(Array.from(e.target.files));
+          } else {
+            config.onChange(e.target.files[0]);
+          }
         }
       });
     }

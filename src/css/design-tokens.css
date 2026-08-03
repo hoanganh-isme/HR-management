@@ -39,6 +39,26 @@
   --color-border: #e7eaf0;
   --color-border-strong: #d8dde6;
 
+  /* Shared semantic table colors */
+  --semantic-blue-bg: #eff6ff;
+  --semantic-blue-text: #1d4ed8;
+  --semantic-indigo-bg: #eef2ff;
+  --semantic-indigo-text: #4338ca;
+  --semantic-violet-bg: #f5f3ff;
+  --semantic-violet-text: #6d28d9;
+  --semantic-cyan-bg: #ecfeff;
+  --semantic-cyan-text: #0e7490;
+  --semantic-teal-bg: #f0fdfa;
+  --semantic-teal-text: #0f766e;
+  --semantic-green-bg: #ecfdf3;
+  --semantic-green-text: #027a48;
+  --semantic-amber-bg: #fffaeb;
+  --semantic-amber-text: #b54708;
+  --semantic-rose-bg: #fff1f3;
+  --semantic-rose-text: #c01048;
+  --semantic-slate-bg: #f2f4f7;
+  --semantic-slate-text: #475467;
+
   /* Shadows (Subtle Enterprise Shadows) */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.03);
   --shadow-sm: 0 3px 12px rgba(15, 23, 42, 0.05);
@@ -114,6 +134,25 @@ body.dark-theme {
   --color-border-strong: #475569;
 
   --color-primary-soft: rgba(37, 99, 235, 0.2);
+
+  --semantic-blue-bg: rgba(59, 130, 246, 0.18);
+  --semantic-blue-text: #93c5fd;
+  --semantic-indigo-bg: rgba(99, 102, 241, 0.2);
+  --semantic-indigo-text: #a5b4fc;
+  --semantic-violet-bg: rgba(139, 92, 246, 0.2);
+  --semantic-violet-text: #c4b5fd;
+  --semantic-cyan-bg: rgba(6, 182, 212, 0.18);
+  --semantic-cyan-text: #67e8f9;
+  --semantic-teal-bg: rgba(20, 184, 166, 0.18);
+  --semantic-teal-text: #5eead4;
+  --semantic-green-bg: rgba(34, 197, 94, 0.18);
+  --semantic-green-text: #86efac;
+  --semantic-amber-bg: rgba(245, 158, 11, 0.18);
+  --semantic-amber-text: #fcd34d;
+  --semantic-rose-bg: rgba(244, 63, 94, 0.18);
+  --semantic-rose-text: #fda4af;
+  --semantic-slate-bg: rgba(148, 163, 184, 0.16);
+  --semantic-slate-text: #cbd5e1;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);

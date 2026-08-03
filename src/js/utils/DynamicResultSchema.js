@@ -18,12 +18,47 @@
     ).trim();
   }
 
+  function textValue(value) {
+    if (value === undefined || value === null) return '';
+    return String(value).trim();
+  }
+
+  function localizedCaption(source) {
+    if (!source || typeof source !== 'object') return '';
+    return textValue(
+      source.CaptionVN
+      || source.captionVN
+      || source.captionVn
+      || source.vietnameseCaption
+    );
+  }
+
+  function configuredLabel(source) {
+    if (!source || typeof source !== 'object') return '';
+    return textValue(source.label || source.title || source.Caption || source.caption);
+  }
+
   function columnLabel(column, fieldName, fallback) {
+    /*
+     * Caption precedence is deliberately metadata-first. Gateways frequently
+     * expose `title`/`label` as a mechanically humanized field name (for
+     * example `Phong Ban`). Letting that overwrite the configured Vietnamese
+     * caption made both the grid header and the column chooser regress.
+     */
+    var explicitVietnamese = localizedCaption(column);
+    if (explicitVietnamese) return explicitVietnamese;
+
+    var fallbackVietnamese = localizedCaption(fallback);
+    if (fallbackVietnamese) return fallbackVietnamese;
+
+    var fallbackLabel = configuredLabel(fallback);
+    if (fallbackLabel) return fallbackLabel;
+
     if (column && typeof column === 'object') {
-      var label = column.title || column.label || column.CaptionVN || column.caption || column.Header;
-      if (label !== undefined && label !== null && String(label).trim()) return String(label).trim();
+      var label = column.title || column.label || column.caption || column.Caption || column.Header;
+      if (textValue(label)) return textValue(label);
     }
-    if (fallback && fallback.label) return fallback.label;
+
     return String(fieldName || '')
       .replace(/([a-z\d])([A-Z])/g, '$1 $2')
       .replace(/[_-]+/g, ' ')
@@ -117,6 +152,9 @@
       var next = Object.assign({}, existing);
       next.name = fieldName;
       next.label = columnLabel(descriptor.column, fieldName, existing);
+      next.captionVN = localizedCaption(descriptor.column)
+        || localizedCaption(existing)
+        || next.label;
       next.position = 'grid';
       next.orderNo = index + 1;
       next.showInAdd = false;

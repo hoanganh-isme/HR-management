@@ -25,6 +25,7 @@ BEGIN TRY
         ('WA_TitleListFrm','WA_TitleListFrm','WA_TitleListFrm','SIMPLE_TABLE',N'HR_TitleListTbl',N'TitleName','WA_TitleListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','LEGACY_GLOBAL_REFERENCE','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE3_READY_FOR_CUTOVER'),
         ('WA_ShiftListFrm','WA_ShiftListFrm','WA_ShiftListFrm','SIMPLE_TABLE',N'HR_ShiftListTbl',N'ShiftID','WA_ShiftListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','LEGACY_GLOBAL_REFERENCE','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE3_READY_FOR_CUTOVER'),
         ('CF_BranchListFrm','CF_BranchListFrm','CF_BranchListFrm','SIMPLE_TABLE',N'CF_BranchTbl',N'BranchID','CF_BranchListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','BRANCH_SCOPED','AUTO_SCHEMA','SHADOW',N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER'),
+        ('WA_TimeSheetCTReport','WA_TimeSheetCTReport','WA_TimeSheetCTReport','READ_ONLY',N'HR_TimeSheetDayTbl',N'UserAutoID','WA_TimeSheetCTReport',N'HR_TimeSheetCTReportStp',NULL,NULL,'READ_ONLY','AUTO_SCHEMA','NONE','SHADOW',N'DESKTOP_REPORT_RESULT_SET_METADATA_V2'),
         ('WA_CaLamViecFrm','WA_CaLamViecFrm','WA_CaLamViecFrm','MASTER_DETAIL_SIMPLE',N'HR_SapCaTbl',N'SapCaID','WA_CaLamViecFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','AUTO_SCHEMA','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE4_MASTER_DETAIL_READY_FOR_CUTOVER')
     ) AS V
     (
@@ -38,6 +39,37 @@ BEGIN TRY
         SELECT 1 FROM dbo.WA_FieldContractRegistry AS R
         WHERE R.WebFormName = V.WebFormName
     );
+
+    /* Đồng bộ contract báo cáo đã tồn tại với route SP desktop đã được duyệt. */
+    UPDATE R
+    SET R.ERPFormID = 'WA_TimeSheetCTReport',
+        R.PermissionFormName = 'WA_TimeSheetCTReport',
+        R.ContractType = 'READ_ONLY',
+        R.ExpectedTableName = N'HR_TimeSheetDayTbl',
+        R.ExpectedPrimaryKey = N'UserAutoID',
+        R.ViewList = 'WA_TimeSheetCTReport',
+        R.ViewProcedure = N'HR_TimeSheetCTReportStp',
+        R.SaveProcedure = NULL,
+        R.DeleteProcedure = NULL,
+        R.WritePolicy = 'READ_ONLY',
+        R.BranchPolicy = 'AUTO_SCHEMA',
+        R.DeletePolicy = 'NONE',
+        R.RolloutStatus = 'SHADOW',
+        R.RolloutReason = N'DESKTOP_REPORT_RESULT_SET_METADATA_V2',
+        R.SchemaVersion = 2,
+        R.IsEnabled = 1,
+        R.UpdatedAt = @Now,
+        R.UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'WA_TimeSheetCTReport'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.WA_API AS A
+          WHERE A.[list] = 'WA_TimeSheetCTReport'
+            AND A.[func] = 'View'
+            AND PARSENAME(LTRIM(RTRIM(A.[SQL])), 1) = 'HR_TimeSheetCTReportStp'
+      );
 
     INSERT INTO dbo.WA_FieldDatasetRegistry
     (

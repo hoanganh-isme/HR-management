@@ -48,7 +48,11 @@
     PrimaryKey: 'UserAutoID',
     ReadOnlyReport: true,
     DynamicResultColumns: true,
+    MetadataSource: 'FIELD_SYNC_V2',
+    RefreshV2MetadataOnLoad: true,
     SelectableRows: false,
+    HideSearch: true,
+    BranchFilterAsContext: true,
     HideAddBtn: true,
     HideEditBtn: true,
     HideDeleteBtn: true,
@@ -76,7 +80,8 @@
         name: 'Ngay',
         label: 'Ngày',
         renderRule: 'd',
-        type: 'date'
+        type: 'date',
+        submitFormat: 'yyyyMMdd'
       },
       {
         name: 'BranchID',

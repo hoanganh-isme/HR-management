@@ -80,9 +80,21 @@ export function createContractDocumentService(config, store, db) {
         }
     }
 
-    async function downloadOnlyOfficeFile(url) {
-        if (!url) throw createError('OnlyOffice callback không có URL file.', 400);
-        const response = await axios.get(url, {
+    async function downloadOnlyOfficeFile(rawUrl) {
+        if (!rawUrl) throw createError('OnlyOffice callback không có URL file.', 400);
+        let downloadUrl = rawUrl;
+        try {
+            const parsed = new URL(rawUrl);
+            const publicParsed = new URL(config.onlyOfficePublicUrl);
+            parsed.protocol = publicParsed.protocol;
+            parsed.hostname = publicParsed.hostname;
+            parsed.port = publicParsed.port;
+            downloadUrl = parsed.toString();
+        } catch {
+            downloadUrl = rawUrl;
+        }
+        console.log(`[OnlyOffice Download] Fetching file from: ${downloadUrl} (original: ${rawUrl})`);
+        const response = await axios.get(downloadUrl, {
             responseType: 'arraybuffer',
             timeout: 30000,
             maxContentLength: config.maxDocxSizeBytes,
@@ -94,11 +106,18 @@ export function createContractDocumentService(config, store, db) {
     }
 
     async function getTemplates(context) {
-        const rows = await db.listTemplates(context);
+        let rows = [];
+        try {
+            rows = await db.listTemplates(context);
+        } catch {
+            rows = [];
+        }
         const templates = [];
+        const seenFiles = new Set();
         for (const row of rows) {
             const templateFile = row.TemplateFile || row.templateFile || row.templatefile;
             if (!templateFile) continue;
+            seenFiles.add(String(templateFile).toLowerCase());
             let available = true;
             try {
                 await store.resolveTemplate(templateFile);
@@ -113,17 +132,60 @@ export function createContractDocumentService(config, store, db) {
                 available
             });
         }
+
+        try {
+            const sampleFiles = await fs.readdir(config.samplesDir);
+            for (const file of sampleFiles) {
+                if (file.toLowerCase().endsWith('.docx') && !seenFiles.has(file.toLowerCase())) {
+                    seenFiles.add(file.toLowerCase());
+                    templates.push({
+                        formName: config.contractFormName,
+                        loaiHD: '',
+                        templateFile: file,
+                        description: file,
+                        available: true
+                    });
+                }
+            }
+        } catch {
+            /* ignore read dir error */
+        }
+
         return templates;
     }
 
-    async function requireRegisteredTemplate(context, templateFile) {
+    function resolveTemplateFileName(input) {
+        if (!input) return '';
+        if (typeof input === 'string') return input.trim();
+        if (typeof input === 'object') {
+            return String(input.templateFile || input.templateFileName || input.template || input.fileName || '').trim();
+        }
+        return String(input).trim();
+    }
+
+    async function requireRegisteredTemplate(context, input) {
+        const templateFile = resolveTemplateFileName(input);
+        if (!templateFile) throw createError('Thiếu tên file mẫu hợp đồng (templateFile).', 400);
         const templates = await getTemplates(context);
         const registered = templates.find((item) =>
-            String(item.templateFile).toLowerCase() === String(templateFile || '').toLowerCase()
+            String(item.templateFile).toLowerCase() === templateFile.toLowerCase()
         );
-        if (!registered) throw createError('TemplateFile chưa được đăng ký trong HR_HopDongAddfile.', 404);
-        if (!registered.available) throw createError('TemplateFile đã đăng ký nhưng file DOCX không tồn tại trong backend-app/samples.', 404);
-        return registered;
+        if (registered) {
+            if (!registered.available) throw createError('File mẫu ' + templateFile + ' không tồn tại trong backend-app/samples.', 404);
+            return registered;
+        }
+        try {
+            const resolved = await store.resolveTemplate(templateFile);
+            return {
+                formName: config.contractFormName,
+                loaiHD: '',
+                templateFile: resolved.fileName,
+                description: resolved.fileName,
+                available: true
+            };
+        } catch {
+            throw createError('Mẫu hợp đồng "' + templateFile + '" chưa có file DOCX trong thư mục backend-app/samples.', 404);
+        }
     }
 
     async function createDraft(context, input) {
@@ -187,7 +249,7 @@ export function createContractDocumentService(config, store, db) {
                     id: crypto.createHash('sha256').update(metadata.userName).digest('hex').slice(0, 24),
                     name: metadata.userName
                 },
-                customization: { forcesave: true, compactHeader: false, toolbarNoTabs: false }
+                customization: { forcesave: true, compactHeader: true, compactToolbar: false, zoom: 100 }
             }
         };
         return {
@@ -261,11 +323,11 @@ export function createContractDocumentService(config, store, db) {
         const contractBranch = String(contract.BranchID || contract.branchID || contract.branchId || '').trim().toUpperCase();
         const originalBranch = String(metadata.branchId || '').trim().toUpperCase();
         if (contractBranch !== originalBranch) throw createError('Chi nhánh hợp đồng đã thay đổi; không thể finalize bản nháp cũ.', 409);
-        if (!metadata.finalCallbackCompleted && !metadata.forceSaveCompleted && !metadata.manualUploadCompleted) {
-            throw createError('OnlyOffice chưa callback hoặc chưa có file DOCX tải lên thủ công.', 409);
-        }
 
         const buffer = await store.readDraftFile(draftId);
+        if (!buffer || buffer.length === 0) {
+            throw createError('Không tìm thấy file DOCX của bản nháp.', 404);
+        }
         validateDocx(buffer, config.maxDocxSizeBytes);
         const existing = await db.findAttachment(context, metadata.maHopDong, metadata.attachmentUserAutoID);
         if (existing) {
@@ -273,33 +335,39 @@ export function createContractDocumentService(config, store, db) {
                 throw createError('Attachment ID của draft đã tồn tại ở hợp đồng khác.', 409);
             }
             const finalized = await store.updateDraftMetadata(draftId, { finalized: true });
-            return { finalized: true, idempotent: true, attachmentUserAutoID: finalized.attachmentUserAutoID };
+            return {
+                attachment: existing,
+                draft: finalized
+            };
         }
 
-        const base64 = buffer.toString('base64');
-        const attachment = {
-            UserAutoID: metadata.attachmentUserAutoID,
-            MaHopDong: metadata.maHopDong,
-            FileName: metadata.fileName,
-            FileType: 0,
-            FileSize: buffer.length,
-            Content: `0x${buffer.toString('hex')}`,
-            Base64Content: base64
-        };
-        await db.saveAttachment(context, attachment);
+        const attachment = await db.saveAttachment(context, {
+            maHopDong: metadata.maHopDong,
+            attachmentUserAutoID: metadata.attachmentUserAutoID,
+            fileName: metadata.fileName,
+            fileBuffer: buffer,
+            userName: context.userName
+        });
         const finalized = await store.updateDraftMetadata(draftId, { finalized: true });
-        return { finalized: true, idempotent: false, attachmentUserAutoID: finalized.attachmentUserAutoID };
+        return {
+            attachment,
+            draft: finalized
+        };
     }
 
     async function createTemplateWorkspace(context, input) {
-        const template = await requireRegisteredTemplate(context, input?.templateFile);
+        const templateFile = resolveTemplateFileName(input);
+        const template = await requireRegisteredTemplate(context, templateFile);
+        const targetFile = template.templateFile || template.fileName;
+        const resolved = await store.resolveTemplate(targetFile);
+        const buffer = await fs.readFile(resolved.filePath);
+        const workspaceId = crypto.randomUUID();
         const now = new Date().toISOString();
         const metadata = {
-            workspaceId: crypto.randomUUID(),
-            templateFile: template.templateFile,
+            workspaceId,
+            templateFile: resolved.fileName,
             userName: context.userName,
             documentKey: crypto.randomUUID(),
-            fileSize: 0,
             createdAt: now,
             updatedAt: now,
             finalCallbackCompleted: false,
@@ -308,9 +376,8 @@ export function createContractDocumentService(config, store, db) {
             lastOnlyOfficeStatus: null,
             lastCallbackError: ''
         };
-        await store.createTemplateWorkspace(metadata);
-        const buffer = await store.readTemplateWorkspaceFile(metadata.workspaceId);
-        return store.updateTemplateWorkspaceMetadata(metadata.workspaceId, { fileSize: buffer.length });
+        await store.createTemplateWorkspace(metadata, buffer);
+        return metadata;
     }
 
     async function getTemplateWorkspaceEditor(context, workspaceId) {
@@ -340,16 +407,21 @@ export function createContractDocumentService(config, store, db) {
         verifySignedToken(workspaceId, 'template-callback', token);
         verifyOnlyOfficeJwt(authorization, body?.token);
         const status = Number(body?.status);
+        console.log(`[OnlyOffice Callback] templateWorkspaceId: ${workspaceId}, status: ${status}, url: ${body?.url || 'none'}`);
         try {
             if (status === 2 || status === 6) {
                 const buffer = await downloadOnlyOfficeFile(body.url);
-                await store.updateTemplateWorkspaceFile(workspaceId, buffer, {
+                console.log(`[OnlyOffice Callback] Downloaded updated file size: ${buffer.length} bytes for workspace: ${workspaceId}`);
+                const updatedMeta = await store.updateTemplateWorkspaceFile(workspaceId, buffer, {
                     documentKey: crypto.randomUUID(),
                     finalCallbackCompleted: status === 2,
                     forceSaveCompleted: status === 6,
                     lastOnlyOfficeStatus: status,
                     lastCallbackError: ''
                 });
+                if (updatedMeta.applied) {
+                    await store.syncAppliedTemplateFile(workspaceId, buffer);
+                }
             } else if (status === 3 || status === 7) {
                 await store.updateTemplateWorkspaceMetadata(workspaceId, {
                     lastOnlyOfficeStatus: status,
@@ -359,6 +431,7 @@ export function createContractDocumentService(config, store, db) {
                 await store.updateTemplateWorkspaceMetadata(workspaceId, { lastOnlyOfficeStatus: status || null });
             }
         } catch (error) {
+            console.error(`[OnlyOffice Callback Error] workspaceId: ${workspaceId}, error:`, error.message);
             await store.updateTemplateWorkspaceMetadata(workspaceId, {
                 lastOnlyOfficeStatus: status || null,
                 lastCallbackError: error.message
@@ -385,9 +458,6 @@ export function createContractDocumentService(config, store, db) {
         const { metadata } = await store.readTemplateWorkspace(workspaceId);
         assertOwner(metadata, context);
         await requireRegisteredTemplate(context, metadata.templateFile);
-        if (!metadata.finalCallbackCompleted && !metadata.forceSaveCompleted && !metadata.manualUploadCompleted) {
-            throw createError('Workspace chưa nhận callback hoặc file tải lên thủ công.', 409);
-        }
         const validation = await validateTemplateWorkspace(context, workspaceId);
         const result = await store.applyTemplateWorkspace(workspaceId);
         return { ...result, validation };

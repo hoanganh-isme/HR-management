@@ -107,6 +107,7 @@
     "src/components/icon/Icon.js",
     "src/components/action-toolbar/ActionToolbar.js",
     "src/components/card/Card.js",
+    "src/components/table/TableSemantic.js",
     "src/components/table/Table.js",
     "src/components/tabs/Tabs.js",
     "src/components/tabs/NestedTabs.js",

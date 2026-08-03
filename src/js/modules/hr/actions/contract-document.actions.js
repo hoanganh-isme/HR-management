@@ -3,16 +3,38 @@ var ContractDocumentActions = (function (global) {
 
   var onlyOfficeLoader = null;
 
+  function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function notify(type, title, message) {
+    var titleStr = title || (type === 'error' ? 'Lỗi' : 'Thành công');
+    var msgStr = message || '';
     if (global.Alert && typeof global.Alert[type] === 'function') {
-      global.Alert[type](title, message);
+      global.Alert[type](titleStr, msgStr);
+      return;
+    }
+    if (global.Swal && typeof global.Swal.fire === 'function') {
+      global.Swal.fire({
+        icon: type === 'error' ? 'error' : 'success',
+        title: titleStr,
+        text: msgStr,
+        timer: 2500,
+        showConfirmButton: false
+      });
       return;
     }
     if (global.UIToast && typeof global.UIToast.show === 'function') {
-      global.UIToast.show(message, type === 'error' ? 'error' : type);
+      global.UIToast.show((titleStr ? titleStr + ': ' : '') + msgStr, type === 'error' ? 'error' : type);
       return;
     }
-    global.alert((title ? title + ': ' : '') + message);
+    global.alert((titleStr ? titleStr + ': ' : '') + msgStr);
   }
 
   function delay(milliseconds) {
@@ -171,12 +193,13 @@ var ContractDocumentActions = (function (global) {
     editorArea.className = 'contract-doc-editor-area';
     editorArea.id = 'contract-doc-editor-' + Date.now();
 
+    toolbar.appendChild(createButton('Phóng to / Thu nhỏ', 'fullscreen'));
     toolbar.appendChild(createButton('Xem trước', 'preview'));
     toolbar.appendChild(createButton('Tải DOCX', 'download'));
     toolbar.appendChild(createButton('Tải bản đã sửa lên', 'upload'));
     if (options.kind === 'draft') toolbar.appendChild(createButton('Lưu vào hợp đồng', 'finalize', true));
     if (options.kind === 'template') {
-      toolbar.appendChild(createButton('Kiểm tra placeholder', 'validate'));
+      toolbar.appendChild(createButton('Kiểm tra mẫu', 'validate'));
       toolbar.appendChild(createButton('Áp dụng mẫu', 'apply', true));
     }
     toolbar.appendChild(createButton('Đóng', 'close'));
@@ -191,6 +214,25 @@ var ContractDocumentActions = (function (global) {
     function setStatus(message, error) {
       status.textContent = message || '';
       status.classList.toggle('is-error', Boolean(error));
+      status.classList.toggle('is-active', Boolean(message && !error && message.indexOf('sẵn sàng') === -1));
+    }
+
+    function showLoadingOverlay(titleText, subtitleText) {
+      hideLoadingOverlay();
+      var loader = document.createElement('div');
+      loader.className = 'contract-doc-loading-overlay';
+      loader.id = 'contract-doc-loading-overlay';
+      loader.innerHTML = '<div class="contract-doc-loading-box">' +
+        '<div class="contract-doc-spinner"></div>' +
+        '<div class="contract-doc-loading-title">' + escapeHTML(titleText || 'Đang xử lý...') + '</div>' +
+        '<div class="contract-doc-loading-sub">' + escapeHTML(subtitleText || 'Vui lòng chờ trong giây lát...') + '</div>' +
+        '</div>';
+      shell.appendChild(loader);
+    }
+
+    function hideLoadingOverlay() {
+      var existing = shell.querySelector('#contract-doc-loading-overlay');
+      if (existing) existing.remove();
     }
 
     function destroyEditor() {
@@ -203,14 +245,31 @@ var ContractDocumentActions = (function (global) {
     function mountEditor() {
       destroyEditor();
       editorArea.innerHTML = '';
-      setStatus('Đang kết nối OnlyOffice...', false);
+      setStatus('Đang khởi tạo trình soạn thảo hợp đồng...', false);
+      showLoadingOverlay('Đang tải văn bản...', 'Vui lòng chờ trình soạn thảo nạp nội dung hợp đồng...');
       return loadOnlyOffice(state.data.onlyOfficePublicUrl).then(function () {
         if (state.closed) return;
-        state.editor = new global.DocsAPI.DocEditor(editorArea.id, state.data.editorConfig);
-        setStatus('OnlyOffice đã sẵn sàng. Bạn cũng có thể tải DOCX để sửa bằng WPS/Word.', false);
+        var editorCfg = state.data.editorConfig || {};
+        var existingEvents = editorCfg.events || {};
+        editorCfg.events = Object.assign({}, existingEvents, {
+          onAppReady: function () {
+            hideLoadingOverlay();
+            if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+            if (existingEvents.onAppReady) existingEvents.onAppReady();
+          },
+          onDocumentReady: function () {
+            hideLoadingOverlay();
+            if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+            if (existingEvents.onDocumentReady) existingEvents.onDocumentReady();
+          }
+        });
+        state.editor = new global.DocsAPI.DocEditor(editorArea.id, editorCfg);
+        setStatus('Trình soạn thảo đã sẵn sàng. Bạn có thể chỉnh sửa trực tiếp hoặc tải file DOCX về máy.', false);
+        setTimeout(hideLoadingOverlay, 3500);
       }).catch(function () {
-        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>OnlyOffice chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, sửa bằng WPS/Word rồi tải lại.</span></div>';
-        setStatus('Không mở được OnlyOffice tại ' + state.data.onlyOfficePublicUrl + '.', true);
+        hideLoadingOverlay();
+        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>Trình xem văn bản trực tuyến chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, chỉnh sửa bằng Microsoft Word / WPS Office rồi tải lên lại.</span></div>';
+        setStatus('Chưa kết nối được hệ thống xem văn bản trực tuyến.', true);
       });
     }
 
@@ -224,6 +283,7 @@ var ContractDocumentActions = (function (global) {
     function close() {
       state.closed = true;
       destroyEditor();
+      hideLoadingOverlay();
       overlay.remove();
       global.__contractDocumentEditorOpen = false;
     }
@@ -234,17 +294,24 @@ var ContractDocumentActions = (function (global) {
       event.preventDefault();
       event.stopPropagation();
       var action = button.dataset.action;
+      if (action === 'fullscreen') {
+        overlay.classList.toggle('is-fullscreen');
+        return;
+      }
       if (action === 'preview') return global.open(state.data.previewUrl, '_blank', 'noopener');
       if (action === 'download') return download(state.data.downloadUrl);
       if (action === 'close') return close();
       if (action === 'upload') {
         return openFilePicker(function (file) {
           button.disabled = true;
-          setStatus('Đang tải file DOCX lên workspace...', false);
+          setStatus('Đang tải bản tài liệu mới...', false);
+          showLoadingOverlay('Đang tải file lên...', 'Vui lòng chờ hệ thống cập nhật tài liệu mới.');
           options.upload(file).then(function () {
-            notify('success', 'Thành công', 'Đã cập nhật bản DOCX trong workspace, chưa lưu vào DB.');
+            hideLoadingOverlay();
+            notify('success', 'Thành công', 'Đã cập nhật bản tài liệu mới.');
             return refreshEditor();
           }).catch(function (error) {
+            hideLoadingOverlay();
             notify('error', 'Không tải được file', error.message);
             setStatus(error.message, true);
           }).finally(function () { button.disabled = false; });
@@ -255,23 +322,41 @@ var ContractDocumentActions = (function (global) {
         return options.validate().then(function (result) {
           var valid = result.valid.length ? result.valid.join(', ') : '(không có)';
           var unknown = result.unknown.length ? result.unknown.join(', ') : '(không có)';
-          global.alert('Placeholder hợp lệ:\n' + valid + '\n\nPlaceholder chưa xác định:\n' + unknown);
+          global.alert('Trường dữ liệu hợp lệ:\n' + valid + '\n\nTrường chưa xác định:\n' + unknown);
         }).catch(function (error) { notify('error', 'Kiểm tra thất bại', error.message); })
           .finally(function () { button.disabled = false; });
       }
       if (action === 'finalize' || action === 'apply') {
         button.disabled = true;
-        destroyEditor();
-        setStatus('Đang chờ OnlyOffice lưu phiên bản mới nhất...', false);
-        return delay(1200).then(function () {
-          return retryAfterOnlyOfficeSave(options.complete, 6);
-        }).then(function (result) {
-          if (action === 'finalize') {
-            notify('success', 'Đã lưu', 'DOCX đã được lưu vào tài liệu đính kèm của hợp đồng.');
-          } else {
-            notify('success', 'Đã áp dụng mẫu', 'Mẫu cũ đã được backup thành ' + result.backupName + '.');
+        var loadingTitle = action === 'finalize' ? 'Đang lưu hợp đồng...' : 'Đang áp dụng mẫu...';
+        var loadingSub = action === 'finalize'
+          ? 'Hệ thống đang đồng bộ phiên bản hợp đồng vừa chỉnh sửa...'
+          : 'Hệ thống đang đồng bộ và cập nhật mẫu mới...';
+        setStatus('Đang đồng bộ dữ liệu...', false);
+        showLoadingOverlay(loadingTitle, loadingSub);
+
+        // Kích hoạt OnlyOffice đẩy bản ghi chỉnh sửa mới nhất về backend
+        if (state.editor && typeof state.editor.serviceCommand === 'function') {
+          try {
+            state.editor.serviceCommand('forcesave');
+          } catch (e) {
+            console.warn('[OnlyOffice] forcesave:', e);
           }
+        }
+
+        // Đóng trình biên tập để OnlyOffice gửi callback lưu phiên làm việc cuối cùng
+        destroyEditor();
+
+        // Chờ 1.5s để backend hoàn tất tải file DOCX mới nhất ghi vào ổ đĩa trước khi áp dụng
+        return delay(1500).then(function () {
+          return options.complete();
+        }).then(function (result) {
+          hideLoadingOverlay();
           close();
+          var successMsg = action === 'finalize'
+            ? 'Hợp đồng đã được lưu thành công vào CSDL và danh sách tài liệu đính kèm!'
+            : 'Mẫu hợp đồng mới đã được áp dụng thành công!';
+          notify('success', 'Thành công', successMsg);
           if (action === 'finalize') {
             if (global.DynamicFormEngine && typeof global.DynamicFormEngine.reloadDetailTabs === 'function') {
               global.DynamicFormEngine.reloadDetailTabs();
@@ -280,6 +365,7 @@ var ContractDocumentActions = (function (global) {
             }
           }
         }).catch(function (error) {
+          hideLoadingOverlay();
           notify('error', action === 'finalize' ? 'Không thể lưu hợp đồng' : 'Không thể áp dụng mẫu', error.message);
           setStatus(error.message, true);
           button.disabled = false;

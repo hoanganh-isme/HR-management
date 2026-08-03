@@ -1683,12 +1683,47 @@ var PrintUtils = (function () {
     ).trim();
   }
 
+  function textValue(value) {
+    if (value === undefined || value === null) return '';
+    return String(value).trim();
+  }
+
+  function localizedCaption(source) {
+    if (!source || typeof source !== 'object') return '';
+    return textValue(
+      source.CaptionVN
+      || source.captionVN
+      || source.captionVn
+      || source.vietnameseCaption
+    );
+  }
+
+  function configuredLabel(source) {
+    if (!source || typeof source !== 'object') return '';
+    return textValue(source.label || source.title || source.Caption || source.caption);
+  }
+
   function columnLabel(column, fieldName, fallback) {
+    /*
+     * Caption precedence is deliberately metadata-first. Gateways frequently
+     * expose `title`/`label` as a mechanically humanized field name (for
+     * example `Phong Ban`). Letting that overwrite the configured Vietnamese
+     * caption made both the grid header and the column chooser regress.
+     */
+    var explicitVietnamese = localizedCaption(column);
+    if (explicitVietnamese) return explicitVietnamese;
+
+    var fallbackVietnamese = localizedCaption(fallback);
+    if (fallbackVietnamese) return fallbackVietnamese;
+
+    var fallbackLabel = configuredLabel(fallback);
+    if (fallbackLabel) return fallbackLabel;
+
     if (column && typeof column === 'object') {
-      var label = column.title || column.label || column.CaptionVN || column.caption || column.Header;
-      if (label !== undefined && label !== null && String(label).trim()) return String(label).trim();
+      var label = column.title || column.label || column.caption || column.Caption || column.Header;
+      if (textValue(label)) return textValue(label);
     }
-    if (fallback && fallback.label) return fallback.label;
+
     return String(fieldName || '')
       .replace(/([a-z\d])([A-Z])/g, '$1 $2')
       .replace(/[_-]+/g, ' ')
@@ -1782,6 +1817,9 @@ var PrintUtils = (function () {
       var next = Object.assign({}, existing);
       next.name = fieldName;
       next.label = columnLabel(descriptor.column, fieldName, existing);
+      next.captionVN = localizedCaption(descriptor.column)
+        || localizedCaption(existing)
+        || next.label;
       next.position = 'grid';
       next.orderNo = index + 1;
       next.showInAdd = false;
@@ -2271,12 +2309,21 @@ window.FieldSyncService = (function (global) {
       return {
         name: field.name,
         label: field.label || field.name,
+        captionVN: field.captionVN || field.CaptionVN || legacy.captionVN || legacy.CaptionVN || field.label || legacy.label || field.name,
         orderNo: field.orderNo || index + 1,
         position: 'grid',
         renderRule: engineRule(field.renderRule || legacy.renderRule || legacy.FormatID),
+        semanticRenderRule: field.semanticRenderRule || field.renderRule || legacy.semanticRenderRule || legacy.renderRule || legacy.FormatID || '',
         formatId: field.formatId || legacy.formatId || legacy.FormatID || '',
         FormatID: field.formatId || legacy.formatId || legacy.FormatID || '',
         formatType: field.formatType || legacy.formatType || legacy.FormatType || '',
+        sqlType: field.sqlType || legacy.sqlType || legacy.SqlType || '',
+        semanticRole: field.semanticRole || legacy.semanticRole || legacy.SemanticRole || '',
+        displayVariant: field.displayVariant || legacy.displayVariant || legacy.DisplayVariant || '',
+        toneMap: cloneValue(field.toneMap !== undefined ? field.toneMap : (legacy.toneMap || legacy.ToneMap || null)),
+        statusMap: cloneValue(field.statusMap !== undefined ? field.statusMap : (legacy.statusMap || legacy.StatusMap || null)),
+        avatarField: field.avatarField || legacy.avatarField || legacy.AvatarField || '',
+        secondaryField: field.secondaryField || legacy.secondaryField || legacy.SecondaryField || '',
         metadataSource: 'FIELD_SYNC_V2',
         // Field chỉ có ở V2 được hiển thị read-only và không gửi server-sort cho tới khi API có contract tương ứng.
         serverSortable: hasLegacyField,
@@ -2287,6 +2334,9 @@ window.FieldSyncService = (function (global) {
         isReadOnlyEdit: legacy.isReadOnlyEdit,
         ShowInEdit: editable ? 1 : 0,
         IsReadOnlyEdit: legacy.isReadOnlyEdit ? 1 : 0,
+        isPrimaryKey: field.isPrimaryKey === true || legacy.isPrimaryKey === true || legacy.IsPrimaryKey === 1,
+        isIdentity: field.isIdentity === true || legacy.isIdentity === true || legacy.IsIdentity === 1,
+        isSensitiveOrDenied: field.isSensitiveOrDenied === true || legacy.isSensitiveOrDenied === true || legacy.IsSensitiveOrDenied === 1,
         dataSource: field.dataSource || legacy.dataSource || legacy.DataSource || '',
         lookupKey: lookup && lookup.key ? lookup.key : (legacy.lookupKey || legacy.LookupKey || ''),
         minWidth: field.minWidth !== undefined ? field.minWidth : legacy.minWidth,
@@ -2349,13 +2399,21 @@ window.FieldSyncService = (function (global) {
     return {
       name: field.name,
       label: contextLabel,
+      captionVN: field.captionVN || field.CaptionVN || contextLabel,
       orderNo: contextOrder,
       position: 'grid',
       renderRule: engineRule(field.renderRule),
+      semanticRenderRule: field.semanticRenderRule || field.renderRule || '',
       formatId: field.formatId || '',
       FormatID: field.formatId || '',
       formatType: field.formatType || '',
       sqlType: field.sqlType || '',
+      semanticRole: field.semanticRole || '',
+      displayVariant: field.displayVariant || '',
+      toneMap: cloneValue(field.toneMap || null),
+      statusMap: cloneValue(field.statusMap || null),
+      avatarField: field.avatarField || '',
+      secondaryField: field.secondaryField || '',
       nullable: field.nullable === true,
       required: field.requiredOnInsert === true,
       metadataSource: 'FIELD_CONTRACT_V2',
@@ -3262,7 +3320,7 @@ window.FieldSyncService = (function (global) {
     }, intervalMs);
   }
 
-  function observeForm(formName, legacySchema) {
+  function observeForm(formName, legacySchema, forceRefresh) {
     var activePrefix = normalizeName(formName) + '|';
     Object.keys(timers).forEach(function (key) {
       if (key.indexOf(activePrefix) === 0) return;
@@ -3270,7 +3328,7 @@ window.FieldSyncService = (function (global) {
       delete timers[key];
     });
     installRefreshListeners();
-    return fetchState(formName, legacySchema, false).then(function (state) {
+    return fetchState(formName, legacySchema, forceRefresh === true).then(function (state) {
       ensurePolling(formName, legacySchema);
       return state;
     });
@@ -5739,6 +5797,23 @@ var Navbar = (function () {
     return html;
   }
 
+  function _getCompanyBrandInfo() {
+    var currentUser = {};
+    try {
+      var raw = localStorage.getItem('pmql_user') || sessionStorage.getItem('pmql_user') || '{}';
+      currentUser = JSON.parse(raw);
+    } catch (e) {}
+
+    // Lấy tên đơn vị / công ty / chi nhánh động từ dữ liệu DB trong phiên đăng nhập
+    var title = currentUser.TenCongTy || currentUser.CompanyName || currentUser.Company || currentUser.TenDonVi || currentUser.BrandTitle || 'DIM TU TAC';
+    var subtitle = currentUser.TenChiNhanh || currentUser.BranchName || currentUser.ChiNhanh || currentUser.TenNhom || currentUser.GroupName || currentUser.UserGroupID || currentUser.BrandSubtitle || 'CÔNG TY CP TM DV DIM TU TAC';
+
+    return {
+      title: title,
+      subtitle: subtitle
+    };
+  }
+
   /* ─────────────────────────────────────────
      Render Sidebar Component (Section 5)
   ───────────────────────────────────────── */
@@ -5747,6 +5822,7 @@ var Navbar = (function () {
     var container = document.getElementById(id);
     if (!container) return;
 
+    var brandInfo = _getCompanyBrandInfo();
     var currentHash = window.location.hash || '#/dashboard';
     var html = `
       <aside class="app-sidebar" id="app-sidebar">
@@ -5754,9 +5830,12 @@ var Navbar = (function () {
         <div class="sidebar-header">
           <button type="button" class="sidebar-brand-link" data-sidebar-home aria-label="Về trang tổng quan">
             <span class="sidebar-brand-mark" aria-hidden="true">
-              <img class="sidebar-brand-logo" src="./src/assets/logo-full-cropped.png" alt="" />
+              <img class="sidebar-brand-logo" src="./src/assets/logo-full-cropped.png" alt="Logo" />
             </span>
-            <span class="sidebar-brand-title">HRM</span>
+            <div class="sidebar-brand-info">
+              <span class="sidebar-brand-title" id="sidebar-brand-title">${escapeHTML(brandInfo.title)}</span>
+              <span class="sidebar-brand-subtitle" id="sidebar-brand-subtitle">${escapeHTML(brandInfo.subtitle)}</span>
+            </div>
           </button>
           <button type="button" class="btn-close-sidebar" id="btn-close-sidebar" title="Đóng menu" aria-label="Đóng menu">
             <span class="material-symbols-outlined">arrow_back</span>
@@ -8060,15 +8139,26 @@ var FilterComponent = (function () {
     // Click bên ngoài thì tự đóng Panel
     document.addEventListener('click', function (e) {
       if (wrapper.style.display !== 'none') {
-        var isInsidePanel = wrapper.contains(e.target);
-        var isDropdownClick = e.target.closest('.data-dropdown-menu'); // allow clicking combobox dropdown
+        var targetNode = e.target;
+
+        // Nếu e.target đã bị gỡ khỏi DOM (ví dụ: nút chuyển tháng/năm của Flatpickr re-render), bỏ qua không đóng panel
+        if (!targetNode || targetNode.isConnected === false || (typeof document.contains === 'function' && !document.contains(targetNode))) {
+          return;
+        }
+
+        var clickTarget = targetNode.nodeType === 1 ? targetNode : targetNode.parentElement;
+        if (!clickTarget) return;
+
+        var isInsidePanel = wrapper.contains(clickTarget);
+        var isDropdownClick = clickTarget.closest('.data-dropdown-menu, .search-dropdown-menu, .combo-box-dropdown');
+        var isDatePickerClick = clickTarget.closest('.flatpickr-calendar, .flatpickr-monthDropdown-months, .flatpickr-current-month');
         var isClickOnButton = false;
-        var clickedBtn = e.target.closest('button');
+        var clickedBtn = clickTarget.closest('button');
         if (clickedBtn && (clickedBtn.innerHTML.indexOf('filter_alt') !== -1 || clickedBtn.innerText.trim() === 'Lọc' || clickedBtn.getAttribute('data-tooltip') === 'Lọc / Tìm kiếm dữ liệu')) {
           isClickOnButton = true;
         }
 
-        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && dummyContainer.parentElement) {
+        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && !isDatePickerClick && dummyContainer.parentElement) {
           dummyContainer.parentElement.style.display = 'none'; // Ẩn cha đi thì Observer sẽ ẩn Panel
         }
       }
@@ -8904,6 +8994,422 @@ var UICard = (function () {
   };
 })();
 
+/* --- TableSemantic.js --- */
+/**
+ * Shared metadata-driven presentation for UITable, Tabulator and mobile tables.
+ * It never mutates row data: semantic markup is presentation-only.
+ */
+var TableSemantic = (function () {
+  var ROLES = {
+    'default': true,
+    'primary-identifier': true,
+    'secondary-identifier': true,
+    'person': true,
+    'status': true,
+    'category': true,
+    'boolean': true,
+    'date': true,
+    'datetime': true,
+    'time': true,
+    'period': true,
+    'metric': true,
+    'currency': true,
+    'percentage': true,
+    'contact': true,
+    'note': true,
+    'reason': true,
+    'sensitive': true,
+    'selection': true,
+    'action': true
+  };
+
+  // Field-name aliases live here so table renderers never duplicate captions.
+  var VOCABULARY = Object.freeze({
+    person: [
+      'fullname', 'hoten', 'hovaten', 'personname', 'employeename',
+      'staffname', 'tennhanvien', 'tennguoidung', 'approvername',
+      'creatorname', 'nguoitao', 'nguoiduyet'
+    ],
+    status: [
+      'status', 'state', 'trangthai', 'approvalstatus', 'workflowstatus'
+    ],
+    identifier: [
+      'id', 'code', 'ma', 'manhanvien', 'manv', 'employeecode',
+      'employeeid', 'personid', 'personcode', 'documentno', 'contractno',
+      'sohopdong', 'machungtu'
+    ],
+    category: [
+      'type', 'category', 'group', 'department', 'departmentname', 'bophan',
+      'branch', 'branchname', 'chinhanh', 'team', 'position', 'chucvu',
+      'title', 'chucdanh', 'contracttype', 'loaithongtin', 'loaidulieu',
+      'loainghi', 'loaitailieu'
+    ],
+    date: [
+      'date', 'ngay', 'birthday', 'ngaysinh', 'createddate', 'modifieddate',
+      'ngaynhanviec', 'startdate', 'enddate'
+    ],
+    datetime: [
+      'datetime', 'createdat', 'updatedat', 'modifiedat', 'thoidiem'
+    ],
+    time: [
+      'time', 'gio', 'giovao', 'giora', 'checkin', 'checkout',
+      'thoigianvao', 'thoigianra'
+    ],
+    period: [
+      'period', 'periodid', 'periodkeyid', 'ky', 'month', 'thang', 'year', 'nam'
+    ],
+    contact: [
+      'email', 'phone', 'mobile', 'dienthoai', 'sodienthoai'
+    ],
+    note: [
+      'note', 'ghichu', 'description', 'mota', 'remark'
+    ],
+    reason: [
+      'reason', 'lydo', 'reasontext'
+    ],
+    sensitive: [
+      'cccd', 'cmnd', 'idcard', 'identitycard', 'cancuoccongdan'
+    ],
+    metric: [
+      'count', 'total', 'tong', 'soluong', 'songay', 'sogio', 'sophut',
+      'amount', 'quantity'
+    ],
+    currency: [
+      'money', 'currency', 'sotien', 'tongtien', 'luong', 'salary'
+    ],
+    percentage: [
+      'percentage', 'percent', 'tyle', 'phantram'
+    ]
+  });
+
+  var CATEGORY_TONES = Object.freeze([
+    'blue', 'indigo', 'violet', 'cyan', 'teal', 'green', 'amber', 'rose', 'slate'
+  ]);
+
+  var STATUS_REGISTRY = Object.freeze({
+    danger: [
+      'rejected', 'cancelled', 'failed', 'expired', 'inactive', 'deleted',
+      'tuchoi', 'huy', 'nghiviec', 'quahan', 'khongdat'
+    ],
+    warning: [
+      'pending', 'requested', 'waiting', 'draft', 'choduyet', 'dangxuly',
+      'thuviec', 'saphethan', 'tamhoan'
+    ],
+    info: [
+      'processing', 'submitted', 'inprogress', 'dangthuchien', 'dagui'
+    ],
+    success: [
+      'approved', 'active', 'completed', 'valid', 'success', 'daduyet',
+      'danghoatdong', 'hoanthanh', 'chinhthuc', 'dugiocong', 'dat'
+    ]
+  });
+
+  function normalizeText(value) {
+    var text = String(value == null ? '' : value)
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[\u0111\u0110]/g, 'd');
+    if (typeof text.normalize === 'function') {
+      text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
+
+  function stableHash(value) {
+    var text = normalizeText(value);
+    var hash = 0;
+    for (var i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash);
+  }
+
+  function safeMap(value) {
+    if (!value) return null;
+    if (typeof value === 'object' && !Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        var parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+      } catch (ignore) { }
+    }
+    return null;
+  }
+
+  function mapValue(map, value) {
+    if (!map) return undefined;
+    var rawKey = String(value == null ? '' : value);
+    if (Object.prototype.hasOwnProperty.call(map, rawKey)) return map[rawKey];
+    var normalizedKey = normalizeText(rawKey);
+    var keys = Object.keys(map);
+    for (var i = 0; i < keys.length; i++) {
+      if (normalizeText(keys[i]) === normalizedKey) return map[keys[i]];
+    }
+    return undefined;
+  }
+
+  function metadataFlag(value) {
+    return value === true || value === 1 || String(value || '').toLowerCase() === 'true' || String(value || '') === '1';
+  }
+
+  function matchesVocabulary(value, groupName) {
+    var normalized = normalizeText(value);
+    if (!normalized) return false;
+    var aliases = VOCABULARY[groupName] || [];
+    return aliases.some(function (alias) {
+      if (normalized === alias) return true;
+      return alias.length >= 4 && (normalized.indexOf(alias) === 0 || normalized.lastIndexOf(alias) === normalized.length - alias.length);
+    });
+  }
+
+  function matchesField(name, label, groupName) {
+    return matchesVocabulary(name, groupName) || matchesVocabulary(label, groupName);
+  }
+
+  function normalizeRole(value) {
+    var role = String(value || '').trim().toLowerCase().replace(/_/g, '-');
+    return ROLES[role] ? role : '';
+  }
+
+  function defaultVariant(role) {
+    if (role === 'person') return 'avatar';
+    if (role === 'status' || role === 'boolean') return 'badge';
+    if (role === 'category' || role === 'period') return 'chip';
+    return 'text';
+  }
+
+  function inferRole(metadata, fieldName, label, sampleValues) {
+    var explicitRole = normalizeRole(metadata.semanticRole || metadata.SemanticRole);
+    if (explicitRole) return explicitRole;
+
+    if (metadataFlag(metadata.isSensitiveOrDenied) || metadataFlag(metadata.IsSensitiveOrDenied)) return 'sensitive';
+
+    var normalizedName = normalizeText(fieldName);
+    if (normalizedName === 'rowselect' || normalizedName === 'selection' || normalizedName === 'checkbox') return 'selection';
+    if (normalizedName === 'action' || normalizedName === 'actions' || normalizedName === 'actioncolumn') return 'action';
+    if (metadataFlag(metadata.isPrimaryKey) || metadataFlag(metadata.IsPrimaryKey)
+      || metadataFlag(metadata.isIdentity) || metadataFlag(metadata.IsIdentity)) return 'primary-identifier';
+
+    var rule = normalizeText(metadata.semanticRenderRule || metadata.renderRule || metadata.RenderRule);
+    var format = normalizeText(metadata.formatType || metadata.FormatType || metadata.formatId || metadata.FormatID || metadata.formatString || metadata.FormatString);
+    var sqlType = normalizeText(metadata.sqlType || metadata.SqlType);
+
+    if (rule === 'sw' || rule === 'boolean' || sqlType === 'bit' || format === 'boolean') return 'boolean';
+    if (rule === 'dt' || rule === 'datetime' || sqlType === 'datetime' || sqlType === 'datetime2' || sqlType === 'smalldatetime') return 'datetime';
+    if (rule === 'd' || rule === 'date' || sqlType === 'date') return 'date';
+    if (rule === 'tm' || rule === 'time' || sqlType === 'time') return 'time';
+    if (rule === 'money' || rule === 'currency' || format.indexOf('money') >= 0 || format.indexOf('currency') >= 0) return 'currency';
+    if (rule === 'percentage' || rule === 'percent' || format.indexOf('percent') >= 0) return 'percentage';
+    if (rule === 'n' || rule === 'number' || rule === 'decimal' || /^(tinyint|smallint|int|bigint|decimal|numeric|float|real|money|smallmoney)$/.test(sqlType)) return 'metric';
+
+    if (metadata.lookupKey || metadata.LookupKey) return 'category';
+
+    if (matchesField(fieldName, label, 'person')) return 'person';
+    if (matchesField(fieldName, label, 'status')) return 'status';
+    if (matchesField(fieldName, label, 'sensitive')) return 'sensitive';
+    if (matchesField(fieldName, label, 'reason')) return 'reason';
+    if (matchesField(fieldName, label, 'note')) return 'note';
+    if (matchesField(fieldName, label, 'contact')) return 'contact';
+    if (matchesField(fieldName, label, 'period')) return 'period';
+    if (matchesField(fieldName, label, 'datetime')) return 'datetime';
+    if (matchesField(fieldName, label, 'time')) return 'time';
+    if (matchesField(fieldName, label, 'date')) return 'date';
+    if (matchesField(fieldName, label, 'currency')) return 'currency';
+    if (matchesField(fieldName, label, 'percentage')) return 'percentage';
+    if (matchesField(fieldName, label, 'metric')) return 'metric';
+    if (matchesField(fieldName, label, 'category') || metadata.dataSource || metadata.DataSource) return 'category';
+    if (matchesField(fieldName, label, 'identifier')) return 'primary-identifier';
+
+    var samples = (sampleValues || []).filter(function (value) { return value !== null && value !== undefined && value !== ''; });
+    if (samples.length && samples.every(function (value) { return typeof value === 'number' && isFinite(value); })) return 'metric';
+    if (samples.length && samples.every(function (value) { return Object.prototype.toString.call(value) === '[object Date]'; })) return 'datetime';
+
+    return 'default';
+  }
+
+  function resolveColumn(fieldMetadata, header, sampleValues) {
+    var source = fieldMetadata || {};
+    var metadata = Object.assign({}, source.fieldMetadata || {}, source);
+    var headerObject = header && typeof header === 'object' ? header : {};
+    var fieldName = metadata.name || metadata.field || headerObject.field || headerObject.name || '';
+    var label = metadata.label || headerObject.label || headerObject.title || (typeof header === 'string' ? header : fieldName);
+    var role = inferRole(metadata, fieldName, label, sampleValues);
+    var variant = String(metadata.displayVariant || metadata.DisplayVariant || defaultVariant(role)).trim().toLowerCase();
+
+    return {
+      role: role,
+      variant: variant || defaultVariant(role),
+      tone: String(metadata.tone || '').trim().toLowerCase(),
+      field: fieldName,
+      label: label,
+      metadata: metadata,
+      toneMap: safeMap(metadata.toneMap || metadata.ToneMap),
+      statusMap: safeMap(metadata.statusMap || metadata.StatusMap),
+      avatarField: metadata.avatarField || metadata.AvatarField || '',
+      secondaryField: metadata.secondaryField || metadata.SecondaryField || '',
+      classNames: ['table-cell', 'table-cell--' + role]
+    };
+  }
+
+  function valueFromRow(row, fieldName) {
+    if (!row || !fieldName) return undefined;
+    if (Object.prototype.hasOwnProperty.call(row, fieldName)) return row[fieldName];
+    var normalizedField = normalizeText(fieldName);
+    var key = Object.keys(row).find(function (item) { return normalizeText(item) === normalizedField; });
+    return key ? row[key] : undefined;
+  }
+
+  function relatedDisplayValue(columnSemantic, row) {
+    var explicit = valueFromRow(row, columnSemantic.secondaryField);
+    if (explicit !== undefined && explicit !== null && explicit !== '') return explicit;
+    if (columnSemantic.role !== 'status' && columnSemantic.role !== 'category') return undefined;
+
+    var fieldName = columnSemantic.field || '';
+    var candidates = [fieldName + 'Name', fieldName + 'Text', fieldName + 'Label'];
+    for (var i = 0; i < candidates.length; i++) {
+      var candidate = valueFromRow(row, candidates[i]);
+      if (candidate !== undefined && candidate !== null && candidate !== '') return candidate;
+    }
+    return undefined;
+  }
+
+  function statusTone(value, toneMap) {
+    var override = mapValue(toneMap, value);
+    if (override && typeof override === 'object') override = override.tone;
+    var normalizedOverride = String(override || '').toLowerCase();
+    if (['success', 'warning', 'danger', 'info', 'primary', 'neutral'].indexOf(normalizedOverride) >= 0) return normalizedOverride;
+
+    var normalized = normalizeText(value);
+    var registryOrder = ['danger', 'warning', 'info', 'success'];
+    for (var i = 0; i < registryOrder.length; i++) {
+      var tone = registryOrder[i];
+      if (STATUS_REGISTRY[tone].some(function (item) { return normalized === item || normalized.indexOf(item) >= 0; })) return tone;
+    }
+    return 'neutral';
+  }
+
+  function formattedValue(role, value, metadata) {
+    if (value === null || value === undefined) return '';
+    if (role === 'date' && typeof FormatUtils !== 'undefined' && FormatUtils.date) return FormatUtils.date(value);
+    if (role === 'currency' && typeof FormatUtils !== 'undefined' && FormatUtils.currency && value !== '') return FormatUtils.currency(value);
+    if ((role === 'metric' || role === 'percentage') && typeof FormatUtils !== 'undefined' && FormatUtils.number && value !== '' && !isNaN(value)) {
+      var numberText = FormatUtils.number(value);
+      return role === 'percentage' ? numberText + '%' : numberText;
+    }
+    return String(value);
+  }
+
+  function resolveCell(columnSemantic, value, row) {
+    var semantic = columnSemantic || resolveColumn({}, {}, [value]);
+    var role = semantic.role || 'default';
+    var displayValue = value;
+    var mappedStatus = role === 'status' ? mapValue(semantic.statusMap, value) : undefined;
+    var mappedTone = '';
+
+    if (mappedStatus && typeof mappedStatus === 'object') {
+      mappedTone = mappedStatus.tone || '';
+      displayValue = mappedStatus.label !== undefined ? mappedStatus.label : (mappedStatus.text !== undefined ? mappedStatus.text : value);
+    } else if (mappedStatus !== undefined) {
+      displayValue = mappedStatus;
+    } else {
+      var related = relatedDisplayValue(semantic, row);
+      if (related !== undefined) displayValue = related;
+    }
+
+    if (role === 'boolean') {
+      var isTrue = value === true || value === 1 || String(value).toLowerCase() === 'true' || String(value) === '1';
+      displayValue = isTrue ? 'C\u00f3' : 'Kh\u00f4ng';
+    } else {
+      displayValue = formattedValue(role, displayValue, semantic.metadata || {});
+    }
+
+    var tone = semantic.tone;
+    var toneOverride = mapValue(semantic.toneMap, value);
+    if (toneOverride && typeof toneOverride === 'object') toneOverride = toneOverride.tone;
+    if (role === 'status') tone = mappedTone || toneOverride || semantic.tone || statusTone(displayValue, null);
+    if (role === 'boolean') tone = displayValue === 'C\u00f3' ? 'success' : 'neutral';
+    if (role === 'category') tone = toneOverride || semantic.tone || CATEGORY_TONES[stableHash(displayValue) % CATEGORY_TONES.length];
+    if (role === 'period') tone = 'slate';
+
+    var avatarValue = role === 'person' ? valueFromRow(row, semantic.avatarField) : '';
+    if (avatarValue === undefined || avatarValue === null || avatarValue === '') avatarValue = displayValue;
+
+    return Object.assign({}, semantic, {
+      displayValue: displayValue,
+      rawValue: value,
+      tone: tone || 'neutral',
+      avatarValue: avatarValue,
+      avatarTone: CATEGORY_TONES[stableHash(avatarValue) % CATEGORY_TONES.length],
+      secondaryValue: role === 'person' ? valueFromRow(row, semantic.secondaryField) : ''
+    });
+  }
+
+  function initials(value) {
+    var words = String(value || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '--';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+  }
+
+  function textNode(tagName, className, value) {
+    var element = document.createElement(tagName || 'span');
+    if (className) element.className = className;
+    element.textContent = value == null ? '' : String(value);
+    return element;
+  }
+
+  function createContent(cellSemantic, value, row) {
+    var semantic = cellSemantic || resolveCell(resolveColumn({}, {}, [value]), value, row);
+    var displayValue = semantic.displayValue == null ? '' : String(semantic.displayValue);
+
+    if (!displayValue) return textNode('span', 'table-cell__text', '');
+
+    if (semantic.variant === 'avatar' || (semantic.role === 'person' && semantic.variant !== 'text')) {
+      var person = document.createElement('div');
+      person.className = 'cell-person';
+      var avatar = textNode('span', 'cell-person__avatar cell-person__avatar--' + semantic.avatarTone, initials(semantic.avatarValue || displayValue));
+      avatar.setAttribute('aria-hidden', 'true');
+      var personText = document.createElement('span');
+      personText.className = 'cell-person__text';
+      personText.appendChild(textNode('span', 'cell-person__name', displayValue));
+      if (semantic.secondaryValue !== undefined && semantic.secondaryValue !== null && semantic.secondaryValue !== '') {
+        personText.appendChild(textNode('span', 'cell-person__secondary', semantic.secondaryValue));
+      }
+      person.appendChild(avatar);
+      person.appendChild(personText);
+      return person;
+    }
+
+    if (semantic.variant === 'badge' || ((semantic.role === 'status' || semantic.role === 'boolean') && semantic.variant !== 'text')) {
+      var badge = document.createElement('span');
+      badge.className = 'semantic-badge semantic-badge--' + semantic.tone;
+      var dot = document.createElement('span');
+      dot.className = 'semantic-badge__dot';
+      dot.setAttribute('aria-hidden', 'true');
+      badge.appendChild(dot);
+      badge.appendChild(document.createTextNode(displayValue));
+      return badge;
+    }
+
+    if (semantic.variant === 'chip' || ((semantic.role === 'category' || semantic.role === 'period') && semantic.variant !== 'text')) {
+      var chip = textNode('span', 'semantic-chip semantic-chip--' + semantic.tone, displayValue);
+      if (displayValue) chip.title = displayValue;
+      return chip;
+    }
+
+    var text = textNode('span', 'table-cell__text', displayValue);
+    if ((semantic.role === 'note' || semantic.role === 'reason') && displayValue) text.title = displayValue;
+    return text;
+  }
+
+  return Object.freeze({
+    VOCABULARY: VOCABULARY,
+    normalizeText: normalizeText,
+    resolveColumn: resolveColumn,
+    resolveCell: resolveCell,
+    createContent: createContent
+  });
+})();
+
 /* --- Table.js --- */
 /**
  * Table Component
@@ -8920,15 +9426,6 @@ var UITable = (function () {
 
     var wrapper = document.createElement('div');
     wrapper.className = 'table-wrapper ' + (config.className || '');
-    // Bỏ viền 2 bên
-    wrapper.style.borderRadius = '0';
-    wrapper.style.borderTop = '1px solid var(--color-border, #e2e8f0)';
-    wrapper.style.borderBottom = '1px solid var(--color-border, #e2e8f0)';
-    wrapper.style.borderLeft = 'none';
-    wrapper.style.borderRight = 'none';
-    // Hỗ trợ scroll ngang trên cả mobile và desktop để xem toàn bộ cột
-    wrapper.style.overflowX = 'auto';
-    wrapper.style.overflowY = 'auto';
 
     var table = document.createElement('table');
     table.className = 'data-table';
@@ -8946,108 +9443,10 @@ var UITable = (function () {
     // Cập nhật lại style khi resize cửa sổ (responsive)
     window.addEventListener('resize', function () {
       var nowMobile = window.innerWidth <= 768;
-      wrapper.style.overflowX = 'auto';
       table.style.width = nowMobile ? '100%' : 'max-content';
       table.style.whiteSpace = nowMobile ? 'normal' : 'nowrap';
       table.style.tableLayout = nowMobile ? 'fixed' : 'auto';
     });
-
-    // Ép style thu gọn khoảng cách (Compact Density) + Sticky Columns
-    var styleDensity = document.createElement('style');
-    styleDensity.innerHTML = `
-      .table-wrapper .data-table th {
-         padding: 6px 10px !important;
-         height: 36px !important;
-         font-size: 13px !important;
-         font-weight: 700 !important;
-         background-color: var(--color-surface-elevated, #f1f5f9) !important;
-         color: var(--color-text, #1e293b) !important;
-      }
-      .table-wrapper .data-table td {
-         padding: 6px 10px !important;
-         height: 36px !important;
-         font-size: 13px !important;
-      }
-      .table-wrapper .data-table.no-mobile-stack {
-        width: max-content !important;
-        white-space: nowrap !important;
-        table-layout: auto !important;
-      }
-      /* ── Sticky Columns ── */
-      .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-        position: sticky !important;
-        z-index: 2 !important;
-        background: var(--color-surface, #fff);
-      }
-      /* Header sticky-col cần z-index cao hơn th thường (z-index:10) để không bị che khuất khi scroll */
-      .table-wrapper.has-sticky-cols .data-table thead th.sticky-col {
-        position: sticky !important;
-        z-index: 30 !important;  /* > 10 (th thường) và > resizer z-index: 10 */
-        background: var(--color-surface-elevated, #f1f5f9) !important;
-      }
-      .table-wrapper.has-sticky-cols .data-table th.sticky-col-last,
-      .table-wrapper.has-sticky-cols .data-table td.sticky-col-last {
-        box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);
-        border-right: 1px solid var(--color-border, #e2e8f0) !important;
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table th.sticky-col,
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-        background: var(--color-surface, #1e293b);
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
-        background: rgba(255,255,255,0.05);
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background-color: var(--color-surface, #1e293b) !important;
-        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.18)), var(--color-primary-light, rgba(67,97,238,0.18))) !important;
-      }
-      .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
-        background: var(--color-surface-elevated, #f8fafc);
-      }
-      .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background-color: var(--color-surface, #fff) !important;
-        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.06)), var(--color-primary-light, rgba(67,97,238,0.06))) !important;
-      }
-      @media (max-width: 768px) {
-        .table-wrapper .data-table th,
-        .table-wrapper .data-table td {
-          white-space: normal !important;
-          word-break: break-word !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-        }
-        .table-wrapper .data-table.no-mobile-stack th,
-        .table-wrapper .data-table.no-mobile-stack td {
-          white-space: nowrap !important;
-          word-break: normal !important;
-          overflow: visible !important;
-          text-overflow: clip !important;
-        }
-        .dynamic-grid-card .table-wrapper {
-          margin-left: 0 !important;
-          margin-right: 0 !important;
-          width: 100% !important;
-          overflow-x: auto !important;
-        }
-        .dynamic-grid-card .datagrid-pager {
-          margin-left: 0 !important;
-          margin-right: 0 !important;
-          width: 100% !important;
-        }
-        .table-wrapper .data-table th:first-child,
-        .table-wrapper .data-table td:first-child {
-          padding-left: 16px !important;
-        }
-        /* Tắt sticky trên mobile để không bị chồng lấp */
-        .table-wrapper.has-sticky-cols .data-table th.sticky-col,
-        .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-          position: static !important;
-          box-shadow: none !important;
-          border-right: none !important;
-        }
-      }
-    `;
-    wrapper.appendChild(styleDensity);
 
     // Số cột cần sticky (mặc định 0 = tắt)
     var stickyCount = (typeof config.stickyColumns === 'number' && config.stickyColumns > 0) ? config.stickyColumns : 0;
@@ -9095,8 +9494,32 @@ var UITable = (function () {
     var currentData = config.data ? config.data.slice() : [];
     var currentSort = config.currentSort ? { field: config.currentSort.field, dir: config.currentSort.dir } : { field: null, dir: 'asc' };
 
+    function semanticColumnFor(col, idx) {
+      if (typeof TableSemantic === 'undefined') return null;
+      var header = config.headers && config.headers[idx] ? config.headers[idx] : {
+        field: col.field,
+        label: col.label || col.field
+      };
+      var samples = currentData.slice(0, 20).map(function (row) {
+        return row ? row[col.field] : undefined;
+      });
+      return TableSemantic.resolveColumn(col.fieldMetadata || col, header, samples);
+    }
+
+    function appendSemanticContent(td, semanticCell, value, row) {
+      if (semanticCell && typeof TableSemantic !== 'undefined') {
+        td.appendChild(TableSemantic.createContent(semanticCell, value, row));
+      } else {
+        td.textContent = value !== undefined && value !== null ? value : '';
+      }
+    }
+
     function renderBody() {
       tbody.innerHTML = '';
+      var semanticColumns = config.columns
+        ? config.columns.map(function (col, idx) { return semanticColumnFor(col, idx); })
+        : [];
+
       if (currentData && currentData.length > 0) {
         currentData.forEach(function (row) {
           var tr = document.createElement('tr');
@@ -9106,59 +9529,56 @@ var UITable = (function () {
               var td = document.createElement('td');
               if (col.align) td.style.textAlign = col.align;
 
-              if (config.headers && config.headers[idx] && config.headers[idx].label) {
-                td.setAttribute('data-label', config.headers[idx].label);
-              }
+              var header = config.headers && config.headers[idx];
+              var headerLabel = header && typeof header === 'object' ? header.label : header;
+              if (headerLabel) td.setAttribute('data-label', headerLabel);
 
-              // Sticky column: gắn class + left ngay khi tạo td (không cần đợi rAF)
               if (stickyCount > 0 && idx < stickyCount) {
                 td.classList.add('sticky-col');
                 if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
                 td.style.left = (_stickyOffsets[idx] || 0) + 'px';
               }
 
-              var val = row[col.field];
-              var fieldName = (col.field || '').toLowerCase();
-              var headerLabel = (config.headers && config.headers[idx] && config.headers[idx].label ? config.headers[idx].label : '').toLowerCase();
+              var value = row[col.field];
+              var semanticCell = semanticColumns[idx] && typeof TableSemantic !== 'undefined'
+                ? TableSemantic.resolveCell(semanticColumns[idx], value, row)
+                : null;
 
-              // Tự động map trạng thái nếu là PersonStatus (để tránh hiển thị số 4, 1, 8 trên lưới)
-              if (fieldName === 'personstatus' || headerLabel.includes('trạng thái')) {
-                var statusMap = { '1': 'Thử việc', '4': 'Chính thức', '8': 'Nghỉ việc' };
-                val = statusMap[String(val)] || val;
+              if (semanticCell) {
+                semanticCell.classNames.forEach(function (className) {
+                  td.classList.add(className);
+                });
               }
 
-              if (fieldName.includes('cmnd') || fieldName.includes('cccd') || fieldName.includes('dienthoai') || fieldName.includes('sohopdong') || fieldName.includes('personid') || fieldName.includes('manhanvien') || fieldName === 'id' || fieldName === 'manv' || headerLabel.includes('cccd') || headerLabel.includes('mã nhân viên') || headerLabel.includes('điện thoại') || headerLabel.includes('hợp đồng')) {
-                td.classList.add('column-identity');
-              } else if (fieldName.includes('ngay') || fieldName.includes('date') || headerLabel.includes('ngày') || headerLabel.includes('date')) {
-                td.classList.add('column-date');
-              } else if (fieldName.includes('status') || fieldName.includes('trangthai') || headerLabel.includes('trạng thái')) {
-                td.classList.add('column-status');
-              } else if (fieldName.includes('hoten') || fieldName.includes('fullname') || headerLabel.includes('họ tên') || headerLabel.includes('họ và tên')) {
-                td.classList.add('column-primary');
-              } else if (typeof val === 'number' || fieldName.includes('songay') || fieldName.includes('tong') || fieldName.includes('count') || fieldName.includes('soluong')) {
-                td.classList.add('column-number');
-              }
               if (col.render) {
-                var rendered = col.render(val, row);
-                if (typeof rendered === 'string') td.innerHTML = rendered;
-                else if (rendered instanceof Node) td.appendChild(rendered);
+                var rendered = col.render(value, row);
+                if ((rendered === null || rendered === undefined) && col.semanticFallback === true) {
+                  appendSemanticContent(td, semanticCell, value, row);
+                } else if (typeof rendered === 'string') {
+                  td.innerHTML = rendered;
+                } else if (typeof Node !== 'undefined' && rendered instanceof Node) {
+                  td.appendChild(rendered);
+                } else if (rendered !== null && rendered !== undefined) {
+                  td.textContent = String(rendered);
+                }
               } else {
-                td.innerText = val !== undefined && val !== null ? val : '';
+                appendSemanticContent(td, semanticCell, value, row);
               }
+
               tr.appendChild(td);
             });
           } else {
-            row.forEach(function (cellStr, idx) {
+            row.forEach(function (cellValue, idx) {
               var td = document.createElement('td');
               if (stickyCount > 0 && idx < stickyCount) {
                 td.classList.add('sticky-col');
                 if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
                 td.style.left = (_stickyOffsets[idx] || 0) + 'px';
               }
-              if (typeof cellStr === 'string' && cellStr.indexOf('<') > -1) {
-                td.innerHTML = cellStr;
+              if (typeof cellValue === 'string' && cellValue.indexOf('<') > -1) {
+                td.innerHTML = cellValue;
               } else {
-                td.innerText = cellStr;
+                td.textContent = cellValue !== undefined && cellValue !== null ? cellValue : '';
               }
               tr.appendChild(td);
             });
@@ -9169,24 +9589,16 @@ var UITable = (function () {
       } else {
         var trEmpty = document.createElement('tr');
         trEmpty.className = 'empty-row';
-        trEmpty.style.border = 'none';
-        trEmpty.style.background = 'transparent';
-        trEmpty.style.boxShadow = 'none';
 
         var tdEmpty = document.createElement('td');
+        tdEmpty.className = 'table-empty-cell';
         tdEmpty.colSpan = config.headers ? config.headers.length : 1;
-        tdEmpty.style.display = 'block';
-        tdEmpty.style.textAlign = 'center';
-        tdEmpty.style.padding = '32px 16px';
-        tdEmpty.style.color = 'var(--color-text-secondary)';
-        tdEmpty.style.borderBottom = 'none';
-        tdEmpty.innerText = 'Không có dữ liệu';
+        tdEmpty.textContent = 'Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u';
 
         trEmpty.appendChild(tdEmpty);
         tbody.appendChild(trEmpty);
       }
     }
-
     // Thead
     function renderHead() {
       thead.innerHTML = '';
@@ -9492,6 +9904,19 @@ var UITable = (function () {
 
     var dynamicHeaders = [];
     var dynamicColumns = [];
+    var suppliedFields = options.fieldMetadata || options.fields || [];
+
+    function metadataFor(key, label) {
+      var metadata = null;
+      if (Array.isArray(suppliedFields)) {
+        metadata = suppliedFields.find(function (field) {
+          return field && String(field.name || field.field || '').toLowerCase() === String(key).toLowerCase();
+        });
+      } else if (suppliedFields && typeof suppliedFields === 'object') {
+        metadata = suppliedFields[key];
+      }
+      return Object.assign({ name: key, field: key, label: label }, metadata || {});
+    }
 
     // Lấy keys: ưu tiên lọc theo dictionary nếu dictionary không rỗng để chỉ hiện các cột được cấu hình.
     // Nếu dictionary rỗng hoặc không khớp khóa nào, ta mới lấy toàn bộ keys từ data.
@@ -9518,7 +9943,16 @@ var UITable = (function () {
 
         var headerLabel = dictionary[key] || key;
         var header = { label: headerLabel, sortable: true, field: key };
-        var col = { field: key };
+        var fieldMetadata = metadataFor(key, headerLabel);
+        var col = {
+          field: key,
+          label: headerLabel,
+          align: fieldMetadata.align,
+          fieldMetadata: fieldMetadata,
+          semanticRole: fieldMetadata.semanticRole || '',
+          displayVariant: fieldMetadata.displayVariant || '',
+          semanticFallback: true
+        };
 
         // Default render: JSON-aware or Tooltip
         col.render = function (v) {
@@ -9605,8 +10039,7 @@ var UITable = (function () {
               // Ignore and fallback
             }
           }
-          var safeVal = String(v).replace(/"/g, '&quot;');
-          return '<span title="' + safeVal + '">' + safeVal + '</span>';
+          return null;
         };
 
         // Heuristic Width
@@ -9627,17 +10060,18 @@ var UITable = (function () {
         if ((keyLower.indexOf('date') >= 0 || keyLower.indexOf('ngày') >= 0 || keyLower.indexOf('ngay') >= 0) && keyLower.indexOf('songay') === -1 && keyLower.indexOf('so_ngay') === -1) {
           header.align = 'center';
           col.align = 'center';
-          col.render = function (v) { return typeof FormatUtils !== 'undefined' ? FormatUtils.date(v) : v; };
         }
 
         // Custom renderer (nếu truyền vào)
         if (options.actionRenderers && options.actionRenderers[key]) {
           var customRender = options.actionRenderers[key];
           col.render = function (v, row) { return customRender(v, row, key); };
+          col.semanticFallback = false;
         } else if (options.actionRenderers && options.actionRenderers[headerLabel]) {
           // Hoặc kiểm tra theo label tiếng Việt nếu dev truyền key là label
           var customRenderLabel = options.actionRenderers[headerLabel];
           col.render = function (v, row) { return customRenderLabel(v, row, key); };
+          col.semanticFallback = false;
         }
 
         dynamicHeaders.push(header);
@@ -11171,6 +11605,7 @@ var UIFileUpload = (function () {
     input.type = 'file';
     if (config.id) input.id = config.id;
     if (config.accept) input.accept = config.accept;
+    if (config.multiple) input.multiple = true;
 
     var icon = document.createElement('span');
     icon.className = 'material-symbols-outlined ui-upload-icon';
@@ -11191,6 +11626,7 @@ var UIFileUpload = (function () {
 
     // Xử lý sự kiện Drag & Drop css ảo diệu
     wrapper.addEventListener('dragover', function(e) {
+      e.preventDefault();
       wrapper.classList.add('dragover');
     });
 
@@ -11199,13 +11635,27 @@ var UIFileUpload = (function () {
     });
 
     wrapper.addEventListener('drop', function(e) {
+      e.preventDefault();
       wrapper.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        if (typeof config.onChange === 'function') {
+          if (config.multiple) {
+            config.onChange(Array.from(e.dataTransfer.files));
+          } else {
+            config.onChange(e.dataTransfer.files[0]);
+          }
+        }
+      }
     });
 
     if (typeof config.onChange === 'function') {
       input.addEventListener('change', function(e) {
         if (e.target.files && e.target.files.length > 0) {
-          config.onChange(e.target.files[0]);
+          if (config.multiple) {
+            config.onChange(Array.from(e.target.files));
+          } else {
+            config.onChange(e.target.files[0]);
+          }
         }
       });
     }
@@ -13132,12 +13582,6 @@ var ScreenCapture = (function () {
  * Desktop keeps a table; mobile receives the same records as stacked cards.
  */
 window.ResponsiveDataRenderer = (function () {
-  function escape(value) {
-    return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
-    });
-  }
-
   function columns(metadata) {
     return (metadata || []).filter(function (field) { return field && field.MobileVisible !== false; }).sort(function (a, b) {
       return (a.MobileOrder == null ? 9999 : a.MobileOrder) - (b.MobileOrder == null ? 9999 : b.MobileOrder);
@@ -13146,24 +13590,60 @@ window.ResponsiveDataRenderer = (function () {
 
   function render(container, records, metadata) {
     if (!container) return null;
+    var rows = records || [];
     var fields = columns(metadata);
+    var semantics = fields.map(function (field) {
+      var key = field.name || field.field;
+      var samples = rows.slice(0, 20).map(function (record) { return record ? record[key] : undefined; });
+      return typeof TableSemantic !== 'undefined'
+        ? TableSemantic.resolveColumn(field, {
+          field: key,
+          label: field.MobileLabel || field.label || key
+        }, samples)
+        : null;
+    });
+
     var wrapper = document.createElement('div');
     wrapper.className = 'responsive-data-renderer';
     var table = document.createElement('table');
     table.className = 'data-table responsive-data-renderer__table';
+
     var head = document.createElement('thead');
-    head.innerHTML = '<tr>' + fields.map(function (field) { return '<th>' + escape(field.label || field.MobileLabel || field.name) + '</th>'; }).join('') + '</tr>';
+    var headRow = document.createElement('tr');
+    fields.forEach(function (field) {
+      var cell = document.createElement('th');
+      cell.textContent = field.label || field.MobileLabel || field.name || field.field || '';
+      headRow.appendChild(cell);
+    });
+    head.appendChild(headRow);
+
     var body = document.createElement('tbody');
-    (records || []).forEach(function (record) {
+    rows.forEach(function (record) {
       var row = document.createElement('tr');
-      row.innerHTML = fields.map(function (field) {
+      fields.forEach(function (field, index) {
         var key = field.name || field.field;
-        return '<td data-label="' + escape(field.MobileLabel || field.label || key) + '">' + escape(record[key]) + '</td>';
-      }).join('');
+        var value = record[key];
+        var cell = document.createElement('td');
+        cell.setAttribute('data-label', field.MobileLabel || field.label || key);
+
+        var semanticColumn = semantics[index];
+        if (semanticColumn && typeof TableSemantic !== 'undefined') {
+          var semanticCell = TableSemantic.resolveCell(semanticColumn, value, record);
+          semanticCell.classNames.forEach(function (className) { cell.classList.add(className); });
+          cell.appendChild(TableSemantic.createContent(semanticCell, value, record));
+        } else {
+          cell.textContent = value == null ? '' : String(value);
+        }
+        row.appendChild(cell);
+      });
       body.appendChild(row);
     });
-    table.appendChild(head); table.appendChild(body); wrapper.appendChild(table);
-    container.innerHTML = ''; container.appendChild(wrapper);
+
+    table.appendChild(head);
+    table.appendChild(body);
+    wrapper.appendChild(table);
+    container.innerHTML = '';
+    container.appendChild(wrapper);
     return wrapper;
   }
 
@@ -13440,10 +13920,10 @@ var WizardForm = (function () {
 
       /* ── Avatar Layout ───────────────────────────────────────────── */
       '.wz-step-body-wrapper { display:flex; gap:24px; align-items:flex-start; margin-top:16px; }',
-      '.wz-avatar-col { width:180px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
-      '.wz-avatar-frame { width:150px; height:150px; border-radius:50%; overflow:hidden; border:4px solid var(--color-primary,#4338ca); box-shadow:0 6px 16px rgba(67,56,202,0.16); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:transform 0.2s ease; }',
-      '.wz-avatar-frame:hover { transform:scale(1.05); }',
-      '.wz-avatar-btn { border-radius:16px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
+      '.wz-avatar-col { width:200px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
+      '.wz-avatar-frame { width:175px; height:175px; border-radius:18px; overflow:hidden; border:3px solid #ffffff; box-shadow:0 8px 24px -4px rgba(15,23,42,0.12), 0 0 0 1px rgba(226,232,240,0.8); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:all 0.3s cubic-bezier(0.4,0,0.2,1); }',
+      '.wz-avatar-frame:hover { transform:scale(1.02); box-shadow:0 12px 32px -4px rgba(67,56,202,0.2); }',
+      '.wz-avatar-btn { border-radius:12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
       '.wz-avatar-btn:hover { background-color:var(--color-primary,#4338ca); color:#fff; }',
 
       /* ── Empty state ────────────────────────────────────────────── */
@@ -16583,6 +17063,16 @@ window.DynamicDetailManager = (function () {
 /* --- DynamicAttachmentManager.js --- */
 /** Attachment tab orchestration. Business keys come only from tab configuration. */
 window.DynamicAttachmentManager = (function () {
+  function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function endpoint(moduleConfig) {
     return moduleConfig.apiGateway || AppConfig.apiGateway;
   }
@@ -16775,45 +17265,90 @@ window.DynamicAttachmentManager = (function () {
       var wrap = document.createElement('div');
       wrap.style.cssText = 'border:1px dashed var(--color-border-strong);border-radius:8px;padding:16px;background:var(--color-surface);display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;';
 
-      function processFile(file) {
-        if (!file) return;
-        if (file.size > 10 * 1024 * 1024) {
-          notify('error', 'Tệp quá lớn', 'Hệ thống chỉ hỗ trợ tệp tối đa 10MB.');
-          return;
+      function processFiles(fileList) {
+        if (!fileList) return;
+        var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
+        if (!files.length) return;
+
+        var validFiles = [];
+        for (var i = 0; i < files.length; i++) {
+          if (files[i].size > 10 * 1024 * 1024) {
+            notify('error', 'Tệp quá lớn', 'Tệp ' + files[i].name + ' vượt quá dung lượng tối đa 10MB.');
+          } else {
+            validFiles.push(files[i]);
+          }
         }
+        if (!validFiles.length) return;
+
         var keyField = tabDef.filterField || moduleConfig.PrimaryKey;
         var keyValue = row && row[moduleConfig.PrimaryKey];
-        var reader = new FileReader();
-        reader.onload = function (event) {
-          var bytes = new Uint8Array(event.target.result);
-          var hex = '0x' + Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-          var base64Reader = new FileReader();
-          base64Reader.onload = function (base64Event) {
-            var data = { IsEdit: 0, FileName: file.name, FileType: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) ? 1 : 0, STT: nextOrder, FileSize: file.size, Base64Content: String(base64Event.target.result).split(',')[1] || '', Content: hex };
-            data[keyField] = keyValue || '';
-            wrap.innerHTML = '<span style="color:var(--color-text-secondary);">Đang lưu tài liệu lên máy chủ...</span>';
-            api.post(gateway, { List: tabDef.saveApi || tabDef.api, Func: tabDef.saveFunc || 'Save', JsonData: JSON.stringify(data), UserName: currentUser() }).then(function (result) {
-              if (codeOf(result) === 0 || codeOf(result) === '0') { notify('success', 'Thành công', 'Tải tệp đính kèm lên thành công!'); reload(); }
-              else { notify('error', 'Lỗi lưu tệp', result && (result.msg || result.Msg) || 'Không thể lưu tệp lên CSDL.'); reload(); }
-            }).catch(function () { notify('error', 'Lỗi', 'Không thể kết nối đến máy chủ.'); reload(); });
+        var total = validFiles.length;
+
+        function uploadNext(index) {
+          if (index >= total) {
+            notify('success', 'Thành công', 'Đã tải lên thành công ' + total + ' tài liệu đính kèm!');
+            reload();
+            return;
+          }
+          var file = validFiles[index];
+          var currentSTT = nextOrder + index;
+          wrap.innerHTML = '<span style="color:var(--color-primary); font-weight:600;"><span class="spinner-border spinner-border-sm me-2"></span>Đang tải lên (' + (index + 1) + '/' + total + '): ' + escapeHTML(file.name) + '...</span>';
+
+          var reader = new FileReader();
+          reader.onload = function (event) {
+            var bytes = new Uint8Array(event.target.result);
+            var hex = '0x' + Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+            var base64Reader = new FileReader();
+            base64Reader.onload = function (base64Event) {
+              var data = {
+                IsEdit: 0,
+                FileName: file.name,
+                FileType: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) ? 1 : 0,
+                STT: currentSTT,
+                FileSize: file.size,
+                Base64Content: String(base64Event.target.result).split(',')[1] || '',
+                Content: hex
+              };
+              data[keyField] = keyValue || '';
+              api.post(gateway, {
+                List: tabDef.saveApi || tabDef.api,
+                Func: tabDef.saveFunc || 'Save',
+                JsonData: JSON.stringify(data),
+                UserName: currentUser()
+              }).then(function (result) {
+                if (codeOf(result) === 0 || codeOf(result) === '0') {
+                  uploadNext(index + 1);
+                } else {
+                  notify('error', 'Lỗi lưu tệp', (result && (result.msg || result.Msg)) || ('Không thể lưu tệp ' + file.name + ' lên CSDL.'));
+                  reload();
+                }
+              }).catch(function () {
+                notify('error', 'Lỗi', 'Không thể kết nối đến máy chủ.');
+                reload();
+              });
+            };
+            base64Reader.readAsDataURL(file);
           };
-          base64Reader.readAsDataURL(file);
-        };
-        reader.readAsArrayBuffer(file);
+          reader.readAsArrayBuffer(file);
+        }
+
+        uploadNext(0);
       }
 
       if (window.UIFileUpload && typeof UIFileUpload.create === 'function') {
         wrap.appendChild(UIFileUpload.create({
           id: 'attach-upload-input',
-          text: 'Kéo thả tệp/ảnh hoặc click để tải lên',
-          hint: 'Hỗ trợ: PDF, JPG, PNG... Tối đa 10MB',
-          onChange: processFile
+          text: 'Kéo thả tệp/ảnh hoặc click để tải lên nhiều tệp',
+          hint: 'Hỗ trợ: PDF, JPG, PNG, DOCX... (Tối đa 10MB/tệp)',
+          multiple: true,
+          onChange: processFiles
         }));
       } else {
         var input = document.createElement('input');
         input.type = 'file';
+        input.multiple = true;
         input.accept = tabDef.accept || '*/*';
-        input.onchange = function () { processFile(input.files && input.files[0]); };
+        input.onchange = function () { processFiles(input.files); };
         wrap.appendChild(input);
       }
       container.appendChild(wrap);
@@ -16854,6 +17389,42 @@ window.DynamicAttachmentManager = (function () {
     TitleAdd: 'Thêm người dùng',
     TitleEdit: 'Sửa người dùng',
     TitleView: 'Chi tiết người dùng'
+  };
+  definitions.access['SY_FORMATFLDTBL'] = {
+    FormName: 'SY_FormatfldTbl',
+    PrimaryKey: 'AutoID',
+    PageTitle: 'Cấu hình động',
+    TitleAdd: 'Thêm cấu hình động',
+    TitleEdit: 'Sửa cấu hình động',
+    TitleView: 'Chi tiết cấu hình động',
+    FormFields: [
+      { name: 'AutoID', title: 'ID', width: 80, hozAlign: 'center' },
+      { name: 'FormName', title: 'Mã Form', width: 220, hozAlign: 'left' },
+      { name: 'FieldName', title: 'Tên trường (FieldName)', width: 220, hozAlign: 'left' },
+      { name: 'CaptionVN', title: 'Tiêu đề VN', width: 200, hozAlign: 'left' },
+      { name: 'CaptionEN', title: 'Tiêu đề EN', width: 200, hozAlign: 'left' },
+      { name: 'FormatID', title: 'Định dạng (FormatID)', width: 140, hozAlign: 'center' },
+      { name: 'AlignX', title: 'Canh lề', width: 90, hozAlign: 'center' },
+      { name: 'IsSystem', title: 'Hệ thống', width: 90, hozAlign: 'center' }
+    ]
+  };
+  definitions.access['SY_FORMATFIELDS'] = {
+    FormName: 'SY_FormatfldTbl',
+    PrimaryKey: 'AutoID',
+    PageTitle: 'Cấu hình động',
+    TitleAdd: 'Thêm cấu hình động',
+    TitleEdit: 'Sửa cấu hình động',
+    TitleView: 'Chi tiết cấu hình động',
+    FormFields: [
+      { name: 'AutoID', title: 'ID', width: 80, hozAlign: 'center' },
+      { name: 'FormName', title: 'Mã Form', width: 220, hozAlign: 'left' },
+      { name: 'FieldName', title: 'Tên trường (FieldName)', width: 220, hozAlign: 'left' },
+      { name: 'CaptionVN', title: 'Tiêu đề VN', width: 200, hozAlign: 'left' },
+      { name: 'CaptionEN', title: 'Tiêu đề EN', width: 200, hozAlign: 'left' },
+      { name: 'FormatID', title: 'Định dạng (FormatID)', width: 140, hozAlign: 'center' },
+      { name: 'AlignX', title: 'Canh lề', width: 90, hozAlign: 'center' },
+      { name: 'IsSystem', title: 'Hệ thống', width: 90, hozAlign: 'center' }
+    ]
   };
 })(window);
 
@@ -17203,7 +17774,11 @@ window.DynamicAttachmentManager = (function () {
     PrimaryKey: 'UserAutoID',
     ReadOnlyReport: true,
     DynamicResultColumns: true,
+    MetadataSource: 'FIELD_SYNC_V2',
+    RefreshV2MetadataOnLoad: true,
     SelectableRows: false,
+    HideSearch: true,
+    BranchFilterAsContext: true,
     HideAddBtn: true,
     HideEditBtn: true,
     HideDeleteBtn: true,
@@ -17231,7 +17806,8 @@ window.DynamicAttachmentManager = (function () {
         name: 'Ngay',
         label: 'Ngày',
         renderRule: 'd',
-        type: 'date'
+        type: 'date',
+        submitFormat: 'yyyyMMdd'
       },
       {
         name: 'BranchID',
@@ -18985,16 +19561,38 @@ var ContractDocumentActions = (function (global) {
 
   var onlyOfficeLoader = null;
 
+  function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function notify(type, title, message) {
+    var titleStr = title || (type === 'error' ? 'Lỗi' : 'Thành công');
+    var msgStr = message || '';
     if (global.Alert && typeof global.Alert[type] === 'function') {
-      global.Alert[type](title, message);
+      global.Alert[type](titleStr, msgStr);
+      return;
+    }
+    if (global.Swal && typeof global.Swal.fire === 'function') {
+      global.Swal.fire({
+        icon: type === 'error' ? 'error' : 'success',
+        title: titleStr,
+        text: msgStr,
+        timer: 2500,
+        showConfirmButton: false
+      });
       return;
     }
     if (global.UIToast && typeof global.UIToast.show === 'function') {
-      global.UIToast.show(message, type === 'error' ? 'error' : type);
+      global.UIToast.show((titleStr ? titleStr + ': ' : '') + msgStr, type === 'error' ? 'error' : type);
       return;
     }
-    global.alert((title ? title + ': ' : '') + message);
+    global.alert((titleStr ? titleStr + ': ' : '') + msgStr);
   }
 
   function delay(milliseconds) {
@@ -19153,12 +19751,13 @@ var ContractDocumentActions = (function (global) {
     editorArea.className = 'contract-doc-editor-area';
     editorArea.id = 'contract-doc-editor-' + Date.now();
 
+    toolbar.appendChild(createButton('Phóng to / Thu nhỏ', 'fullscreen'));
     toolbar.appendChild(createButton('Xem trước', 'preview'));
     toolbar.appendChild(createButton('Tải DOCX', 'download'));
     toolbar.appendChild(createButton('Tải bản đã sửa lên', 'upload'));
     if (options.kind === 'draft') toolbar.appendChild(createButton('Lưu vào hợp đồng', 'finalize', true));
     if (options.kind === 'template') {
-      toolbar.appendChild(createButton('Kiểm tra placeholder', 'validate'));
+      toolbar.appendChild(createButton('Kiểm tra mẫu', 'validate'));
       toolbar.appendChild(createButton('Áp dụng mẫu', 'apply', true));
     }
     toolbar.appendChild(createButton('Đóng', 'close'));
@@ -19173,6 +19772,25 @@ var ContractDocumentActions = (function (global) {
     function setStatus(message, error) {
       status.textContent = message || '';
       status.classList.toggle('is-error', Boolean(error));
+      status.classList.toggle('is-active', Boolean(message && !error && message.indexOf('sẵn sàng') === -1));
+    }
+
+    function showLoadingOverlay(titleText, subtitleText) {
+      hideLoadingOverlay();
+      var loader = document.createElement('div');
+      loader.className = 'contract-doc-loading-overlay';
+      loader.id = 'contract-doc-loading-overlay';
+      loader.innerHTML = '<div class="contract-doc-loading-box">' +
+        '<div class="contract-doc-spinner"></div>' +
+        '<div class="contract-doc-loading-title">' + escapeHTML(titleText || 'Đang xử lý...') + '</div>' +
+        '<div class="contract-doc-loading-sub">' + escapeHTML(subtitleText || 'Vui lòng chờ trong giây lát...') + '</div>' +
+        '</div>';
+      shell.appendChild(loader);
+    }
+
+    function hideLoadingOverlay() {
+      var existing = shell.querySelector('#contract-doc-loading-overlay');
+      if (existing) existing.remove();
     }
 
     function destroyEditor() {
@@ -19185,14 +19803,31 @@ var ContractDocumentActions = (function (global) {
     function mountEditor() {
       destroyEditor();
       editorArea.innerHTML = '';
-      setStatus('Đang kết nối OnlyOffice...', false);
+      setStatus('Đang khởi tạo trình soạn thảo hợp đồng...', false);
+      showLoadingOverlay('Đang tải văn bản...', 'Vui lòng chờ trình soạn thảo nạp nội dung hợp đồng...');
       return loadOnlyOffice(state.data.onlyOfficePublicUrl).then(function () {
         if (state.closed) return;
-        state.editor = new global.DocsAPI.DocEditor(editorArea.id, state.data.editorConfig);
-        setStatus('OnlyOffice đã sẵn sàng. Bạn cũng có thể tải DOCX để sửa bằng WPS/Word.', false);
+        var editorCfg = state.data.editorConfig || {};
+        var existingEvents = editorCfg.events || {};
+        editorCfg.events = Object.assign({}, existingEvents, {
+          onAppReady: function () {
+            hideLoadingOverlay();
+            if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+            if (existingEvents.onAppReady) existingEvents.onAppReady();
+          },
+          onDocumentReady: function () {
+            hideLoadingOverlay();
+            if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+            if (existingEvents.onDocumentReady) existingEvents.onDocumentReady();
+          }
+        });
+        state.editor = new global.DocsAPI.DocEditor(editorArea.id, editorCfg);
+        setStatus('Trình soạn thảo đã sẵn sàng. Bạn có thể chỉnh sửa trực tiếp hoặc tải file DOCX về máy.', false);
+        setTimeout(hideLoadingOverlay, 3500);
       }).catch(function () {
-        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>OnlyOffice chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, sửa bằng WPS/Word rồi tải lại.</span></div>';
-        setStatus('Không mở được OnlyOffice tại ' + state.data.onlyOfficePublicUrl + '.', true);
+        hideLoadingOverlay();
+        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>Trình xem văn bản trực tuyến chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, chỉnh sửa bằng Microsoft Word / WPS Office rồi tải lên lại.</span></div>';
+        setStatus('Chưa kết nối được hệ thống xem văn bản trực tuyến.', true);
       });
     }
 
@@ -19206,6 +19841,7 @@ var ContractDocumentActions = (function (global) {
     function close() {
       state.closed = true;
       destroyEditor();
+      hideLoadingOverlay();
       overlay.remove();
       global.__contractDocumentEditorOpen = false;
     }
@@ -19216,17 +19852,24 @@ var ContractDocumentActions = (function (global) {
       event.preventDefault();
       event.stopPropagation();
       var action = button.dataset.action;
+      if (action === 'fullscreen') {
+        overlay.classList.toggle('is-fullscreen');
+        return;
+      }
       if (action === 'preview') return global.open(state.data.previewUrl, '_blank', 'noopener');
       if (action === 'download') return download(state.data.downloadUrl);
       if (action === 'close') return close();
       if (action === 'upload') {
         return openFilePicker(function (file) {
           button.disabled = true;
-          setStatus('Đang tải file DOCX lên workspace...', false);
+          setStatus('Đang tải bản tài liệu mới...', false);
+          showLoadingOverlay('Đang tải file lên...', 'Vui lòng chờ hệ thống cập nhật tài liệu mới.');
           options.upload(file).then(function () {
-            notify('success', 'Thành công', 'Đã cập nhật bản DOCX trong workspace, chưa lưu vào DB.');
+            hideLoadingOverlay();
+            notify('success', 'Thành công', 'Đã cập nhật bản tài liệu mới.');
             return refreshEditor();
           }).catch(function (error) {
+            hideLoadingOverlay();
             notify('error', 'Không tải được file', error.message);
             setStatus(error.message, true);
           }).finally(function () { button.disabled = false; });
@@ -19237,23 +19880,41 @@ var ContractDocumentActions = (function (global) {
         return options.validate().then(function (result) {
           var valid = result.valid.length ? result.valid.join(', ') : '(không có)';
           var unknown = result.unknown.length ? result.unknown.join(', ') : '(không có)';
-          global.alert('Placeholder hợp lệ:\n' + valid + '\n\nPlaceholder chưa xác định:\n' + unknown);
+          global.alert('Trường dữ liệu hợp lệ:\n' + valid + '\n\nTrường chưa xác định:\n' + unknown);
         }).catch(function (error) { notify('error', 'Kiểm tra thất bại', error.message); })
           .finally(function () { button.disabled = false; });
       }
       if (action === 'finalize' || action === 'apply') {
         button.disabled = true;
-        destroyEditor();
-        setStatus('Đang chờ OnlyOffice lưu phiên bản mới nhất...', false);
-        return delay(1200).then(function () {
-          return retryAfterOnlyOfficeSave(options.complete, 6);
-        }).then(function (result) {
-          if (action === 'finalize') {
-            notify('success', 'Đã lưu', 'DOCX đã được lưu vào tài liệu đính kèm của hợp đồng.');
-          } else {
-            notify('success', 'Đã áp dụng mẫu', 'Mẫu cũ đã được backup thành ' + result.backupName + '.');
+        var loadingTitle = action === 'finalize' ? 'Đang lưu hợp đồng...' : 'Đang áp dụng mẫu...';
+        var loadingSub = action === 'finalize'
+          ? 'Hệ thống đang đồng bộ phiên bản hợp đồng vừa chỉnh sửa...'
+          : 'Hệ thống đang đồng bộ và cập nhật mẫu mới...';
+        setStatus('Đang đồng bộ dữ liệu...', false);
+        showLoadingOverlay(loadingTitle, loadingSub);
+
+        // Kích hoạt OnlyOffice đẩy bản ghi chỉnh sửa mới nhất về backend
+        if (state.editor && typeof state.editor.serviceCommand === 'function') {
+          try {
+            state.editor.serviceCommand('forcesave');
+          } catch (e) {
+            console.warn('[OnlyOffice] forcesave:', e);
           }
+        }
+
+        // Đóng trình biên tập để OnlyOffice gửi callback lưu phiên làm việc cuối cùng
+        destroyEditor();
+
+        // Chờ 1.5s để backend hoàn tất tải file DOCX mới nhất ghi vào ổ đĩa trước khi áp dụng
+        return delay(1500).then(function () {
+          return options.complete();
+        }).then(function (result) {
+          hideLoadingOverlay();
           close();
+          var successMsg = action === 'finalize'
+            ? 'Hợp đồng đã được lưu thành công vào CSDL và danh sách tài liệu đính kèm!'
+            : 'Mẫu hợp đồng mới đã được áp dụng thành công!';
+          notify('success', 'Thành công', successMsg);
           if (action === 'finalize') {
             if (global.DynamicFormEngine && typeof global.DynamicFormEngine.reloadDetailTabs === 'function') {
               global.DynamicFormEngine.reloadDetailTabs();
@@ -19262,6 +19923,7 @@ var ContractDocumentActions = (function (global) {
             }
           }
         }).catch(function (error) {
+          hideLoadingOverlay();
           notify('error', action === 'finalize' ? 'Không thể lưu hợp đồng' : 'Không thể áp dụng mẫu', error.message);
           setStatus(error.message, true);
           button.disabled = false;
@@ -21718,7 +22380,11 @@ window.DynamicFormEngine = (function () {
       && _isUnifiedMetadataForm(MODULE_CONFIG.FormName)
       && window.FieldSyncService
       && typeof FieldSyncService.observeForm === 'function') {
-      pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
+      pConfig = FieldSyncService.observeForm(
+        MODULE_CONFIG.FormName,
+        [],
+        MODULE_CONFIG.RefreshV2MetadataOnLoad === true
+      ).then(function (state) {
         fieldContractState = state || null;
         if (state && state.metadataActive === true && state.schema && state.runtimeSchemas) {
           if (!configuredPrimaryKey) MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
@@ -24752,14 +25418,14 @@ window.DynamicFormEngine = (function () {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
           photoBox.className = 'photo-box-wrapper';
-          photoBox.style.cssText = 'width: 180px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
+          photoBox.style.cssText = 'width: 200px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
 
           var imgFrame = document.createElement('div');
           imgFrame.className = 'detail-img-frame';
-          imgFrame.style.cssText = 'width: 160px; height: 160px; border: 4px solid var(--color-surface, #fff); border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position: relative;';
+          imgFrame.style.cssText = 'width: 180px; height: 180px; border: 3px solid #ffffff; border-radius: 18px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8fafc; box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8); position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);';
 
           var img = document.createElement('img');
-          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; object-position: center top; transition: transform 0.3s ease;';
 
           var defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
           var rawContent = '';
@@ -25886,32 +26552,34 @@ window.DynamicFormEngine = (function () {
       console.log('[PHOTO DEBUG] Edit Modal - row:', row);
       var photoBox = document.createElement('div');
       photoBox.className = 'photo-box-wrapper';
-      photoBox.style.width = '160px';
+      photoBox.style.width = '180px';
       photoBox.style.flexShrink = '0';
       photoBox.style.display = 'flex';
       photoBox.style.flexDirection = 'column';
       photoBox.style.alignItems = 'center';
-      photoBox.style.marginTop = '16px';
+      photoBox.style.marginTop = '12px';
 
       var imgFrame = document.createElement('div');
-      imgFrame.style.width = '120px';
-      imgFrame.style.height = '120px';
-      imgFrame.style.borderRadius = '50%';
-      imgFrame.style.border = '3px solid var(--color-primary)';
+      imgFrame.style.width = '150px';
+      imgFrame.style.height = '150px';
+      imgFrame.style.borderRadius = '18px';
+      imgFrame.style.border = '3px solid #ffffff';
       imgFrame.style.overflow = 'hidden';
       imgFrame.style.display = 'flex';
       imgFrame.style.alignItems = 'center';
       imgFrame.style.justifyContent = 'center';
-      imgFrame.style.background = '#f1f5f9';
+      imgFrame.style.background = '#f8fafc';
       imgFrame.style.position = 'relative';
       imgFrame.style.cursor = 'pointer';
       imgFrame.title = 'Bấm để thay đổi ảnh đại diện';
-      imgFrame.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+      imgFrame.style.boxShadow = '0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8)';
+      imgFrame.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 
       var img = document.createElement('img');
       img.style.width = '100%';
       img.style.height = '100%';
       img.style.objectFit = 'cover';
+      img.style.objectPosition = 'center top';
 
       var rawContent = '';
       var fileNameVal = '';
@@ -27933,8 +28601,8 @@ var Router = (function () {
       }
     }
     var deducedKey = String(url || '').trim().replace(/-/g, '_').toUpperCase();
-    if (deducedKey === 'FORM_BUILDER') {
-      return { FormName: 'SY_FormatFields', PageTitle: 'Cấu hình động', UseSplitLayout: false };
+    if (deducedKey === 'FORM_BUILDER' || deducedKey === 'SY_FORMATFIELDS') {
+      return { FormName: 'SY_FormatfldTbl', PageTitle: 'Cấu hình động', UseSplitLayout: false };
     }
     return window.APP_MODULES[deducedKey] || null;
   }

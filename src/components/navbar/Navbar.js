@@ -183,6 +183,23 @@ var Navbar = (function () {
     return html;
   }
 
+  function _getCompanyBrandInfo() {
+    var currentUser = {};
+    try {
+      var raw = localStorage.getItem('pmql_user') || sessionStorage.getItem('pmql_user') || '{}';
+      currentUser = JSON.parse(raw);
+    } catch (e) {}
+
+    // Lấy tên đơn vị / công ty / chi nhánh động từ dữ liệu DB trong phiên đăng nhập
+    var title = currentUser.TenCongTy || currentUser.CompanyName || currentUser.Company || currentUser.TenDonVi || currentUser.BrandTitle || 'DIM TU TAC';
+    var subtitle = currentUser.TenChiNhanh || currentUser.BranchName || currentUser.ChiNhanh || currentUser.TenNhom || currentUser.GroupName || currentUser.UserGroupID || currentUser.BrandSubtitle || 'CÔNG TY CP TM DV DIM TU TAC';
+
+    return {
+      title: title,
+      subtitle: subtitle
+    };
+  }
+
   /* ─────────────────────────────────────────
      Render Sidebar Component (Section 5)
   ───────────────────────────────────────── */
@@ -191,6 +208,7 @@ var Navbar = (function () {
     var container = document.getElementById(id);
     if (!container) return;
 
+    var brandInfo = _getCompanyBrandInfo();
     var currentHash = window.location.hash || '#/dashboard';
     var html = `
       <aside class="app-sidebar" id="app-sidebar">
@@ -198,9 +216,12 @@ var Navbar = (function () {
         <div class="sidebar-header">
           <button type="button" class="sidebar-brand-link" data-sidebar-home aria-label="Về trang tổng quan">
             <span class="sidebar-brand-mark" aria-hidden="true">
-              <img class="sidebar-brand-logo" src="./src/assets/logo-full-cropped.png" alt="" />
+              <img class="sidebar-brand-logo" src="./src/assets/logo-full-cropped.png" alt="Logo" />
             </span>
-            <span class="sidebar-brand-title">HRM</span>
+            <div class="sidebar-brand-info">
+              <span class="sidebar-brand-title" id="sidebar-brand-title">${escapeHTML(brandInfo.title)}</span>
+              <span class="sidebar-brand-subtitle" id="sidebar-brand-subtitle">${escapeHTML(brandInfo.subtitle)}</span>
+            </div>
           </button>
           <button type="button" class="btn-close-sidebar" id="btn-close-sidebar" title="Đóng menu" aria-label="Đóng menu">
             <span class="material-symbols-outlined">arrow_back</span>

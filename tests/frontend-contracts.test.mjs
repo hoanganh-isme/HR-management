@@ -726,6 +726,12 @@ test('Dynamic grid always renders a readable loading state and bounds bulk refre
   assert.doesNotMatch(source, /innerHTML\s*=.*MODULE_CONFIG\.TextLoading/);
 });
 
+test('Filter popup stays open while navigating the date picker', () => {
+  const source = fs.readFileSync(path.join(root, 'src/components/filter/FilterComponent.js'), 'utf8');
+  assert.match(source, /closest\('\.flatpickr-calendar'\)/);
+  assert.match(source, /!isDatePickerClick/);
+});
+
 test('Timesheet report derives a read-only grid schema from the stored procedure result', () => {
   const engineSource = fs.readFileSync(path.join(root, 'src/js/core/DynamicFormEngine.js'), 'utf8');
   const schemaSource = fs.readFileSync(path.join(root, 'src/js/utils/DynamicResultSchema.js'), 'utf8');

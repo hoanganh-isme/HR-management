@@ -115,7 +115,7 @@ export const documentConfig = Object.freeze({
     sqlApiUser: String(process.env.SQL_API_USER || '').trim(),
     documentPublicBaseUrl: trimTrailingSlash(process.env.DOCUMENT_PUBLIC_BASE_URL || 'http://127.0.0.1:8081'),
     documentInternalBaseUrl: trimTrailingSlash(process.env.DOCUMENT_INTERNAL_BASE_URL || 'http://host.docker.internal:8081'),
-    onlyOfficePublicUrl: trimTrailingSlash(process.env.ONLYOFFICE_PUBLIC_URL || 'http://127.0.0.1:8001'),
+    onlyOfficePublicUrl: trimTrailingSlash(process.env.ONLYOFFICE_PUBLIC_URL || 'http://127.0.0.1:8082'),
     onlyOfficeJwtEnabled,
     onlyOfficeJwtSecret,
     draftSigningSecret,

@@ -3,7 +3,7 @@
   INSTALL_ALL - HRM_DB_CLEANUP_20260729
   FILE SINH TỰ ĐỘNG. KHÔNG SỬA TRỰC TIẾP.
   Build: node ./scripts/db-release/build-production-database-release.mjs
-  Package manifest SHA-256: 8292894fc7b82033ba8a8cfbb9790dc85271b220ddfee8b7087e97917b396535
+  Package manifest SHA-256: 11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb
 */
 :on error exit
 :setvar TargetDatabase "X26DIMTUTAC"
@@ -565,7 +565,7 @@ RETURN
 GO
 /* ===== END SOURCE: sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql ===== */
 
-/* ===== SOURCE: sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql | SHA-256: 21dfcfbab78f02886188e7951f46f84307cc7aeef8869f34490610f41a966736 ===== */
+/* ===== SOURCE: sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql | SHA-256: 6ecc7ceea8ef55f1735f76c336089640fa1d84c0759df78c7b65867cb144d5c4 ===== */
 /*
   Canonical framework procedures
   File canonical được sinh từ kết quả audit; mỗi object chỉ có một definition.
@@ -2955,6 +2955,28 @@ END;
                 WHERE X.error_number IS NOT NULL
             )
             BEGIN
+                ;WITH DescribedResult AS
+                (
+                    SELECT
+                        X.column_ordinal,
+                        X.name,
+                        X.system_type_name,
+                        X.is_nullable,
+                        X.max_length,
+                        X.source_schema,
+                        X.source_table,
+                        X.source_column,
+                        ROW_NUMBER() OVER
+                        (
+                            PARTITION BY LOWER(X.name) COLLATE DATABASE_DEFAULT
+                            ORDER BY X.column_ordinal
+                        ) AS DuplicateOrdinal
+                    FROM sys.dm_exec_describe_first_result_set_for_object
+                        (@ResultProcedureObjectID, 1) AS X
+                    WHERE ISNULL(X.is_hidden, 0) = 0
+                      AND X.error_number IS NULL
+                      AND NULLIF(LTRIM(RTRIM(X.name)), '') IS NOT NULL
+                )
                 INSERT INTO @ResultFields
                 (
                     FieldOrdinal, FieldName, SqlType, IsNullable, MaxLength,
@@ -2969,25 +2991,98 @@ END;
                     X.source_schema,
                     X.source_table,
                     X.source_column
-                FROM sys.dm_exec_describe_first_result_set_for_object
-                    (@ResultProcedureObjectID, 1) AS X
-                WHERE ISNULL(X.is_hidden, 0) = 0
-                  AND X.error_number IS NULL
-                  AND NULLIF(LTRIM(RTRIM(X.name)), '') IS NOT NULL;
+                FROM DescribedResult AS X
+                WHERE X.DuplicateOrdinal = 1;
             END;
         END TRY
         BEGIN CATCH
             DELETE FROM @ResultFields;
         END CATCH;
 
+        /*
+          Một số report desktop gọi procedure xử lý trước SELECT nên SQL Server
+          không mô tả được result-set. Với SELECT T.*, P.* ta vẫn có thể lấy schema
+          động từ các bảng được đánh dấu is_select_all trong dependency metadata.
+          Bảng contract chính được ưu tiên khi hai bảng có cột trùng tên.
+        */
+        IF NOT EXISTS (SELECT 1 FROM @ResultFields)
+        BEGIN
+            BEGIN TRY
+                DECLARE @ResultProcedureName nvarchar(517) =
+                    QUOTENAME(OBJECT_SCHEMA_NAME(@ResultProcedureObjectID)) + N'.' +
+                    QUOTENAME(OBJECT_NAME(@ResultProcedureObjectID));
+
+                ;WITH SelectedTables AS
+                (
+                    SELECT DISTINCT
+                        O.object_id,
+                        S.name AS SchemaName,
+                        O.name AS TableName,
+                        CASE
+                            WHEN O.name COLLATE DATABASE_DEFAULT = @ExpectedTable COLLATE DATABASE_DEFAULT THEN 0
+                            ELSE 1
+                        END AS TablePriority
+                    FROM sys.dm_sql_referenced_entities(@ResultProcedureName, N'OBJECT') AS R
+                    INNER JOIN sys.schemas AS S
+                      ON S.name COLLATE DATABASE_DEFAULT = R.referenced_schema_name COLLATE DATABASE_DEFAULT
+                    INNER JOIN sys.objects AS O
+                      ON O.schema_id = S.schema_id
+                     AND O.name COLLATE DATABASE_DEFAULT = R.referenced_entity_name COLLATE DATABASE_DEFAULT
+                     AND O.[type] IN ('U', 'V')
+                    WHERE R.referenced_database_name IS NULL
+                      AND ISNULL(R.is_select_all, 0) = 1
+                ),
+                RankedColumns AS
+                (
+                    SELECT
+                        T.SchemaName,
+                        T.TableName,
+                        T.TablePriority,
+                        C.column_id,
+                        C.name AS FieldName,
+                        CONVERT(nvarchar(256), TYPE_NAME(C.user_type_id)) AS SqlType,
+                        C.is_nullable AS IsNullable,
+                        C.max_length AS MaxLength,
+                        ROW_NUMBER() OVER
+                        (
+                            PARTITION BY LOWER(C.name) COLLATE DATABASE_DEFAULT
+                            ORDER BY T.TablePriority, T.TableName, C.column_id
+                        ) AS DuplicateOrdinal
+                    FROM SelectedTables AS T
+                    INNER JOIN sys.columns AS C
+                      ON C.object_id = T.object_id
+                ),
+                UniqueColumns AS
+                (
+                    SELECT *
+                    FROM RankedColumns
+                    WHERE DuplicateOrdinal = 1
+                )
+                INSERT INTO @ResultFields
+                (
+                    FieldOrdinal, FieldName, SqlType, IsNullable, MaxLength,
+                    SourceSchema, SourceTable, SourceColumn
+                )
+                SELECT
+                    ROW_NUMBER() OVER
+                    (
+                        ORDER BY U.TablePriority, U.TableName, U.column_id
+                    ) AS FieldOrdinal,
+                    U.FieldName,
+                    U.SqlType,
+                    U.IsNullable,
+                    U.MaxLength,
+                    U.SchemaName,
+                    U.TableName,
+                    U.FieldName
+                FROM UniqueColumns AS U;
+            END TRY
+            BEGIN CATCH
+                DELETE FROM @ResultFields;
+            END CATCH;
+        END;
+
         IF EXISTS (SELECT 1 FROM @ResultFields)
-           AND NOT EXISTS
-           (
-               SELECT LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
-               FROM @ResultFields AS F
-               GROUP BY LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
-               HAVING COUNT(*) > 1
-           )
            AND
            (
                @ContractType = 'READ_ONLY'
@@ -3222,17 +3317,35 @@ END;
             FROM dbo.SY_FmtFldTbl AS X
             WHERE X.FieldName COLLATE DATABASE_DEFAULT =
                   RF.FieldName COLLATE DATABASE_DEFAULT
-              AND (
-                  X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
-                  OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-                  OR X.FormName IS NULL
-                  OR LTRIM(RTRIM(X.FormName)) = ''
-              )
-            ORDER BY CASE
+            /*
+              Desktop tái sử dụng caption của cùng FieldName giữa nhiều form. Caption
+              có nghĩa được ưu tiên trước caption kỹ thuật (Person Name/PersonName),
+              sau đó mới xét form hiện tại và mức độ dùng chung. Nhờ vậy result-set
+              của report không rơi về tên cột kỹ thuật khi caption tiếng Việt đang
+              được cấu hình ở một form desktop khác.
+            */
+            ORDER BY
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                     LOWER(REPLACE(REPLACE(RF.FieldName, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                ELSE 0
+            END,
+            CASE
                 WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
                 WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
-                ELSE 3
-            END, X.AutoID
+                WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                ELSE 4
+            END,
+            (
+                SELECT COUNT_BIG(*)
+                FROM dbo.SY_FmtFldTbl AS SharedCaption
+                WHERE SharedCaption.FieldName COLLATE DATABASE_DEFAULT =
+                      X.FieldName COLLATE DATABASE_DEFAULT
+                  AND NULLIF(LTRIM(RTRIM(SharedCaption.CaptionVN)), N'') COLLATE DATABASE_DEFAULT =
+                      NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') COLLATE DATABASE_DEFAULT
+            ) DESC,
+            X.AutoID
         ) AS ResultCaption
         LEFT JOIN dbo.SY_FmatTbl AS ResultFormat
           ON ResultFormat.FormatID COLLATE DATABASE_DEFAULT =
@@ -3449,15 +3562,27 @@ END;
         SELECT TOP (1) X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
         FROM dbo.SY_FmtFldTbl AS X
         WHERE X.FieldName COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
-          AND (
-              X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
-              OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-              OR X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = ''
-          )
-        ORDER BY CASE
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
-            ELSE 3 END,
+        ORDER BY
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                     LOWER(REPLACE(REPLACE(C.name, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                ELSE 0
+            END,
+            CASE
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                ELSE 4
+            END,
+            (
+                SELECT COUNT_BIG(*)
+                FROM dbo.SY_FmtFldTbl AS SharedCaption
+                WHERE SharedCaption.FieldName COLLATE DATABASE_DEFAULT =
+                      X.FieldName COLLATE DATABASE_DEFAULT
+                  AND NULLIF(LTRIM(RTRIM(SharedCaption.CaptionVN)), N'') COLLATE DATABASE_DEFAULT =
+                      NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') COLLATE DATABASE_DEFAULT
+            ) DESC,
             X.AutoID
     ) AS M
     LEFT JOIN dbo.SY_FmatTbl AS F
@@ -6305,7 +6430,7 @@ END;
 GO
 /* ===== END SOURCE: sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql ===== */
 
-/* ===== SOURCE: sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql | SHA-256: e57d12e46aa9722bd08265f33d9670a8154777f9d7747271b9060cb767856f73 ===== */
+/* ===== SOURCE: sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql | SHA-256: 00241aa31700afcbe674289cd5059e24ddbac87b4da6b8eca1a8390102052beb ===== */
 
 /*
   Explicit seed cho các contract đã audit. Chỉ INSERT bản ghi thiếu; không ghi đè quyết định manual.
@@ -6333,6 +6458,7 @@ BEGIN TRY
         ('WA_TitleListFrm','WA_TitleListFrm','WA_TitleListFrm','SIMPLE_TABLE',N'HR_TitleListTbl',N'TitleName','WA_TitleListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','LEGACY_GLOBAL_REFERENCE','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE3_READY_FOR_CUTOVER'),
         ('WA_ShiftListFrm','WA_ShiftListFrm','WA_ShiftListFrm','SIMPLE_TABLE',N'HR_ShiftListTbl',N'ShiftID','WA_ShiftListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','LEGACY_GLOBAL_REFERENCE','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE3_READY_FOR_CUTOVER'),
         ('CF_BranchListFrm','CF_BranchListFrm','CF_BranchListFrm','SIMPLE_TABLE',N'CF_BranchTbl',N'BranchID','CF_BranchListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','BRANCH_SCOPED','AUTO_SCHEMA','SHADOW',N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER'),
+        ('WA_TimeSheetCTReport','WA_TimeSheetCTReport','WA_TimeSheetCTReport','READ_ONLY',N'HR_TimeSheetDayTbl',N'UserAutoID','WA_TimeSheetCTReport',N'HR_TimeSheetCTReportStp',NULL,NULL,'READ_ONLY','AUTO_SCHEMA','NONE','SHADOW',N'DESKTOP_REPORT_RESULT_SET_METADATA_V2'),
         ('WA_CaLamViecFrm','WA_CaLamViecFrm','WA_CaLamViecFrm','MASTER_DETAIL_SIMPLE',N'HR_SapCaTbl',N'SapCaID','WA_CaLamViecFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','AUTO_SCHEMA','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE4_MASTER_DETAIL_READY_FOR_CUTOVER')
     ) AS V
     (
@@ -6346,6 +6472,37 @@ BEGIN TRY
         SELECT 1 FROM dbo.WA_FieldContractRegistry AS R
         WHERE R.WebFormName = V.WebFormName
     );
+
+    /* Đồng bộ contract báo cáo đã tồn tại với route SP desktop đã được duyệt. */
+    UPDATE R
+    SET R.ERPFormID = 'WA_TimeSheetCTReport',
+        R.PermissionFormName = 'WA_TimeSheetCTReport',
+        R.ContractType = 'READ_ONLY',
+        R.ExpectedTableName = N'HR_TimeSheetDayTbl',
+        R.ExpectedPrimaryKey = N'UserAutoID',
+        R.ViewList = 'WA_TimeSheetCTReport',
+        R.ViewProcedure = N'HR_TimeSheetCTReportStp',
+        R.SaveProcedure = NULL,
+        R.DeleteProcedure = NULL,
+        R.WritePolicy = 'READ_ONLY',
+        R.BranchPolicy = 'AUTO_SCHEMA',
+        R.DeletePolicy = 'NONE',
+        R.RolloutStatus = 'SHADOW',
+        R.RolloutReason = N'DESKTOP_REPORT_RESULT_SET_METADATA_V2',
+        R.SchemaVersion = 2,
+        R.IsEnabled = 1,
+        R.UpdatedAt = @Now,
+        R.UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'WA_TimeSheetCTReport'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.WA_API AS A
+          WHERE A.[list] = 'WA_TimeSheetCTReport'
+            AND A.[func] = 'View'
+            AND PARSENAME(LTRIM(RTRIM(A.[SQL])), 1) = 'HR_TimeSheetCTReportStp'
+      );
 
     INSERT INTO dbo.WA_FieldDatasetRegistry
     (
@@ -6691,7 +6848,7 @@ BEGIN TRY
         SET InstalledAt = SYSUTCDATETIME(), InstalledBy = @Actor,
             ReleaseMode = '$(ReleaseMode)', MetadataRouteBatchID = @MetadataBatchID,
             FieldRouteBatchID = @FieldBatchID, Status = 'INSTALLED',
-            ManifestSha256 = '8292894fc7b82033ba8a8cfbb9790dc85271b220ddfee8b7087e97917b396535',
+            ManifestSha256 = '11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb',
             RolledBackAt = NULL, RolledBackBy = NULL
         WHERE ReleaseID = @ReleaseID;
     ELSE
@@ -6703,7 +6860,7 @@ BEGIN TRY
         VALUES
         (
             @ReleaseID,SYSUTCDATETIME(),@Actor,'$(ReleaseMode)',@MetadataBatchID,
-            @FieldBatchID,'INSTALLED','8292894fc7b82033ba8a8cfbb9790dc85271b220ddfee8b7087e97917b396535'
+            @FieldBatchID,'INSTALLED','11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb'
         );
 
     COMMIT TRANSACTION;

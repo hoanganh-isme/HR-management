@@ -101,12 +101,21 @@ window.FieldSyncService = (function (global) {
       return {
         name: field.name,
         label: field.label || field.name,
+        captionVN: field.captionVN || field.CaptionVN || legacy.captionVN || legacy.CaptionVN || field.label || legacy.label || field.name,
         orderNo: field.orderNo || index + 1,
         position: 'grid',
         renderRule: engineRule(field.renderRule || legacy.renderRule || legacy.FormatID),
+        semanticRenderRule: field.semanticRenderRule || field.renderRule || legacy.semanticRenderRule || legacy.renderRule || legacy.FormatID || '',
         formatId: field.formatId || legacy.formatId || legacy.FormatID || '',
         FormatID: field.formatId || legacy.formatId || legacy.FormatID || '',
         formatType: field.formatType || legacy.formatType || legacy.FormatType || '',
+        sqlType: field.sqlType || legacy.sqlType || legacy.SqlType || '',
+        semanticRole: field.semanticRole || legacy.semanticRole || legacy.SemanticRole || '',
+        displayVariant: field.displayVariant || legacy.displayVariant || legacy.DisplayVariant || '',
+        toneMap: cloneValue(field.toneMap !== undefined ? field.toneMap : (legacy.toneMap || legacy.ToneMap || null)),
+        statusMap: cloneValue(field.statusMap !== undefined ? field.statusMap : (legacy.statusMap || legacy.StatusMap || null)),
+        avatarField: field.avatarField || legacy.avatarField || legacy.AvatarField || '',
+        secondaryField: field.secondaryField || legacy.secondaryField || legacy.SecondaryField || '',
         metadataSource: 'FIELD_SYNC_V2',
         // Field chỉ có ở V2 được hiển thị read-only và không gửi server-sort cho tới khi API có contract tương ứng.
         serverSortable: hasLegacyField,
@@ -117,6 +126,9 @@ window.FieldSyncService = (function (global) {
         isReadOnlyEdit: legacy.isReadOnlyEdit,
         ShowInEdit: editable ? 1 : 0,
         IsReadOnlyEdit: legacy.isReadOnlyEdit ? 1 : 0,
+        isPrimaryKey: field.isPrimaryKey === true || legacy.isPrimaryKey === true || legacy.IsPrimaryKey === 1,
+        isIdentity: field.isIdentity === true || legacy.isIdentity === true || legacy.IsIdentity === 1,
+        isSensitiveOrDenied: field.isSensitiveOrDenied === true || legacy.isSensitiveOrDenied === true || legacy.IsSensitiveOrDenied === 1,
         dataSource: field.dataSource || legacy.dataSource || legacy.DataSource || '',
         lookupKey: lookup && lookup.key ? lookup.key : (legacy.lookupKey || legacy.LookupKey || ''),
         minWidth: field.minWidth !== undefined ? field.minWidth : legacy.minWidth,
@@ -179,13 +191,21 @@ window.FieldSyncService = (function (global) {
     return {
       name: field.name,
       label: contextLabel,
+      captionVN: field.captionVN || field.CaptionVN || contextLabel,
       orderNo: contextOrder,
       position: 'grid',
       renderRule: engineRule(field.renderRule),
+      semanticRenderRule: field.semanticRenderRule || field.renderRule || '',
       formatId: field.formatId || '',
       FormatID: field.formatId || '',
       formatType: field.formatType || '',
       sqlType: field.sqlType || '',
+      semanticRole: field.semanticRole || '',
+      displayVariant: field.displayVariant || '',
+      toneMap: cloneValue(field.toneMap || null),
+      statusMap: cloneValue(field.statusMap || null),
+      avatarField: field.avatarField || '',
+      secondaryField: field.secondaryField || '',
       nullable: field.nullable === true,
       required: field.requiredOnInsert === true,
       metadataSource: 'FIELD_CONTRACT_V2',
@@ -1092,7 +1112,7 @@ window.FieldSyncService = (function (global) {
     }, intervalMs);
   }
 
-  function observeForm(formName, legacySchema) {
+  function observeForm(formName, legacySchema, forceRefresh) {
     var activePrefix = normalizeName(formName) + '|';
     Object.keys(timers).forEach(function (key) {
       if (key.indexOf(activePrefix) === 0) return;
@@ -1100,7 +1120,7 @@ window.FieldSyncService = (function (global) {
       delete timers[key];
     });
     installRefreshListeners();
-    return fetchState(formName, legacySchema, false).then(function (state) {
+    return fetchState(formName, legacySchema, forceRefresh === true).then(function (state) {
       ensurePolling(formName, legacySchema);
       return state;
     });

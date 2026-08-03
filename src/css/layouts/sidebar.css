@@ -402,18 +402,34 @@ body.dark-theme .widget-title {
 
 .sidebar-header {
   height: 68px;
-  padding: 0 18px;
-  gap: 9px;
-  border-bottom-color: #edf1f6;
+  padding: 0 16px;
+  gap: 10px;
+  border-bottom: 1px solid #edf1f6;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 .sidebar-brand-mark {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 36px;
+  flex: 0 0 38px;
   background: transparent;
   border: 0;
   border-radius: 9px;
@@ -422,17 +438,42 @@ body.dark-theme .widget-title {
 
 .sidebar-brand-logo {
   display: block;
-  width: 36px;
-  height: 36px;
-  max-width: 36px;
+  width: 38px;
+  height: 38px;
+  max-width: 38px;
   object-fit: contain;
+}
+
+.sidebar-brand-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
 }
 
 .sidebar-brand-title {
   color: #101828;
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-brand-subtitle {
+  color: #64748b;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
 }
 
 .sidebar-section-label {

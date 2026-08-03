@@ -854,7 +854,11 @@ window.DynamicFormEngine = (function () {
       && _isUnifiedMetadataForm(MODULE_CONFIG.FormName)
       && window.FieldSyncService
       && typeof FieldSyncService.observeForm === 'function') {
-      pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
+      pConfig = FieldSyncService.observeForm(
+        MODULE_CONFIG.FormName,
+        [],
+        MODULE_CONFIG.RefreshV2MetadataOnLoad === true
+      ).then(function (state) {
         fieldContractState = state || null;
         if (state && state.metadataActive === true && state.schema && state.runtimeSchemas) {
           if (!configuredPrimaryKey) MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
@@ -3888,14 +3892,14 @@ window.DynamicFormEngine = (function () {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
           photoBox.className = 'photo-box-wrapper';
-          photoBox.style.cssText = 'width: 180px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
+          photoBox.style.cssText = 'width: 200px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
 
           var imgFrame = document.createElement('div');
           imgFrame.className = 'detail-img-frame';
-          imgFrame.style.cssText = 'width: 160px; height: 160px; border: 4px solid var(--color-surface, #fff); border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position: relative;';
+          imgFrame.style.cssText = 'width: 180px; height: 180px; border: 3px solid #ffffff; border-radius: 18px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8fafc; box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8); position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);';
 
           var img = document.createElement('img');
-          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; object-position: center top; transition: transform 0.3s ease;';
 
           var defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
           var rawContent = '';
@@ -5022,32 +5026,34 @@ window.DynamicFormEngine = (function () {
       console.log('[PHOTO DEBUG] Edit Modal - row:', row);
       var photoBox = document.createElement('div');
       photoBox.className = 'photo-box-wrapper';
-      photoBox.style.width = '160px';
+      photoBox.style.width = '180px';
       photoBox.style.flexShrink = '0';
       photoBox.style.display = 'flex';
       photoBox.style.flexDirection = 'column';
       photoBox.style.alignItems = 'center';
-      photoBox.style.marginTop = '16px';
+      photoBox.style.marginTop = '12px';
 
       var imgFrame = document.createElement('div');
-      imgFrame.style.width = '120px';
-      imgFrame.style.height = '120px';
-      imgFrame.style.borderRadius = '50%';
-      imgFrame.style.border = '3px solid var(--color-primary)';
+      imgFrame.style.width = '150px';
+      imgFrame.style.height = '150px';
+      imgFrame.style.borderRadius = '18px';
+      imgFrame.style.border = '3px solid #ffffff';
       imgFrame.style.overflow = 'hidden';
       imgFrame.style.display = 'flex';
       imgFrame.style.alignItems = 'center';
       imgFrame.style.justifyContent = 'center';
-      imgFrame.style.background = '#f1f5f9';
+      imgFrame.style.background = '#f8fafc';
       imgFrame.style.position = 'relative';
       imgFrame.style.cursor = 'pointer';
       imgFrame.title = 'Bấm để thay đổi ảnh đại diện';
-      imgFrame.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+      imgFrame.style.boxShadow = '0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8)';
+      imgFrame.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 
       var img = document.createElement('img');
       img.style.width = '100%';
       img.style.height = '100%';
       img.style.objectFit = 'cover';
+      img.style.objectPosition = 'center top';
 
       var rawContent = '';
       var fileNameVal = '';

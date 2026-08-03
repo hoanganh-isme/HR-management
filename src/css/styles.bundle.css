@@ -40,6 +40,26 @@
   --color-border: #e7eaf0;
   --color-border-strong: #d8dde6;
 
+  /* Shared semantic table colors */
+  --semantic-blue-bg: #eff6ff;
+  --semantic-blue-text: #1d4ed8;
+  --semantic-indigo-bg: #eef2ff;
+  --semantic-indigo-text: #4338ca;
+  --semantic-violet-bg: #f5f3ff;
+  --semantic-violet-text: #6d28d9;
+  --semantic-cyan-bg: #ecfeff;
+  --semantic-cyan-text: #0e7490;
+  --semantic-teal-bg: #f0fdfa;
+  --semantic-teal-text: #0f766e;
+  --semantic-green-bg: #ecfdf3;
+  --semantic-green-text: #027a48;
+  --semantic-amber-bg: #fffaeb;
+  --semantic-amber-text: #b54708;
+  --semantic-rose-bg: #fff1f3;
+  --semantic-rose-text: #c01048;
+  --semantic-slate-bg: #f2f4f7;
+  --semantic-slate-text: #475467;
+
   /* Shadows (Subtle Enterprise Shadows) */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.03);
   --shadow-sm: 0 3px 12px rgba(15, 23, 42, 0.05);
@@ -115,6 +135,25 @@ body.dark-theme {
   --color-border-strong: #475569;
 
   --color-primary-soft: rgba(37, 99, 235, 0.2);
+
+  --semantic-blue-bg: rgba(59, 130, 246, 0.18);
+  --semantic-blue-text: #93c5fd;
+  --semantic-indigo-bg: rgba(99, 102, 241, 0.2);
+  --semantic-indigo-text: #a5b4fc;
+  --semantic-violet-bg: rgba(139, 92, 246, 0.2);
+  --semantic-violet-text: #c4b5fd;
+  --semantic-cyan-bg: rgba(6, 182, 212, 0.18);
+  --semantic-cyan-text: #67e8f9;
+  --semantic-teal-bg: rgba(20, 184, 166, 0.18);
+  --semantic-teal-text: #5eead4;
+  --semantic-green-bg: rgba(34, 197, 94, 0.18);
+  --semantic-green-text: #86efac;
+  --semantic-amber-bg: rgba(245, 158, 11, 0.18);
+  --semantic-amber-text: #fcd34d;
+  --semantic-rose-bg: rgba(244, 63, 94, 0.18);
+  --semantic-rose-text: #fda4af;
+  --semantic-slate-bg: rgba(148, 163, 184, 0.16);
+  --semantic-slate-text: #cbd5e1;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -1447,18 +1486,34 @@ body.dark-theme .widget-title {
 
 .sidebar-header {
   height: 68px;
-  padding: 0 18px;
-  gap: 9px;
-  border-bottom-color: #edf1f6;
+  padding: 0 16px;
+  gap: 10px;
+  border-bottom: 1px solid #edf1f6;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 .sidebar-brand-mark {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 36px;
+  flex: 0 0 38px;
   background: transparent;
   border: 0;
   border-radius: 9px;
@@ -1467,17 +1522,42 @@ body.dark-theme .widget-title {
 
 .sidebar-brand-logo {
   display: block;
-  width: 36px;
-  height: 36px;
-  max-width: 36px;
+  width: 38px;
+  height: 38px;
+  max-width: 38px;
   object-fit: contain;
+}
+
+.sidebar-brand-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
 }
 
 .sidebar-brand-title {
   color: #101828;
-  font-size: 17px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-brand-subtitle {
+  color: #64748b;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
 }
 
 .sidebar-section-label {
@@ -5641,19 +5721,75 @@ select.ui-input {
 }
 
 .table-wrapper {
-  border: 1px solid #edf0f4;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .data-table th {
-  background: #f8fafc;
-  color: #667085;
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
   font-weight: 550;
 }
 
 .data-table td {
-  border-bottom-color: #eef1f5;
+  border-bottom-color: var(--color-border);
+}
+
+/* Shared compact density. This replaces per-table generated <style> nodes. */
+.table-wrapper .data-table th {
+  height: 36px;
+  padding: 6px 10px;
+  background-color: var(--color-surface-elevated);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.table-wrapper .data-table td {
+  height: 36px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.table-wrapper .data-table.no-mobile-stack {
+  width: max-content;
+  table-layout: auto;
+  white-space: nowrap;
+}
+
+.table-wrapper.has-sticky-cols .data-table td.sticky-col {
+  position: sticky;
+  z-index: 2;
+  background: var(--color-surface);
+}
+
+.table-wrapper.has-sticky-cols .data-table thead th.sticky-col {
+  position: sticky;
+  z-index: 30;
+  background: var(--color-surface-elevated);
+}
+
+.table-wrapper.has-sticky-cols .data-table th.sticky-col-last,
+.table-wrapper.has-sticky-cols .data-table td.sticky-col-last {
+  border-right: 1px solid var(--color-border);
+  box-shadow: 2px 0 6px -2px rgba(15, 23, 42, 0.12);
+}
+
+.table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
+  background: var(--color-surface-subtle);
+}
+
+.table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
+  background: var(--color-primary-soft);
+}
+
+.table-empty-cell {
+  display: block;
+  padding: 32px 16px;
+  border-bottom: 0;
+  color: var(--color-text-secondary);
+  text-align: center;
 }
 
 .data-table th:last-child,
@@ -5723,6 +5859,231 @@ select.ui-input {
   text-align: center;
 }
 
+/* Metadata-driven semantic cells shared by UITable, Tabulator and mobile cards. */
+.table-cell {
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.table-cell--person,
+.table-cell--status,
+.table-cell--category,
+.table-cell--boolean,
+.table-cell--period,
+.table-cell--contact {
+  min-width: 0;
+}
+
+.table-cell__text {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-cell--primary-identifier {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-cell--secondary-identifier {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-cell--date,
+.table-cell--datetime,
+.table-cell--time {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-cell--metric,
+.table-cell--currency,
+.table-cell--percentage {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-cell--note,
+.table-cell--reason {
+  max-width: 320px;
+  color: var(--color-text-secondary);
+}
+
+.table-cell--sensitive {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.table-cell--selection,
+.table-cell--action {
+  text-align: center;
+}
+
+.semantic-badge,
+.semantic-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.semantic-badge {
+  gap: 6px;
+}
+
+.semantic-badge__dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.semantic-badge--success {
+  background: var(--semantic-green-bg);
+  color: var(--semantic-green-text);
+}
+
+.semantic-badge--warning {
+  background: var(--semantic-amber-bg);
+  color: var(--semantic-amber-text);
+}
+
+.semantic-badge--danger {
+  background: var(--semantic-rose-bg);
+  color: var(--semantic-rose-text);
+}
+
+.semantic-badge--info {
+  background: var(--semantic-cyan-bg);
+  color: var(--semantic-cyan-text);
+}
+
+.semantic-badge--primary {
+  background: var(--semantic-blue-bg);
+  color: var(--semantic-blue-text);
+}
+
+.semantic-badge--neutral {
+  background: var(--semantic-slate-bg);
+  color: var(--semantic-slate-text);
+}
+
+.semantic-chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.semantic-chip--blue,
+.cell-person__avatar--blue {
+  background: var(--semantic-blue-bg);
+  color: var(--semantic-blue-text);
+}
+
+.semantic-chip--indigo,
+.cell-person__avatar--indigo {
+  background: var(--semantic-indigo-bg);
+  color: var(--semantic-indigo-text);
+}
+
+.semantic-chip--violet,
+.cell-person__avatar--violet {
+  background: var(--semantic-violet-bg);
+  color: var(--semantic-violet-text);
+}
+
+.semantic-chip--cyan,
+.cell-person__avatar--cyan {
+  background: var(--semantic-cyan-bg);
+  color: var(--semantic-cyan-text);
+}
+
+.semantic-chip--teal,
+.cell-person__avatar--teal {
+  background: var(--semantic-teal-bg);
+  color: var(--semantic-teal-text);
+}
+
+.semantic-chip--green,
+.cell-person__avatar--green {
+  background: var(--semantic-green-bg);
+  color: var(--semantic-green-text);
+}
+
+.semantic-chip--amber,
+.cell-person__avatar--amber {
+  background: var(--semantic-amber-bg);
+  color: var(--semantic-amber-text);
+}
+
+.semantic-chip--rose,
+.cell-person__avatar--rose {
+  background: var(--semantic-rose-bg);
+  color: var(--semantic-rose-text);
+}
+
+.semantic-chip--slate,
+.cell-person__avatar--slate {
+  background: var(--semantic-slate-bg);
+  color: var(--semantic-slate-text);
+}
+
+.cell-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cell-person__avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cell-person__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.cell-person__name {
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-person__secondary {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ════ DARK THEME OVERRIDES ════ */
 body.dark-theme .data-table {
   background-color: var(--color-surface);
@@ -5745,6 +6106,34 @@ body.dark-theme .data-table tbody tr:hover {
 
 /* --- RESPONSIVE TABLE (Card View on Mobile) --- */
 @media (max-width: 768px) {
+
+  .table-wrapper .data-table th,
+  .table-wrapper .data-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .table-wrapper .data-table.no-mobile-stack th,
+  .table-wrapper .data-table.no-mobile-stack td {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+    word-break: normal;
+  }
+
+  .table-wrapper .data-table th:first-child,
+  .table-wrapper .data-table td:first-child {
+    padding-left: 16px;
+  }
+
+  .table-wrapper.has-sticky-cols .data-table th.sticky-col,
+  .table-wrapper.has-sticky-cols .data-table td.sticky-col {
+    position: static;
+    border-right: 0;
+    box-shadow: none;
+  }
 
   .data-table:not(.no-mobile-stack),
   .data-table:not(.no-mobile-stack) tbody {
@@ -5925,289 +6314,24 @@ body.dark-theme .data-table tbody tr:hover {
     width: 100% !important;
   }
 
-  /* --- Premium Mobile Card Grid View for Master-Detail --- */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table,
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody {
-    display: block !important;
-    width: 100% !important;
+  .table-cell,
+  .table-cell__text,
+  .cell-person,
+  .cell-person__text,
+  .cell-person__name {
+    min-width: 0;
+    max-width: 100%;
   }
 
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table thead {
-    display: none !important;
+  .semantic-badge,
+  .semantic-chip {
+    max-width: min(100%, 220px);
   }
 
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr {
-    display: grid !important;
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto;
-    gap: 4px 12px;
-    border: 1px solid var(--color-border) !important;
-    border-radius: 10px !important;
-    margin-bottom: 8px !important;
-    padding: 10px 32px 10px 12px !important;
-    background: var(--color-surface) !important;
-    position: relative !important;
-    transition: all 0.2s ease !important;
-    box-shadow: var(--shadow-xs) !important;
-    align-items: center;
-  }
-
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr:hover,
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr.active {
-    border-color: var(--color-primary) !important;
-    background: var(--color-surface-elevated) !important;
-    box-shadow: var(--shadow-sm) !important;
-  }
-
-  /* Chevron right icon indicating clickable row */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr::after {
-    content: 'chevron_right';
-    font-family: 'Material Symbols Outlined';
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 18px;
-    color: var(--color-text-secondary);
-    pointer-events: none;
-    transition: color 0.2s ease;
-  }
-
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr.active::after {
-    color: var(--color-primary);
-  }
-
-  /* Hide all non-essential columns on mobile */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td {
-    display: none !important;
-  }
-
-  /* Show and style checkboxes if present */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td:has(.form-check-input) {
-    display: block !important;
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    padding: 0 !important;
-    border: none !important;
-    background: transparent !important;
-  }
-
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr:has(.form-check-input) {
-    padding-left: 36px !important;
-  }
-
-  /* Show only key fields */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Mã nhân viên"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Mã NV"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Họ tên"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Họ Tên"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Bộ phận"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Chức danh"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Chức vụ"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Mã hợp đồng"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Loại hợp đồng"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Số chứng từ"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Kỳ"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Tổng Lương"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Tổng lương"] {
-    display: block !important;
-    padding: 0 !important;
-    border: none !important;
-    background: transparent !important;
-    text-align: left !important;
-    color: var(--color-text) !important;
-    font-weight: 500;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    max-width: 100% !important;
-  }
-
-  /* Card Title / Main Headline */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Họ tên"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Họ Tên"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Số chứng từ"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Mã hợp đồng"] {
-    grid-column: 1;
-    grid-row: 1;
-    font-size: 14px !important;
-    font-weight: 700 !important;
-    color: var(--color-text) !important;
-    margin-bottom: 0 !important;
-  }
-
-  /* Badge Code */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Mã nhân viên"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Mã NV"] {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-    align-self: center;
-    /* Ngăn chặn badge bị kéo giãn dọc */
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    color: var(--color-primary) !important;
-    background: var(--color-primary-light, rgba(99, 102, 241, 0.1)) !important;
-    padding: 4px 8px !important;
-    border-radius: 6px !important;
-    margin-right: 0 !important;
-    line-height: 1 !important;
-    width: max-content !important;
-  }
-
-  /* Position / Date Info */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Chức danh"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Chức vụ"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Loại hợp đồng"] {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: end;
-    align-self: start;
-    font-size: 12px !important;
-    color: var(--color-text-secondary) !important;
-    font-weight: 500 !important;
-  }
-
-  /* Department with building icon */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Bộ phận"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Kỳ"] {
-    grid-column: 1;
-    grid-row: 2;
-    font-size: 11px !important;
-    color: var(--color-text-secondary) !important;
-    display: flex !important;
-    align-items: center;
-    gap: 4px;
-    margin-top: 0 !important;
-  }
-
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Bộ phận"]::before {
-    content: 'domain';
-    font-family: 'Material Symbols Outlined';
-    font-size: 13px;
-    color: var(--color-text-secondary);
-  }
-
-  /* Money / Status highlight */
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Tổng Lương"],
-  .split-master-detail-container:not(.form-WA_HopDongLaoDongFrm) .data-table tbody tr td[data-label="Tổng lương"] {
-    grid-column: 2;
-    grid-row: 2;
-    justify-self: end;
-    font-size: 12px !important;
-    font-weight: 700 !important;
-    color: var(--color-danger) !important;
-    margin-top: 0 !important;
-  }
-
-  /* Reset negative margins for table-wrapper in split layout to avoid card edge clipping */
-  .split-master-detail-container .table-wrapper {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 0 12px !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Hide overlapping/non-essential details on mobile employee list cards to prevent overlapping */
-  .form-WA_PersonFullFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
-  .form-WA_PersonFullFrm .data-table tbody tr td[data-label="Chức danh"],
-  .form-WA_PersonInFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
-  .form-WA_PersonInFrm .data-table tbody tr td[data-label="Chức danh"],
-  .form-WA_PersonQuitFrm .data-table tbody tr td[data-label="Loại hợp đồng"],
-
-
-  /* --- DATA HIGHLIGHTING FOR ACCOUNTING/HR --- */
-  /* Identifiers & Numbers */
-  .data-table tbody tr td[data-label="cccd" i],
-  .data-table tbody tr td[data-label*="s? h?p d?ng" i],
-  .data-table tbody tr td[data-label*="di?n tho?i" i],
-  .data-table tbody tr td[data-label*="m� nh�n vi�n" i],
-  .data-table tbody tr td[data-label*="m� nv" i] {
-    color: var(--color-primary) !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.5px;
-  }
-
-  /* Dates */
-  .data-table tbody tr td[data-label*="ng�y sinh" i],
-  .data-table tbody tr td[data-label*="ng�y nh?n vi?c" i],
-  .data-table tbody tr td[data-label*="ng�y h?p d?ng" i],
-  .data-table tbody tr td[data-label*="ng�y k?t th�c" i],
-  .data-table tbody tr td[data-label*="ng�y ngh? vi?c" i] {
-    color: var(--color-text-secondary) !important;
-    font-weight: 500 !important;
-  }
-
-  /* Statuses */
-  .data-table tbody tr td[data-label*="tr?ng th�i" i] {
-    font-weight: 700 !important;
-    color: #10b981 !important;
-    /* Emerald green for statuses */
-  }
-
-  /* --- CLASS BASED HIGHLIGHTING FOR ACCOUNTING/HR --- */
-  .data-table tbody tr td.highlight-identifier {
-    color: var(--color-primary) !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.5px;
-  }
-
-  .data-table tbody tr td.highlight-date {
-    color: var(--color-text-secondary) !important;
-    font-weight: 500 !important;
-  }
-
-  .data-table tbody tr td.highlight-status {
-    font-weight: 700 !important;
-    color: #10b981 !important;
-    /* Emerald green */
-  }
-
-  /* === DATA GRID HIGHLIGHTS & BADGES === */
-  .col-highlight-primary {
-    color: var(--color-primary) !important;
-    font-weight: 600 !important;
-  }
-
-  .col-highlight-danger {
-    color: var(--color-danger) !important;
-    font-weight: 600 !important;
-  }
-
-  .badge-status {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px 8px;
-    border-radius: 9999px;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    line-height: 1.25rem;
-    white-space: nowrap;
-  }
-
-  .badge-active {
-    background-color: rgba(16, 185, 129, 0.15);
-    color: #059669 !important;
-  }
-
-  .badge-warning {
-    background-color: rgba(245, 158, 11, 0.15);
-    color: #d97706 !important;
-  }
-
-  .badge-danger {
-    background-color: rgba(239, 68, 68, 0.15);
-    color: #dc2626 !important;
-  }
-
-  .badge-info {
-    background-color: rgba(59, 130, 246, 0.15);
-    color: #2563eb !important;
+  .cell-person__avatar {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
   }
 }
 
@@ -8627,39 +8751,139 @@ body.dark-theme .column-caption-modal .btn-secondary {
 
 .contract-doc-btn:disabled { cursor: wait; opacity: 0.6; }
 
-.contract-doc-editor-overlay { padding: 10px; }
+.contract-doc-editor-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 0;
+}
 
 .contract-doc-editor-shell {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  width: min(1500px, 100%);
-  height: min(94vh, 1000px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--color-surface, #fff);
   box-shadow: 0 25px 70px rgba(15, 23, 42, 0.3);
 }
 
+.contract-doc-editor-overlay.is-fullscreen .contract-doc-editor-shell {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.contract-doc-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: contractDocFadeIn 0.2s ease-out;
+}
+
+.contract-doc-loading-box {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 14px;
+  padding: 36px 48px;
+  box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.12), 0 10px 15px -5px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+}
+
+.contract-doc-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(60, 80, 224, 0.15);
+  border-top-color: var(--color-primary, #3C50E0);
+  border-radius: 50%;
+  animation: contractDocSpin 0.8s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes contractDocSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes contractDocFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.contract-doc-loading-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-main, #1e293b);
+  margin-bottom: 8px;
+}
+
+.contract-doc-loading-sub {
+  font-size: 13px;
+  color: var(--color-text-secondary, #64748b);
+  line-height: 1.5;
+}
+
 .contract-doc-editor-header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 8px 16px;
+  background: #f8fafc;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
 }
 
 .contract-doc-status {
-  min-height: 30px;
-  padding: 7px 16px;
+  flex: 0 0 auto;
+  display: none;
+  min-height: 28px;
+  padding: 6px 16px;
   background: #eff6ff;
   color: #1d4ed8;
-  font-size: 13px;
+  font-size: 12.5px;
+}
+
+.contract-doc-status.is-active,
+.contract-doc-status.is-error {
+  display: block;
 }
 
 .contract-doc-status.is-error { background: #fef2f2; color: #b91c1c; }
 
-.contract-doc-editor-area { min-height: 0; height: 100%; }
+.contract-doc-editor-area {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+}
+
+.contract-doc-editor-area iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+}
 
 .contract-doc-offline {
   display: flex;
@@ -8671,10 +8895,18 @@ body.dark-theme .column-caption-modal .btn-secondary {
   color: var(--color-text-secondary, #64748b);
 }
 
-@media (max-width: 760px) {
-  .contract-doc-editor-header { align-items: flex-start; flex-direction: column; }
-  .contract-doc-toolbar { justify-content: flex-start; }
-  .contract-doc-editor-shell { height: 96vh; }
+@media (max-width: 1024px) {
+  .contract-doc-editor-header {
+    padding: 6px 10px;
+  }
+  .contract-doc-toolbar {
+    gap: 4px;
+  }
+  .contract-doc-btn {
+    min-height: 30px;
+    padding: 3px 8px;
+    font-size: 12px;
+  }
 }
 
 /* --- navbar.css --- */

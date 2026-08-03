@@ -13,15 +13,6 @@ var UITable = (function () {
 
     var wrapper = document.createElement('div');
     wrapper.className = 'table-wrapper ' + (config.className || '');
-    // Bỏ viền 2 bên
-    wrapper.style.borderRadius = '0';
-    wrapper.style.borderTop = '1px solid var(--color-border, #e2e8f0)';
-    wrapper.style.borderBottom = '1px solid var(--color-border, #e2e8f0)';
-    wrapper.style.borderLeft = 'none';
-    wrapper.style.borderRight = 'none';
-    // Hỗ trợ scroll ngang trên cả mobile và desktop để xem toàn bộ cột
-    wrapper.style.overflowX = 'auto';
-    wrapper.style.overflowY = 'auto';
 
     var table = document.createElement('table');
     table.className = 'data-table';
@@ -39,108 +30,10 @@ var UITable = (function () {
     // Cập nhật lại style khi resize cửa sổ (responsive)
     window.addEventListener('resize', function () {
       var nowMobile = window.innerWidth <= 768;
-      wrapper.style.overflowX = 'auto';
       table.style.width = nowMobile ? '100%' : 'max-content';
       table.style.whiteSpace = nowMobile ? 'normal' : 'nowrap';
       table.style.tableLayout = nowMobile ? 'fixed' : 'auto';
     });
-
-    // Ép style thu gọn khoảng cách (Compact Density) + Sticky Columns
-    var styleDensity = document.createElement('style');
-    styleDensity.innerHTML = `
-      .table-wrapper .data-table th {
-         padding: 6px 10px !important;
-         height: 36px !important;
-         font-size: 13px !important;
-         font-weight: 700 !important;
-         background-color: var(--color-surface-elevated, #f1f5f9) !important;
-         color: var(--color-text, #1e293b) !important;
-      }
-      .table-wrapper .data-table td {
-         padding: 6px 10px !important;
-         height: 36px !important;
-         font-size: 13px !important;
-      }
-      .table-wrapper .data-table.no-mobile-stack {
-        width: max-content !important;
-        white-space: nowrap !important;
-        table-layout: auto !important;
-      }
-      /* ── Sticky Columns ── */
-      .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-        position: sticky !important;
-        z-index: 2 !important;
-        background: var(--color-surface, #fff);
-      }
-      /* Header sticky-col cần z-index cao hơn th thường (z-index:10) để không bị che khuất khi scroll */
-      .table-wrapper.has-sticky-cols .data-table thead th.sticky-col {
-        position: sticky !important;
-        z-index: 30 !important;  /* > 10 (th thường) và > resizer z-index: 10 */
-        background: var(--color-surface-elevated, #f1f5f9) !important;
-      }
-      .table-wrapper.has-sticky-cols .data-table th.sticky-col-last,
-      .table-wrapper.has-sticky-cols .data-table td.sticky-col-last {
-        box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);
-        border-right: 1px solid var(--color-border, #e2e8f0) !important;
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table th.sticky-col,
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-        background: var(--color-surface, #1e293b);
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
-        background: rgba(255,255,255,0.05);
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background-color: var(--color-surface, #1e293b) !important;
-        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.18)), var(--color-primary-light, rgba(67,97,238,0.18))) !important;
-      }
-      .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
-        background: var(--color-surface-elevated, #f8fafc);
-      }
-      .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background-color: var(--color-surface, #fff) !important;
-        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.06)), var(--color-primary-light, rgba(67,97,238,0.06))) !important;
-      }
-      @media (max-width: 768px) {
-        .table-wrapper .data-table th,
-        .table-wrapper .data-table td {
-          white-space: normal !important;
-          word-break: break-word !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-        }
-        .table-wrapper .data-table.no-mobile-stack th,
-        .table-wrapper .data-table.no-mobile-stack td {
-          white-space: nowrap !important;
-          word-break: normal !important;
-          overflow: visible !important;
-          text-overflow: clip !important;
-        }
-        .dynamic-grid-card .table-wrapper {
-          margin-left: 0 !important;
-          margin-right: 0 !important;
-          width: 100% !important;
-          overflow-x: auto !important;
-        }
-        .dynamic-grid-card .datagrid-pager {
-          margin-left: 0 !important;
-          margin-right: 0 !important;
-          width: 100% !important;
-        }
-        .table-wrapper .data-table th:first-child,
-        .table-wrapper .data-table td:first-child {
-          padding-left: 16px !important;
-        }
-        /* Tắt sticky trên mobile để không bị chồng lấp */
-        .table-wrapper.has-sticky-cols .data-table th.sticky-col,
-        .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-          position: static !important;
-          box-shadow: none !important;
-          border-right: none !important;
-        }
-      }
-    `;
-    wrapper.appendChild(styleDensity);
 
     // Số cột cần sticky (mặc định 0 = tắt)
     var stickyCount = (typeof config.stickyColumns === 'number' && config.stickyColumns > 0) ? config.stickyColumns : 0;
@@ -188,8 +81,32 @@ var UITable = (function () {
     var currentData = config.data ? config.data.slice() : [];
     var currentSort = config.currentSort ? { field: config.currentSort.field, dir: config.currentSort.dir } : { field: null, dir: 'asc' };
 
+    function semanticColumnFor(col, idx) {
+      if (typeof TableSemantic === 'undefined') return null;
+      var header = config.headers && config.headers[idx] ? config.headers[idx] : {
+        field: col.field,
+        label: col.label || col.field
+      };
+      var samples = currentData.slice(0, 20).map(function (row) {
+        return row ? row[col.field] : undefined;
+      });
+      return TableSemantic.resolveColumn(col.fieldMetadata || col, header, samples);
+    }
+
+    function appendSemanticContent(td, semanticCell, value, row) {
+      if (semanticCell && typeof TableSemantic !== 'undefined') {
+        td.appendChild(TableSemantic.createContent(semanticCell, value, row));
+      } else {
+        td.textContent = value !== undefined && value !== null ? value : '';
+      }
+    }
+
     function renderBody() {
       tbody.innerHTML = '';
+      var semanticColumns = config.columns
+        ? config.columns.map(function (col, idx) { return semanticColumnFor(col, idx); })
+        : [];
+
       if (currentData && currentData.length > 0) {
         currentData.forEach(function (row) {
           var tr = document.createElement('tr');
@@ -199,59 +116,56 @@ var UITable = (function () {
               var td = document.createElement('td');
               if (col.align) td.style.textAlign = col.align;
 
-              if (config.headers && config.headers[idx] && config.headers[idx].label) {
-                td.setAttribute('data-label', config.headers[idx].label);
-              }
+              var header = config.headers && config.headers[idx];
+              var headerLabel = header && typeof header === 'object' ? header.label : header;
+              if (headerLabel) td.setAttribute('data-label', headerLabel);
 
-              // Sticky column: gắn class + left ngay khi tạo td (không cần đợi rAF)
               if (stickyCount > 0 && idx < stickyCount) {
                 td.classList.add('sticky-col');
                 if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
                 td.style.left = (_stickyOffsets[idx] || 0) + 'px';
               }
 
-              var val = row[col.field];
-              var fieldName = (col.field || '').toLowerCase();
-              var headerLabel = (config.headers && config.headers[idx] && config.headers[idx].label ? config.headers[idx].label : '').toLowerCase();
+              var value = row[col.field];
+              var semanticCell = semanticColumns[idx] && typeof TableSemantic !== 'undefined'
+                ? TableSemantic.resolveCell(semanticColumns[idx], value, row)
+                : null;
 
-              // Tự động map trạng thái nếu là PersonStatus (để tránh hiển thị số 4, 1, 8 trên lưới)
-              if (fieldName === 'personstatus' || headerLabel.includes('trạng thái')) {
-                var statusMap = { '1': 'Thử việc', '4': 'Chính thức', '8': 'Nghỉ việc' };
-                val = statusMap[String(val)] || val;
+              if (semanticCell) {
+                semanticCell.classNames.forEach(function (className) {
+                  td.classList.add(className);
+                });
               }
 
-              if (fieldName.includes('cmnd') || fieldName.includes('cccd') || fieldName.includes('dienthoai') || fieldName.includes('sohopdong') || fieldName.includes('personid') || fieldName.includes('manhanvien') || fieldName === 'id' || fieldName === 'manv' || headerLabel.includes('cccd') || headerLabel.includes('mã nhân viên') || headerLabel.includes('điện thoại') || headerLabel.includes('hợp đồng')) {
-                td.classList.add('column-identity');
-              } else if (fieldName.includes('ngay') || fieldName.includes('date') || headerLabel.includes('ngày') || headerLabel.includes('date')) {
-                td.classList.add('column-date');
-              } else if (fieldName.includes('status') || fieldName.includes('trangthai') || headerLabel.includes('trạng thái')) {
-                td.classList.add('column-status');
-              } else if (fieldName.includes('hoten') || fieldName.includes('fullname') || headerLabel.includes('họ tên') || headerLabel.includes('họ và tên')) {
-                td.classList.add('column-primary');
-              } else if (typeof val === 'number' || fieldName.includes('songay') || fieldName.includes('tong') || fieldName.includes('count') || fieldName.includes('soluong')) {
-                td.classList.add('column-number');
-              }
               if (col.render) {
-                var rendered = col.render(val, row);
-                if (typeof rendered === 'string') td.innerHTML = rendered;
-                else if (rendered instanceof Node) td.appendChild(rendered);
+                var rendered = col.render(value, row);
+                if ((rendered === null || rendered === undefined) && col.semanticFallback === true) {
+                  appendSemanticContent(td, semanticCell, value, row);
+                } else if (typeof rendered === 'string') {
+                  td.innerHTML = rendered;
+                } else if (typeof Node !== 'undefined' && rendered instanceof Node) {
+                  td.appendChild(rendered);
+                } else if (rendered !== null && rendered !== undefined) {
+                  td.textContent = String(rendered);
+                }
               } else {
-                td.innerText = val !== undefined && val !== null ? val : '';
+                appendSemanticContent(td, semanticCell, value, row);
               }
+
               tr.appendChild(td);
             });
           } else {
-            row.forEach(function (cellStr, idx) {
+            row.forEach(function (cellValue, idx) {
               var td = document.createElement('td');
               if (stickyCount > 0 && idx < stickyCount) {
                 td.classList.add('sticky-col');
                 if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
                 td.style.left = (_stickyOffsets[idx] || 0) + 'px';
               }
-              if (typeof cellStr === 'string' && cellStr.indexOf('<') > -1) {
-                td.innerHTML = cellStr;
+              if (typeof cellValue === 'string' && cellValue.indexOf('<') > -1) {
+                td.innerHTML = cellValue;
               } else {
-                td.innerText = cellStr;
+                td.textContent = cellValue !== undefined && cellValue !== null ? cellValue : '';
               }
               tr.appendChild(td);
             });
@@ -262,24 +176,16 @@ var UITable = (function () {
       } else {
         var trEmpty = document.createElement('tr');
         trEmpty.className = 'empty-row';
-        trEmpty.style.border = 'none';
-        trEmpty.style.background = 'transparent';
-        trEmpty.style.boxShadow = 'none';
 
         var tdEmpty = document.createElement('td');
+        tdEmpty.className = 'table-empty-cell';
         tdEmpty.colSpan = config.headers ? config.headers.length : 1;
-        tdEmpty.style.display = 'block';
-        tdEmpty.style.textAlign = 'center';
-        tdEmpty.style.padding = '32px 16px';
-        tdEmpty.style.color = 'var(--color-text-secondary)';
-        tdEmpty.style.borderBottom = 'none';
-        tdEmpty.innerText = 'Không có dữ liệu';
+        tdEmpty.textContent = 'Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u';
 
         trEmpty.appendChild(tdEmpty);
         tbody.appendChild(trEmpty);
       }
     }
-
     // Thead
     function renderHead() {
       thead.innerHTML = '';
@@ -585,6 +491,19 @@ var UITable = (function () {
 
     var dynamicHeaders = [];
     var dynamicColumns = [];
+    var suppliedFields = options.fieldMetadata || options.fields || [];
+
+    function metadataFor(key, label) {
+      var metadata = null;
+      if (Array.isArray(suppliedFields)) {
+        metadata = suppliedFields.find(function (field) {
+          return field && String(field.name || field.field || '').toLowerCase() === String(key).toLowerCase();
+        });
+      } else if (suppliedFields && typeof suppliedFields === 'object') {
+        metadata = suppliedFields[key];
+      }
+      return Object.assign({ name: key, field: key, label: label }, metadata || {});
+    }
 
     // Lấy keys: ưu tiên lọc theo dictionary nếu dictionary không rỗng để chỉ hiện các cột được cấu hình.
     // Nếu dictionary rỗng hoặc không khớp khóa nào, ta mới lấy toàn bộ keys từ data.
@@ -611,7 +530,16 @@ var UITable = (function () {
 
         var headerLabel = dictionary[key] || key;
         var header = { label: headerLabel, sortable: true, field: key };
-        var col = { field: key };
+        var fieldMetadata = metadataFor(key, headerLabel);
+        var col = {
+          field: key,
+          label: headerLabel,
+          align: fieldMetadata.align,
+          fieldMetadata: fieldMetadata,
+          semanticRole: fieldMetadata.semanticRole || '',
+          displayVariant: fieldMetadata.displayVariant || '',
+          semanticFallback: true
+        };
 
         // Default render: JSON-aware or Tooltip
         col.render = function (v) {
@@ -698,8 +626,7 @@ var UITable = (function () {
               // Ignore and fallback
             }
           }
-          var safeVal = String(v).replace(/"/g, '&quot;');
-          return '<span title="' + safeVal + '">' + safeVal + '</span>';
+          return null;
         };
 
         // Heuristic Width
@@ -720,17 +647,18 @@ var UITable = (function () {
         if ((keyLower.indexOf('date') >= 0 || keyLower.indexOf('ngày') >= 0 || keyLower.indexOf('ngay') >= 0) && keyLower.indexOf('songay') === -1 && keyLower.indexOf('so_ngay') === -1) {
           header.align = 'center';
           col.align = 'center';
-          col.render = function (v) { return typeof FormatUtils !== 'undefined' ? FormatUtils.date(v) : v; };
         }
 
         // Custom renderer (nếu truyền vào)
         if (options.actionRenderers && options.actionRenderers[key]) {
           var customRender = options.actionRenderers[key];
           col.render = function (v, row) { return customRender(v, row, key); };
+          col.semanticFallback = false;
         } else if (options.actionRenderers && options.actionRenderers[headerLabel]) {
           // Hoặc kiểm tra theo label tiếng Việt nếu dev truyền key là label
           var customRenderLabel = options.actionRenderers[headerLabel];
           col.render = function (v, row) { return customRenderLabel(v, row, key); };
+          col.semanticFallback = false;
         }
 
         dynamicHeaders.push(header);

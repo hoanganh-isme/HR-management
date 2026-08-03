@@ -416,15 +416,26 @@ var FilterComponent = (function () {
     // Click bên ngoài thì tự đóng Panel
     document.addEventListener('click', function (e) {
       if (wrapper.style.display !== 'none') {
-        var isInsidePanel = wrapper.contains(e.target);
-        var isDropdownClick = e.target.closest('.data-dropdown-menu'); // allow clicking combobox dropdown
+        var targetNode = e.target;
+
+        // Nếu e.target đã bị gỡ khỏi DOM (ví dụ: nút chuyển tháng/năm của Flatpickr re-render), bỏ qua không đóng panel
+        if (!targetNode || targetNode.isConnected === false || (typeof document.contains === 'function' && !document.contains(targetNode))) {
+          return;
+        }
+
+        var clickTarget = targetNode.nodeType === 1 ? targetNode : targetNode.parentElement;
+        if (!clickTarget) return;
+
+        var isInsidePanel = wrapper.contains(clickTarget);
+        var isDropdownClick = clickTarget.closest('.data-dropdown-menu, .search-dropdown-menu, .combo-box-dropdown');
+        var isDatePickerClick = clickTarget.closest('.flatpickr-calendar, .flatpickr-monthDropdown-months, .flatpickr-current-month');
         var isClickOnButton = false;
-        var clickedBtn = e.target.closest('button');
+        var clickedBtn = clickTarget.closest('button');
         if (clickedBtn && (clickedBtn.innerHTML.indexOf('filter_alt') !== -1 || clickedBtn.innerText.trim() === 'Lọc' || clickedBtn.getAttribute('data-tooltip') === 'Lọc / Tìm kiếm dữ liệu')) {
           isClickOnButton = true;
         }
 
-        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && dummyContainer.parentElement) {
+        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && !isDatePickerClick && dummyContainer.parentElement) {
           dummyContainer.parentElement.style.display = 'none'; // Ẩn cha đi thì Observer sẽ ẩn Panel
         }
       }
