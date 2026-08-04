@@ -875,7 +875,7 @@ window.DynamicFormEngine = (function () {
         if (state && state.error) {
           throw new Error(state.error);
         }
-        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
+        if (state && state.runtimeMode === 'LEGACY_FULL') {
           return loadLegacyMetadata().then(function (legacyResponse) {
             if (legacyResponse && typeof legacyResponse === 'object') {
               legacyResponse._fieldContractState = state || null;

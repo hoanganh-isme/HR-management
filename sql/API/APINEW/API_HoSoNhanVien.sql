@@ -11,7 +11,11 @@ GO
 SET QUOTED_IDENTIFIER ON;
 GO
 
-CREATE OR ALTER PROCEDURE dbo.API_HoSoNhanVien
+IF OBJECT_ID(N'dbo.API_HoSoNhanVien', N'P') IS NULL
+    EXEC(N'CREATE PROCEDURE dbo.API_HoSoNhanVien AS SELECT 1');
+GO
+
+ALTER PROCEDURE dbo.API_HoSoNhanVien
 (
     @Keyword          nvarchar(200) = N'',
     @BranchID         nvarchar(max) = N'',

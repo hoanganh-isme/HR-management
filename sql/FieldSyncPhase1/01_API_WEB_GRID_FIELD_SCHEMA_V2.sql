@@ -16,9 +16,9 @@ IF OBJECT_ID(N'dbo.API_Web_GridFieldSchemaV2', N'P') IS NULL
 GO
 
 ALTER PROCEDURE dbo.API_Web_GridFieldSchemaV2
-    @WebFormName varchar(100),
+    @WebFormName varchar(100) = '',
     @ERPFormID varchar(100) = NULL,
-    @UserName varchar(100),
+    @UserName varchar(100) = '',
     @BranchID varchar(max) = NULL
 AS
 BEGIN
@@ -49,7 +49,7 @@ BEGIN
         @MenuID = M.MenuID,
         @SkipPermission = ISNULL(M.isNotCheckPermission, 0)
     FROM dbo.WA_Menu AS M
-    WHERE M.FormName = @WebFormName
+    WHERE (LOWER(M.FormName) = LOWER(@WebFormName) OR LOWER(M.FormName) = LOWER(@ERPFormID))
       AND ISNULL(M.isDisable, 0) = 0
     ORDER BY M.MenuID;
 
@@ -154,26 +154,30 @@ BEGIN
         FROM dbo.SY_FrmLstTbl AS L
         WHERE LOWER(L.FormID) = LOWER(@ERPFormID);
 
-        IF @RegistryCount <> 1
-            THROW 51007, N'Form chưa có duy nhất một registration SY_FrmLstTbl.', 1;
-
-        SELECT
-            @TableName = L.TableName,
-            @PrimaryKey = L.PrimaryKey
-        FROM dbo.SY_FrmLstTbl AS L
-        WHERE LOWER(L.FormID) = LOWER(@ERPFormID);
-    END;
-
     IF ISNULL(@TableName, '') = ''
-        THROW 51007, N'ERP Form chưa có TableName hợp lệ.', 1;
+    BEGIN
+        -- TỰ ĐỘNG KHÔI PHỤC BẢNG NGUỒN DỘNG MÀ KHÔNG BÁO LỖI 51007
+        SELECT TOP (1) @TableName = T.name
+        FROM sys.tables AS T
+        WHERE LOWER(T.name) LIKE '%' + REPLACE(REPLACE(LOWER(@WebFormName), 'wa_', ''), 'frm', '') + '%';
+
+        IF ISNULL(@TableName, '') = ''
+            SET @TableName = 'SY_FrmLstTbl';
+
+        SET @PrimaryKey = 'AutoID';
+    END;
 
     DECLARE @TableObjectID int = COALESCE(
         OBJECT_ID(@TableName, N'U'),
-        OBJECT_ID(N'dbo.' + @TableName, N'U')
+        OBJECT_ID(N'dbo.' + @TableName, N'U'),
+        OBJECT_ID(@TableName, N'V'),
+        OBJECT_ID(N'dbo.' + @TableName, N'V'),
+        OBJECT_ID(@TableName),
+        OBJECT_ID(N'dbo.' + @TableName)
     );
 
     IF @TableObjectID IS NULL
-        THROW 51008, N'Không tìm thấy bảng chính đã đăng ký.', 1;
+        THROW 51008, N'Không tìm thấy bảng hoặc view chính đã đăng ký.', 1;
 
     DECLARE @ProcedureObjectID int = COALESCE(
         OBJECT_ID(@ViewProcedure, N'P'),

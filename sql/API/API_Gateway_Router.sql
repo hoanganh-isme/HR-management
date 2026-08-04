@@ -8,7 +8,11 @@ GO
 -- [API_Gateway_Router] - TRẠM ĐỊNH TUYẾN TRUNG TÂM
 -- Đọc cấu hình từ bảng WA_API để gọi các thủ tục tương ứng.
 -- =========================================================================
-CREATE OR ALTER PROCEDURE [dbo].[API_Gateway_Router]
+IF OBJECT_ID(N'dbo.API_Gateway_Router', N'P') IS NULL
+    EXEC(N'CREATE PROCEDURE dbo.API_Gateway_Router AS SELECT 1');
+GO
+
+ALTER PROCEDURE [dbo].[API_Gateway_Router]
     @List VARCHAR(50),               -- Ví dụ: 'Customer', 'ComboNhanVien'
     @Func VARCHAR(50) = 'View',      -- Ví dụ: 'View', 'Save', 'Delete'
     @UserName VARCHAR(50) = '',      -- Tên user lấy từ Frontend/Session
@@ -114,6 +118,9 @@ BEGIN
     END
     
     -- ƯU TIÊN 2: FALLBACK (DỰ PHÒNG CÁC BIẾN CỨNG)
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{FormName}', REPLACE(ISNULL(@List, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{ERPFormID}', REPLACE(ISNULL(@List, ''), '''', ''''''));
+    SET @ParaTemplate = REPLACE(@ParaTemplate, '{WebFormName}', REPLACE(ISNULL(@List, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{Keyword}', REPLACE(ISNULL(@Keyword, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortColumn}', REPLACE(ISNULL(@SortColumn, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{SortDir}', REPLACE(ISNULL(@SortDir, ''), '''', ''''''));

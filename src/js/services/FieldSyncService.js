@@ -802,11 +802,48 @@ window.FieldSyncService = (function (global) {
       var rolloutStatus = String(control.rolloutStatus || reasonStatus || 'NOT_REGISTERED').toUpperCase();
       if (metadata.metadataEnabled !== true) {
         clearFormTimers(formName);
+        var normName = normalizeName(formName);
+        var hasCustomOrLegacy = (Array.isArray(resolvedLegacySchema) && resolvedLegacySchema.length > 0)
+          || (entry && (entry.enableGrid === false || entry.legacyOnly === true))
+          || Boolean(
+              global.HRModuleDefinitions && Object.keys(global.HRModuleDefinitions).some(function (mod) {
+                var defs = global.HRModuleDefinitions[mod];
+                return defs && (defs[normName] || defs[formName] || defs[formName.toUpperCase()]);
+              })
+          );
+
+        var isDeferredOrBlocked = rolloutStatus === 'DEFERRED'
+          || rolloutStatus === 'BLOCKED'
+          || rolloutStatus === 'NOT_REGISTERED'
+          || String(control.contractType || '').toUpperCase() === 'COMPLEX_DEFERRED';
+
+        // fallbackToLegacy: true → luôn dùng legacy state khi form chưa sẵn sàng V2,
+        // không cần custom schema. Đây là ý nghĩa chính xác của cờ này.
+        var shouldFallback = settings.fallbackToLegacy === true
+          ? (isDeferredOrBlocked || !metadata.registered)
+          : (hasCustomOrLegacy && isDeferredOrBlocked);
+
+        if (shouldFallback) {
+          var legacyState = legacyFullState(
+            formName,
+            resolvedLegacySchema,
+            'legacy-deferred-fallback',
+            null,
+            metadata.reasonCode || 'FIELD_CONTRACT_DEFERRED',
+            null
+          );
+          legacyState.contract = control;
+          legacyState.rolloutStatus = rolloutStatus;
+          states[key] = legacyState;
+          dispatchUpdate(formName, legacyState);
+          return legacyState;
+        }
+
         var blockedMetadata = errorState(
           formName,
           'metadata-contract-blocked',
           metadata.reasonCode || 'FIELD_CONTRACT_METADATA_UNAVAILABLE',
-          'Form chưa đủ thông tin để tạo metadata V2.'
+          'Form ' + formName + ' (' + rolloutStatus + ') chưa sẵn sàng Metadata V2 và không có custom/legacy loader.'
         );
         blockedMetadata.managed = metadata.registered === true;
         blockedMetadata.contract = metadata.control || null;
@@ -912,6 +949,21 @@ window.FieldSyncService = (function (global) {
         states[key] = readOnly;
         dispatchUpdate(formName, readOnly);
         return readOnly;
+      }
+      // Lỗi mạng/HTTP không liên quan đến quyền: nếu fallbackToLegacy thì dùng legacy
+      if (settings.fallbackToLegacy === true) {
+        var networkFallback = legacyFullState(
+          formName,
+          resolvedLegacySchema,
+          'legacy-deferred-fallback',
+          null,
+          code || 'METADATA_NETWORK_ERROR',
+          null
+        );
+        networkFallback.rolloutStatus = 'UNKNOWN';
+        states[key] = networkFallback;
+        dispatchUpdate(formName, networkFallback);
+        return networkFallback;
       }
       var unavailable = errorState(
         formName,

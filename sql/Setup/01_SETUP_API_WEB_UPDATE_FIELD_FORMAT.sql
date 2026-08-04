@@ -54,43 +54,8 @@ BEGIN
             RETURN;
         END;
 
+        -- 1. Cập nhật tất cả bản ghi hiện có của FieldName (Bao gồm bản ghi Global và FormName riêng)
         IF EXISTS (
-            SELECT 1 
-            FROM dbo.SY_FmtFldTbl 
-            WHERE LOWER(FieldName) = LOWER(@FieldName) 
-              AND LOWER(ISNULL(FormName, '')) = LOWER(@WebFormName)
-        )
-        BEGIN
-            UPDATE dbo.SY_FmtFldTbl
-            SET CaptionVN = CASE WHEN @CaptionVN <> '' THEN @CaptionVN ELSE CaptionVN END,
-                CaptionEN = CASE WHEN @CaptionEN <> '' THEN @CaptionEN ELSE CaptionEN END,
-                CaptionCH = CASE WHEN @CaptionCH <> '' THEN @CaptionCH ELSE CaptionCH END,
-                FormatID = @FormatID,
-                AlignX = @AlignX,
-                MinWidth = @MinWidth,
-                MaxWidth = @MaxWidth
-            WHERE LOWER(FieldName) = LOWER(@FieldName)
-              AND LOWER(ISNULL(FormName, '')) = LOWER(@WebFormName);
-        END
-        ELSE IF EXISTS (
-            SELECT 1 
-            FROM dbo.SY_FmtFldTbl 
-            WHERE LOWER(FieldName) = LOWER(@FieldName)
-              AND (FormName IS NULL OR LTRIM(RTRIM(FormName)) = '')
-        )
-        BEGIN
-            UPDATE dbo.SY_FmtFldTbl
-            SET CaptionVN = CASE WHEN @CaptionVN <> '' THEN @CaptionVN ELSE CaptionVN END,
-                CaptionEN = CASE WHEN @CaptionEN <> '' THEN @CaptionEN ELSE CaptionEN END,
-                CaptionCH = CASE WHEN @CaptionCH <> '' THEN @CaptionCH ELSE CaptionCH END,
-                FormatID = @FormatID,
-                AlignX = @AlignX,
-                MinWidth = @MinWidth,
-                MaxWidth = @MaxWidth
-            WHERE LOWER(FieldName) = LOWER(@FieldName)
-              AND (FormName IS NULL OR LTRIM(RTRIM(FormName)) = '');
-        END
-        ELSE IF EXISTS (
             SELECT 1 
             FROM dbo.SY_FmtFldTbl 
             WHERE LOWER(FieldName) = LOWER(@FieldName)
@@ -108,11 +73,12 @@ BEGIN
         END
         ELSE
         BEGIN
+            -- 2. Nếu trường này chưa từng có trong SY_FmtFldTbl, tạo mới bản ghi GLOBAL (FormName = NULL)
             INSERT INTO dbo.SY_FmtFldTbl (
                 FormName, FieldName, CaptionVN, CaptionEN, CaptionCH, FormatID, AlignX, MinWidth, MaxWidth
             )
             VALUES (
-                NULLIF(@WebFormName, ''), @FieldName, @CaptionVN, @CaptionEN, @CaptionCH, @FormatID, @AlignX, @MinWidth, @MaxWidth
+                NULL, @FieldName, @CaptionVN, @CaptionEN, @CaptionCH, @FormatID, @AlignX, @MinWidth, @MaxWidth
             );
         END;
 
@@ -176,5 +142,19 @@ BEGIN
 END;
 GO
 
-PRINT N'✅ Đã khởi tạo thành công SP API_Web_UpdateFieldFormat và đăng ký đầy đủ vào WA_API!';
+-- 3. Chuẩn hóa an toàn các bản ghi đơn lẻ về GLOBAL (FormName = NULL) mà không vi phạm UNIQUE KEY IX_SY_FormatFields
+UPDATE F
+SET FormName = NULL
+FROM dbo.SY_FmtFldTbl AS F
+WHERE F.FormName IS NOT NULL 
+  AND LTRIM(RTRIM(F.FormName)) <> ''
+  AND NOT EXISTS (
+      SELECT 1 
+      FROM dbo.SY_FmtFldTbl AS G 
+      WHERE LOWER(G.FieldName) = LOWER(F.FieldName) 
+        AND (G.FormName IS NULL OR LTRIM(RTRIM(G.FormName)) = '')
+  );
+GO
+
+PRINT N'✅ Đã khởi tạo thành công SP API_Web_UpdateFieldFormat (Global Mode) và đăng ký đầy đủ vào WA_API!';
 GO
