@@ -875,7 +875,7 @@ window.DynamicFormEngine = (function () {
         if (state && state.error) {
           throw new Error(state.error);
         }
-        if (state && state.runtimeMode === 'LEGACY_FULL') {
+        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
           return loadLegacyMetadata().then(function (legacyResponse) {
             if (legacyResponse && typeof legacyResponse === 'object') {
               legacyResponse._fieldContractState = state || null;
@@ -5530,13 +5530,13 @@ window.DynamicFormEngine = (function () {
                     headers = Array.isArray(field.headers) && field.headers.length
                       ? field.headers.slice(0, displayKeys.length)
                       : displayKeys.map(function (k) {
-                      if (typeof currentDictionary !== 'undefined') {
-                        var kLower = k.toLowerCase();
-                        var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
-                        if (matchKey) return currentDictionary[matchKey].CaptionVN;
-                      }
-                      return k;
-                    });
+                        if (typeof currentDictionary !== 'undefined') {
+                          var kLower = k.toLowerCase();
+                          var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
+                          if (matchKey) return currentDictionary[matchKey].CaptionVN;
+                        }
+                        return k;
+                      });
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
                     if (displayKey) {

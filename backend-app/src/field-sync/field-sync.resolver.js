@@ -716,7 +716,13 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
     }
 
     const classifiedFields = classifyMobileFields(fields);
-    const firstRow = rows && rows[0] ? rows[0] : {};
+    const sourceRows =
+        Array.isArray(rows) ? rows : [];
+
+    const firstRow =
+        sourceRows.find(row =>
+            first(row, 'FieldName', 'fieldName')
+        ) || {};
 
     const sourceKind = cleanText(
         first(firstRow, 'SourceKind', 'sourceKind'),
