@@ -39,6 +39,10 @@ window.FieldSyncService = (function (global) {
     return /(?:Frm|Report)$/i.test(String(formName || '').trim());
   }
 
+  function isReportForm(formName) {
+    return /(?:Report)$/i.test(String(formName || '').trim());
+  }
+
   function isPilot(formName) {
     // Form CRUD và report động đều dùng cùng nguồn metadata V2.
     if (!isMetadataContractForm(formName)) return false;
@@ -803,12 +807,17 @@ window.FieldSyncService = (function (global) {
       if (metadata.metadataEnabled !== true) {
         clearFormTimers(formName);
         var normName = normalizeName(formName);
-        var hasCustomOrLegacy = (Array.isArray(resolvedLegacySchema) && resolvedLegacySchema.length > 0)
+        var isReportForm = /(?:Report)$/i.test(String(formName || '').trim());
+        var hasCustomOrLegacy = isReportForm
+          || (Array.isArray(resolvedLegacySchema) && resolvedLegacySchema.length > 0)
           || (entry && (entry.enableGrid === false || entry.legacyOnly === true))
           || Boolean(
               global.HRModuleDefinitions && Object.keys(global.HRModuleDefinitions).some(function (mod) {
                 var defs = global.HRModuleDefinitions[mod];
-                return defs && (defs[normName] || defs[formName] || defs[formName.toUpperCase()]);
+                if (!defs || typeof defs !== 'object') return false;
+                return Object.keys(defs).some(function (key) {
+                  return normalizeName(key) === normName || key.toUpperCase() === String(formName).toUpperCase();
+                });
               })
           );
 
@@ -832,6 +841,7 @@ window.FieldSyncService = (function (global) {
             metadata.reasonCode || 'FIELD_CONTRACT_DEFERRED',
             null
           );
+          legacyState.managed = false;
           legacyState.contract = control;
           legacyState.rolloutStatus = rolloutStatus;
           states[key] = legacyState;
@@ -1135,7 +1145,7 @@ window.FieldSyncService = (function (global) {
   }
 
   function ensurePolling(formName, legacySchema) {
-    if (!isPilot(formName) || typeof global.setInterval !== 'function') return;
+    if (isReportForm(formName) || !isPilot(formName) || typeof global.setInterval !== 'function') return;
     var key = stateKey(formName);
     var current = states[key];
     if (!current || current.pollAllowed !== true) {

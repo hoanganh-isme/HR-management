@@ -8,6 +8,8 @@ import {
     toPublicContract
 } from './field-contract.policy.js';
 import { normalizeGridCompare, normalizeGridSchema, normalizeJoinSchema, normalizeLookupSchema, normalizeRegisteredLookup } from './field-sync.resolver.js';
+import { createFieldContractRepository } from './field-contract.repository.js';
+import { getRegisteredLookupContract } from './field-contract.registry.js';
 
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
 const SAFE_DETAIL_KEY = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
@@ -77,7 +79,7 @@ function assertSchemaMatchesContract(schema, contract) {
     if (!sameIdentifier(schema.primaryKey, contract.expectedPrimaryKey)) {
         throw contractError('PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
     }
-    if (contract.rolloutStatus === 'ACTIVE') {
+    if (contract.rolloutStatus === 'ACTIVE' && contract.source !== 'STATIC_COMPATIBILITY_FALLBACK') {
         const registeredView = schema?.runtimeRoutes?.view?.registeredProcedure;
         const registeredSave = schema?.runtimeRoutes?.save?.registeredProcedure;
         const registeredDelete = schema?.runtimeRoutes?.delete?.registeredProcedure;
@@ -260,9 +262,10 @@ function errorCode(error) {
 export function createFieldSyncRouter({
     gateway,
     config,
-    repository,
+    repository: _repository,
     cache = new FieldSyncCache(config.cacheTtlMs, undefined, config.cacheMaxEntries)
 }) {
+    const repository = _repository || createFieldContractRepository({ gateway, config, cache });
     const router = express.Router();
 
     router.use((req, res, next) => {
@@ -331,6 +334,10 @@ export function createFieldSyncRouter({
                 } catch (error) {
                     if (names.contract.rolloutStatus === 'ACTIVE') {
                         if (error?.statusCode === 401 || error?.statusCode === 403) {
+                            throw error;
+                        }
+                        // 502/network errors - pass through the original status so frontend can distinguish
+                        if (error?.statusCode === 502 || (error?.diagnosticCode || '').startsWith('ERP_GATEWAY_NETWORK')) {
                             throw error;
                         }
                         throw contractError(
@@ -578,6 +585,33 @@ export function createFieldSyncRouter({
 
             }
             if (descriptor.mode === 'BLOCKED') {
+                // Thử compatibility allow-list (khi LookupKey V2 chưa đồng bộ nhưng có registered API)
+                const fieldName = String(lookupFields[0]?.name || '');
+                const registeredCompat = getRegisteredLookupContract(formName, fieldName);
+                if (registeredCompat && registeredCompat.registeredList) {
+                    const compatRows = await gateway.registeredLookup(
+                        registeredCompat.registeredList,
+                        params,
+                        context
+                    );
+                    const compatDescriptor = {
+                        mode: 'REGISTERED_API',
+                        registeredList: registeredCompat.registeredList,
+                        valueField: registeredCompat.valueField,
+                        displayField: registeredCompat.displayField
+                    };
+                    const compatOptions = normalizeRegisteredLookup(compatRows, compatDescriptor);
+                    if (compatOptions) {
+                        return res.json({
+                            success: true,
+                            options: compatOptions.slice(0, pageSize),
+                            page,
+                            pageSize,
+                            lookupKey: params.LookupKey,
+                            lookupAliases
+                        });
+                    }
+                }
                 return res.status(409).json({ success: false, code: descriptor.diagnosticCode, message: 'Lookup này chưa có nguồn đọc an toàn được đăng ký.' });
             }
             let options = descriptor.options || [];

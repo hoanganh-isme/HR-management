@@ -245,13 +245,20 @@ export function createFieldContractRepository({
         if (cached) return cached;
         if (pending.has(key)) return pending.get(key);
 
-        const request = gateway.fieldContractResolve({ FormName: formName }, context)
+        const resolvePromise = typeof gateway?.fieldContractResolve === 'function'
+            ? gateway.fieldContractResolve({ FormName: formName }, context)
+            : Promise.reject(new FieldSyncGatewayError('Gateway does not support fieldContractResolve', 502, 'ERP_GATEWAY_HTTP_ERROR'));
+
+        const request = resolvePromise
             .then((rows) => cache.set(key, normalizeContractRows(rows, formName)))
             .catch((error) => {
-                const fallback = shouldUseCompatibilityFallback(error)
+                const fallback = (shouldUseCompatibilityFallback(error) || typeof gateway?.fieldContractResolve !== 'function')
                     ? compatibilityFallback(formName)
                     : null;
                 if (fallback) return cache.set(key, fallback);
+                if (!fallback && (shouldUseCompatibilityFallback(error) || typeof gateway?.fieldContractResolve !== 'function')) {
+                    throw contractError('Form chưa được khai báo hoặc allow-list.', 'FIELD_CONTRACT_FORM_NOT_ALLOWLISTED', 404);
+                }
                 throw error;
             })
             .finally(() => {

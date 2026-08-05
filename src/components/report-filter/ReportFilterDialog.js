@@ -59,14 +59,24 @@ var ReportFilterDialog = (function () {
    *   '/api/API_DanhSachKhuVuc'       → gọi API, lấy [{ value, label }]
    *   'STATIC:--Tất cả--=,value1=Nhãn 1,value2=Nhãn 2'
    */
-  function _fetchOptions(dataSource, valueField, labelField) {
+  function _fetchOptions(dataSource, valueField, labelField, field) {
+    if (field && Array.isArray(field.options) && field.options.length > 0) {
+      return Promise.resolve(field.options.map(function (opt) {
+        return {
+          value: opt.value !== undefined ? opt.value : (opt.Value !== undefined ? opt.Value : ''),
+          label: opt.label || opt.Label || opt.text || opt.value || ''
+        };
+      }));
+    }
+
     if (!dataSource) return Promise.resolve([]);
 
     // STATIC: prefix
     if (dataSource.indexOf('STATIC:') === 0) {
       var raw = dataSource.substring(7);
       var opts = raw.split(',').map(function (item) {
-        var parts = item.split('=');
+        var parts = item.split('|');
+        if (parts.length < 2) parts = item.split('=');
         return { value: parts[1] !== undefined ? parts[1] : parts[0], label: parts[0] };
       });
       return Promise.resolve(opts);
@@ -193,19 +203,94 @@ var ReportFilterDialog = (function () {
 
     // ── Select (sl hoặc sr) ──
     if (rule === 'sl' || rule === 'sr') {
+      var selectedVal = defaultVal || '';
+
+      if (window.UIControls && typeof UIControls.createDataComboBox === 'function') {
+        var hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.dataset.fieldName = name;
+        hiddenInput.value = selectedVal;
+
+        var comboContainer = document.createElement('div');
+        comboContainer.style.width = '100%';
+
+        var comboLoading = UIControls.createDataComboBox({
+          placeholder: label ? ('Chọn ' + label + '...') : '-- Tất cả --',
+          disabled: false
+        });
+        comboContainer.appendChild(comboLoading);
+
+        _fetchOptions(field.dataSource, field.valueField, field.labelField, field)
+          .then(function (opts) {
+            var comboData = [];
+            opts.forEach(function (opt) {
+              if (opt.value !== '') {
+                comboData.push([opt.value, opt.label]);
+              }
+            });
+
+            var newCombo = UIControls.createDataComboBox({
+              placeholder: field.placeholder || label || '-- Tất cả --',
+              headers: ['Mã / Giá trị', 'Tên / Nhãn'],
+              data: comboData,
+              colFilterIndex: 1,
+              onSelect: function (r) {
+                selectedVal = r ? r[0] : '';
+                hiddenInput.value = selectedVal;
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              },
+              onChange: function (val) {
+                selectedVal = val;
+                hiddenInput.value = val;
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+
+            var displayInput = newCombo.querySelector('input.ui-input');
+            if (selectedVal && displayInput) {
+              var matched = comboData.find(function (r) { return String(r[0]) === String(selectedVal); });
+              if (matched) {
+                displayInput.value = matched[1];
+              } else {
+                displayInput.value = selectedVal;
+              }
+            }
+
+            comboContainer.innerHTML = '';
+            comboContainer.appendChild(newCombo);
+          });
+
+        var wrapper = document.createElement('div');
+        wrapper.appendChild(hiddenInput);
+        wrapper.appendChild(comboContainer);
+
+        return {
+          row: _buildRow(label, required, wrapper, visibleRule),
+          getValue: function () {
+            var o = {};
+            o[name] = hiddenInput.value || selectedVal;
+            return o;
+          },
+          setValue: function (v) {
+            selectedVal = v || '';
+            hiddenInput.value = selectedVal;
+            var displayInput = wrapper.querySelector('input.ui-input');
+            if (displayInput) displayInput.value = selectedVal;
+          }
+        };
+      }
+
       var sel = document.createElement('select');
       sel.className = 'ui-input rfd-input rfd-select';
       sel.dataset.fieldName = name;
       sel.required = required;
 
-      // Placeholder option
       var placeholder = document.createElement('option');
       placeholder.value = '';
       placeholder.textContent = '--Tất cả--';
       sel.appendChild(placeholder);
 
-      // Load options async
-      _fetchOptions(field.dataSource, field.valueField, field.labelField)
+      _fetchOptions(field.dataSource, field.valueField, field.labelField, field)
         .then(function (opts) {
           opts.forEach(function (opt) {
             var o = document.createElement('option');
@@ -217,16 +302,8 @@ var ReportFilterDialog = (function () {
           if (defaultVal) sel.value = defaultVal;
         });
 
-      // sr = select + search icon (dùng SearchDropdown nếu có)
-      var wrap = sel;
-      if (rule === 'sr' && typeof SearchDropdown !== 'undefined') {
-        // SearchDropdown sẽ wrap select thành combobox có tìm kiếm
-        // (SearchDropdown.attachTo pattern)
-        // Giữ nguyên select để đơn giản, tích hợp sau
-      }
-
       return {
-        row: _buildRow(label, required, wrap, visibleRule),
+        row: _buildRow(label, required, sel, visibleRule),
         getValue: function () { var o = {}; o[name] = sel.value; return o; },
         setValue: function (v) { sel.value = v || ''; }
       };

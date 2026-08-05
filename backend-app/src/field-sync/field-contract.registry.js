@@ -145,10 +145,18 @@ export function listFieldContractMigrations() {
     return FIELD_CONTRACT_MIGRATION_REGISTRY.slice();
 }
 
-/**
- * @deprecated Lookup runtime đã chuyển hoàn toàn sang registry V2 trong DB.
- * Giữ hàm rỗng để không phá vỡ import của mã tích hợp cũ.
- */
-export function getRegisteredLookupContract() {
-    return undefined;
+const REGISTERED_LOOKUPS = Object.freeze({
+    'wa_calamviecfrm|shiftidthu2': {
+        webFormName: 'WA_CaLamViecFrm',
+        fieldName: 'ShiftIDThu2',
+        registeredList: 'API_HR_DropdownShifts',
+        valueField: 'ShiftID',
+        displayField: 'ShiftName'
+    }
+});
+
+export function getRegisteredLookupContract(webFormName, fieldName) {
+    const key = `${String(webFormName || '').trim().toLowerCase()}|${String(fieldName || '').trim().toLowerCase()}`;
+    return REGISTERED_LOOKUPS[key];
 }
+

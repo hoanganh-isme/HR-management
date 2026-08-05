@@ -139,9 +139,6 @@
     FormName: 'WA_BaoHiemFrm',
     PrimaryKey: 'DocumentID',
     UseSplitLayout: false,
-    SplitLayoutSelectText: 'Vui lòng chọn chứng từ đóng bảo hiểm để xem chi tiết',
-    SplitLayoutEmptyText: 'Không có chi tiết bảo hiểm nào cho chứng từ này',
-    SplitLayoutDetailWidth: '960px',
     ModalWidth: '1020px',
     FilterKeywordLabel: 'Tìm nhanh',
     SearchPlaceholder: 'Nhập số chứng từ hoặc ghi chú...',
@@ -167,10 +164,13 @@
       {
         label: 'Chi tiết đóng bảo hiểm',
         api: 'API_BaoHiem_Detail',
+        metadataMode: 'JOIN_RESULT_SET_EDITABLE',
+        joinContractKey: 'DETAIL_TAB_1',
+        primaryKey: 'UserAutoID',
         filterField: 'DocumentID',
         editable: true,
         duplicateField: 'PersonID',
-        readOnlyFields: ['PersonName', 'PhongBan', 'ChucDanhChuyenMon'],
+        readOnlyFields: ['PersonName', 'PhongBan', 'ChucDanhChuyenMon', 'BranchID'],
         customButtons: [
           {
             id: 'btn-multi-select',
@@ -370,20 +370,6 @@
               });
             }
           }
-        },
-        headers: {
-          PersonID: 'Mã nhân viên',
-          PersonName: 'Họ Tên',
-          ChucDanhChuyenMon: 'Chuyên môn',
-          PhongBan: 'Bộ phận',
-          MucDong: 'Mức đóng',
-          MucDongBHXHNLD: 'BHXH Người LD',
-          MucDongBHXHNSDLD: 'BHXH Công Ty',
-          MucDongBHYTNLD: 'BHYT Người LD',
-          MucDongBHYTNSDLD: 'BHYT Công Ty',
-          MucDongBHTNNLD: 'BHTN Người LD',
-          MucDongBHTNNSDLD: 'BHTN Công Ty',
-          GhiChu: 'Ghi chú'
         }
       }
     ]

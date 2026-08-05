@@ -32,6 +32,7 @@ test('HR module registry includes the reusable branch-shift behavior profile', (
     'src/js/modules/hr/definitions/leave.js',
     'src/js/modules/hr/definitions/payroll.js',
     'src/js/modules/hr/definitions/contract.js',
+    'src/js/modules/hr/definitions/reports.js',
     'src/js/modules/hr/HRModuleRegistry.js'
   ];
   const window = {};

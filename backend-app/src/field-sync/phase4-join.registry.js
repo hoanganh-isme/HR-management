@@ -77,6 +77,40 @@ const RAW_CONTRACTS = [
 
     registeredDeleteProcedure:
       'API_XoaDong_V2'
+  }),
+
+  freezeContract({
+    webFormName: 'WA_BaoHiemFrm',
+    detailKey: 'DETAIL_TAB_1',
+
+    apiList:
+      'API_BaoHiem_Detail',
+
+    expectedProcedure:
+      'API_BaoHiem_Detail',
+
+    registeredViewProcedure:
+      'API_BaoHiem_Detail',
+
+    expectedSaveProcedure:
+      'API_LuuDong_V2',
+
+    expectedDeleteProcedure:
+      'API_XoaDong_V2',
+
+    expectedTableName:
+      'HR_BaoHiemChiTietTbl',
+
+    expectedPrimaryKey:
+      'UserAutoID',
+
+    readOnly: false,
+
+    registeredSaveProcedure:
+      'API_LuuDong_V2',
+
+    registeredDeleteProcedure:
+      'API_XoaDong_V2'
   })
 ];
 

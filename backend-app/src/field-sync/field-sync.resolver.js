@@ -303,7 +303,7 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
                             200
                         ) ||
                         cleanDisplayText(
-                            first(row, 'Caption', 'caption'),
+                            first(row, 'Caption', 'caption', 'CaptionVN', 'captionVN', 'Label', 'label'),
                             200
                         ) ||
                         fieldName,
@@ -396,7 +396,7 @@ export function normalizeGridSchema(rows, requestedFormName, erpFormName) {
 
             label:
                 cleanDisplayText(
-                    first(row, 'Caption', 'caption'),
+                    first(row, 'Caption', 'caption', 'CaptionVN', 'captionVN', 'Label', 'label'),
                     200
                 ) || fieldName,
 
@@ -1290,6 +1290,8 @@ export function normalizeJoinSchema(
                         row,
                         'Caption',
                         'caption',
+                        'CaptionVN',
+                        'captionVN',
                         'Label',
                         'label'
                     ),

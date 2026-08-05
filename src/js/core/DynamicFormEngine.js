@@ -241,6 +241,7 @@ window.DynamicFormEngine = (function () {
       if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
       if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
         && detail.contextKey && detail.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+      if (MODULE_CONFIG && (MODULE_CONFIG.ReadOnlyReport === true || /(?:Report)$/i.test(String(currentFormName || '').trim()))) return;
       _applyFieldSyncState(detail.state);
     });
     document.addEventListener('focusout', function () {
@@ -2955,10 +2956,41 @@ window.DynamicFormEngine = (function () {
             };
           }
 
+          var fName = actualField.toLowerCase();
+          var title = (colDef.title || '').toLowerCase();
+
+
+          var isBoolField = (f.renderRule === 'c' || f.renderRule === 'b' || f.renderRule === 'checkbox')
+            || fName === 'nhanvienmoi' || fName === 'thieubaohiem' || fName === 'thieuhd'
+            || fName === 'isactive' || fName === 'isuse' || fName === 'istaituyen';
+
+          if (fName === 'danhsachhopdong') {
+            colDef.formatter = function (cell) {
+              var v = cell.getValue();
+              if (!v) return '';
+              var items = String(v).split(/[\r\n]+/);
+              var badges = items.map(function (item) {
+                var clean = item.trim();
+                if (!clean) return '';
+                return '<span class="badge-status badge-info" style="margin:2px; font-size:12px; display:inline-block; font-weight:500;">' + clean + '</span>';
+              }).filter(Boolean);
+              return badges.length > 0 ? badges.join(' ') : v;
+            };
+          } else if (isBoolField) {
+            colDef.hozAlign = 'center';
+            colDef.width = 110;
+            colDef.formatter = function (cell) {
+              var v = cell.getValue();
+              var isChecked = Boolean(v === 1 || v === '1' || v === true || String(v).toLowerCase() === 'true' || String(v).toLowerCase() === 'y');
+              if (isChecked) {
+                return '<span style="display:inline-flex; align-items:center; justify-content:center; color:#2563eb; line-height:1;"><span class="material-symbols-outlined" style="font-size:22px;">check_box</span></span>';
+              }
+              return '<span style="display:inline-flex; align-items:center; justify-content:center; color:#d1d5db; line-height:1;"><span class="material-symbols-outlined" style="font-size:22px;">check_box_outline_blank</span></span>';
+            };
+          }
+
           // Smart UI/UX Defaults (Kế thừa cho toàn bộ lưới nếu không bị ghi đè)
           if (!colDef.formatter) {
-            var fName = actualField.toLowerCase();
-            var title = (colDef.title || '').toLowerCase();
 
             if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid' || fName === 'personid' || title.includes('mã nhân viên')) {
               colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
@@ -3068,8 +3100,9 @@ window.DynamicFormEngine = (function () {
 
       // Bắt sự kiện chọn dòng để update biến selectedRows
       if (rowSelectionEnabled) {
+        selectedRows = [];
         window.tabulatorInstance.on("rowSelectionChanged", function (data, rows) {
-          selectedRows = data;
+          selectedRows = data || [];
           _updateSelectionCounter();
         });
       }
@@ -3084,24 +3117,6 @@ window.DynamicFormEngine = (function () {
         });
         localStorage.setItem('tabulator_col_order_' + userName + '_' + formName, JSON.stringify(colOrder));
       });
-
-      // Hack cho Mobile/Touch: Cho phép click vào bất kỳ đâu trên dòng để CHỌN NHIỀU (Toggle) mà không cần giữ Ctrl
-      if (rowSelectionEnabled) {
-        tableWrapper.addEventListener('click', function (e) {
-          if (e.target.closest('.tabulator-header')) return;
-          // Bỏ qua nếu click vào nút, link, hoặc input (như checkbox của Tabulator)
-          if (e.target.closest('button, a, input, select, textarea')) return;
-
-          var rowEl = e.target.closest('.tabulator-row');
-          if (rowEl) {
-            var row = window.tabulatorInstance.getRow(rowEl);
-            if (row && typeof row.toggleSelect === 'function') {
-              e.stopPropagation(); // Ngăn Tabulator clear các dòng khác
-              row.toggleSelect();
-            }
-          }
-        }, true);
-      }
 
       // Bắt sự kiện chỉnh sửa ô để lưu tự động vào DB
       window.tabulatorInstance.on("cellEdited", function (cell) {

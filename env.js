@@ -53,7 +53,7 @@ if (typeof window !== 'undefined') {
 // http://nhansu.bms7.net/
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
-    API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
+    API_BASE: 'http://nhansu.bms7.net', // Domain backend thực tế
     DOCUMENT_SERVICE_BASE: HRM_DOCUMENT_SERVICE_BASE,
     ONLYOFFICE_PUBLIC_URL: HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8082' : HRM_FRONTEND_ORIGIN + '/onlyoffice'),
 

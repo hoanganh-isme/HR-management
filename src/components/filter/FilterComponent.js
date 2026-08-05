@@ -174,7 +174,51 @@ var FilterComponent = (function () {
 
         } else {
           var opts = f.options ? f.options.map(function (o) { return { value: o.value !== undefined ? o.value : o, label: o.label || o }; }) : [];
-          controlWrapper = UIInput.createSelect(config, opts);
+
+          if (window.UIControls && typeof UIControls.createDataComboBox === 'function') {
+            controlWrapper = document.createElement('div');
+            controlWrapper.className = 'form-group';
+
+            if (config.label) {
+              var lbl = document.createElement('label');
+              lbl.innerText = config.label;
+              controlWrapper.appendChild(lbl);
+            }
+
+            var hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.id = f.id;
+            hiddenInput.name = f.id;
+            var initVal = initialValueFor(f) || (opts[0] ? opts[0].value : '');
+            hiddenInput.value = initVal;
+            controlWrapper.appendChild(hiddenInput);
+
+            var comboData = opts.map(function (o) { return [o.value, o.label]; });
+            var newCombo = UIControls.createDataComboBox({
+              placeholder: f.placeholder || '-- Tất cả --',
+              headers: ['Mã / Giá trị', 'Tên / Nhãn'],
+              data: comboData,
+              colFilterIndex: 1,
+              onSelect: function (r) {
+                hiddenInput.value = r ? r[0] : '';
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              },
+              onChange: function (val) {
+                hiddenInput.value = val;
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+
+            var displayInput = newCombo.querySelector('input.ui-input');
+            if (initVal && displayInput) {
+              var matchedOpt = opts.find(function (o) { return String(o.value) === String(initVal); });
+              if (matchedOpt) displayInput.value = matchedOpt.label;
+            }
+
+            controlWrapper.appendChild(newCombo);
+          } else {
+            controlWrapper = UIInput.createSelect(config, opts);
+          }
         }
       } else if (f.type === 'date') {
         controlWrapper = UIInput.createDate(config);

@@ -36,6 +36,7 @@ export function createFieldSyncConfig(documentConfig, env = process.env) {
         transientRetryCount: positiveInteger(env.FIELD_SYNC_TRANSIENT_RETRY_COUNT, 2),
         transientRetryDelayMs: positiveInteger(env.FIELD_SYNC_TRANSIENT_RETRY_DELAY_MS, 150),
         // Chỉ giữ alias đã xác nhận để tương thích wire contract cũ.
-        aliases: FIELD_SYNC_FORM_ALIASES
+        aliases: FIELD_SYNC_FORM_ALIASES,
+        migrationRegistry: FIELD_CONTRACT_MIGRATION_REGISTRY
     });
 }
