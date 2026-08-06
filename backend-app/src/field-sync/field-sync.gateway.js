@@ -308,7 +308,13 @@ export function createFieldSyncGateway(config, httpClient = axios) {
             });
         },
         joinSchema(params, context) {
-            return postGateway(FIELD_SYNC_CONTRACTS.joinSchema, context, params);
+            const form = params?.FormName || params?.WebFormName || '';
+            const payload = {
+                ...params,
+                FormName: form,
+                WebFormName: form
+            };
+            return postGateway(FIELD_SYNC_CONTRACTS.joinSchema, context, payload);
         },
         fieldContractResolve(params, context) {
             return postGateway(FIELD_SYNC_CONTRACTS.fieldContractResolve, context, params);

@@ -1,19 +1,36 @@
 (function (global) {
   var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
   definitions.access = definitions.access || {};
-    definitions.access['WA_NGUOIDUNGNHOMFRM'] = {
+  definitions.access['WA_NGUOIDUNGNHOMFRM'] = {
     FormName: 'WA_NguoiDungNhomFrm',
     PrimaryKey: 'UserGroupID',
+    PageTitle: 'Danh sách nhóm người dùng',
     TitleAdd: 'Thêm nhóm',
     TitleEdit: 'Sửa nhóm',
-    TitleView: 'Chi tiết nhóm'
+    TitleView: 'Chi tiết nhóm',
+    FormFields: [
+      { name: 'UserGroupID', title: 'Mã nhóm', width: 140, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
+      { name: 'UserGroupName', title: 'Tên nhóm', width: 220, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'IsDisable', title: 'Ngưng dùng', width: 110, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true }
+    ]
   };
   definitions.access['WA_NGUOIDUNGFRM'] = {
     FormName: 'WA_NguoiDungFrm',
-    PrimaryKey: 'UserID',
+    PrimaryKey: 'UserName',
+    PageTitle: 'Danh sách người dùng',
     TitleAdd: 'Thêm người dùng',
     TitleEdit: 'Sửa người dùng',
-    TitleView: 'Chi tiết người dùng'
+    TitleView: 'Chi tiết người dùng',
+    FormFields: [
+      { name: 'UserName', title: 'Tên đăng nhập', width: 150, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
+      { name: 'HoTen', title: 'Họ và tên', width: 200, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'TenNgan', title: 'Tên ngắn', width: 120, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'UserGroupID', title: 'Nhóm quyền', width: 160, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'SY_UserGroup', formatID: 'sl' },
+      { name: 'BranchID', title: 'Chi nhánh', width: 150, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'CF_BranchListFrm', formatID: 'sl' },
+      { name: 'EmployeeID', title: 'Mã nhân viên', width: 140, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'HR_PersonTbl', formatID: 'sl' },
+      { name: 'Disable', title: 'Khóa tài khoản', width: 120, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'Manager', title: 'Quản lý', width: 100, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true }
+    ]
   };
   definitions.access['SY_FORMATFLDTBL'] = {
     FormName: 'SY_FormatfldTbl',

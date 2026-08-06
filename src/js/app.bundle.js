@@ -18018,16 +18018,34 @@ window.DynamicAttachmentManager = (function () {
     definitions.access['WA_NGUOIDUNGNHOMFRM'] = {
     FormName: 'WA_NguoiDungNhomFrm',
     PrimaryKey: 'UserGroupID',
+    PageTitle: 'Danh sách nhóm người dùng',
     TitleAdd: 'Thêm nhóm',
     TitleEdit: 'Sửa nhóm',
-    TitleView: 'Chi tiết nhóm'
+    TitleView: 'Chi tiết nhóm',
+    FormFields: [
+      { name: 'UserGroupID', title: 'Mã nhóm người dùng', label: 'Mã nhóm người dùng', width: 160, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
+      { name: 'UserGroupName', title: 'Tên nhóm người dùng', label: 'Tên nhóm người dùng', width: 240, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'IsDisable', title: 'Ngừng sử dụng', label: 'Ngừng sử dụng', width: 120, hozAlign: 'center', formatter: 'tickCross', renderRule: 'c', showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'CountUser', title: 'Số người dùng', label: 'Số người dùng', width: 130, hozAlign: 'right', formatID: 'n', renderRule: 'n', showInGrid: true, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, isReadOnlyAdd: true }
+    ]
   };
   definitions.access['WA_NGUOIDUNGFRM'] = {
     FormName: 'WA_NguoiDungFrm',
-    PrimaryKey: 'UserID',
+    PrimaryKey: 'UserName',
+    PageTitle: 'Danh sách người dùng',
     TitleAdd: 'Thêm người dùng',
     TitleEdit: 'Sửa người dùng',
-    TitleView: 'Chi tiết người dùng'
+    TitleView: 'Chi tiết người dùng',
+    FormFields: [
+      { name: 'UserName', title: 'Tên đăng nhập', width: 150, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
+      { name: 'HoTen', title: 'Họ và tên', width: 200, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'TenNgan', title: 'Tên ngắn', width: 120, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'UserGroupID', title: 'Nhóm quyền', width: 160, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'SY_UserGroup', formatID: 'sl' },
+      { name: 'BranchID', title: 'Chi nhánh', width: 150, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'CF_BranchListFrm', formatID: 'sl' },
+      { name: 'EmployeeID', title: 'Mã nhân viên', width: 140, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'HR_PersonTbl', formatID: 'sl' },
+      { name: 'Disable', title: 'Khóa tài khoản', width: 120, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'Manager', title: 'Quản lý', width: 100, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true }
+    ]
   };
   definitions.access['SY_FORMATFLDTBL'] = {
     FormName: 'SY_FormatfldTbl',
@@ -23239,6 +23257,7 @@ window.DynamicFormEngine = (function () {
             globalDictionary[fieldName] =
               item.label
               || item.CaptionVN
+              || item.title
               || fieldName;
           }
 
@@ -23386,15 +23405,15 @@ window.DynamicFormEngine = (function () {
             if (!globalFormSchema.find(function (sf) { return sf.name.toLowerCase() === cf.name.toLowerCase(); })) {
               globalFormSchema.push({
                 name: cf.name,
-                label: cf.label || '',
+                label: cf.label || cf.title || cf.CaptionVN || '',
                 required: cf.required || false,
-                showInAdd: true,
-                showInEdit: true,
-                showInFilter: false,
+                showInAdd: cf.showInAdd !== undefined ? cf.showInAdd : true,
+                showInEdit: cf.showInEdit !== undefined ? cf.showInEdit : true,
+                showInFilter: cf.showInFilter !== undefined ? cf.showInFilter : false,
                 isReadOnlyEdit: cf.isReadOnlyEdit || false,
                 isReadOnlyAdd: cf.isReadOnlyAdd || false,
                 position: cf.position || 'grid',
-                orderNo: 999, // Xếp cuối theo mặc định
+                orderNo: cf.orderNo !== undefined ? cf.orderNo : 999, // Xếp cuối theo mặc định
                 renderRule: (cf.renderRule || '').toLowerCase().trim(),
                 dataSource: cf.dataSource || '',
                 headers: cf.headers || null,
@@ -23403,7 +23422,13 @@ window.DynamicFormEngine = (function () {
                 displayField: cf.displayField || '',
                 valueIndex: cf.valueIndex,
                 displayIndex: cf.displayIndex,
-                html: cf.html || ''
+                html: cf.html || '',
+                formatId: cf.formatID || cf.formatId || '',
+                formatID: cf.formatID || cf.formatId || '',
+                hozAlign: cf.hozAlign || '',
+                align: cf.align || cf.hozAlign || '',
+                width: cf.width,
+                formatter: cf.formatter
               });
             }
           });
@@ -25189,14 +25214,18 @@ window.DynamicFormEngine = (function () {
             colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
 
-          if (!colDef.hozAlign && f.align) {
-            var align = String(f.align).toLowerCase();
+          if (!colDef.hozAlign && (f.hozAlign || f.align)) {
+            var align = String(f.hozAlign || f.align).toLowerCase();
             if (align === 'r' || align === 'right') colDef.hozAlign = 'right';
             if (align === 'c' || align === 'center') colDef.hozAlign = 'center';
             if (align === 'l' || align === 'left') colDef.hozAlign = 'left';
           }
           if (Number(f.minWidth) > 0) colDef.minWidth = Number(f.minWidth);
           if (Number(f.maxWidth) > 0) colDef.maxWidth = Number(f.maxWidth);
+          if (Number(f.width) > 0) colDef.width = Number(f.width);
+          if (!colDef.formatter && f.formatter) {
+            colDef.formatter = f.formatter;
+          }
 
           // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {

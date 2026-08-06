@@ -568,7 +568,7 @@ app.post('/api/documents/generate', async (req, res) => {
         // ── Xác định branch folder để lưu file ─────────────────────────────
         const userBranches = await getUserBranchesFromDB(req);
         const rowBranch = dataMap.BranchID || dataMap.branchId || dataMap.MaChiNhanh || null;
-        
+
         let targetBranch;
         if (userBranches === null) {
             // Admin (BranchID=null): Luôn lưu là file Hệ thống (_admin). 
