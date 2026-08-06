@@ -18015,7 +18015,7 @@ window.DynamicAttachmentManager = (function () {
 (function (global) {
   var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
   definitions.access = definitions.access || {};
-    definitions.access['WA_NGUOIDUNGNHOMFRM'] = {
+  definitions.access['WA_NGUOIDUNGNHOMFRM'] = {
     FormName: 'WA_NguoiDungNhomFrm',
     PrimaryKey: 'UserGroupID',
     PageTitle: 'Danh sách nhóm người dùng',
@@ -18023,10 +18023,10 @@ window.DynamicAttachmentManager = (function () {
     TitleEdit: 'Sửa nhóm',
     TitleView: 'Chi tiết nhóm',
     FormFields: [
-      { name: 'UserGroupID', title: 'Mã nhóm người dùng', label: 'Mã nhóm người dùng', width: 160, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
-      { name: 'UserGroupName', title: 'Tên nhóm người dùng', label: 'Tên nhóm người dùng', width: 240, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
-      { name: 'IsDisable', title: 'Ngừng sử dụng', label: 'Ngừng sử dụng', width: 120, hozAlign: 'center', formatter: 'tickCross', renderRule: 'c', showInGrid: true, showInAdd: true, showInEdit: true },
-      { name: 'CountUser', title: 'Số người dùng', label: 'Số người dùng', width: 130, hozAlign: 'right', formatID: 'n', renderRule: 'n', showInGrid: true, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, isReadOnlyAdd: true }
+      { name: 'UserGroupID', title: 'Mã nhóm', width: 140, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
+      { name: 'UserGroupName', title: 'Tên nhóm', width: 220, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'CountUser', title: 'Số người dùng', width: 130, hozAlign: 'center', showInGrid: true, showInAdd: false, showInEdit: false },
+      { name: 'IsDisable', title: 'Ngưng dùng', width: 110, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true }
     ]
   };
   definitions.access['WA_NGUOIDUNGFRM'] = {
@@ -18040,8 +18040,10 @@ window.DynamicAttachmentManager = (function () {
       { name: 'UserName', title: 'Tên đăng nhập', width: 150, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
       { name: 'HoTen', title: 'Họ và tên', width: 200, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
       { name: 'TenNgan', title: 'Tên ngắn', width: 120, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true },
-      { name: 'UserGroupID', title: 'Nhóm quyền', width: 160, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'SY_UserGroup', formatID: 'sl' },
-      { name: 'BranchID', title: 'Chi nhánh', width: 150, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'CF_BranchListFrm', formatID: 'sl' },
+      { name: 'UserGroupName', title: 'Nhóm quyền', width: 180, hozAlign: 'left', showInGrid: true, showInAdd: false, showInEdit: false },
+      { name: 'UserGroupID', title: 'Mã nhóm quyền', width: 160, hozAlign: 'left', required: true, showInGrid: false, showInAdd: true, showInEdit: true, dataSource: 'SY_UserGroup', formatID: 'sl' },
+      { name: 'BranchName', title: 'Chi nhánh', width: 180, hozAlign: 'left', showInGrid: true, showInAdd: false, showInEdit: false },
+      { name: 'BranchID', title: 'Mã chi nhánh', width: 150, hozAlign: 'left', showInGrid: false, showInAdd: true, showInEdit: true, dataSource: 'CF_BranchListFrm', formatID: 'sl' },
       { name: 'EmployeeID', title: 'Mã nhân viên', width: 140, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'HR_PersonTbl', formatID: 'sl' },
       { name: 'Disable', title: 'Khóa tài khoản', width: 120, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true },
       { name: 'Manager', title: 'Quản lý', width: 100, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true }
@@ -22715,13 +22717,89 @@ window.DynamicFormEngine = (function () {
    * @returns {Object} payload đã gắn UserName, UserCreate, IsEdit
    */
   function _buildPayload(base, isEdit) {
-    var p = Object.assign({}, base);
+    var p = _normalizeWriteSource(
+      base,
+      isEdit
+    );
+
     p.UserName = _currentUser();
     p.UserCreate = _currentUser();
     p.IsEdit = isEdit ? 1 : 0;
+
     return p;
   }
+  function _isNullableWriteField(field) {
+    if (!field) return false;
 
+    return (
+      field.nullable === true
+      || field.nullable === 1
+      || String(field.nullable) === '1'
+      || field.isNullable === true
+      || field.isNullable === 1
+      || String(field.isNullable) === '1'
+      || field.IsNullable === true
+      || field.IsNullable === 1
+      || String(field.IsNullable) === '1'
+    );
+  }
+
+  /**
+   * Chuẩn hóa dữ liệu trước khi gửi API.
+   *
+   * Quy ước:
+   * - Input có giá trị: trim khoảng trắng.
+   * - Input rỗng và cột DB nullable: gửi null.
+   * - Input rỗng nhưng cột không nullable: giữ chuỗi rỗng
+   *   để validation/backend xử lý.
+   */
+  function _normalizeWriteSource(
+    base,
+    isEdit
+  ) {
+    var source =
+      base && typeof base === 'object'
+        ? Object.assign({}, base)
+        : {};
+
+    var schema =
+      _schemaFor(
+        isEdit ? 'edit' : 'add'
+      );
+
+    (schema || []).forEach(function (field) {
+      if (
+        !field
+        || !field.name
+        || !Object.prototype.hasOwnProperty.call(
+          source,
+          field.name
+        )
+      ) {
+        return;
+      }
+
+      var value = source[field.name];
+
+      if (typeof value !== 'string') {
+        return;
+      }
+
+      var normalized = value.trim();
+
+      if (normalized !== '') {
+        source[field.name] = normalized;
+        return;
+      }
+
+      source[field.name] =
+        _isNullableWriteField(field)
+          ? null
+          : '';
+    });
+
+    return source;
+  }
   function _hasContractValue(value) {
     return value !== undefined && value !== null && value !== '';
   }
@@ -22994,16 +23072,63 @@ window.DynamicFormEngine = (function () {
       && _hasPermission('EXPORT')
     );
   }
+  function _normalizeContractWriteValue(value, field) {
+    if (value === undefined || value === null) {
+      return value;
+    }
 
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    var normalized = value.trim();
+
+    if (normalized !== '') {
+      return normalized;
+    }
+
+    var renderRule = String(
+      field.renderRule
+      || field.formatType
+      || ''
+    ).trim().toLowerCase();
+
+    var hasLookup =
+      Boolean(
+        field.lookup
+        && field.lookup.disabled !== true
+      )
+      || renderRule === 'lookup'
+      || renderRule === 'sl'
+      || renderRule === 'select'
+      || renderRule === 'combo';
+
+    /*
+     * Lookup/select nullable để trống phải gửi NULL.
+     * Không gửi chuỗi rỗng vì cột có thể là khóa ngoại.
+     */
+    if (field.nullable === true && hasLookup) {
+      return null;
+    }
+
+    return normalized;
+  }
   function _buildContractWritePayload(base, isEdit, originalRow) {
-    var source = base && typeof base === 'object' ? base : {};
+    var source =
+      _normalizeWriteSource(
+        base,
+        isEdit
+      );
     var schema = _schemaFor(isEdit ? 'edit' : 'add');
     var payload = {};
     schema.forEach(function (field) {
       var allowed = isEdit ? field.supportsUpdate === true : field.supportsInsert === true;
       if (!allowed || !Object.prototype.hasOwnProperty.call(source, field.name)) return;
       if (_isBranchScopedWriteContract() && _isBranchPayloadField(field.name)) return;
-      payload[field.name] = source[field.name];
+      payload[field.name] = _normalizeContractWriteValue(
+        source[field.name],
+        field
+      );
     });
 
     if (isEdit && MODULE_CONFIG.PrimaryKey) {
@@ -23162,15 +23287,17 @@ window.DynamicFormEngine = (function () {
         if (state && state.error) {
           throw new Error(state.error);
         }
-        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
-          return loadLegacyMetadata().then(function (legacyResponse) {
-            if (legacyResponse && typeof legacyResponse === 'object') {
-              legacyResponse._fieldContractState = state || null;
-            }
-            return legacyResponse;
-          });
+        return loadLegacyMetadata().then(function (legacyResponse) {
+          if (legacyResponse && typeof legacyResponse === 'object') {
+            legacyResponse._fieldContractState = state || null;
+          }
+          return legacyResponse;
+        });
+      }).catch(function (err) {
+        if (err && err.message && err.message.indexOf('Metadata V2') !== -1) {
+          throw err;
         }
-        throw new Error('Form chưa được đăng ký metadata V2.');
+        return loadLegacyMetadata();
       });
     } else {
       pConfig = loadLegacyMetadata();
@@ -23257,7 +23384,6 @@ window.DynamicFormEngine = (function () {
             globalDictionary[fieldName] =
               item.label
               || item.CaptionVN
-              || item.title
               || fieldName;
           }
 
@@ -23405,15 +23531,15 @@ window.DynamicFormEngine = (function () {
             if (!globalFormSchema.find(function (sf) { return sf.name.toLowerCase() === cf.name.toLowerCase(); })) {
               globalFormSchema.push({
                 name: cf.name,
-                label: cf.label || cf.title || cf.CaptionVN || '',
+                label: cf.label || '',
                 required: cf.required || false,
-                showInAdd: cf.showInAdd !== undefined ? cf.showInAdd : true,
-                showInEdit: cf.showInEdit !== undefined ? cf.showInEdit : true,
-                showInFilter: cf.showInFilter !== undefined ? cf.showInFilter : false,
+                showInAdd: true,
+                showInEdit: true,
+                showInFilter: false,
                 isReadOnlyEdit: cf.isReadOnlyEdit || false,
                 isReadOnlyAdd: cf.isReadOnlyAdd || false,
                 position: cf.position || 'grid',
-                orderNo: cf.orderNo !== undefined ? cf.orderNo : 999, // Xếp cuối theo mặc định
+                orderNo: 999, // Xếp cuối theo mặc định
                 renderRule: (cf.renderRule || '').toLowerCase().trim(),
                 dataSource: cf.dataSource || '',
                 headers: cf.headers || null,
@@ -23422,13 +23548,7 @@ window.DynamicFormEngine = (function () {
                 displayField: cf.displayField || '',
                 valueIndex: cf.valueIndex,
                 displayIndex: cf.displayIndex,
-                html: cf.html || '',
-                formatId: cf.formatID || cf.formatId || '',
-                formatID: cf.formatID || cf.formatId || '',
-                hozAlign: cf.hozAlign || '',
-                align: cf.align || cf.hozAlign || '',
-                width: cf.width,
-                formatter: cf.formatter
+                html: cf.html || ''
               });
             }
           });
@@ -25214,18 +25334,14 @@ window.DynamicFormEngine = (function () {
             colDef.hozAlign = "right"; // Canh lề phải cho cột số
           }
 
-          if (!colDef.hozAlign && (f.hozAlign || f.align)) {
-            var align = String(f.hozAlign || f.align).toLowerCase();
+          if (!colDef.hozAlign && f.align) {
+            var align = String(f.align).toLowerCase();
             if (align === 'r' || align === 'right') colDef.hozAlign = 'right';
             if (align === 'c' || align === 'center') colDef.hozAlign = 'center';
             if (align === 'l' || align === 'left') colDef.hozAlign = 'left';
           }
           if (Number(f.minWidth) > 0) colDef.minWidth = Number(f.minWidth);
           if (Number(f.maxWidth) > 0) colDef.maxWidth = Number(f.maxWidth);
-          if (Number(f.width) > 0) colDef.width = Number(f.width);
-          if (!colDef.formatter && f.formatter) {
-            colDef.formatter = f.formatter;
-          }
 
           // Apply trạng thái ẩn/hiện cột nếu đã được lưu
           if (savedVisibility && savedVisibility[actualField] !== undefined) {

@@ -429,13 +429,89 @@ window.DynamicFormEngine = (function () {
    * @returns {Object} payload đã gắn UserName, UserCreate, IsEdit
    */
   function _buildPayload(base, isEdit) {
-    var p = Object.assign({}, base);
+    var p = _normalizeWriteSource(
+      base,
+      isEdit
+    );
+
     p.UserName = _currentUser();
     p.UserCreate = _currentUser();
     p.IsEdit = isEdit ? 1 : 0;
+
     return p;
   }
+  function _isNullableWriteField(field) {
+    if (!field) return false;
 
+    return (
+      field.nullable === true
+      || field.nullable === 1
+      || String(field.nullable) === '1'
+      || field.isNullable === true
+      || field.isNullable === 1
+      || String(field.isNullable) === '1'
+      || field.IsNullable === true
+      || field.IsNullable === 1
+      || String(field.IsNullable) === '1'
+    );
+  }
+
+  /**
+   * Chuẩn hóa dữ liệu trước khi gửi API.
+   *
+   * Quy ước:
+   * - Input có giá trị: trim khoảng trắng.
+   * - Input rỗng và cột DB nullable: gửi null.
+   * - Input rỗng nhưng cột không nullable: giữ chuỗi rỗng
+   *   để validation/backend xử lý.
+   */
+  function _normalizeWriteSource(
+    base,
+    isEdit
+  ) {
+    var source =
+      base && typeof base === 'object'
+        ? Object.assign({}, base)
+        : {};
+
+    var schema =
+      _schemaFor(
+        isEdit ? 'edit' : 'add'
+      );
+
+    (schema || []).forEach(function (field) {
+      if (
+        !field
+        || !field.name
+        || !Object.prototype.hasOwnProperty.call(
+          source,
+          field.name
+        )
+      ) {
+        return;
+      }
+
+      var value = source[field.name];
+
+      if (typeof value !== 'string') {
+        return;
+      }
+
+      var normalized = value.trim();
+
+      if (normalized !== '') {
+        source[field.name] = normalized;
+        return;
+      }
+
+      source[field.name] =
+        _isNullableWriteField(field)
+          ? null
+          : '';
+    });
+
+    return source;
+  }
   function _hasContractValue(value) {
     return value !== undefined && value !== null && value !== '';
   }
@@ -708,16 +784,63 @@ window.DynamicFormEngine = (function () {
       && _hasPermission('EXPORT')
     );
   }
+  function _normalizeContractWriteValue(value, field) {
+    if (value === undefined || value === null) {
+      return value;
+    }
 
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    var normalized = value.trim();
+
+    if (normalized !== '') {
+      return normalized;
+    }
+
+    var renderRule = String(
+      field.renderRule
+      || field.formatType
+      || ''
+    ).trim().toLowerCase();
+
+    var hasLookup =
+      Boolean(
+        field.lookup
+        && field.lookup.disabled !== true
+      )
+      || renderRule === 'lookup'
+      || renderRule === 'sl'
+      || renderRule === 'select'
+      || renderRule === 'combo';
+
+    /*
+     * Lookup/select nullable để trống phải gửi NULL.
+     * Không gửi chuỗi rỗng vì cột có thể là khóa ngoại.
+     */
+    if (field.nullable === true && hasLookup) {
+      return null;
+    }
+
+    return normalized;
+  }
   function _buildContractWritePayload(base, isEdit, originalRow) {
-    var source = base && typeof base === 'object' ? base : {};
+    var source =
+      _normalizeWriteSource(
+        base,
+        isEdit
+      );
     var schema = _schemaFor(isEdit ? 'edit' : 'add');
     var payload = {};
     schema.forEach(function (field) {
       var allowed = isEdit ? field.supportsUpdate === true : field.supportsInsert === true;
       if (!allowed || !Object.prototype.hasOwnProperty.call(source, field.name)) return;
       if (_isBranchScopedWriteContract() && _isBranchPayloadField(field.name)) return;
-      payload[field.name] = source[field.name];
+      payload[field.name] = _normalizeContractWriteValue(
+        source[field.name],
+        field
+      );
     });
 
     if (isEdit && MODULE_CONFIG.PrimaryKey) {
@@ -876,15 +999,17 @@ window.DynamicFormEngine = (function () {
         if (state && state.error) {
           throw new Error(state.error);
         }
-        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
-          return loadLegacyMetadata().then(function (legacyResponse) {
-            if (legacyResponse && typeof legacyResponse === 'object') {
-              legacyResponse._fieldContractState = state || null;
-            }
-            return legacyResponse;
-          });
+        return loadLegacyMetadata().then(function (legacyResponse) {
+          if (legacyResponse && typeof legacyResponse === 'object') {
+            legacyResponse._fieldContractState = state || null;
+          }
+          return legacyResponse;
+        });
+      }).catch(function (err) {
+        if (err && err.message && err.message.indexOf('Metadata V2') !== -1) {
+          throw err;
         }
-        throw new Error('Form chưa được đăng ký metadata V2.');
+        return loadLegacyMetadata();
       });
     } else {
       pConfig = loadLegacyMetadata();

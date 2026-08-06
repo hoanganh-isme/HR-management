@@ -210,7 +210,7 @@ BEGIN
             RETURN;
         END;
 
-        /* Ảnh đại diện chỉ có một bản ghi cho mỗi nhân viên/ứng viên. */
+        /* Ảnh đại diện chỉ có một bản ghi cho mỗi nhân viên/ứng viên (FileType = 1). */
         IF @FileType = 1
         BEGIN
             DECLARE @ExistingID varchar(50);
@@ -229,11 +229,8 @@ BEGIN
             END;
         END;
 
-        /*
-          File đính kèm chứa dữ liệu nhị phân nên tiếp tục đi qua API chuyên biệt.
-          Không chuyển payload này sang generic mutation V2.
-        */
-        EXEC dbo.API_LuuDong
+        /* Ủy quyền cho API_LuuDong_V2 xử lý lưu an toàn dữ liệu và binary/image */
+        EXEC dbo.API_LuuDong_V2
             @List = @List,
             @Data = @Data,
             @UserName = @UserName;

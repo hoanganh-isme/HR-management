@@ -1,3 +1,13 @@
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- =========================================================================
+-- Stored Procedure: API_NguoiDungFrm
+-- Description: Lấy danh sách người dùng từ SY_User kết hợp SY_UserGroup và CF_BranchTbl
+--              Hỗ trợ lọc theo từ khóa (@Keyword)
+-- =========================================================================
 CREATE OR ALTER PROCEDURE [dbo].[API_NguoiDungFrm]
 (
     @List VARCHAR(50) = '',
@@ -10,6 +20,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    SET @Keyword = ISNULL(@Keyword, '');
+
     SELECT 
         U.*,
         G.UserGroupName,

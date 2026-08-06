@@ -539,7 +539,7 @@ BEGIN
                 SET @Data=JSON_MODIFY(@Data,'$.IsEdit',1);
             END;
         END;
-        EXEC dbo.API_LuuDong @List=@List,@Data=@Data,@UserName=@UserName;
+        EXEC dbo.API_LuuDong_V2 @List=@List,@Data=@Data,@UserName=@UserName;
     END TRY
     BEGIN CATCH
         SELECT -1 AS code,ERROR_MESSAGE() AS msg;
