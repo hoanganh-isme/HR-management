@@ -19,7 +19,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT TOP 1000
+    SELECT 
         CT.*,
         A.PersonName,
         A.PhongBan,

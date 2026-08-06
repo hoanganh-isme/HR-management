@@ -1,54 +1,16 @@
 /** Detail tabs: loading, editable grid lifecycle and detail persistence. */
 window.DynamicDetailManager = (function () {
-  var DEFAULT_ERP_DICTIONARY = {
-    personid: 'Mã nhân viên',
-    personname: 'Họ Tên',
-    fullname: 'Họ và tên',
-    gender: 'Giới tính',
-    birthday: 'Ngày sinh',
-    birthplace: 'Nơi sinh',
-    idcard: 'Số CMND/CCCD',
-    idcarddate: 'Ngày cấp',
-    idcardplace: 'Nơi cấp',
-    phonenumber: 'Số điện thoại',
-    email: 'Email',
-    address: 'Địa chỉ',
-    chucdanhchuyenmon: 'Chuyên môn',
-    chucvu: 'Chức vụ',
-    phongban: 'Bộ phận',
-    phongbanid: 'Mã phòng ban',
-    departmentid: 'Mã phòng ban',
-    departmentname: 'Tên phòng ban',
-    branchid: 'Chi nhánh',
-    branchname: 'Tên chi nhánh',
-    documentid: 'Số chứng từ',
-    documentdate: 'Ngày chứng từ',
-    periodkeyid: 'Kỳ đóng bảo hiểm',
-    loaibaohiem: 'Loại bảo hiểm',
-    periodid: 'Kỳ',
-    mucdong: 'Mức đóng',
-    mucdongbhxhnld: 'BHXH Người LD',
-    mucdongbhxhnsdld: 'BHXH Công Ty',
-    mucdongbhytnld: 'BHYT Người LD',
-    mucdongbhytnsdld: 'BHYT Công Ty',
-    mucdongbhtnnld: 'BHTN Người LD',
-    mucdongbhtnnsdld: 'BHTN Công Ty',
-    ghichu: 'Ghi chú',
-    notes: 'Ghi chú',
-    description: 'Mô tả',
-    isactive: 'Kích hoạt',
-    islocked: 'Khóa',
-    status: 'Trạng thái',
-    createddate: 'Ngày tạo',
-    createdby: 'Người tạo',
-    modifieddate: 'Ngày sửa',
-    modifiedby: 'Người sửa'
-  };
-
-  if (typeof window !== 'undefined') {
-    window._globalFieldDictionary = Object.assign({}, DEFAULT_ERP_DICTIONARY, window._globalFieldDictionary || {});
-  }
-
+  /**
+   * _getFieldCaption – tra cứu nhãn tiếng Việt theo thứ tự ưu tiên:
+   * 1. field.label từ join-schema / contract API (Caption / CaptionVN từ DB)
+   * 2. tabDef.headers (nếu form cũ còn khai báo tường minh)
+   * 3. dict() = globalDictionary từ DynamicFormEngine (đọc SY_FmtFldTbl qua API)
+   * 4. window._globalFieldDictionary (global – DynamicFormEngine populate)
+   * 5. Fallback tách CamelCase: "PersonName" → "Person Name"
+   *
+   * KHÔNG hard-code caption trong file JS.
+   * Caption phải đến từ DB (SY_FmtFldTbl / SY_FormatFields) qua API.
+   */
   function _getFieldCaption(fieldName, fieldObj, tabHeaders, dict) {
     if (fieldObj && fieldObj.label) return fieldObj.label;
     if (!fieldName) return '';
@@ -58,7 +20,7 @@ window.DynamicDetailManager = (function () {
     if (tabHeaders && tabHeaders[raw]) return tabHeaders[raw];
     if (tabHeaders && tabHeaders[lower]) return tabHeaders[lower];
 
-    // 1. Đọc từ Từ điển cấp Form (SY_FormatFldTbl theo FormName)
+    // 3. Từ điển form (DynamicFormEngine.globalDictionary – load từ SY_FmtFldTbl)
     var d = typeof dict === 'function' ? dict() : (dict || {});
     if (d[raw]) return d[raw];
     if (d[lower]) return d[lower];
@@ -66,11 +28,11 @@ window.DynamicDetailManager = (function () {
       if (k.toLowerCase() === lower && d[k]) return d[k];
     }
 
-    // 2. Đọc tự động từ Bảng SY_FormatFldTbl / SY_FormatFields toàn hệ thống CSDL
-    var gDict = (typeof window !== 'undefined' && window._globalFieldDictionary) || DEFAULT_ERP_DICTIONARY;
+    // 4. Dictionary toàn hệ thống (window._globalFieldDictionary – DynamicFormEngine)
+    var gDict = (typeof window !== 'undefined' && window._globalFieldDictionary) || {};
     if (gDict[lower]) return gDict[lower];
 
-    // 3. Fallback phân tách từ viết hoa (VD: PersonName -> Person Name)
+    // 5. Fallback tách CamelCase ("PersonName" → "Person Name")
     return raw.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
 
