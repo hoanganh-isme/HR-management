@@ -112,7 +112,10 @@ var ContractDocumentActions = (function (global) {
         radio.value = item.templateFile;
         radio.checked = item.templateFile === selected.templateFile;
         var text = document.createElement('span');
-        text.textContent = (item.description || item.templateFile) + ' — ' + item.templateFile;
+        var itemTitle = item.description || item.loaiHD || item.templateFile;
+        text.textContent = itemTitle === item.templateFile
+          ? item.templateFile
+          : itemTitle + ' — ' + item.templateFile;
         label.appendChild(radio);
         label.appendChild(text);
         list.appendChild(label);
@@ -202,6 +205,9 @@ var ContractDocumentActions = (function (global) {
       toolbar.appendChild(createButton('Kiểm tra mẫu', 'validate'));
       toolbar.appendChild(createButton('Áp dụng mẫu', 'apply', true));
     }
+    var retryEditorButton = createButton('Kết nối lại', 'retry');
+    retryEditorButton.hidden = true;
+    toolbar.appendChild(retryEditorButton);
     toolbar.appendChild(createButton('Đóng', 'close'));
     header.appendChild(title);
     header.appendChild(toolbar);
@@ -249,6 +255,7 @@ var ContractDocumentActions = (function (global) {
       showLoadingOverlay('Đang tải văn bản...', 'Vui lòng chờ trình soạn thảo nạp nội dung hợp đồng...');
       return loadOnlyOffice(state.data.onlyOfficePublicUrl).then(function () {
         if (state.closed) return;
+        retryEditorButton.hidden = true;
         var editorCfg = state.data.editorConfig || {};
         var existingEvents = editorCfg.events || {};
         editorCfg.events = Object.assign({}, existingEvents, {
@@ -266,10 +273,12 @@ var ContractDocumentActions = (function (global) {
         state.editor = new global.DocsAPI.DocEditor(editorArea.id, editorCfg);
         setStatus('Trình soạn thảo đã sẵn sàng. Bạn có thể chỉnh sửa trực tiếp hoặc tải file DOCX về máy.', false);
         setTimeout(hideLoadingOverlay, 3500);
-      }).catch(function () {
+      }).catch(function (error) {
         hideLoadingOverlay();
-        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>Trình xem văn bản trực tuyến chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, chỉnh sửa bằng Microsoft Word / WPS Office rồi tải lên lại.</span></div>';
-        setStatus('Chưa kết nối được hệ thống xem văn bản trực tuyến.', true);
+        retryEditorButton.hidden = false;
+        var serviceUrl = String(state.data.onlyOfficePublicUrl || '').replace(/\/$/, '');
+        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>OnlyOffice chưa chạy tại ' + escapeHTML(serviceUrl) + '.</strong><span>Hãy khởi động Docker Desktop và dịch vụ OnlyOffice, sau đó bấm “Kết nối lại”. Bạn vẫn có thể tải DOCX, sửa bằng Microsoft Word / WPS Office rồi tải lên lại.</span></div>';
+        setStatus((error && error.message ? error.message + ' ' : '') + 'Không kết nối được dịch vụ OnlyOffice.', true);
       });
     }
 
@@ -301,6 +310,10 @@ var ContractDocumentActions = (function (global) {
       if (action === 'preview') return global.open(state.data.previewUrl, '_blank', 'noopener');
       if (action === 'download') return download(state.data.downloadUrl);
       if (action === 'close') return close();
+      if (action === 'retry') {
+        button.disabled = true;
+        return mountEditor().finally(function () { button.disabled = false; });
+      }
       if (action === 'upload') {
         return openFilePicker(function (file) {
           button.disabled = true;
@@ -407,10 +420,13 @@ var ContractDocumentActions = (function (global) {
       .catch(function (error) { notify('error', 'Không thể xuất hợp đồng', error.message); });
   }
 
-  function manageTemplates() {
+  function editTemplateDocument(selectedTemplateFile) {
     return checkBackend()
       .then(function () { return ContractDocumentApi.templates(); })
-      .then(function (templates) { return chooseTemplate(templates, null, 'Quản lý mẫu hợp đồng'); })
+      .then(function (templates) {
+        if (selectedTemplateFile) return selectedTemplateFile;
+        return chooseTemplate(templates, null, 'Sửa tài liệu hợp đồng');
+      })
       .then(function (templateFile) {
         if (!templateFile) return null;
         return ContractDocumentApi.createTemplateWorkspace(templateFile);
@@ -420,7 +436,7 @@ var ContractDocumentActions = (function (global) {
         return ContractDocumentApi.templateWorkspaceEditor(workspace.workspaceId).then(function (editor) {
           showEditor(editor, {
             kind: 'template',
-            title: 'Chỉnh sửa bản copy của ' + workspace.templateFile,
+            title: 'Sửa tài liệu hợp đồng — ' + workspace.templateFile,
             loadEditor: function () { return ContractDocumentApi.templateWorkspaceEditor(workspace.workspaceId); },
             upload: function (file) { return ContractDocumentApi.uploadTemplateWorkspace(workspace.workspaceId, file); },
             validate: function () { return ContractDocumentApi.validateTemplateWorkspace(workspace.workspaceId); },
@@ -428,8 +444,27 @@ var ContractDocumentActions = (function (global) {
           });
         });
       })
-      .catch(function (error) { notify('error', 'Không thể quản lý mẫu', error.message); });
+      .catch(function (error) { notify('error', 'Không thể sửa tài liệu hợp đồng', error.message); });
   }
 
-  return { exportContract: exportContract, manageTemplates: manageTemplates };
+  function manageTemplateRegistry() {
+    return checkBackend().then(function () {
+      if (!global.ContractTemplateManager) {
+        throw new Error('Chức năng quản lý hợp đồng chưa được tải. Hãy tải lại bundle frontend.');
+      }
+      return global.ContractTemplateManager.open({
+        api: ContractDocumentApi,
+        editDocument: function (item) { return editTemplateDocument(item.templateFile); }
+      });
+    }).catch(function (error) {
+      notify('error', 'Không thể mở quản lý hợp đồng', error.message);
+    });
+  }
+
+  return {
+    exportContract: exportContract,
+    editTemplateDocument: editTemplateDocument,
+    manageTemplateRegistry: manageTemplateRegistry,
+    manageTemplates: editTemplateDocument
+  };
 })(window);

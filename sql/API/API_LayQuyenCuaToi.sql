@@ -1,4 +1,8 @@
-CREATE PROCEDURE API_LayQuyenCuaToi
+IF OBJECT_ID(N'dbo.API_LayQuyenCuaToi', N'P') IS NULL
+    EXEC(N'CREATE PROCEDURE dbo.API_LayQuyenCuaToi AS RETURN 0;');
+GO
+
+ALTER PROCEDURE dbo.API_LayQuyenCuaToi
     @Username varchar(50)
 AS
 BEGIN
@@ -28,7 +32,8 @@ BEGIN
         ISNULL(P.IsRun, 0) AS CanView,
         ISNULL(P.IsAdd, 0) AS CanAdd,
         ISNULL(P.IsUpdate, 0) AS CanEdit,
-        ISNULL(P.IsDelete, 0) AS CanDelete
+        ISNULL(P.IsDelete, 0) AS CanDelete,
+        ISNULL(P.isAdmin, 0) AS CanAdmin
     FROM WA_UserGroupPermisstion P
     INNER JOIN WA_Menu M ON P.MenuID = M.MenuID
     WHERE P.UserGroupID = @UserGroupID

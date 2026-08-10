@@ -194,6 +194,27 @@ SET @Blocking +=
 SELECT N'09_CONTRACT_REGISTRY' AS VerifyGroup,ContractType,RolloutStatus,COUNT(*) AS ContractCount
 FROM dbo.WA_FieldContractRegistry GROUP BY ContractType,RolloutStatus;
 
+SELECT N'09_PERSONFULL_METADATA_V2' AS VerifyGroup,
+       WebFormName,ERPFormID,ExpectedTableName,ExpectedPrimaryKey,
+       ViewProcedure,ContractType,RolloutStatus,IsEnabled
+FROM dbo.WA_FieldContractRegistry
+WHERE WebFormName='WA_PersonFullFrm';
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM dbo.WA_FieldContractRegistry
+    WHERE WebFormName='WA_PersonFullFrm'
+      AND ERPFormID='WA_PersonFullFrm'
+      AND ExpectedTableName=N'HR_PersonTbl'
+      AND ExpectedPrimaryKey=N'PersonID'
+      AND ViewProcedure=N'API_HoSoNhanVien'
+      AND ContractType='COMPLEX_DEFERRED'
+      AND RolloutStatus='DEFERRED'
+      AND SchemaVersion=2
+      AND IsEnabled=1
+)
+    SET @Blocking += 1;
+
 /* 10. Dataset registry. */
 SELECT N'10_DATASET_REGISTRY' AS VerifyGroup,* FROM dbo.WA_FieldDatasetRegistry;
 

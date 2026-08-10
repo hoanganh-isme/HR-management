@@ -91,7 +91,7 @@
      * metadata while each stored-procedure record contains additional dynamic
      * columns. Keep useful descriptors/labels, discard descriptors that are not
      * in the result row, then append every missing result key. The result set is
-     * therefore authoritative and SY_FormatFields remains only a UI fallback.
+     * therefore authoritative for the generated runtime schema.
      */
     descriptors = descriptors.filter(function (descriptor) {
       var actualName = rowKeyByName[descriptor.name.toLowerCase()];

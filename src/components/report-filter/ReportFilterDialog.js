@@ -1,19 +1,18 @@
 /**
  * ReportFilterDialog Component
  * ─────────────────────────────────────────────
- * Dialog "Chọn báo cáo / Lọc" — các field được fetch động từ API
- * theo cùng pattern với DynamicFormEngine (API_LayCacTruongGiaoDien)
+ * Dialog "Chọn báo cáo / Lọc" dùng filter schema của Field Contract V2.
  *
  * Usage:
  *   ReportFilterDialog.open({
- *     formName: 'frmReportFilter',       // Tên form trong SY_FormatFields
+ *     formName: 'frmReportFilter',       // Tên Field Contract V2
  *     title: 'Chọn báo cáo',             // optional
  *     onConfirm: function(values) {      // values = { fieldName: value, ... }
  *       console.log(values);
  *     }
  *   });
  *
- * Schema field (từ API_LayCacTruongGiaoDien):
+ * Schema field (từ state.runtimeSchemas.filters):
  *   renderRule = ''   → text input
  *   renderRule = 'dt' → date input
  *   renderRule = 'nm' → number input
@@ -23,7 +22,6 @@
  */
 var ReportFilterDialog = (function () {
 
-  var _apiDictionary = '/api/API_LayCacTruongGiaoDien';
   var _activeModal = null;
 
   // ── Helpers ──────────────────────────────────────────────────
@@ -33,24 +31,12 @@ var ReportFilterDialog = (function () {
     return u.Username || u.UserName || u.username || 'Admin';
   }
 
-  /**
-   * Fetch field schema từ API (có cache RAM giống DynamicFormEngine)
-   */
+  /** Lấy filter schema từ service metadata duy nhất của runtime. */
   function _fetchSchema(formName) {
-    var cacheKey = 'ReportFilterSchema_' + formName;
-    var cached = window._reportFilterSchemaCache && window._reportFilterSchemaCache[cacheKey];
-    if (cached) return Promise.resolve(JSON.parse(cached));
-
-    return ApiClient.post(_apiDictionary, {
-      FormName: formName,
-      UserName: _currentUser()
-    }).then(function (res) {
-      if (res && res.code === 0 && (res.list || res.records)) {
-        window._reportFilterSchemaCache = window._reportFilterSchemaCache || {};
-        window._reportFilterSchemaCache[cacheKey] = JSON.stringify(res);
-      }
-      return res;
-    });
+    if (!window.FieldSyncService || typeof FieldSyncService.getFilterSchema !== 'function') {
+      return Promise.reject(new Error('FieldSyncService chưa sẵn sàng.'));
+    }
+    return FieldSyncService.getFilterSchema(formName);
   }
 
   /**
@@ -67,6 +53,21 @@ var ReportFilterDialog = (function () {
           label: opt.label || opt.Label || opt.text || opt.value || ''
         };
       }));
+    }
+
+    if (field && field.lookupKey) {
+      if (!window.FieldSyncService || typeof FieldSyncService.searchLookup !== 'function') {
+        return Promise.reject(new Error('FieldSyncService chưa sẵn sàng.'));
+      }
+      return FieldSyncService.searchLookup(
+        field.formName,
+        field.lookupKey,
+        '',
+        1,
+        100,
+        {},
+        ''
+      );
     }
 
     if (!dataSource) return Promise.resolve([]);
@@ -330,7 +331,7 @@ var ReportFilterDialog = (function () {
   /**
    * Parse và áp VisibleRule cho toàn bộ fields trong body
    *
-   * VisibleRule syntax (lưu trong SY_FormatFields.VisibleRule):
+   * VisibleRule syntax từ Field Contract V2:
    *   "KyBaoCao=custom"         → hiện khi KyBaoCao = 'custom'
    *   "KyBaoCao=custom|today"   → hiện khi KyBaoCao = 'custom' HOẶC 'today'
    *   "HinhThucPV!=online"      → hiện khi HinhThucPV KHÁC 'online'
@@ -426,9 +427,8 @@ var ReportFilterDialog = (function () {
   /**
    * Mở dialog filter
    * @param {Object} opts
-   * @param {string} opts.formName         - FormName trong SY_FormatFields
+   * @param {string} opts.formName         - FormName trong Field Contract V2
    * @param {string} [opts.title]          - Tiêu đề dialog, mặc định 'Chọn báo cáo'
-   * @param {string} [opts.apiDictionary]  - Override API endpoint
    * @param {Object} [opts.defaultValues]  - Giá trị mặc định { fieldName: value }
    * @param {Function} opts.onConfirm      - Callback khi bấm Đồng ý, nhận (values)
    * @param {Function} [opts.onCancel]     - Callback khi bấm Hủy
@@ -436,8 +436,6 @@ var ReportFilterDialog = (function () {
   function open(opts) {
     opts = opts || {};
     if (!opts.formName) { console.error('ReportFilterDialog: formName is required'); return; }
-    if (opts.apiDictionary) _apiDictionary = opts.apiDictionary;
-
     var title = opts.title || 'Chọn báo cáo';
 
     // ── Build modal body ──
@@ -479,7 +477,7 @@ var ReportFilterDialog = (function () {
     _fetchSchema(opts.formName)
       .then(function (res) {
         body.innerHTML = '';
-        var dataList = (res && (res.list || res.records)) || [];
+        var dataList = Array.isArray(res) ? res : [];
 
         if (!dataList.length) {
           body.innerHTML = '<div style="color:var(--color-text-secondary);padding:16px;">Không tìm thấy cấu hình filter cho form: ' + opts.formName + '</div>';
@@ -490,15 +488,18 @@ var ReportFilterDialog = (function () {
         dataList.sort(function (a, b) { return (a.OrderNo || a.orderNo || 0) - (b.OrderNo || b.orderNo || 0); });
 
         dataList.forEach(function (item) {
+          var hasLookup = !!item.lookupKey;
           var fieldDef = {
+            formName: opts.formName,
             name: item.name || item.FieldName,
             label: item.label || item.CaptionVN,
-            required: String(item.required || item.IsRequired) === '1',
-            renderRule: (item.renderRule || item.FormatID || '').toLowerCase().trim(),
+            required: item.required === true || item.IsRequired === true || Number(item.IsRequired) === 1,
+            renderRule: (hasLookup ? 'sr' : (item.renderRule || item.FormatID || '')).toLowerCase().trim(),
             dataSource: (item.dataSource || item.DataSource || '').trim(),
-            valueField: item.valueField || item.ValueField || 'Value',
-            labelField: item.labelField || item.LabelField || 'Label',
-            defaultValue: item.defaultValue || item.DefaultValue || '',
+            lookupKey: item.lookupKey || '',
+            valueField: item.filterValueField || item.valueField || item.ValueField || 'Value',
+            labelField: item.filterDisplayField || item.labelField || item.LabelField || 'Label',
+            defaultValue: item.filterDefaultValue || item.defaultValue || item.DefaultValue || '',
             placeholder: item.placeholder || '',
             visibleRule: (item.visibleRule || item.VisibleRule || '').trim()  // ← mới
           };
@@ -558,16 +559,10 @@ var ReportFilterDialog = (function () {
     };
   }
 
-  /**
-   * Xóa cache schema (dùng khi cấu hình thay đổi)
-   * @param {string} [formName] - Nếu không truyền, xóa tất cả
-   */
+  /** Xóa cache metadata qua FieldSyncService. */
   function clearCache(formName) {
-    if (!window._reportFilterSchemaCache) return;
-    if (formName) {
-      delete window._reportFilterSchemaCache['ReportFilterSchema_' + formName];
-    } else {
-      window._reportFilterSchemaCache = {};
+    if (window.FieldSyncService && typeof FieldSyncService.clearCache === 'function') {
+      FieldSyncService.clearCache(formName);
     }
   }
 

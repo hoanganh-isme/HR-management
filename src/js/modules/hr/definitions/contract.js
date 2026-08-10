@@ -7,7 +7,11 @@
     documentExport: {
       enabled: true,
       primaryKey: 'MaHopDong',
-      label: 'Xuất Hợp Đồng'
+      label: 'Xuất Hợp Đồng',
+      labels: {
+        manage: 'Quản lý hợp đồng',
+        editDocument: 'Sửa tài liệu hợp đồng'
+      }
     },
     UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn hợp đồng lao động để xem chi tiết',
@@ -83,7 +87,7 @@
       { name: 'DateCreate', label: 'Ngày tạo', required: false, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, position: 'grid', orderNo: 28, renderRule: 'dt' }
     ],
 
-    // Cấu hình ghi đè lên SY_FormatFields từ Database
+    // Cấu hình nghiệp vụ bổ sung của module
     fieldOverrides: {
       PersonStatus: { renderRule: 'sl', dataSource: 'API_ComboPersonStatus' }
     },

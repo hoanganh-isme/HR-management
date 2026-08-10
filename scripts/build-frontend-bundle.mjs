@@ -21,10 +21,14 @@ function resolveAll(kind) {
 }
 
 function bundle(entries, label) {
-  return entries.map(({ file, absolute }) => {
-    const source = fs.readFileSync(absolute, 'utf8').replace(/[ \t]+$/gm, '').replace(/\s+$/, '');
+  const output = entries.map(({ file, absolute }) => {
+    const source = fs.readFileSync(absolute, 'utf8')
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+$/gm, '')
+      .replace(/\s+$/, '');
     return `/* --- ${path.basename(file)} --- */\n${source}\n`;
   }).join('\n') + `/* --- end ${label} --- */\n`;
+  return output.replace(/\n/g, '\r\n');
 }
 
 const css = resolveAll('css');

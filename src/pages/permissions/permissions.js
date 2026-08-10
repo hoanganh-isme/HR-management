@@ -74,8 +74,12 @@ var PermissionsPage = (function () {
                 white-space: normal;
                 line-height: 1.4;
               }
-              #btn-sync-permission {
+              #permission-header-actions {
                 width: 100%;
+                flex-wrap: wrap;
+              }
+              #btn-copy-permission, #btn-sync-permission {
+                flex: 1 1 150px;
               }
 
               /* Thu gọn padding của bảng và kích thước icon */
@@ -111,6 +115,8 @@ var PermissionsPage = (function () {
 
           var btnSync = $container.querySelector('#btn-sync-permission');
           if (btnSync) btnSync.addEventListener('click', _syncPermissions);
+          var btnCopy = $container.querySelector('#btn-copy-permission');
+          if (btnCopy) btnCopy.addEventListener('click', _openCopyPermissionModal);
 
           _fetchGroups();
         } catch (e) {
@@ -156,6 +162,7 @@ var PermissionsPage = (function () {
         container.querySelectorAll('.role-tab').forEach(function (el) { el.classList.remove('active'); });
         div.classList.add('active');
         currentSelectedGroup = g;
+        _updateCopyPermissionButton();
         _renderTreeTableForGroup(g);
       });
 
@@ -169,6 +176,158 @@ var PermissionsPage = (function () {
     if (currentSelectedGroup) {
       _renderTreeTableForGroup(currentSelectedGroup);
     }
+    _updateCopyPermissionButton();
+  }
+
+  function _isAdminGroup(group) {
+    return String(group && group.id || '').trim().toLowerCase() === 'admin';
+  }
+
+  function _updateCopyPermissionButton() {
+    if (!$container) return;
+    var btn = $container.querySelector('#btn-copy-permission');
+    if (!btn) return;
+    var hasSource = groups.some(function (group) {
+      return currentSelectedGroup && String(group.id) !== String(currentSelectedGroup.id);
+    });
+    var targetIsAdmin = _isAdminGroup(currentSelectedGroup);
+    btn.disabled = !currentSelectedGroup || !hasSource || targetIsAdmin;
+    btn.title = targetIsAdmin
+      ? 'Không cho phép ghi đè toàn bộ quyền của nhóm Admin.'
+      : (hasSource ? 'Sao chép quyền từ nhóm khác vào nhóm đang chọn.' : 'Không có nhóm nguồn để sao chép.');
+  }
+
+  function _escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function _openCopyPermissionModal() {
+    if (!currentSelectedGroup || _isAdminGroup(currentSelectedGroup)) return;
+    var sourceGroups = groups.filter(function (group) {
+      return String(group.id) !== String(currentSelectedGroup.id);
+    });
+    if (sourceGroups.length === 0) {
+      if (typeof Alert !== 'undefined') Alert.warning('Thông báo', 'Không có nhóm nguồn để sao chép quyền.');
+      return;
+    }
+
+    var body = document.createElement('div');
+    var warning = document.createElement('div');
+    warning.style.cssText = 'display:flex;gap:10px;padding:12px;border-radius:8px;background:rgba(245,158,11,0.10);color:var(--color-text);font-size:13px;line-height:1.5;margin-bottom:16px;';
+    warning.innerHTML = '<span class="material-symbols-outlined" style="color:#d97706;font-size:20px;">warning</span>'
+      + '<span>Toàn bộ quyền hiện tại của nhóm <b>' + _escapeHtml(currentSelectedGroup.name) + '</b> sẽ được thay bằng quyền của nhóm nguồn.</span>';
+    body.appendChild(warning);
+
+    var label = document.createElement('label');
+    label.setAttribute('for', 'copy-permission-source');
+    label.textContent = 'Nhóm quyền nguồn';
+    label.style.cssText = 'display:block;font-size:13px;font-weight:600;margin-bottom:6px;';
+    body.appendChild(label);
+
+    var select = document.createElement('select');
+    select.id = 'copy-permission-source';
+    select.className = 'form-control';
+    select.style.cssText = 'width:100%;min-height:40px;';
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '-- Chọn nhóm cần lấy quyền --';
+    select.appendChild(placeholder);
+    sourceGroups.forEach(function (group) {
+      var option = document.createElement('option');
+      option.value = group.id;
+      option.textContent = group.name + ' (' + group.id + ')';
+      select.appendChild(option);
+    });
+    body.appendChild(select);
+
+    var summary = document.createElement('div');
+    summary.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid var(--color-border,#e2e8f0);border-radius:8px;color:var(--color-text-secondary);font-size:13px;';
+    summary.textContent = 'Chọn một nhóm nguồn để tiếp tục.';
+    body.appendChild(summary);
+
+    var footer = document.createElement('div');
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Hủy bỏ';
+    var copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'btn btn-primary';
+    copyBtn.disabled = true;
+    copyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;vertical-align:-3px;margin-right:5px;">content_copy</span>Copy và ghi đè';
+    footer.appendChild(cancelBtn);
+    footer.appendChild(copyBtn);
+
+    var modal = UIModal.show({
+      id: 'copy-permission-modal',
+      title: 'Copy quyền nhóm người dùng',
+      content: body,
+      footer: footer,
+      width: '500px'
+    });
+
+    function selectedSource() {
+      return sourceGroups.find(function (group) { return String(group.id) === String(select.value); });
+    }
+
+    select.addEventListener('change', function () {
+      var source = selectedSource();
+      copyBtn.disabled = !source;
+      summary.innerHTML = source
+        ? '<b>' + _escapeHtml(source.name) + '</b> <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin:0 6px;">arrow_forward</span> <b>' + _escapeHtml(currentSelectedGroup.name) + '</b>'
+        : 'Chọn một nhóm nguồn để tiếp tục.';
+    });
+
+    cancelBtn.onclick = function () { modal.close(); };
+    copyBtn.onclick = function () {
+      var source = selectedSource();
+      if (!source) return;
+      ConfirmModal.show({
+        title: 'Xác nhận copy quyền',
+        message: 'Ghi đè toàn bộ quyền của nhóm <b>' + _escapeHtml(currentSelectedGroup.name)
+          + '</b> bằng quyền của nhóm <b>' + _escapeHtml(source.name) + '</b>?',
+        confirmText: 'Copy quyền',
+        onConfirm: function () {
+          _copyPermissions(source, currentSelectedGroup, modal, select, copyBtn, cancelBtn);
+        }
+      });
+    };
+
+    setTimeout(function () { select.focus(); }, 0);
+  }
+
+  function _copyPermissions(sourceGroup, targetGroup, modal, select, copyBtn, cancelBtn) {
+    select.disabled = true;
+    copyBtn.disabled = true;
+    cancelBtn.disabled = true;
+    copyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;vertical-align:-3px;margin-right:5px;animation:spin 1s linear infinite;">sync</span>Đang copy...';
+
+    PermissionsService.copyGroupPermissions(sourceGroup.id, targetGroup.id)
+      .then(function (res) {
+        if (!res || Number(res.code) !== 0) {
+          throw new Error(res && (res.msg || res.message) ? (res.msg || res.message) : 'Không thể copy quyền.');
+        }
+        modal.closeNow();
+        if (window.Navbar && typeof Navbar.clearMenuCache === 'function') Navbar.clearMenuCache();
+        if (window.EventBus && typeof EventBus.emit === 'function') EventBus.emit('permissions:changed');
+        if (typeof Alert !== 'undefined') {
+          Alert.success('Thành công', 'Đã copy ' + Number(res.MenuCount || 0) + ' quyền từ nhóm "' + sourceGroup.name + '" sang nhóm "' + targetGroup.name + '".');
+        }
+        _renderTreeTableForGroup(targetGroup);
+      })
+      .catch(function (err) {
+        console.error('[Permissions] Copy quyền thất bại:', err);
+        if (typeof Alert !== 'undefined') Alert.error('Không thể copy quyền', err.message || 'Lỗi kết nối máy chủ.');
+        select.disabled = false;
+        cancelBtn.disabled = false;
+        copyBtn.disabled = false;
+        copyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:17px;vertical-align:-3px;margin-right:5px;">content_copy</span>Copy và ghi đè';
+      });
   }
 
   function _renderTreeTableForGroup(group) {

@@ -170,7 +170,7 @@ var Router = (function () {
       }
     }
     var deducedKey = String(url || '').trim().replace(/-/g, '_').toUpperCase();
-    if (deducedKey === 'FORM_BUILDER' || deducedKey === 'SY_FORMATFIELDS') {
+    if (deducedKey === 'FORM_BUILDER') {
       return { FormName: 'SY_FormatfldTbl', PageTitle: 'Cấu hình động', UseSplitLayout: false };
     }
     return window.APP_MODULES[deducedKey] || null;

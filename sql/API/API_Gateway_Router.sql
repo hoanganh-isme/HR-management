@@ -118,6 +118,26 @@ BEGIN
     END
     
     -- ƯU TIÊN 2: FALLBACK (DỰ PHÒNG CÁC BIẾN CỨNG)
+    /*
+      Metadata V2 historically used both FormName and WebFormName on the wire.
+      Resolve both placeholders from the same request identity before the
+      generic fallback can accidentally replace them with the API list.
+    */
+    DECLARE @RequestFormName NVARCHAR(100) = NULL;
+    IF ISNULL(@JsonData, '') <> '' AND ISJSON(@JsonData) = 1
+    BEGIN
+        SET @RequestFormName = COALESCE(
+            NULLIF(LTRIM(RTRIM(JSON_VALUE(@JsonData, '$.WebFormName'))), ''),
+            NULLIF(LTRIM(RTRIM(JSON_VALUE(@JsonData, '$.FormName'))), '')
+        );
+    END
+    IF @RequestFormName IS NOT NULL
+    BEGIN
+        SET @RequestFormName = REPLACE(@RequestFormName, '''', '''''');
+        SET @ParaTemplate = REPLACE(@ParaTemplate, '{FormName}', @RequestFormName);
+        SET @ParaTemplate = REPLACE(@ParaTemplate, '{WebFormName}', @RequestFormName);
+    END
+
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{FormName}', REPLACE(ISNULL(@List, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{ERPFormID}', REPLACE(ISNULL(@List, ''), '''', ''''''));
     SET @ParaTemplate = REPLACE(@ParaTemplate, '{WebFormName}', REPLACE(ISNULL(@List, ''), '''', ''''''));
@@ -172,11 +192,13 @@ BEGIN
     END TRY
     BEGIN CATCH
         -- Không trả câu lệnh đã nội suy hoặc dữ liệu request về client.
-        -- Chi tiết đầy đủ chỉ được ghi ở server log/SSMS khi vận hành.
+        -- Backend chỉ công bố chi tiết SQL này trong môi trường development.
         SELECT -1 AS code,
                N'API gateway execution failed.' AS msg,
                ERROR_NUMBER() AS error_number,
-               ERROR_LINE() AS error_line;
+               ERROR_LINE() AS error_line,
+               ERROR_PROCEDURE() AS error_procedure,
+               ERROR_MESSAGE() AS error_message;
     END CATCH
 END
 GO

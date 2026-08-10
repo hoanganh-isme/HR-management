@@ -3,7 +3,7 @@
   INSTALL_ALL - HRM_DB_CLEANUP_20260729
   FILE SINH TỰ ĐỘNG. KHÔNG SỬA TRỰC TIẾP.
   Build: node ./scripts/db-release/build-production-database-release.mjs
-  Package manifest SHA-256: 11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb
+  Package manifest SHA-256: 4e594fe8ca7978f795ada71b45044019c79cee25ec9b060a83c7a5e2bd79fbe0
 */
 :on error exit
 :setvar TargetDatabase "X26DIMTUTAC"
@@ -5688,7 +5688,7 @@ SELECT N'VNPT_ECONTRACT' AS Feature,N'REVIEW_REQUIRED_NOT_DEPLOYED' AS Decision;
 GO
 /* ===== END SOURCE: sql/ProductionDatabaseRelease/source/10_EContract/001_econtract_decision.sql ===== */
 
-/* ===== SOURCE: sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql | SHA-256: 8627fe02aa5dbf6de994f1e54c1799919a881d60b74b72d967c0c64a73d59ad9 ===== */
+/* ===== SOURCE: sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql | SHA-256: 77079c8c6b7944b0ad46fa96c21d1d8ff7f357a1d1cbec9474846f96fdd52bca ===== */
 /*
   Business procedures có caller hiện tại và canonical source rõ ràng
   File canonical được sinh từ kết quả audit; mỗi object chỉ có một definition.
@@ -5957,6 +5957,226 @@ BEGIN
     END CATCH;
 END;
 GO
+
+/* CanonicalSource: REPOSITORY; Object: dbo.API_SaoChepQuyenNhom; Input: sql/API/API_SaoChepQuyenNhom.sql */
+IF OBJECT_ID(N'dbo.API_SaoChepQuyenNhom', N'P') IS NULL
+    EXEC(N'CREATE PROCEDURE dbo.API_SaoChepQuyenNhom AS SELECT 1');
+GO
+
+ALTER PROCEDURE dbo.API_SaoChepQuyenNhom
+    @UserName nvarchar(100),
+    @SourceUserGroupID nvarchar(50),
+    @TargetUserGroupID nvarchar(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    SET @UserName = LTRIM(RTRIM(ISNULL(@UserName, N'')));
+    SET @SourceUserGroupID = LTRIM(RTRIM(ISNULL(@SourceUserGroupID, N'')));
+    SET @TargetUserGroupID = LTRIM(RTRIM(ISNULL(@TargetUserGroupID, N'')));
+
+    DECLARE @StartedTransaction bit = 0;
+
+    BEGIN TRY
+        DECLARE @ActorGroupID nvarchar(50);
+
+        SELECT TOP (1) @ActorGroupID = U.UserGroupID
+        FROM dbo.SY_User AS U
+        WHERE U.UserName COLLATE DATABASE_DEFAULT = @UserName COLLATE DATABASE_DEFAULT
+          AND ISNULL(U.Disable, 0) = 0;
+
+        IF LOWER(ISNULL(@ActorGroupID, N'')) COLLATE DATABASE_DEFAULT <> N'admin' COLLATE DATABASE_DEFAULT
+            THROW 52301, N'Chỉ nhóm Admin được phép copy quyền.', 1;
+
+        IF @SourceUserGroupID = N'' OR @TargetUserGroupID = N''
+            THROW 52302, N'Vui lòng chọn đầy đủ nhóm nguồn và nhóm đích.', 1;
+
+        IF @SourceUserGroupID COLLATE DATABASE_DEFAULT = @TargetUserGroupID COLLATE DATABASE_DEFAULT
+            THROW 52303, N'Nhóm nguồn và nhóm đích phải khác nhau.', 1;
+
+        IF LOWER(@TargetUserGroupID) COLLATE DATABASE_DEFAULT = N'admin' COLLATE DATABASE_DEFAULT
+            THROW 52304, N'Không cho phép ghi đè toàn bộ quyền của nhóm Admin.', 1;
+
+        IF NOT EXISTS
+        (
+            SELECT 1
+            FROM dbo.SY_UserGroup AS G
+            WHERE G.UserGroupID COLLATE DATABASE_DEFAULT = @SourceUserGroupID COLLATE DATABASE_DEFAULT
+              AND ISNULL(G.IsDisable, 0) = 0
+        )
+            THROW 52305, N'Nhóm quyền nguồn không tồn tại hoặc đã bị khóa.', 1;
+
+        IF NOT EXISTS
+        (
+            SELECT 1
+            FROM dbo.SY_UserGroup AS G
+            WHERE G.UserGroupID COLLATE DATABASE_DEFAULT = @TargetUserGroupID COLLATE DATABASE_DEFAULT
+              AND ISNULL(G.IsDisable, 0) = 0
+        )
+            THROW 52306, N'Nhóm quyền đích không tồn tại hoặc đã bị khóa.', 1;
+
+        IF EXISTS
+        (
+            SELECT P.MenuID
+            FROM dbo.WA_UserGroupPermisstion AS P
+            WHERE P.UserGroupID COLLATE DATABASE_DEFAULT IN
+                (@SourceUserGroupID COLLATE DATABASE_DEFAULT, @TargetUserGroupID COLLATE DATABASE_DEFAULT)
+            GROUP BY P.UserGroupID, P.MenuID
+            HAVING COUNT_BIG(*) > 1
+        )
+            THROW 52307, N'Dữ liệu quyền đang bị trùng MenuID; cần xử lý trước khi copy.', 1;
+
+        IF EXISTS
+        (
+            SELECT 1
+            FROM dbo.WA_Menu AS M
+            WHERE ISNULL(M.isDisable, 0) = 0
+              AND NULLIF(LTRIM(RTRIM(M.MenuID)), N'') IS NOT NULL
+              AND LEN(@TargetUserGroupID + N'_' + M.MenuID) > 50
+        )
+            THROW 52308, N'Mã nhóm và mã menu vượt quá giới hạn khóa quyền.', 1;
+
+        IF EXISTS
+        (
+            SELECT 1
+            FROM dbo.WA_Menu AS M
+            INNER JOIN dbo.WA_UserGroupPermisstion AS Existing
+              ON Existing.ID COLLATE DATABASE_DEFAULT =
+                 (@TargetUserGroupID + N'_' + M.MenuID) COLLATE DATABASE_DEFAULT
+            WHERE ISNULL(M.isDisable, 0) = 0
+              AND NOT EXISTS
+              (
+                  SELECT 1
+                  FROM dbo.WA_UserGroupPermisstion AS TargetPermission
+                  WHERE TargetPermission.UserGroupID COLLATE DATABASE_DEFAULT = @TargetUserGroupID COLLATE DATABASE_DEFAULT
+                    AND TargetPermission.MenuID COLLATE DATABASE_DEFAULT = M.MenuID COLLATE DATABASE_DEFAULT
+              )
+              AND (
+                  Existing.UserGroupID COLLATE DATABASE_DEFAULT <> @TargetUserGroupID COLLATE DATABASE_DEFAULT
+                  OR Existing.MenuID COLLATE DATABASE_DEFAULT <> M.MenuID COLLATE DATABASE_DEFAULT
+              )
+        )
+            THROW 52309, N'Khóa ID quyền đang thuộc bản ghi khác; không thể copy an toàn.', 1;
+
+        IF @@TRANCOUNT = 0
+        BEGIN
+            BEGIN TRANSACTION;
+            SET @StartedTransaction = 1;
+        END
+        ELSE
+            SAVE TRANSACTION CopyPermissionSave;
+
+        DECLARE @Changes table (ActionName nvarchar(10) NOT NULL);
+
+        MERGE dbo.WA_UserGroupPermisstion WITH (HOLDLOCK) AS Target
+        USING
+        (
+            SELECT
+                M.MenuID,
+                CONVERT(bit, ISNULL(SourcePermission.IsRun, 0)) AS IsRun,
+                CONVERT(bit, ISNULL(SourcePermission.IsAdd, 0)) AS IsAdd,
+                CONVERT(bit, ISNULL(SourcePermission.IsUpdate, 0)) AS IsUpdate,
+                CONVERT(bit, ISNULL(SourcePermission.IsDelete, 0)) AS IsDelete,
+                CONVERT(bit, ISNULL(SourcePermission.isManager, 0)) AS isManager,
+                CONVERT(bit, ISNULL(SourcePermission.isAdmin, 0)) AS isAdmin,
+                CONVERT(bit, ISNULL(SourcePermission.isAutoLock, 0)) AS isAutoLock,
+                CONVERT(bit, ISNULL(SourcePermission.isHideAmount, 0)) AS isHideAmount,
+                CONVERT(bit, ISNULL(SourcePermission.isLockDoc, 0)) AS isLockDoc,
+                CONVERT(bit, ISNULL(SourcePermission.isUnLockDoc, 0)) AS isUnLockDoc,
+                CONVERT(bit, ISNULL(SourcePermission.isExportExcel, 0)) AS isExportExcel
+            FROM dbo.WA_Menu AS M
+            LEFT JOIN dbo.WA_UserGroupPermisstion AS SourcePermission
+              ON SourcePermission.UserGroupID COLLATE DATABASE_DEFAULT =
+                 @SourceUserGroupID COLLATE DATABASE_DEFAULT
+             AND SourcePermission.MenuID COLLATE DATABASE_DEFAULT =
+                 M.MenuID COLLATE DATABASE_DEFAULT
+            WHERE ISNULL(M.isDisable, 0) = 0
+              AND NULLIF(LTRIM(RTRIM(M.MenuID)), N'') IS NOT NULL
+        ) AS Source
+          ON Target.UserGroupID COLLATE DATABASE_DEFAULT =
+             @TargetUserGroupID COLLATE DATABASE_DEFAULT
+         AND Target.MenuID COLLATE DATABASE_DEFAULT =
+             Source.MenuID COLLATE DATABASE_DEFAULT
+        WHEN MATCHED THEN
+            UPDATE SET
+                Target.IsRun = Source.IsRun,
+                Target.IsAdd = Source.IsAdd,
+                Target.IsUpdate = Source.IsUpdate,
+                Target.IsDelete = Source.IsDelete,
+                Target.isManager = Source.isManager,
+                Target.isAdmin = Source.isAdmin,
+                Target.isAutoLock = Source.isAutoLock,
+                Target.isHideAmount = Source.isHideAmount,
+                Target.isLockDoc = Source.isLockDoc,
+                Target.isUnLockDoc = Source.isUnLockDoc,
+                Target.isExportExcel = Source.isExportExcel
+        WHEN NOT MATCHED BY TARGET THEN
+            INSERT
+            (
+                ID, UserGroupID, MenuID, IsRun, IsAdd, IsUpdate, IsDelete,
+                isManager, isAdmin, isAutoLock, isHideAmount,
+                isLockDoc, isUnLockDoc, isExportExcel
+            )
+            VALUES
+            (
+                @TargetUserGroupID + N'_' + Source.MenuID,
+                @TargetUserGroupID,
+                Source.MenuID,
+                Source.IsRun,
+                Source.IsAdd,
+                Source.IsUpdate,
+                Source.IsDelete,
+                Source.isManager,
+                Source.isAdmin,
+                Source.isAutoLock,
+                Source.isHideAmount,
+                Source.isLockDoc,
+                Source.isUnLockDoc,
+                Source.isExportExcel
+            )
+        OUTPUT $action INTO @Changes(ActionName);
+
+        IF EXISTS (SELECT 1 FROM dbo.SY_Setup WHERE CodeID = 'menu_sync_ver')
+            UPDATE dbo.SY_Setup
+            SET CodeValue = CONVERT(nvarchar(50), GETDATE(), 126)
+            WHERE CodeID = 'menu_sync_ver';
+        ELSE
+            INSERT INTO dbo.SY_Setup (CodeID, CodeName, CodeValue, GroupID)
+            VALUES
+                ('menu_sync_ver', N'Phiên bản đồng bộ Menu', CONVERT(nvarchar(50), GETDATE(), 126), 'SY');
+
+        DECLARE @MenuCount int = (SELECT COUNT(*) FROM @Changes);
+        DECLARE @InsertedCount int = (SELECT COUNT(*) FROM @Changes WHERE ActionName = N'INSERT');
+        DECLARE @UpdatedCount int = (SELECT COUNT(*) FROM @Changes WHERE ActionName = N'UPDATE');
+
+        IF @StartedTransaction = 1 COMMIT TRANSACTION;
+
+        SELECT
+            0 AS code,
+            N'Copy quyền nhóm thành công.' AS msg,
+            @SourceUserGroupID AS SourceUserGroupID,
+            @TargetUserGroupID AS TargetUserGroupID,
+            @MenuCount AS MenuCount,
+            @InsertedCount AS InsertedCount,
+            @UpdatedCount AS UpdatedCount;
+    END TRY
+    BEGIN CATCH
+        IF @StartedTransaction = 1 AND XACT_STATE() <> 0
+            ROLLBACK TRANSACTION;
+        ELSE IF @StartedTransaction = 0 AND XACT_STATE() = 1
+            ROLLBACK TRANSACTION CopyPermissionSave;
+
+        SELECT
+            1 AS code,
+            ERROR_MESSAGE() AS msg,
+            ERROR_NUMBER() AS error_number;
+    END CATCH
+END;
+GO
+
+
+
 
 /* CanonicalSource: DB_TEST; Object: dbo.API_HR_NghiPhep_ChiTiet; Input: Schemadatatest.sql */
 CREATE OR ALTER PROCEDURE [dbo].[API_HR_NghiPhep_ChiTiet]
@@ -6230,7 +6450,7 @@ BEGIN
                 SET @Data=JSON_MODIFY(@Data,'$.IsEdit',1);
             END;
         END;
-        EXEC dbo.API_LuuDong @List=@List,@Data=@Data,@UserName=@UserName;
+        EXEC dbo.API_LuuDong_V2 @List=@List,@Data=@Data,@UserName=@UserName;
     END TRY
     BEGIN CATCH
         SELECT -1 AS code,ERROR_MESSAGE() AS msg;
@@ -6430,10 +6650,11 @@ END;
 GO
 /* ===== END SOURCE: sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql ===== */
 
-/* ===== SOURCE: sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql | SHA-256: 00241aa31700afcbe674289cd5059e24ddbac87b4da6b8eca1a8390102052beb ===== */
+/* ===== SOURCE: sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql | SHA-256: 9660095445be4f20bf52c9bf9b976efc7e988ed83947fbec1972d83bb03c6043 ===== */
 
 /*
-  Explicit seed cho các contract đã audit. Chỉ INSERT bản ghi thiếu; không ghi đè quyết định manual.
+  Explicit seed cho các contract đã audit. Các form có quyết định canonical riêng
+  được chuẩn hóa bằng UPDATE idempotent bên dưới.
 */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
@@ -6459,6 +6680,7 @@ BEGIN TRY
         ('WA_ShiftListFrm','WA_ShiftListFrm','WA_ShiftListFrm','SIMPLE_TABLE',N'HR_ShiftListTbl',N'ShiftID','WA_ShiftListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','LEGACY_GLOBAL_REFERENCE','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE3_READY_FOR_CUTOVER'),
         ('CF_BranchListFrm','CF_BranchListFrm','CF_BranchListFrm','SIMPLE_TABLE',N'CF_BranchTbl',N'BranchID','CF_BranchListFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','BRANCH_SCOPED','AUTO_SCHEMA','SHADOW',N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER'),
         ('WA_TimeSheetCTReport','WA_TimeSheetCTReport','WA_TimeSheetCTReport','READ_ONLY',N'HR_TimeSheetDayTbl',N'UserAutoID','WA_TimeSheetCTReport',N'HR_TimeSheetCTReportStp',NULL,NULL,'READ_ONLY','AUTO_SCHEMA','NONE','SHADOW',N'DESKTOP_REPORT_RESULT_SET_METADATA_V2'),
+        ('WA_PersonFullFrm','WA_PersonFullFrm','WA_PersonFullFrm','COMPLEX_DEFERRED',N'HR_PersonTbl',N'PersonID','WA_PersonFullFrm',N'API_HoSoNhanVien',NULL,NULL,'CUSTOM_PROCEDURE','BRANCH_SCOPED','AUTO_SCHEMA','DEFERRED',N'WIZARD_ATTACHMENT_CURRENT_BUSINESS_METADATA_V2'),
         ('WA_CaLamViecFrm','WA_CaLamViecFrm','WA_CaLamViecFrm','MASTER_DETAIL_SIMPLE',N'HR_SapCaTbl',N'SapCaID','WA_CaLamViecFrm',N'API_TruyVanDong_V2',N'API_LuuDong_V2',N'API_XoaDong_V2','SAFE_TABLE_COLUMNS','AUTO_SCHEMA','AUTO_SCHEMA','SHADOW',N'CONFIRMED_PHASE4_MASTER_DETAIL_READY_FOR_CUTOVER')
     ) AS V
     (
@@ -6472,6 +6694,32 @@ BEGIN TRY
         SELECT 1 FROM dbo.WA_FieldContractRegistry AS R
         WHERE R.WebFormName = V.WebFormName
     );
+
+    /*
+      WA_PersonFullFrm dùng metadata V2 nhưng vẫn giữ business runtime hiện tại.
+      Chuẩn hóa cả bản ghi do discovery cũ tạo để procedure metadata không ném 53201.
+    */
+    UPDATE R
+    SET R.ERPFormID = 'WA_PersonFullFrm',
+        R.PermissionFormName = 'WA_PersonFullFrm',
+        R.ContractType = 'COMPLEX_DEFERRED',
+        R.ExpectedTableName = N'HR_PersonTbl',
+        R.ExpectedPrimaryKey = N'PersonID',
+        R.ViewList = 'WA_PersonFullFrm',
+        R.ViewProcedure = N'API_HoSoNhanVien',
+        R.SaveProcedure = NULL,
+        R.DeleteProcedure = NULL,
+        R.WritePolicy = 'CUSTOM_PROCEDURE',
+        R.BranchPolicy = 'BRANCH_SCOPED',
+        R.DeletePolicy = 'AUTO_SCHEMA',
+        R.RolloutStatus = 'DEFERRED',
+        R.RolloutReason = N'WIZARD_ATTACHMENT_CURRENT_BUSINESS_METADATA_V2',
+        R.SchemaVersion = 2,
+        R.IsEnabled = 1,
+        R.UpdatedAt = @Now,
+        R.UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'WA_PersonFullFrm';
 
     /* Đồng bộ contract báo cáo đã tồn tại với route SP desktop đã được duyệt. */
     UPDATE R
@@ -6550,7 +6798,7 @@ PRINT N'Không có system seed ngoài registry/route explicit của release.';
 GO
 /* ===== END SOURCE: sql/ProductionDatabaseRelease/source/12_SystemSeeds/001_explicit_system_seed.sql ===== */
 
-/* ===== SOURCE: sql/ProductionDatabaseRelease/source/13_WaApiCutover/001_route_backup_and_cutover.sql | SHA-256: 8c661836caf3f9e9f14340a3e6ae10a75091245eb541f152de4a8d5ef9babd59 ===== */
+/* ===== SOURCE: sql/ProductionDatabaseRelease/source/13_WaApiCutover/001_route_backup_and_cutover.sql | SHA-256: 77c6717f19e730b89f12432669ebbbb9f48798e3fee6b7a30faf20e322f4928a ===== */
 
 /*
   Route registration/cutover: backup trước, transaction, idempotent, không DELETE hàng loạt.
@@ -6618,6 +6866,7 @@ VALUES
         (N'API_LayPhienBanQuyen', N'Execute', N'API_LayPhienBanQuyen', N'', NULL),
         (N'API_LayQuyenCuaToi', N'Execute', N'API_LayQuyenCuaToi', N'@Username=N''{User}''', NULL),
         (N'API_LayQuyenNhomDayDu', N'Execute', N'API_LayQuyenNhomDayDu', N'@NhomNguoiDangThaoTac=N''{NhomNguoiDangThaoTac}'', @UserGroupID=N''{UserGroupID}''', NULL),
+        (N'API_SaoChepQuyenNhom', N'Execute', N'API_SaoChepQuyenNhom', N'@UserName=N''{UserName}'', @SourceUserGroupID=N''{SourceUserGroupID}'', @TargetUserGroupID=N''{TargetUserGroupID}''', NULL),
         (N'API_LuuDong_V2', N'Execute', N'API_LuuDong_V2', N'@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'', @BranchID=N''{BranchID}''', NULL),
         (N'API_LuuMenu', N'Execute', N'API_LuuMenu', N'@NhomNguoiDangThaoTac=N''{NhomNguoiDangThaoTac}'', @MenuID=N''{MenuID}'', @OldMenuID=N''{OldMenuID}'', @ParentID=N''{ParentID}'', @Label=N''{Label}'', @EN=N''{EN}'', @SubTitle=N''{SubTitle}'', @FormName=N''{FormName}'', @FormKey=N''{FormKey}'', @URLPara=N''{URLPara}'', @Icon=N''{Icon}'', @IsDisable=N''{IsDisable}'', @IsEdit=N''{IsEdit}'', @TableName=N''{TableName}'', @PrimaryKey=N''{PrimaryKey}'', @AllowHardDelete=N''{AllowHardDelete}''', NULL),
         (N'API_LuuQuyenCuaNhom', N'Execute', N'API_LuuQuyenCuaNhom', N'@NhomNguoiDangThaoTac=N''{NhomNguoiDangThaoTac}'', @UserGroupID=N''{UserGroupID}'', @MenuID=N''{MenuID}'', @IsRun=N''{IsRun}'', @IsAdd=N''{IsAdd}'', @IsUpdate=N''{IsUpdate}'', @IsDelete=N''{IsDelete}'', @isManager=N''{isManager}'', @isAdmin=N''{isAdmin}'', @isAutoLock=N''{isAutoLock}'', @isHideAmount=N''{isHideAmount}'', @isLockDoc=N''{isLockDoc}'', @isUnLockDoc=N''{isUnLockDoc}'', @isExportExcel=N''{isExportExcel}''', NULL),
@@ -6848,7 +7097,7 @@ BEGIN TRY
         SET InstalledAt = SYSUTCDATETIME(), InstalledBy = @Actor,
             ReleaseMode = '$(ReleaseMode)', MetadataRouteBatchID = @MetadataBatchID,
             FieldRouteBatchID = @FieldBatchID, Status = 'INSTALLED',
-            ManifestSha256 = '11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb',
+            ManifestSha256 = '4e594fe8ca7978f795ada71b45044019c79cee25ec9b060a83c7a5e2bd79fbe0',
             RolledBackAt = NULL, RolledBackBy = NULL
         WHERE ReleaseID = @ReleaseID;
     ELSE
@@ -6860,7 +7109,7 @@ BEGIN TRY
         VALUES
         (
             @ReleaseID,SYSUTCDATETIME(),@Actor,'$(ReleaseMode)',@MetadataBatchID,
-            @FieldBatchID,'INSTALLED','11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb'
+            @FieldBatchID,'INSTALLED','4e594fe8ca7978f795ada71b45044019c79cee25ec9b060a83c7a5e2bd79fbe0'
         );
 
     COMMIT TRANSACTION;

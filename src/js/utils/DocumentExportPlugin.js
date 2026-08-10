@@ -22,8 +22,12 @@ var DocumentExportPlugin = (function (global) {
   function getExtraButtons(formName, getSelectedRows, moduleConfig, onReload) {
     var documentOptions = moduleConfig && moduleConfig.documentExport;
     if (!documentOptions || documentOptions.enabled === false) return [];
+    var labels = documentOptions.labels || {};
+    var canManageTemplates = global.AppPermissions
+      ? global.AppPermissions.hasPermission(formName, 'isAdmin')
+      : Boolean(global.AppSession && global.AppSession.isAdmin());
 
-    return [
+    var buttons = [
       {
         id: 'btn-export-contract',
         text: documentOptions.label || 'Xuất Hợp Đồng',
@@ -42,18 +46,21 @@ var DocumentExportPlugin = (function (global) {
           }
           global.ContractDocumentActions.exportContract(rows[0], documentOptions, onReload);
         }
-      },
-      {
-        id: 'btn-manage-contract-templates',
-        text: 'Quản lý mẫu hợp đồng',
+      }
+    ];
+
+    if (canManageTemplates) buttons.push({
+        id: 'btn-manage-contract-registry',
+        text: labels.manage || 'Quản lý hợp đồng',
         icon: 'folder_managed',
         type: 'tool',
         onClick: function (event) {
           stopDefault(event);
-          if (global.ContractDocumentActions) global.ContractDocumentActions.manageTemplates();
+          if (global.ContractDocumentActions) global.ContractDocumentActions.manageTemplateRegistry();
         }
-      }
-    ];
+      });
+
+    return buttons;
   }
 
   global.FormActionPlugins = (global.FormActionPlugins || []).filter(function (plugin) {

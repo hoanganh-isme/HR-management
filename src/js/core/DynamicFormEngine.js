@@ -3209,7 +3209,6 @@ window.DynamicFormEngine = (function () {
         columns: tabulatorColumns,
         layout: "fitDataFill",
         selectableRows: rowSelectionEnabled,
-        selectableRowsRangeMode: "click", // Shift + click range
         height: "100%", // Chiếm 100% chiều cao của flex container
         movableColumns: true, // Cho phép kéo thả cột
         editTriggerEvent: "dblclick", // Nhấp đúp để chỉnh sửa ô

@@ -19,7 +19,10 @@
           <span class="material-symbols-outlined" style="font-size:var(--font-size-lg);">account_tree</span>
           Chi tiết Phân quyền: <span id="current-role-name" style="color: var(--color-primary); font-weight: 600;"></span>
         </h3>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2" id="permission-header-actions">
+          <button class="btn btn-outline-primary" id="btn-copy-permission" style="padding: 4px 12px; font-size:var(--font-size-sm);" disabled>
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;margin-right:4px;">content_copy</span>Copy quyền
+          </button>
           <button class="btn btn-outline-secondary" id="btn-sync-permission" style="padding: 4px 12px; font-size:var(--font-size-sm);">Đồng Bộ Menu</button>
         </div>
       </div>

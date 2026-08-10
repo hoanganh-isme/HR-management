@@ -1294,8 +1294,9 @@ GO
 
 /* ===== BẮT ĐẦU sql/UnifiedContractRollout/04_SEED_EXISTING_CONFIRMED_CONTRACTS.sql ===== */
 /*
-  Seed idempotent cho sáu form và hai dataset đã được audit ở các phase trước.
-  Chỉ cập nhật lại bản ghi còn do seed sở hữu, không ghi đè quyết định manual.
+  Seed idempotent cho các form và dataset đã được audit.
+  Chỉ cập nhật lại bản ghi còn do seed sở hữu, ngoại trừ quyết định canonical
+  đã audit riêng cho WA_PersonFullFrm.
 */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
@@ -1373,6 +1374,22 @@ BEGIN TRY
             'SHADOW', N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER'
         ),
         (
+            'WA_TimeSheetCTReport', 'WA_TimeSheetCTReport', 'WA_TimeSheetCTReport',
+            'READ_ONLY', N'HR_TimeSheetDayTbl', N'UserAutoID',
+            'WA_TimeSheetCTReport', N'HR_TimeSheetCTReportStp',
+            NULL, NULL,
+            'READ_ONLY', 'AUTO_SCHEMA', 'NONE',
+            'SHADOW', N'DESKTOP_REPORT_RESULT_SET_METADATA_V2'
+        ),
+        (
+            'WA_PersonFullFrm', 'WA_PersonFullFrm', 'WA_PersonFullFrm',
+            'COMPLEX_DEFERRED', N'HR_PersonTbl', N'PersonID',
+            'WA_PersonFullFrm', N'API_HoSoNhanVien',
+            NULL, NULL,
+            'CUSTOM_PROCEDURE', 'BRANCH_SCOPED', 'AUTO_SCHEMA',
+            'DEFERRED', N'WIZARD_ATTACHMENT_CURRENT_BUSINESS_METADATA_V2'
+        ),
+        (
             'WA_CaLamViecFrm', 'WA_CaLamViecFrm', 'WA_CaLamViecFrm',
             'MASTER_DETAIL_SIMPLE', N'HR_SapCaTbl', N'SapCaID',
             'WA_CaLamViecFrm', N'API_TruyVanDong_V2',
@@ -1393,6 +1410,28 @@ BEGIN TRY
         FROM dbo.WA_FieldContractRegistry AS R
         WHERE R.WebFormName = V.WebFormName
     );
+
+    UPDATE R
+    SET R.ERPFormID = 'WA_PersonFullFrm',
+        R.PermissionFormName = 'WA_PersonFullFrm',
+        R.ContractType = 'COMPLEX_DEFERRED',
+        R.ExpectedTableName = N'HR_PersonTbl',
+        R.ExpectedPrimaryKey = N'PersonID',
+        R.ViewList = 'WA_PersonFullFrm',
+        R.ViewProcedure = N'API_HoSoNhanVien',
+        R.SaveProcedure = NULL,
+        R.DeleteProcedure = NULL,
+        R.WritePolicy = 'CUSTOM_PROCEDURE',
+        R.BranchPolicy = 'BRANCH_SCOPED',
+        R.DeletePolicy = 'AUTO_SCHEMA',
+        R.RolloutStatus = 'DEFERRED',
+        R.RolloutReason = N'WIZARD_ATTACHMENT_CURRENT_BUSINESS_METADATA_V2',
+        R.SchemaVersion = 2,
+        R.IsEnabled = 1,
+        R.UpdatedAt = @Now,
+        R.UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'WA_PersonFullFrm';
 
     /*
       Danh mục chi nhánh chỉ đọc các cột vật lý của CF_BranchTbl nên đã được audit
@@ -1421,6 +1460,37 @@ BEGIN TRY
     FROM dbo.WA_FieldContractRegistry AS R
     WHERE R.WebFormName = 'CF_BranchListFrm'
       AND R.CreatedBy = 'SYSTEM_DISCOVERY';
+
+    /* Contract báo cáo có thể đã được seed từ route cũ; đồng bộ theo SP desktop hiện tại. */
+    UPDATE R
+    SET R.ERPFormID = 'WA_TimeSheetCTReport',
+        R.PermissionFormName = 'WA_TimeSheetCTReport',
+        R.ContractType = 'READ_ONLY',
+        R.ExpectedTableName = N'HR_TimeSheetDayTbl',
+        R.ExpectedPrimaryKey = N'UserAutoID',
+        R.ViewList = 'WA_TimeSheetCTReport',
+        R.ViewProcedure = N'HR_TimeSheetCTReportStp',
+        R.SaveProcedure = NULL,
+        R.DeleteProcedure = NULL,
+        R.WritePolicy = 'READ_ONLY',
+        R.BranchPolicy = 'AUTO_SCHEMA',
+        R.DeletePolicy = 'NONE',
+        R.RolloutStatus = 'SHADOW',
+        R.RolloutReason = N'DESKTOP_REPORT_RESULT_SET_METADATA_V2',
+        R.SchemaVersion = 2,
+        R.IsEnabled = 1,
+        R.UpdatedAt = @Now,
+        R.UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'WA_TimeSheetCTReport'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.WA_API AS A
+          WHERE A.[list] = 'WA_TimeSheetCTReport'
+            AND A.[func] = 'View'
+            AND PARSENAME(LTRIM(RTRIM(A.[SQL])), 1) = 'HR_TimeSheetCTReportStp'
+      );
 
     INSERT INTO dbo.WA_FieldDatasetRegistry
     (
@@ -1525,7 +1595,7 @@ SELECT *
 FROM dbo.WA_FieldContractRegistry
 WHERE WebFormName IN
     ('WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm',
-     'CF_BranchListFrm', 'WA_CaLamViecFrm')
+     'CF_BranchListFrm', 'WA_CaLamViecFrm', 'WA_PersonFullFrm')
 ORDER BY WebFormName;
 
 SELECT *
@@ -2126,35 +2196,62 @@ END;
         ) AS ResultFlags
         OUTER APPLY
         (
-            SELECT TOP (1)
-                X.FormatID,
-                X.Caption AS CaptionVN,
-                CAST(NULL AS nvarchar(200)) AS CaptionEN,
-                X.Align AS AlignX,
-                X.MinWidth,
-                X.MaxWidth,
-                X.ControlType,
-                X.NumberDecimal,
-                X.FormatString,
-                X.MaskString,
-                X.MaxLength,
-                X.MinValue,
-                X.MaxValue,
-                X.OrderNo,
-                X.ShowInGrid,
-                X.ShowInAdd,
-                X.ShowInEdit,
-                X.ShowInFilter,
-                X.IsReadOnlyAdd,
-                X.IsReadOnlyEdit
-            FROM dbo.WA_FieldUiContractV2 AS X
-            WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
-                  @WebFormName COLLATE DATABASE_DEFAULT
-              AND X.DatasetKey COLLATE DATABASE_DEFAULT =
-                  'MAIN' COLLATE DATABASE_DEFAULT
-              AND X.IsEnabled = 1
-              AND X.FieldName COLLATE DATABASE_DEFAULT =
-                  RF.FieldName COLLATE DATABASE_DEFAULT
+            SELECT
+                COALESCE(NULLIF(SharedField.FormatID, ''), NULLIF(WebField.FormatID, '')) AS FormatID,
+                COALESCE(
+                    NULLIF(SharedField.CaptionVN, N''),
+                    NULLIF(SharedField.CaptionEN, N''),
+                    NULLIF(WebField.Caption, N'')
+                ) AS CaptionVN,
+                NULLIF(SharedField.CaptionEN, N'') AS CaptionEN,
+                COALESCE(NULLIF(SharedField.AlignX, ''), NULLIF(WebField.Align, '')) AS AlignX,
+                COALESCE(SharedField.MinWidth, WebField.MinWidth) AS MinWidth,
+                COALESCE(SharedField.MaxWidth, WebField.MaxWidth) AS MaxWidth,
+                WebField.ControlType,
+                WebField.NumberDecimal,
+                WebField.FormatString,
+                WebField.MaskString,
+                WebField.MaxLength,
+                WebField.MinValue,
+                WebField.MaxValue,
+                WebField.OrderNo,
+                WebField.ShowInGrid,
+                WebField.ShowInAdd,
+                WebField.ShowInEdit,
+                WebField.ShowInFilter,
+                WebField.IsReadOnlyAdd,
+                WebField.IsReadOnlyEdit
+            FROM (VALUES (1)) AS Seed(N)
+            OUTER APPLY
+            (
+                SELECT TOP (1)
+                    X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+                FROM dbo.SY_FmtFldTbl AS X
+                WHERE X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+                ORDER BY
+                    CASE
+                        WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                        WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                             LOWER(REPLACE(REPLACE(RF.FieldName, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                        ELSE 0
+                    END,
+                    CASE
+                        WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                        WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                        WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                        ELSE 4
+                    END,
+                    X.AutoID
+            ) AS SharedField
+            OUTER APPLY
+            (
+                SELECT TOP (1) X.*
+                FROM dbo.WA_FieldUiContractV2 AS X
+                WHERE X.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+                  AND X.DatasetKey COLLATE DATABASE_DEFAULT = 'MAIN' COLLATE DATABASE_DEFAULT
+                  AND X.IsEnabled = 1
+                  AND X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+            ) AS WebField
         ) AS ResultCaption
         OUTER APPLY
         (
@@ -2411,35 +2508,62 @@ END;
                 WHEN @EnableView = 1 AND Base.IsServerManaged = 0 AND Base.IsDenied = 0 THEN 1 ELSE 0 END) AS CanQuery
     ) AS Flags
     OUTER APPLY (
-        SELECT TOP (1)
-            X.FormatID,
-            X.Caption AS CaptionVN,
-            CAST(NULL AS nvarchar(200)) AS CaptionEN,
-            X.Align AS AlignX,
-            X.MinWidth,
-            X.MaxWidth,
-            X.ControlType,
-            X.NumberDecimal,
-            X.FormatString,
-            X.MaskString,
-            X.MaxLength,
-            X.MinValue,
-            X.MaxValue,
-            X.OrderNo,
-            X.ShowInGrid,
-            X.ShowInAdd,
-            X.ShowInEdit,
-            X.ShowInFilter,
-            X.IsReadOnlyAdd,
-            X.IsReadOnlyEdit
-        FROM dbo.WA_FieldUiContractV2 AS X
-        WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
-              @WebFormName COLLATE DATABASE_DEFAULT
-          AND X.DatasetKey COLLATE DATABASE_DEFAULT =
-              'MAIN' COLLATE DATABASE_DEFAULT
-          AND X.FieldName COLLATE DATABASE_DEFAULT =
-              C.name COLLATE DATABASE_DEFAULT
-          AND X.IsEnabled = 1
+        SELECT
+            COALESCE(NULLIF(SharedField.FormatID, ''), NULLIF(WebField.FormatID, '')) AS FormatID,
+            COALESCE(
+                NULLIF(SharedField.CaptionVN, N''),
+                NULLIF(SharedField.CaptionEN, N''),
+                NULLIF(WebField.Caption, N'')
+            ) AS CaptionVN,
+            NULLIF(SharedField.CaptionEN, N'') AS CaptionEN,
+            COALESCE(NULLIF(SharedField.AlignX, ''), NULLIF(WebField.Align, '')) AS AlignX,
+            COALESCE(SharedField.MinWidth, WebField.MinWidth) AS MinWidth,
+            COALESCE(SharedField.MaxWidth, WebField.MaxWidth) AS MaxWidth,
+            WebField.ControlType,
+            WebField.NumberDecimal,
+            WebField.FormatString,
+            WebField.MaskString,
+            WebField.MaxLength,
+            WebField.MinValue,
+            WebField.MaxValue,
+            WebField.OrderNo,
+            WebField.ShowInGrid,
+            WebField.ShowInAdd,
+            WebField.ShowInEdit,
+            WebField.ShowInFilter,
+            WebField.IsReadOnlyAdd,
+            WebField.IsReadOnlyEdit
+        FROM (VALUES (1)) AS Seed(N)
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+            FROM dbo.SY_FmtFldTbl AS X
+            WHERE X.FieldName COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
+            ORDER BY
+                CASE
+                    WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                    WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                         LOWER(REPLACE(REPLACE(C.name, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                    ELSE 0
+                END,
+                CASE
+                    WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                    WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                    WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                    ELSE 4
+                END,
+                X.AutoID
+        ) AS SharedField
+        OUTER APPLY
+        (
+            SELECT TOP (1) X.*
+            FROM dbo.WA_FieldUiContractV2 AS X
+            WHERE X.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+              AND X.DatasetKey COLLATE DATABASE_DEFAULT = 'MAIN' COLLATE DATABASE_DEFAULT
+              AND X.FieldName COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
+              AND X.IsEnabled = 1
+        ) AS WebField
     ) AS M
     OUTER APPLY
     (
@@ -3098,35 +3222,61 @@ BEGIN
      AND (RF.SourceTable IS NULL OR RF.SourceTable COLLATE DATABASE_DEFAULT = @ExpectedTable COLLATE DATABASE_DEFAULT)
     OUTER APPLY
     (
-        SELECT TOP (1)
-            X.FormatID,
-            X.Caption AS CaptionVN,
-            CAST(NULL AS nvarchar(200)) AS CaptionEN,
-            X.Align AS AlignX,
-            X.MinWidth,
-            X.MaxWidth,
-            X.ControlType,
-            X.NumberDecimal,
-            X.FormatString,
-            X.MaskString,
-            X.MaxLength,
-            X.MinValue,
-            X.MaxValue,
-            X.OrderNo,
-            X.ShowInGrid,
-            X.ShowInAdd,
-            X.ShowInEdit,
-            X.ShowInFilter,
-            X.IsReadOnlyAdd,
-            X.IsReadOnlyEdit
-        FROM dbo.WA_FieldUiContractV2 AS X
-        WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
-              @WebFormName COLLATE DATABASE_DEFAULT
-          AND X.DatasetKey COLLATE DATABASE_DEFAULT =
-              @DetailKey COLLATE DATABASE_DEFAULT
-          AND X.FieldName COLLATE DATABASE_DEFAULT =
-              RF.FieldName COLLATE DATABASE_DEFAULT
-          AND X.IsEnabled = 1
+        SELECT
+            COALESCE(NULLIF(SharedField.FormatID, ''), NULLIF(WebField.FormatID, '')) AS FormatID,
+            COALESCE(
+                NULLIF(SharedField.CaptionVN, N''),
+                NULLIF(SharedField.CaptionEN, N''),
+                NULLIF(WebField.Caption, N'')
+            ) AS CaptionVN,
+            NULLIF(SharedField.CaptionEN, N'') AS CaptionEN,
+            COALESCE(NULLIF(SharedField.AlignX, ''), NULLIF(WebField.Align, '')) AS AlignX,
+            COALESCE(SharedField.MinWidth, WebField.MinWidth) AS MinWidth,
+            COALESCE(SharedField.MaxWidth, WebField.MaxWidth) AS MaxWidth,
+            WebField.ControlType,
+            WebField.NumberDecimal,
+            WebField.FormatString,
+            WebField.MaskString,
+            WebField.MaxLength,
+            WebField.MinValue,
+            WebField.MaxValue,
+            WebField.OrderNo,
+            WebField.ShowInGrid,
+            WebField.ShowInAdd,
+            WebField.ShowInEdit,
+            WebField.ShowInFilter,
+            WebField.IsReadOnlyAdd,
+            WebField.IsReadOnlyEdit
+        FROM (VALUES (1)) AS Seed(N)
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+            FROM dbo.SY_FmtFldTbl AS X
+            WHERE X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+            ORDER BY
+                CASE
+                    WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                    WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                         LOWER(REPLACE(REPLACE(RF.FieldName, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                    ELSE 0
+                END,
+                CASE
+                    WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 1
+                    WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 2
+                    ELSE 3
+                END,
+                X.AutoID
+        ) AS SharedField
+        OUTER APPLY
+        (
+            SELECT TOP (1) X.*
+            FROM dbo.WA_FieldUiContractV2 AS X
+            WHERE X.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+              AND X.DatasetKey COLLATE DATABASE_DEFAULT = @DetailKey COLLATE DATABASE_DEFAULT
+              AND X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+              AND X.IsEnabled = 1
+        ) AS WebField
     ) AS M
     OUTER APPLY
     (

@@ -20,31 +20,14 @@ var HRM_LOCAL_DOCUMENT_DEVELOPMENT = isLocalDocumentDevelopment();
 var HRM_DOCUMENT_SERVICE_BASE = HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE ||
     (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8081' : HRM_FRONTEND_ORIGIN + '/docserver');
 
-/*
- * Phase 3: registry quản lý nhóm form CRUD một bảng. Focus/visibility/manual refresh
- * làm mới metadata ngay; polling chỉ là safety net khi tab được mở lâu.
- * Cấu hình được inject từ môi trường vẫn có quyền override các giá trị này,
- * kể cả enabled:false để rollback khẩn cấp.
- */
-var HRM_EXISTING_FIELD_SYNC = HRM_RUNTIME_CONFIG.FIELD_SYNC || {};
-var HRM_USES_LEGACY_PILOT_CONFIG = Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'pilotForms')
-    && !Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'rolloutMode');
-
+/* Field Contract V2 là nguồn metadata duy nhất của dynamic form. */
 HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     enabled: true,
-    shadowMode: false,
-    rolloutMode: 'registry',
-    includeForms: [],
-    excludeForms: [],
-    fallbackToLegacy: true,
-    pollSeconds: 360,
-    metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
-}, HRM_EXISTING_FIELD_SYNC);
-
-// Cấu hình production cũ chỉ có pilotForms tiếp tục giữ đúng phạm vi pilot.
-if (HRM_USES_LEGACY_PILOT_CONFIG) {
-    HRM_RUNTIME_CONFIG.FIELD_SYNC.rolloutMode = 'pilot';
-}
+    metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata',
+    cacheSeconds: 120,
+    failClosed: true,
+    allowLastKnownReadOnly: true
+}, HRM_RUNTIME_CONFIG.FIELD_SYNC || {});
 
 if (typeof window !== 'undefined') {
     window.HRM_RUNTIME_CONFIG = HRM_RUNTIME_CONFIG;
@@ -132,6 +115,7 @@ window.API_CONFIG = {
 
         PERMISSIONS: {
             SYNC: '/api/API_DongBoQuyenTruyCap',
+            COPY_GROUP_PERMISSIONS: '/api/API_Gateway_Router',
             GET_MENU_BY_GROUP: '/api/API_LayMenuTheoNhomQuyen',
             GET_ALL_MENUS_FOR_GROUP: '/api/API_LayQuyenNhomDayDu',
             SAVE_GROUP_PERMISSIONS: '/api/API_LuuQuyenCuaNhom',
@@ -143,7 +127,6 @@ window.API_CONFIG = {
         SYSTEM: {
             SHIFTS: '/api/API_DanhSachCaLam',
             SETUP_VALUE: '/api/API_LayGiaTriSetup',
-            GET_UI_DICTIONARY: '/api/API_LayCacTruongGiaoDien',
             GET_FIELDS_LIST: '/api/API_DanhSachTruongGiaoDien',
             SAVE_FIELD: '/api/API_LuuTruongGiaoDien',
             DELETE_FIELD: '/api/API_XoaTruongGiaoDien'

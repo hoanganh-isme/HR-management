@@ -413,181 +413,29 @@ window.AppSession = (function () {
   });
 })();
 
-/* --- FieldContractMigrationRegistry.js --- */
-/**
- * Unified Field Contract migration registry.
- * Entries describe cutover mechanics only; field metadata stays in ERP.
- *
- * @deprecated
- * DB contract registry is the primary rollout source.
- */
-window.FieldContractMigrationRegistry = (function () {
-  var insertOnlyBulkImport = Object.freeze({
-    importEnabled: true,
-    importMode: 'INSERT_ONLY',
-    allowUpsert: false,
-    maxRows: 200000
-  });
-
-  var forms = Object.freeze({
-    WA_BangThueTNCNFrm: Object.freeze({
-      webFormName: 'WA_BangThueTNCNFrm', erpFormId: 'HR_BangThueTNCNFrm',
-      expectedTableName: 'HR_BangThueTNCNTbl', expectedPrimaryKey: 'Bac',
-      oldView: 'API_TruyVanDong', viewV2: 'API_TruyVanDong_V2',
-      oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
-      oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
-      enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
-      ...insertOnlyBulkImport
-    }),
-    WA_ChucDanhFrm: Object.freeze({
-      webFormName: 'WA_ChucDanhFrm', erpFormId: 'WA_ChucDanhFrm',
-      expectedTableName: 'HR_ChucDanhTbl', expectedPrimaryKey: 'ChucDanhChuyenMon',
-      oldView: 'API_DanhSachChucDanh', viewV2: 'API_TruyVanDong_V2',
-      oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
-      oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
-      enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
-      ...insertOnlyBulkImport
-    }),
-    WA_TitleListFrm: Object.freeze({
-      webFormName: 'WA_TitleListFrm', erpFormId: 'WA_TitleListFrm',
-      expectedTableName: 'HR_TitleListTbl', expectedPrimaryKey: 'TitleName',
-      oldView: 'API_TruyVanDong', viewV2: 'API_TruyVanDong_V2',
-      oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
-      oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
-      enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
-      ...insertOnlyBulkImport
-    }),
-    WA_ShiftListFrm: Object.freeze({
-      webFormName: 'WA_ShiftListFrm', erpFormId: 'WA_ShiftListFrm',
-      expectedTableName: 'HR_ShiftListTbl', expectedPrimaryKey: 'ShiftID',
-      oldView: 'API_TruyVanDong', viewV2: 'API_TruyVanDong_V2',
-      oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
-      oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
-      enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
-      ...insertOnlyBulkImport
-    }),
-    WA_CaLamViecFrm: Object.freeze({
-      webFormName: 'WA_CaLamViecFrm', erpFormId: 'WA_CaLamViecFrm',
-      expectedTableName: 'HR_SapCaTbl', expectedPrimaryKey: 'SapCaID',
-      oldView: 'API_CaLamViec', viewV2: 'API_TruyVanDong_V2',
-      oldSave: 'API_LuuDong', saveV2: 'API_LuuDong_V2',
-      oldDelete: 'API_XoaDong', deleteV2: 'API_XoaDong_V2',
-      enableGrid: true, enableAdd: true, enableEdit: true, enableFilter: true,
-      enableSave: true, enableDelete: true, deletePolicy: 'AUTO_SCHEMA',
-      ...insertOnlyBulkImport,
-      permissionFormName: 'WA_CaLamViecFrm',
-      writePolicy: 'SAFE_TABLE_COLUMNS',
-      // SQL registry resolves this from the physical table schema.
-      branchPolicy: 'AUTO_SCHEMA'
-    })
-  });
-
-  function keyOf(formName) {
-    var target = String(formName || '').trim().toLowerCase();
-    return Object.keys(forms).find(function (key) { return key.toLowerCase() === target; }) || '';
-  }
-
-  function get(formName) {
-    var key = keyOf(formName);
-    return key ? forms[key] : null;
-  }
-
-  function list() {
-    return Object.keys(forms).map(function (key) { return forms[key]; });
-  }
-
-  function isManagedForm(formName) {
-    return Boolean(get(formName));
-  }
-
-  function usesUnifiedSchema(formName) {
-    var entry = get(formName);
-    return Boolean(entry && entry.enableGrid === true);
-  }
-
-  function resolveErpFormId(formName) {
-    var entry = get(formName);
-    return entry ? entry.erpFormId : formName;
-  }
-
-  var aliases = Object.freeze(list().reduce(function (result, entry) {
-    if (entry.erpFormId !== entry.webFormName) result[entry.webFormName] = entry.erpFormId;
-    return result;
-  }, {}));
-
-  return Object.freeze({
-    forms: forms,
-    aliases: aliases,
-    get: get,
-    list: list,
-    isManagedForm: isManagedForm,
-    usesUnifiedSchema: usesUnifiedSchema,
-    resolveErpFormId: resolveErpFormId
-  });
-})();
-
-/* --- ErpFormAliases.js --- */
-/** Alias Web -> ERP đã được xác nhận bằng TableName, khóa chính và artifact ERP. */
-window.ErpFormAliases = (function () {
-  var registry = window.FieldContractMigrationRegistry;
-  var aliases = registry ? registry.aliases : Object.freeze({});
-
-  function resolve(formName) {
-    return registry && typeof registry.resolveErpFormId === 'function'
-      ? registry.resolveErpFormId(formName)
-      : formName;
-  }
-
-  return Object.freeze({ aliases: aliases, resolve: resolve });
-})();
-
 /* --- FieldSyncConfig.js --- */
-/**
- * Feature flag Phase 1. Mặc định tuyệt đối không thay đổi UI đang chạy.
- * Cấu hình ưu tiên: ERP_FIELD_SYNC_CONFIG (override toàn bộ) rồi
- * HRM_RUNTIME_CONFIG.FIELD_SYNC. Không trộn hai nguồn để tránh ghép nhầm các gate bật pilot.
- */
+/** Runtime configuration for Field Contract V2 metadata. */
 (function (global) {
-  function configObject(value) {
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  }
-
-  var runtimeRoot = configObject(global.HRM_RUNTIME_CONFIG);
-  var runtime = configObject(runtimeRoot.FIELD_SYNC);
-  var explicit = configObject(global.ERP_FIELD_SYNC_CONFIG);
-  var supplied = Object.keys(explicit).length ? explicit : runtime;
-  var legacyPilotForms = Array.isArray(supplied.pilotForms) ? supplied.pilotForms.slice() : [];
-  var includeForms = Array.isArray(supplied.includeForms)
-    ? supplied.includeForms.slice()
-    : legacyPilotForms;
-  var excludeForms = Array.isArray(supplied.excludeForms) ? supplied.excludeForms.slice() : [];
-  var rolloutMode = supplied.rolloutMode === 'pilot'
-    || (!supplied.rolloutMode && legacyPilotForms.length > 0)
-    ? 'pilot'
-    : 'registry';
-  var pollSeconds = Number(supplied.pollSeconds);
+  var runtimeRoot = global.HRM_RUNTIME_CONFIG && typeof global.HRM_RUNTIME_CONFIG === 'object'
+    ? global.HRM_RUNTIME_CONFIG
+    : {};
+  var supplied = runtimeRoot.FIELD_SYNC && typeof runtimeRoot.FIELD_SYNC === 'object'
+    ? runtimeRoot.FIELD_SYNC
+    : {};
+  var cacheSeconds = Number(supplied.cacheSeconds);
 
   global.ERP_FIELD_SYNC_CONFIG = Object.freeze({
-    enabled: supplied.enabled === true,
-    shadowMode: supplied.shadowMode !== false,
-    rolloutMode: rolloutMode,
-    includeForms: Object.freeze(includeForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
-    excludeForms: Object.freeze(excludeForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
-    // Giữ cấu hình cũ để production có thể rollback trong giai đoạn chuyển tiếp.
-    pilotForms: Object.freeze(legacyPilotForms.filter(function (item) { return typeof item === 'string' && item.trim(); })),
-    fallbackToLegacy: supplied.fallbackToLegacy !== false,
-    pollSeconds: Number.isFinite(pollSeconds) && pollSeconds >= 30 ? Math.floor(pollSeconds) : 120,
-    metadataBaseUrl: typeof supplied.metadataBaseUrl === 'string' ? supplied.metadataBaseUrl.replace(/\/+$/, '') : ''
+    enabled: supplied.enabled !== false,
+    metadataBaseUrl: typeof supplied.metadataBaseUrl === 'string'
+      ? supplied.metadataBaseUrl.replace(/\/+$/, '')
+      : '',
+    cacheSeconds: Number.isFinite(cacheSeconds) && cacheSeconds > 0
+      ? Math.floor(cacheSeconds)
+      : 120,
+    failClosed: true,
+    allowLastKnownReadOnly: true
   });
 })(window);
-
-/* --- Phase2MigrationRegistry.js --- */
-/** @deprecated Compatibility alias; Phase 3 uses one unified registry. */
-window.Phase2MigrationRegistry = window.FieldContractMigrationRegistry;
 
 /* --- AppTheme.js --- */
 /** Applies the existing font, theme and accent-color preferences. */
@@ -745,611 +593,165 @@ var Permission = (function () {
 /* --- FormBuilderPlugin.js --- */
 /**
  * FormBuilderPlugin
- * ─────────────────────────────────────────────────────────────────────
- * Plugin dành riêng cho trang Thiết kế Giao diện (Form Builder).
- * Chứa logic của nút "Thiết kế Layout" (Visual Drag & Drop) và "Đồng bộ từ DB".
+ * Công cụ kiểm tra riêng cho trang Form Builder. Metadata của các form nghiệp vụ
+ * luôn được đọc từ Field Contract V2; plugin không có đường lui sang schema web cũ.
  */
 var FormBuilderPlugin = (function () {
-
-  function _phase2Entry(formName) {
-    var registry = window.FieldContractMigrationRegistry || window.Phase2MigrationRegistry;
-    return registry && typeof registry.get === 'function' ? registry.get(formName) : null;
-  }
-
-  function _isPhase2Managed(formName) {
-    return Boolean(_phase2Entry(formName));
-  }
-
-  // ── Helper: Set Loading State ────────────────────────────────────────────
-  function _setBtnLoading(btn, isLoading) {
-    if (!btn) return;
-    if (isLoading) {
-      if (!btn.hasAttribute('data-original-html')) {
-        btn.setAttribute('data-original-html', btn.innerHTML);
-      }
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang xử lý...';
-      btn.disabled = true;
-    } else {
-      if (btn.hasAttribute('data-original-html')) {
-        btn.innerHTML = btn.getAttribute('data-original-html');
-        btn.removeAttribute('data-original-html');
-      }
-      btn.disabled = false;
+  function _setBtnLoading(button, loading) {
+    if (!button) return;
+    if (loading) {
+      if (!button.hasAttribute('data-original-html')) button.setAttribute('data-original-html', button.innerHTML);
+      button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang tải...';
+      button.disabled = true;
+      return;
     }
-  }
-
-  // ── Lấy Nút Cấu Hình Toolbar ──────────────────────────────────────────────
-  function getExtraButtons(formName, getSelectedRows, moduleConfig, onReloadFormEngine) {
-    if ((window.location.hash || '').indexOf('form-builder') === -1) return [];
-
-    return [
-      {
-        id: 'btn-form-builder-layout',
-        text: 'Thiết kế Layout',
-        icon: 'design_services',
-        type: 'tool',
-        onClick: function() { _promptLayoutBuilder(moduleConfig, onReloadFormEngine); }
-      },
-      {
-        id: 'btn-form-builder-sync',
-        text: 'Đồng bộ từ DB',
-        icon: 'sync',
-        type: 'tool',
-        onClick: function () {
-          _openSyncModal(moduleConfig, onReloadFormEngine);
-        }
-      }
-    ];
-  }
-
-  // ── Logic Đồng Bộ DB ─────────────────────────────────────────────────────
-  function _openSyncModal(moduleConfig, onReloadFormEngine) {
-    var body = document.createElement('div');
-    body.className = 'p-3';
-    body.innerHTML = `
-      <div class="form-group mb-3">
-        <label class="form-label fw-bold">Tên Form (FormName):</label>
-        <input type="text" id="syncFormName" class="ui-input" placeholder="Ví dụ: WA_PersonFullFrm">
-        <small class="text-muted d-block mt-1">Form giao diện mà bạn muốn đồng bộ cấu hình.</small>
-      </div>
-      <div class="form-group mb-3">
-        <label class="form-label fw-bold">Tên Bảng/View trong DB (ObjectName):</label>
-        <input type="text" id="syncTableName" class="ui-input" placeholder="Ví dụ: HR_PersonTbl">
-        <small class="text-muted d-block mt-1">Tên bảng hoặc View thực tế dưới Database.</small>
-      </div>
-      <div id="syncPhase2Notice" class="alert alert-warning py-2 mb-0" style="display:none;">
-        Form này dùng Unified Field Contract: không được ghi SY_FormatFields. Nút chạy chỉ mở diagnostics/đối chiếu V2.
-      </div>
-    `;
-
-    var modal = UIModal.show({
-      title: 'Đồng bộ cấu hình từ Database',
-      width: '500px',
-      content: body,
-      footer: UIButton.createHTML({ text: 'Hủy bỏ', className: 'btn-outline', onclick: 'this.closest(\'.modal-overlay\').remove()' }) +
-        UIButton.createHTML({ text: 'Chạy Đồng Bộ', type: 'primary', className: 'btn-run-sync', icon: 'play_arrow' })
-    });
-
-    var btnRun = modal.node.querySelector('.btn-run-sync');
-    var formInput = modal.node.querySelector('#syncFormName');
-    var phase2Notice = modal.node.querySelector('#syncPhase2Notice');
-    function refreshPhase2Mode() {
-      var managed = _isPhase2Managed(formInput && formInput.value);
-      if (phase2Notice) phase2Notice.style.display = managed ? '' : 'none';
-      if (btnRun) btnRun.textContent = managed ? 'Xem Unified Contract' : 'Chạy Đồng Bộ';
+    if (button.hasAttribute('data-original-html')) {
+      button.innerHTML = button.getAttribute('data-original-html');
+      button.removeAttribute('data-original-html');
     }
-    if (formInput) formInput.addEventListener('input', refreshPhase2Mode);
-
-    btnRun.onclick = function () {
-      var fName = document.getElementById('syncFormName').value.trim();
-      var tName = document.getElementById('syncTableName').value.trim();
-
-      if (!fName) {
-        return Alert.warning('Thiếu thông tin', 'Vui lòng nhập tên Form!');
-      }
-
-      if (_isPhase2Managed(fName)) {
-        modal.closeNow();
-        return _openPhase2Compare(fName);
-      }
-
-      if (!tName) {
-        return Alert.warning('Thiếu thông tin', 'Vui lòng nhập tên Bảng/View!');
-      }
-
-      _setBtnLoading(btnRun, true);
-      var payload = {
-        FormName: fName,
-        ObjectName: tName
-      };
-
-      ApiClient.post('/api/API_DongBoTruongGiaoDien', payload).then(function (res) {
-        if (res && res.code === 0) {
-          Alert.success('Thành công', 'Đồng bộ trường giao diện hoàn tất!');
-          modal.closeNow();
-          if (typeof onReloadFormEngine === 'function') onReloadFormEngine();
-        } else {
-          Alert.error('Lỗi', res.msg || 'Đồng bộ thất bại');
-          _setBtnLoading(btnRun, false);
-        }
-      }).catch(function (err) {
-        Alert.error('Lỗi mạng', err.message || 'Không thể kết nối đến server');
-        _setBtnLoading(btnRun, false);
-      });
-    };
+    button.disabled = false;
   }
 
-  function _appendCompareCell(row, value, className) {
+  function _appendCell(row, value, className) {
     var cell = document.createElement('td');
     cell.className = className || '';
     cell.textContent = value === undefined || value === null || value === '' ? '—' : String(value);
     row.appendChild(cell);
   }
 
-  function _openPhase2Compare(formName) {
-    if (!window.FieldSyncService || typeof FieldSyncService.inspectForm !== 'function') {
-      return Alert.error('Chưa sẵn sàng', 'FieldSyncService chưa hỗ trợ màn hình diagnostics Unified Field Contract.');
+  function _showDiagnostics(formName, state) {
+    if (!state || state.metadataActive !== true || !state.schema) {
+      return Alert.error(
+        'Không thể tải Metadata V2',
+        state && state.error ? state.error : 'Không thể tải cấu hình màn hình.'
+      );
     }
 
-    var loading = UIModal.show({
-      title: 'Đang đối chiếu View V2...',
-      content: '<div class="text-center p-4">Đang tải result-set và metadata legacy...</div>',
-      buttons: []
-    });
-
-    FieldSyncService.inspectForm(formName).then(function (state) {
-      loading.closeNow();
-      var comparison = state.comparison || {};
-      var schema = state.schema || {};
-      var diagnosticCodes = (schema.diagnostics || []).map(function (item) {
-        return item && item.code ? String(item.code) : '';
-      }).filter(Boolean);
-      var body = document.createElement('div');
-      body.className = 'p-2';
-
-      var warning = document.createElement('div');
-      warning.className = 'alert alert-warning py-2';
-      warning.textContent = 'Field Contract Migration: màn hình này chỉ đọc result-set, physical columns, caption/format, lookup, capabilities, mobile class, runtime routes và diagnostics. Form Builder không ghi SY_FormatFields hoặc layout legacy cho form này.';
-      body.appendChild(warning);
-
-      var summary = document.createElement('div');
-      summary.className = 'mb-3';
-      summary.textContent = 'Nguồn: ' + (schema.sourceKind || 'UNKNOWN')
-        + ' | PK: ' + ((comparison.primaryKey && comparison.primaryKey.status) || 'UNKNOWN')
-        + ' | Khác biệt: ' + ((comparison.summary && comparison.summary.different) || 0)
-        + ' | Diagnostic: ' + (diagnosticCodes.length ? diagnosticCodes.join(', ') : 'OK');
-      body.appendChild(summary);
-
-      var routes = schema.runtimeRoutes || {};
-      var routeSummary = document.createElement('div');
-      routeSummary.className = 'mb-3 small';
-      routeSummary.textContent = 'Runtime routes — View: ' + ((routes.view && routes.view.registeredProcedure) || '—')
-        + ' | Save: ' + ((routes.save && routes.save.registeredProcedure) || '—')
-        + ' | Delete: ' + ((routes.delete && routes.delete.registeredProcedure) || '—')
-        + ' (' + ((routes.delete && routes.delete.mode) || 'NONE') + ')';
-      body.appendChild(routeSummary);
-
-      var contractWrapper = document.createElement('div');
-      contractWrapper.className = 'table-responsive mb-3';
-      var contractTable = document.createElement('table');
-      contractTable.className = 'table table-sm table-bordered align-middle';
-      var contractHead = document.createElement('thead');
-      var contractHeadRow = document.createElement('tr');
-      ['Field', 'Caption / format', 'Lookup', 'Grid', 'Add', 'Edit', 'Filter', 'Mobile', 'Reason codes'].forEach(function (title) {
-        var th = document.createElement('th');
-        th.textContent = title;
-        contractHeadRow.appendChild(th);
-      });
-      contractHead.appendChild(contractHeadRow);
-      contractTable.appendChild(contractHead);
-      var contractBody = document.createElement('tbody');
-      (schema.fields || []).forEach(function (field) {
-        var row = document.createElement('tr');
-        _appendCompareCell(row, field.name);
-        _appendCompareCell(row, (field.label || field.name) + ' / ' + (field.formatId || field.renderRule || 'text'));
-        _appendCompareCell(row, field.lookup && field.lookup.disabled !== true ? 'Có' : 'Không');
-        _appendCompareCell(row, field.showInGrid === true ? 'Có' : 'Không');
-        _appendCompareCell(row, field.showInAdd === true ? (field.supportsInsert === true ? 'Ghi' : 'Chỉ đọc') : 'Không');
-        _appendCompareCell(row, field.showInEdit === true ? (field.supportsUpdate === true ? 'Ghi' : 'Chỉ đọc') : 'Không');
-        _appendCompareCell(row, field.showInFilter === true && field.supportsFilter === true ? 'Có' : 'Không');
-        _appendCompareCell(row, field.mobileClass || 'OPTIONAL');
-        _appendCompareCell(row, Array.isArray(field.reasonCodes) ? field.reasonCodes.join(', ') : '—');
-        contractBody.appendChild(row);
-      });
-      contractTable.appendChild(contractBody);
-      contractWrapper.appendChild(contractTable);
-      body.appendChild(contractWrapper);
-
-      var wrapper = document.createElement('div');
-      wrapper.className = 'table-responsive';
-      var table = document.createElement('table');
-      table.className = 'table table-sm table-bordered align-middle';
-      var head = document.createElement('thead');
-      var headRow = document.createElement('tr');
-      ['Field', 'Legacy caption', 'V2 caption', 'Legacy format', 'V2 format', 'Legacy dropdown', 'V2 dropdown', 'Trạng thái'].forEach(function (title) {
-        var th = document.createElement('th');
-        th.textContent = title;
-        headRow.appendChild(th);
-      });
-      head.appendChild(headRow);
-      table.appendChild(head);
-
-      var tbody = document.createElement('tbody');
-      (comparison.items || []).forEach(function (item) {
-        var row = document.createElement('tr');
-        _appendCompareCell(row, item.fieldName);
-        _appendCompareCell(row, item.legacyCaption);
-        _appendCompareCell(row, item.v2Caption);
-        _appendCompareCell(row, item.legacyFormatId);
-        _appendCompareCell(row, item.v2FormatId);
-        _appendCompareCell(row, item.legacyHasLookup === true ? 'Có' : 'Không');
-        _appendCompareCell(row, item.v2HasLookup === true ? 'Có' : 'Không');
-        _appendCompareCell(row, item.status, item.status === 'MATCH' ? 'text-success' : 'text-danger');
-        tbody.appendChild(row);
-      });
-      table.appendChild(tbody);
-      wrapper.appendChild(table);
-      body.appendChild(wrapper);
-
-      UIModal.show({
-        title: 'Diagnostics Unified Field Contract: ' + formName,
-        width: '1000px',
-        content: body,
-        footer: UIButton.createHTML({ text: 'Đóng', className: 'btn-outline', onclick: 'this.closest(\'.modal-overlay\').remove()' })
-      });
-    }).catch(function (error) {
-      loading.closeNow();
-      Alert.error('Không thể đối chiếu', error && error.message ? error.message : 'Metadata V2 chưa sẵn sàng.');
-    });
-  }
-
-  // ── Logic Thiết Kế Layout ────────────────────────────────────────────────
-  function _promptLayoutBuilder(moduleConfig, onReloadFormEngine) {
+    var schema = state.schema;
+    var diagnostics = Array.isArray(schema.diagnostics) ? schema.diagnostics : [];
+    var diagnosticCodes = diagnostics.map(function (item) {
+      return item && item.code ? String(item.code) : '';
+    }).filter(Boolean);
     var body = document.createElement('div');
-    body.style.display = 'flex';
-    body.style.flexDirection = 'column';
-    body.style.gap = '14px';
+    body.className = 'p-2';
 
-    var targetFormInput = UIInput.createText({
-      label: 'Nhập Tên Form cần thiết kế layout (*)',
-      required: true,
-      placeholder: 'Ví dụ: WA_PersonFullFrm'
+    var notice = document.createElement('div');
+    notice.className = 'alert alert-info py-2';
+    notice.textContent = 'Form Builder chỉ hiển thị Field Contract V2 của form nghiệp vụ. Thay đổi metadata phải đi qua registry và quy trình backend.';
+    body.appendChild(notice);
+
+    var routes = schema.runtimeRoutes || {};
+    var summary = document.createElement('div');
+    summary.className = 'mb-3 small';
+    summary.textContent = 'Nguồn: ' + (schema.sourceKind || 'UNKNOWN')
+      + ' | Bảng: ' + (schema.tableName || '—')
+      + ' | PK: ' + (schema.primaryKey || '—')
+      + ' | View: ' + ((routes.view && routes.view.registeredProcedure) || '—')
+      + ' | Save: ' + ((routes.save && routes.save.registeredProcedure) || '—')
+      + ' | Diagnostic: ' + (diagnosticCodes.length ? diagnosticCodes.join(', ') : 'OK');
+    body.appendChild(summary);
+
+    var wrapper = document.createElement('div');
+    wrapper.className = 'table-responsive';
+    var table = document.createElement('table');
+    table.className = 'table table-sm table-bordered align-middle';
+    var head = document.createElement('thead');
+    var headRow = document.createElement('tr');
+    ['Field', 'Caption / format', 'Lookup', 'Grid', 'Add', 'Edit', 'Filter', 'Mobile', 'Reason codes'].forEach(function (title) {
+      var th = document.createElement('th');
+      th.textContent = title;
+      headRow.appendChild(th);
     });
-    body.appendChild(targetFormInput);
+    head.appendChild(headRow);
+    table.appendChild(head);
 
-    var footerNode = document.createElement('div');
-    footerNode.style.cssText = 'display: flex; gap: 12px;';
-    footerNode.innerHTML =
-      UIButton.createHTML({ text: 'Hủy', className: 'btn-close-prompt', type: 'secondary' }) +
-      UIButton.createHTML({ text: 'Mở thiết kế', className: 'btn-submit-prompt', type: 'primary' });
+    var tableBody = document.createElement('tbody');
+    (schema.fields || []).forEach(function (field) {
+      var row = document.createElement('tr');
+      _appendCell(row, field.name);
+      _appendCell(row, (field.label || field.name) + ' / ' + (field.formatId || field.renderRule || 'text'));
+      _appendCell(row, field.lookup && field.lookup.disabled !== true ? 'Có' : 'Không');
+      _appendCell(row, field.showInGrid === true ? 'Có' : 'Không');
+      _appendCell(row, field.showInAdd === true ? (field.supportsInsert === true ? 'Ghi' : 'Chỉ đọc') : 'Không');
+      _appendCell(row, field.showInEdit === true ? (field.supportsUpdate === true ? 'Ghi' : 'Chỉ đọc') : 'Không');
+      _appendCell(row, field.showInFilter === true && field.supportsFilter === true ? 'Có' : 'Không');
+      _appendCell(row, field.mobileClass || 'OPTIONAL');
+      _appendCell(row, Array.isArray(field.reasonCodes) ? field.reasonCodes.join(', ') : '—');
+      tableBody.appendChild(row);
+    });
+    table.appendChild(tableBody);
+    wrapper.appendChild(table);
+    body.appendChild(wrapper);
 
-    var modalPrompt = UIModal.show({
-      title: 'Thiết kế Layout trực quan',
+    UIModal.show({
+      title: 'Metadata V2: ' + formName,
+      width: '1000px',
       content: body,
-      footer: footerNode
+      footer: UIButton.createHTML({ text: 'Đóng', className: 'btn-outline', onclick: 'this.closest(\'.modal-overlay\').remove()' })
+    });
+  }
+
+  function _openMetadataModal(forceRefresh) {
+    var body = document.createElement('div');
+    body.className = 'p-3';
+    body.innerHTML = '<div class="form-group mb-2">'
+      + '<label class="form-label fw-bold">Tên Form (FormName):</label>'
+      + '<input type="text" id="fieldContractFormName" class="ui-input" placeholder="Ví dụ: WA_PersonFullFrm">'
+      + '</div>';
+
+    var modal = UIModal.show({
+      title: forceRefresh ? 'Làm mới Metadata V2' : 'Kiểm tra Metadata V2',
+      width: '500px',
+      content: body,
+      footer: UIButton.createHTML({ text: 'Hủy bỏ', className: 'btn-outline', onclick: 'this.closest(\'.modal-overlay\').remove()' })
+        + UIButton.createHTML({ text: 'Mở Metadata V2', type: 'primary', className: 'btn-open-field-contract', icon: 'schema' })
     });
 
-    footerNode.querySelector('.btn-close-prompt').onclick = function () {
-      modalPrompt.closeNow();
-    };
+    var button = modal.node.querySelector('.btn-open-field-contract');
+    button.onclick = function () {
+      var input = modal.node.querySelector('#fieldContractFormName');
+      var formName = input ? input.value.trim() : '';
+      if (!formName) return Alert.warning('Thiếu thông tin', 'Vui lòng nhập tên Form.');
+      if (!window.FieldSyncService) return Alert.error('Chưa sẵn sàng', 'FieldSyncService chưa sẵn sàng.');
 
-    footerNode.querySelector('.btn-submit-prompt').onclick = function () {
-      var formName = targetFormInput.querySelector('input').value.trim();
-      if (!formName) return Alert.warning('Cảnh báo', 'Vui lòng nhập Tên Form');
-      modalPrompt.closeNow();
-      _openVisualLayoutBuilder(formName, moduleConfig, onReloadFormEngine);
-    };
-
-    // Bắt sự kiện phím Enter
-    var inputEl = targetFormInput.querySelector('input');
-    if (inputEl) {
-      setTimeout(function () { inputEl.focus(); }, 100);
-      inputEl.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          var formName = inputEl.value.trim();
-          if (!formName) return Alert.warning('Cảnh báo', 'Vui lòng nhập Tên Form');
-          modalPrompt.closeNow();
-          _openVisualLayoutBuilder(formName, moduleConfig, onReloadFormEngine);
-        }
+      var load = forceRefresh && typeof FieldSyncService.refreshForm === 'function'
+        ? FieldSyncService.refreshForm(formName)
+        : FieldSyncService.observeForm(formName);
+      _setBtnLoading(button, true);
+      Promise.resolve(load).then(function (state) {
+        modal.closeNow();
+        _showDiagnostics(formName, state);
+      }).catch(function (error) {
+        Alert.error('Không thể tải Metadata V2', error && error.message ? error.message : 'Không thể tải cấu hình màn hình.');
+        _setBtnLoading(button, false);
       });
-    }
+    };
   }
 
-  function _openVisualLayoutBuilder(targetFormName, moduleConfig, onReloadFormEngine) {
-    var phase2Managed = _isPhase2Managed(targetFormName);
-    if (phase2Managed) return _openPhase2Compare(targetFormName);
-    var loadingModal = UIModal.show({ title: 'Đang tải layout...', content: '<div class="text-center p-4">Đang tải cấu hình form...</div>', buttons: [] });
-
-    var payload = {
-      List: 'frmFormBuilder',
-      Func: 'View',
-      Keyword: targetFormName,
-      Limit: 1000,
-      JsonData: JSON.stringify({ FormName: targetFormName })
-    };
-
-    var fetchEndpoint = (window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.SYSTEM && window.API_CONFIG.ENDPOINTS.SYSTEM.GET_FIELDS_LIST) || moduleConfig.ApiSearch || '/api/API_Gateway_Router';
-
-    ApiClient.post(fetchEndpoint, payload)
-      .then(function (res) {
-        loadingModal.closeNow();
-        var fields = res.list || res.records || [];
-        if (fields.length === 0) {
-          return Alert.warning('Cảnh báo', 'Không tìm thấy trường nào cho form ' + targetFormName);
-        }
-
-        // Sắp xếp
-        fields.sort(function (a, b) { return (a.OrderNo || 0) - (b.OrderNo || 0); });
-
-        var body = document.createElement('div');
-        body.style.display = 'flex';
-        body.style.flexDirection = 'column';
-        body.style.gap = '12px';
-
-        var help = document.createElement('div');
-        help.className = 'alert ' + (phase2Managed ? 'alert-warning' : 'alert-info') + ' py-2 mb-0 d-flex align-items-center gap-2';
-        help.innerHTML = phase2Managed
-          ? '<span class="material-symbols-outlined">lock</span> Unified Field Contract (Compatibility mode): layout legacy chỉ được xem; mọi thao tác ghi đã bị khóa.'
-          : '<span class="material-symbols-outlined">info</span> Kéo thả các khối để sắp xếp thứ tự. Bấm các nút phần trăm để chỉnh độ rộng. Layout hiển thị đúng tỷ lệ khung màn hình.';
-        body.appendChild(help);
-
-        var dropZone = document.createElement('div');
-        dropZone.style.display = 'flex';
-        dropZone.style.flexWrap = 'wrap';
-        dropZone.style.gap = '10px 10px';
-        dropZone.style.padding = '15px';
-        dropZone.style.border = '2px dashed var(--color-border)';
-        dropZone.style.borderRadius = '8px';
-        dropZone.style.background = 'var(--color-background)';
-        dropZone.style.minHeight = '300px';
-        dropZone.style.position = 'relative';
-
-        var draggedEl = null;
-
-        fields.forEach(function (f) {
-          var card = document.createElement('div');
-          var span = f.FormPosition || 'body';
-          if (span === 'grid') span = '6';
-          if (span === 'body') span = '12';
-          if (!['12', '8', '6', '4', '3'].includes(span)) span = '12';
-
-          card.className = 'layout-card';
-          card.draggable = !phase2Managed;
-          card.dataset.id = f.FieldName;
-          card.dataset.span = span;
-          card.dataset.orig = JSON.stringify(f);
-
-          card.style.border = '1px solid var(--color-border)';
-          card.style.borderRadius = '6px';
-          card.style.background = 'var(--color-surface)';
-          card.style.padding = '12px';
-          card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-          card.style.cursor = 'grab';
-          card.style.display = 'flex';
-          card.style.flexDirection = 'column';
-          card.style.gap = '10px';
-          card.style.transition = 'width 0.2s ease, opacity 0.2s ease, transform 0.1s ease';
-
-          var fieldNameStr = f.FieldName || f.fieldname || f.FIELDNAME || f.name || '';
-          var captionStr = f.CaptionVN || f.captionvn || f.CAPTIONVN || f.label || fieldNameStr;
-
-          var _bool = function(camel, pascal) {
-            return String(camel) === '1' || camel === true || String(pascal) === '1' || pascal === true;
-          };
-
-          var showAdd = _bool(f.showInAdd, f.ShowInAdd);
-          var showEdit = _bool(f.showInEdit, f.ShowInEdit);
-          var isReq = _bool(f.required, f.IsRequired);
-
-          card.innerHTML = `
-             <div style="font-weight:600; font-size:14px; color:var(--color-primary); pointer-events:none; display:flex; align-items:center; gap:6px;">
-               <span class="material-symbols-outlined" style="font-size:18px; color:#888;">drag_indicator</span>
-               <span class="text-truncate">${captionStr}</span>
-               <small style="color:#aaa; font-weight:400;">(${fieldNameStr})</small>
-             </div>
-
-             <div style="display:flex; gap:10px; font-size:11px; color:#555; margin-top:2px;">
-                <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="checkbox" class="chk-add" ${showAdd ? 'checked' : ''}> Hiện khi Thêm</label>
-                <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="checkbox" class="chk-edit" ${showEdit ? 'checked' : ''}> Hiện khi Sửa</label>
-                <label style="display:flex; align-items:center; gap:3px; cursor:pointer;"><input type="checkbox" class="chk-req" ${isReq ? 'checked' : ''}> Bắt buộc</label>
-             </div>
-
-             <div class="d-flex gap-1 mt-auto">
-               <button type="button" class="btn btn-sm btn-outline-secondary btn-span py-0 px-2" style="font-size:11px;" data-val="3">25%</button>
-               <button type="button" class="btn btn-sm btn-outline-secondary btn-span py-0 px-2" style="font-size:11px;" data-val="4">33%</button>
-               <button type="button" class="btn btn-sm btn-outline-secondary btn-span py-0 px-2" style="font-size:11px;" data-val="6">50%</button>
-               <button type="button" class="btn btn-sm btn-outline-secondary btn-span py-0 px-2" style="font-size:11px;" data-val="12">100%</button>
-             </div>
-           `;
-
-          function applyWidth(sp) {
-            card.dataset.span = sp;
-            card.className = card.className.replace(/df-col-\d+/g, '').trim() + ' df-col-' + sp;
-
-            var btns = card.querySelectorAll('.btn-span');
-            var label = sp === '12' ? '100%' : sp === '6' ? '50%' : sp === '4' ? '33%' : '25%';
-            btns.forEach(function (b) {
-              if (b.innerText.includes(label)) {
-                b.classList.remove('btn-outline-secondary');
-                b.classList.add('btn-primary');
-                b.style.color = '#fff';
-              } else {
-                b.classList.remove('btn-primary');
-                b.classList.add('btn-outline-secondary');
-                b.style.color = '';
-              }
-            });
-          }
-
-          applyWidth(span);
-
-          card.querySelectorAll('.btn-span').forEach(function (b) {
-            b.disabled = phase2Managed;
-            b.onclick = function () { applyWidth(b.dataset.val); };
-          });
-          card.querySelectorAll('input').forEach(function (input) { input.disabled = phase2Managed; });
-
-          card.addEventListener('dragstart', function (e) {
-            draggedEl = card;
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', card.innerHTML);
-            setTimeout(function () { card.style.opacity = '0.4'; card.style.transform = 'scale(0.98)'; }, 0);
-          });
-          card.addEventListener('dragend', function (e) {
-            draggedEl = null;
-            card.style.opacity = '1';
-            card.style.transform = 'scale(1)';
-            dropZone.querySelectorAll('.layout-card').forEach(function (c) { c.style.border = '1px solid var(--color-border)'; });
-          });
-          card.addEventListener('dragover', function (e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (draggedEl && draggedEl !== card) {
-              var rect = card.getBoundingClientRect();
-              var midY = rect.top + rect.height / 2;
-              var midX = rect.left + rect.width / 2;
-              var isAfter = e.clientY > midY || (Math.abs(e.clientY - midY) < 30 && e.clientX > midX);
-              if (isAfter) dropZone.insertBefore(draggedEl, card.nextSibling);
-              else dropZone.insertBefore(draggedEl, card);
-            }
-          });
-
-          dropZone.appendChild(card);
-        });
-
-        body.appendChild(dropZone);
-
-        var footerNode = document.createElement('div');
-        footerNode.style.cssText = 'display: flex; gap: 12px;';
-        footerNode.innerHTML =
-          UIButton.createHTML({ text: 'Đóng', className: 'btn-close-layout', type: 'secondary' }) +
-          UIButton.createHTML({ text: 'Lưu Layout', className: 'btn-save-layout', type: 'primary', icon: 'save' });
-
-        var modalLayout = UIModal.show({
-          title: 'Thiết kế Layout: ' + targetFormName,
-          content: body,
-          width: '900px',
-          footer: footerNode
-        });
-
-        footerNode.querySelector('.btn-close-layout').onclick = function () {
-          modalLayout.closeNow();
-        };
-
-        var saveLayoutButton = footerNode.querySelector('.btn-save-layout');
-        if (phase2Managed) {
-          saveLayoutButton.disabled = true;
-          saveLayoutButton.textContent = 'Chỉ xem (Unified Contract)';
-        }
-        saveLayoutButton.onclick = function () {
-          if (phase2Managed) return Alert.warning('Chế độ tương thích', 'Không được ghi SY_FormatFields cho form thuộc Unified Field Contract.');
-          var cards = dropZone.querySelectorAll('.layout-card');
-          var payloads = [];
-
-          cards.forEach(function (c, index) {
-            var fieldName = c.dataset.id;
-            var orig = fields.find(function (item) {
-              return (item.name || item.FieldName || item.FIELDNAME || item.fieldname) === fieldName;
-            });
-            if (!orig) orig = {};
-
-            var savedSpan = c.dataset.span;
-            if (savedSpan === '12') savedSpan = 'body';
-            if (savedSpan === '6') savedSpan = 'grid';
-
-            var isAddChecked = c.querySelector('.chk-add') ? c.querySelector('.chk-add').checked : true;
-            var isEditChecked = c.querySelector('.chk-edit') ? c.querySelector('.chk-edit').checked : true;
-            var isReqChecked = c.querySelector('.chk-req') ? c.querySelector('.chk-req').checked : false;
-
-            payloads.push({
-              FormName: targetFormName,
-              FieldName: fieldName,
-              FormPosition: savedSpan,
-              OrderNo: index + 1,
-              CaptionVN: orig.label || orig.CaptionVN || orig.CAPTIONVN || orig.captionvn || fieldName,
-              FormatID: orig.renderRule || orig.FormatID || orig.FORMATID || orig.formatid || '',
-              DataSource: orig.dataSource || orig.DataSource || orig.DATASOURCE || orig.datasource || '',
-              IsRequired: isReqChecked ? 1 : 0,
-              ShowInAdd: isAddChecked ? 1 : 0,
-              ShowInEdit: isEditChecked ? 1 : 0,
-              ShowInFilter: orig.showInFilter !== undefined ? orig.showInFilter : (orig.ShowInFilter !== undefined ? orig.ShowInFilter : 0),
-              IsReadOnlyAdd: orig.isReadOnlyAdd !== undefined ? orig.isReadOnlyAdd : (orig.IsReadOnlyAdd !== undefined ? orig.IsReadOnlyAdd : 0),
-              IsReadOnlyEdit: orig.isReadOnlyEdit !== undefined ? orig.isReadOnlyEdit : (orig.IsReadOnlyEdit !== undefined ? orig.IsReadOnlyEdit : 0),
-              ValidateRule: orig.validateRule || orig.ValidateRule || orig.VALIDATERULE || '',
-              DependsOn: orig.dependsOn || orig.DependsOn || orig.DEPENDSON || '',
-              VisibleRule: orig.visibleRule || orig.VisibleRule || orig.VISIBLERULE || ''
-            });
-          });
-
-          if (payloads.length === 0) return;
-
-          var btn = this;
-          var origTxt = btn.innerHTML;
-          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang lưu...';
-          btn.disabled = true;
-
-          var saveEndpoint = window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.SYSTEM
-            ? window.API_CONFIG.ENDPOINTS.SYSTEM.SAVE_FIELD
-            : moduleConfig.ApiSave;
-
-          if (!saveEndpoint) {
-            Alert.error('Lỗi', 'Chưa cấu hình API Save endpoint');
-            btn.innerHTML = origTxt;
-            btn.disabled = false;
-            return;
-          }
-
-          _sendSequentialToDB(saveEndpoint, payloads)
-            .then(function() {
-              modalLayout.closeNow();
-              Alert.success('Thành công', 'Đã cập nhật xong cấu hình Layout!');
-              if (typeof onReloadFormEngine === 'function') onReloadFormEngine();
-            })
-            .catch(function(err) {
-              console.error(err);
-              btn.innerHTML = origTxt;
-              btn.disabled = false;
-            });
-        };
-
-      })
-      .catch(function (e) {
-        if (loadingModal) loadingModal.closeNow();
-        Alert.error('Lỗi', 'Không thể tải cấu hình form: ' + e.message);
-      });
+  function getExtraButtons() {
+    if ((window.location.hash || '').indexOf('form-builder') === -1) return [];
+    return [
+      {
+        id: 'btn-form-builder-metadata-v2',
+        text: 'Kiểm tra Metadata V2',
+        icon: 'schema',
+        type: 'tool',
+        onClick: function () { _openMetadataModal(false); }
+      },
+      {
+        id: 'btn-form-builder-refresh-v2',
+        text: 'Làm mới Metadata V2',
+        icon: 'refresh',
+        type: 'tool',
+        onClick: function () { _openMetadataModal(true); }
+      }
+    ];
   }
 
-  // Chạy tuần tự các promises
-  function _sendSequentialToDB(endpoint, payloads) {
-    if (payloads.some(function (payload) { return _isPhase2Managed(payload && payload.FormName); })) {
-      return Promise.reject(new Error('FORM_BUILDER_WRITE_BLOCKED_PHASE2'));
-    }
-    return payloads.reduce(function(promise, payload) {
-      return promise.then(function() {
-        var finalPayload = payload;
-        if (endpoint === '/api/API_Gateway_Router') {
-          finalPayload = {
-            List: payload.FormName,
-            Func: 'Save',
-            JsonData: JSON.stringify(payload)
-          };
-        }
-        return ApiClient.post(endpoint, finalPayload).then(function(res) {
-            if (res && res.code !== 0) throw new Error(res.msg || 'Lỗi lưu trường ' + payload.FieldName);
-        });
-      });
-    }, Promise.resolve());
-  }
-
-  // Đăng ký Plugin vào hệ thống
   window.FormActionPlugins = window.FormActionPlugins || [];
   window.FormActionPlugins.push({ getExtraButtons: getExtraButtons });
 
-  return {
-    getExtraButtons: getExtraButtons
-  };
-
+  return { getExtraButtons: getExtraButtons };
 })();
 
 /* --- FormatUtils.js --- */
@@ -1756,7 +1158,7 @@ var PrintUtils = (function () {
      * metadata while each stored-procedure record contains additional dynamic
      * columns. Keep useful descriptors/labels, discard descriptors that are not
      * in the result row, then append every missing result key. The result set is
-     * therefore authoritative and SY_FormatFields remains only a UI fallback.
+     * therefore authoritative for the generated runtime schema.
      */
     descriptors = descriptors.filter(function (descriptor) {
       var actualName = rowKeyByName[descriptor.name.toLowerCase()];
@@ -1866,7 +1268,7 @@ var PrintUtils = (function () {
     var name = formName.trim();
     if (!name) return false;
     if (/^[A-Za-z0-9_]+(Frm|Report)$/i.test(name)) return true;
-    if (name.toLowerCase() === 'sy_formatfldtbl' || name.toLowerCase() === 'sy_formatfields') return true;
+    if (name.toLowerCase() === 'sy_formatfldtbl') return true;
     return false;
   }
 
@@ -2368,7 +1770,7 @@ var MenusService = (function () {
         }
 
         if (typeof FieldSyncService.refreshForm === 'function') {
-          return FieldSyncService.refreshForm(formName, [])
+          return FieldSyncService.refreshForm(formName)
             .then(function (state) {
               return {
                 menuSaved: true,
@@ -2539,6 +1941,11 @@ var PermissionsService = (function () {
     return grpStr;
   }
 
+  function _currentUserName() {
+    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    return String(u.UserName || u.userName || u.Username || u.username || '').trim();
+  }
+
   /**
    * Lấy danh sách nhóm quyền
    * @returns {Promise<Array>}
@@ -2626,6 +2033,31 @@ var PermissionsService = (function () {
   }
 
   /**
+   * Sao chép toàn bộ quyền từ một nhóm nguồn sang nhóm đích trong một transaction SQL.
+   * @param {string} sourceGroupId
+   * @param {string} targetGroupId
+   * @returns {Promise<Object>}
+   */
+  function copyGroupPermissions(sourceGroupId, targetGroupId) {
+    var endpoint = _ep('COPY_GROUP_PERMISSIONS');
+    return ApiClient.post(endpoint, {
+      List: 'API_SaoChepQuyenNhom',
+      Func: 'Execute',
+      UserName: _currentUserName(),
+      JsonData: JSON.stringify({
+        SourceUserGroupID: String(sourceGroupId || '').trim(),
+        TargetUserGroupID: String(targetGroupId || '').trim()
+      })
+    }).then(function (res) {
+      var records = res && (res.records || res.list || res.data);
+      return Array.isArray(records) && records.length > 0 ? records[0] : res;
+    }).catch(function (err) {
+      console.error('[PermissionsService] Lỗi copyGroupPermissions:', err);
+      throw err;
+    });
+  }
+
+  /**
    * Đồng bộ quyền truy cập toàn hệ thống
    * @returns {Promise}
    */
@@ -2646,27 +2078,25 @@ var PermissionsService = (function () {
     getMenusByGroup: getMenusByGroup,
     getFullMenusByGroup: getFullMenusByGroup,
     savePermission: savePermission,
+    copyGroupPermissions: copyGroupPermissions,
     sync: sync
   };
 })();
 
 /* --- FieldSyncService.js --- */
-/** Field Contract V2. Phase 1 giữ Grid-only; registry Phase 3 dùng unified Grid/Add/Edit/Filter. */
+/** Authoritative browser runtime for Field Contract V2 metadata. */
 window.FieldSyncService = (function (global) {
   var states = Object.create(null);
-  var timers = Object.create(null);
+  var lastKnownV2 = Object.create(null);
   var lookupKeyAliases = Object.create(null);
-  var listenersInstalled = false;
 
   function config() {
     return global.ERP_FIELD_SYNC_CONFIG || {
-      enabled: false,
-      shadowMode: true,
-      rolloutMode: 'registry',
-      includeForms: [],
-      excludeForms: [],
-      fallbackToLegacy: false,
-      pollSeconds: 120
+      enabled: true,
+      metadataBaseUrl: '',
+      cacheSeconds: 120,
+      failClosed: true,
+      allowLastKnownReadOnly: true
     };
   }
 
@@ -2684,39 +2114,13 @@ window.FieldSyncService = (function (global) {
     return value;
   }
 
-  function cloneSchema(schema) {
-    return Array.isArray(schema) ? schema.map(cloneValue) : [];
-  }
-
-  function isMetadataContractForm(formName) {
-    return /(?:Frm|Report)$/i.test(String(formName || '').trim());
-  }
-
-  function isReportForm(formName) {
-    return /(?:Report)$/i.test(String(formName || '').trim());
-  }
-
-  function isPilot(formName) {
-    // Form CRUD và report động đều dùng cùng nguồn metadata V2.
-    if (!isMetadataContractForm(formName)) return false;
-    var target = normalizeName(formName);
-    var settings = config();
-    var excluded = Array.isArray(settings.excludeForms) ? settings.excludeForms : [];
-    if (excluded.some(function (item) { return normalizeName(item) === target; })) return false;
-    var included = Array.isArray(settings.includeForms) ? settings.includeForms : [];
-    if (included.some(function (item) { return normalizeName(item) === target; })) return true;
-    var legacyPilotForms = Array.isArray(settings.pilotForms) ? settings.pilotForms : [];
-    if (settings.rolloutMode === 'pilot') {
-      return legacyPilotForms.some(function (item) { return normalizeName(item) === target; });
-    }
-    return settings.rolloutMode === 'registry';
-  }
-
   function metadataBaseUrl() {
     var configured = config().metadataBaseUrl;
     if (configured) return configured;
     var manager = global.API_CONFIG && global.API_CONFIG.ENDPOINTS && global.API_CONFIG.ENDPOINTS.DOCUMENT_MANAGER;
-    var serviceBase = manager && manager.SERVICE_BASE ? String(manager.SERVICE_BASE).replace(/\/+$/, '') : '';
+    var serviceBase = manager && manager.SERVICE_BASE
+      ? String(manager.SERVICE_BASE).replace(/\/+$/, '')
+      : '';
     return serviceBase ? serviceBase + '/api/metadata' : '/api/metadata';
   }
 
@@ -2727,10 +2131,17 @@ window.FieldSyncService = (function (global) {
     };
   }
 
-  function erpFormId(formName) {
-    return global.ErpFormAliases && typeof global.ErpFormAliases.resolve === 'function'
-      ? global.ErpFormAliases.resolve(formName)
-      : formName;
+  function stateKey(formName) {
+    var userName = global.AppSession ? global.AppSession.getUserName() : '';
+    var branchId = global.AppSession ? global.AppSession.getBranchId() : '';
+    return [normalizeName(formName), normalizeName(userName), normalizeName(branchId)].join('|');
+  }
+
+  function dispatchUpdate(formName, state) {
+    if (!global.document || typeof global.CustomEvent !== 'function') return;
+    global.document.dispatchEvent(new global.CustomEvent('erpFieldSyncUpdated', {
+      detail: { formName: formName, contextKey: state.contextKey, state: state }
+    }));
   }
 
   function engineRule(renderRule) {
@@ -2744,112 +2155,26 @@ window.FieldSyncService = (function (global) {
     return rule || 'text';
   }
 
-  function adaptGridFields(v2Fields, legacySchema) {
-    var legacyByName = Object.create(null);
-    (legacySchema || []).forEach(function (field) { legacyByName[normalizeName(field.name)] = field; });
-
-    return (v2Fields || []).map(function (field, index) {
-      var legacyKey = normalizeName(field.name);
-      var hasLegacyField = Object.prototype.hasOwnProperty.call(legacyByName, legacyKey);
-      var legacy = legacyByName[legacyKey] || {};
-      var editable = legacy.showInEdit === true || String(legacy.showInEdit) === '1';
-      var rawLookup = field.lookup && field.lookup.disabled !== true ? field.lookup : null;
-      var lookup = rawLookup;
-      return {
-        name: field.name,
-        label: field.label || field.name,
-        captionVN: field.captionVN || field.CaptionVN || legacy.captionVN || legacy.CaptionVN || field.label || legacy.label || field.name,
-        orderNo: field.orderNo || index + 1,
-        position: 'grid',
-        renderRule: engineRule(field.renderRule || legacy.renderRule || legacy.FormatID),
-        semanticRenderRule: field.semanticRenderRule || field.renderRule || legacy.semanticRenderRule || legacy.renderRule || legacy.FormatID || '',
-        formatId: field.formatId || legacy.formatId || legacy.FormatID || '',
-        FormatID: field.formatId || legacy.formatId || legacy.FormatID || '',
-        formatType: field.formatType || legacy.formatType || legacy.FormatType || '',
-        sqlType: field.sqlType || legacy.sqlType || legacy.SqlType || '',
-        semanticRole: field.semanticRole || legacy.semanticRole || legacy.SemanticRole || '',
-        displayVariant: field.displayVariant || legacy.displayVariant || legacy.DisplayVariant || '',
-        toneMap: cloneValue(field.toneMap !== undefined ? field.toneMap : (legacy.toneMap || legacy.ToneMap || null)),
-        statusMap: cloneValue(field.statusMap !== undefined ? field.statusMap : (legacy.statusMap || legacy.StatusMap || null)),
-        avatarField: field.avatarField || legacy.avatarField || legacy.AvatarField || '',
-        secondaryField: field.secondaryField || legacy.secondaryField || legacy.SecondaryField || '',
-        metadataSource: 'FIELD_SYNC_V2',
-        // Field chỉ có ở V2 được hiển thị read-only và không gửi server-sort cho tới khi API có contract tương ứng.
-        serverSortable: hasLegacyField,
-        showInAdd: legacy.showInAdd,
-        showInEdit: legacy.showInEdit,
-        showInFilter: false,
-        isReadOnlyAdd: legacy.isReadOnlyAdd,
-        isReadOnlyEdit: legacy.isReadOnlyEdit,
-        ShowInEdit: editable ? 1 : 0,
-        IsReadOnlyEdit: legacy.isReadOnlyEdit ? 1 : 0,
-        isPrimaryKey: field.isPrimaryKey === true || legacy.isPrimaryKey === true || legacy.IsPrimaryKey === 1,
-        isIdentity: field.isIdentity === true || legacy.isIdentity === true || legacy.IsIdentity === 1,
-        isSensitiveOrDenied: field.isSensitiveOrDenied === true || legacy.isSensitiveOrDenied === true || legacy.IsSensitiveOrDenied === 1,
-        dataSource: field.dataSource || legacy.dataSource || legacy.DataSource || '',
-        lookupKey: lookup && lookup.key ? lookup.key : (legacy.lookupKey || legacy.LookupKey || ''),
-        minWidth: field.minWidth !== undefined ? field.minWidth : legacy.minWidth,
-        maxWidth: field.maxWidth !== undefined ? field.maxWidth : legacy.maxWidth,
-        maxLength: field.maxLength !== undefined ? field.maxLength : legacy.maxLength,
-        minValue: field.minValue !== undefined ? field.minValue : legacy.minValue,
-        maxValue: field.maxValue !== undefined ? field.maxValue : legacy.maxValue,
-        align: field.align || legacy.align || legacy.Align,
-        numberDecimal: field.numberDecimal !== undefined ? field.numberDecimal : legacy.numberDecimal,
-        formatString: field.formatString || legacy.formatString || legacy.FormatString,
-        maskString: field.maskString || legacy.maskString || legacy.MaskString,
-        dependsOn: lookup && Array.isArray(lookup.dependsOn) ? lookup.dependsOn.join(',') : (legacy.dependsOn || legacy.DependsOn || '')
-      };
-    });
-  }
-
-  function createRuntimeSchemas(legacySchema, v2Fields, activateGrid) {
-    var legacy = Array.isArray(legacySchema) ? legacySchema : [];
-    return {
-      grid: activateGrid && Array.isArray(v2Fields) && v2Fields.length ? adaptGridFields(v2Fields, legacy) : cloneSchema(legacy),
-      edit: cloneSchema(legacy),
-      add: cloneSchema(legacy),
-      filters: cloneSchema(legacy)
-    };
-  }
-
-  function registryEntry(formName) {
-    var registry = global.FieldContractMigrationRegistry || global.Phase2MigrationRegistry;
-    return registry && typeof registry.get === 'function' ? registry.get(formName) : null;
-  }
-
-  function usesUnifiedSchema(formName) {
-    var registry = global.FieldContractMigrationRegistry || global.Phase2MigrationRegistry;
-    if (registry && typeof registry.usesUnifiedSchema === 'function') return registry.usesUnifiedSchema(formName);
-    var entry = registryEntry(formName);
-    return Boolean(entry && (entry.enableGrid === true || entry.schemaPolicy === 'UNIFIED_V2'));
-  }
-
-  function adaptUnifiedField(field, index, writeActive, contextName) {
-    var rawLookup = field.lookup && field.lookup.disabled !== true ? field.lookup : null;
-    var lookup = rawLookup;
-    var filterMeta = field.filter && typeof field.filter === 'object' ? field.filter : null;
-    var isFilterContext = contextName === 'filters';
-    var contextLabel = isFilterContext && filterMeta && filterMeta.label
-      ? filterMeta.label
-      : (field.label || field.name);
-    var contextOrder = isFilterContext && filterMeta && Number(filterMeta.keyId)
-      ? Number(filterMeta.keyId)
-      : (field.orderNo || index + 1);
-    var showInAdd = field.showInAdd === true;
-    var showInEdit = field.showInEdit === true;
-    var supportsInsert = field.supportsInsert === true;
-    var supportsUpdate = field.supportsUpdate === true;
-    var readOnlyAdd = !writeActive || !supportsInsert;
-    var readOnlyEdit = !writeActive || !supportsUpdate;
+  function adaptField(field, index, writable, contextName) {
+    var lookup = field.lookup && field.lookup.disabled !== true ? field.lookup : null;
+    var filter = field.filter && typeof field.filter === 'object' ? field.filter : null;
+    var isFilter = contextName === 'filters';
+    var label = isFilter && filter && filter.label ? filter.label : (field.label || field.name);
+    var orderNo = isFilter && filter && Number(filter.keyId)
+      ? Number(filter.keyId)
+      : (Number(field.orderNo) || index + 1);
+    var supportsInsert = writable && field.supportsInsert === true;
+    var supportsUpdate = writable && field.supportsUpdate === true;
     var mobileClass = String(field.mobileClass || 'OPTIONAL').toUpperCase();
     if (['CORE', 'OPTIONAL', 'ADVANCED', 'HIDDEN'].indexOf(mobileClass) === -1) mobileClass = 'OPTIONAL';
     var mobileOrder = Number(field.mobileOrder)
       || ((mobileClass === 'CORE' ? 0 : mobileClass === 'OPTIONAL' ? 10000 : mobileClass === 'ADVANCED' ? 20000 : 30000) + index + 1);
+
     return {
       name: field.name,
-      label: contextLabel,
-      captionVN: field.captionVN || field.CaptionVN || contextLabel,
-      orderNo: contextOrder,
+      label: label,
+      captionVN: field.captionVN || field.CaptionVN || label,
+      orderNo: orderNo,
       position: 'grid',
       renderRule: engineRule(field.renderRule),
       semanticRenderRule: field.semanticRenderRule || field.renderRule || '',
@@ -2868,31 +2193,29 @@ window.FieldSyncService = (function (global) {
       metadataSource: 'FIELD_CONTRACT_V2',
       serverSortable: field.supportsSort === true,
       showInGrid: field.showInGrid !== false,
-      showInAdd: showInAdd,
-      showInEdit: showInEdit,
+      showInAdd: field.showInAdd === true,
+      showInEdit: field.showInEdit === true,
       showInFilter: field.showInFilter === true && field.supportsFilter === true,
-      isReadOnlyAdd: readOnlyAdd,
-      isReadOnlyEdit: readOnlyEdit,
-      ShowInEdit: showInEdit ? 1 : 0,
-      IsReadOnlyEdit: readOnlyEdit ? 1 : 0,
-      supportsInsert: supportsInsert,
-      supportsUpdate: supportsUpdate,
+      isReadOnlyAdd: !supportsInsert,
+      isReadOnlyEdit: !supportsUpdate,
+      ShowInEdit: field.showInEdit === true ? 1 : 0,
+      IsReadOnlyEdit: supportsUpdate ? 0 : 1,
+      supportsInsert: field.supportsInsert === true,
+      supportsUpdate: field.supportsUpdate === true,
       supportsFilter: field.supportsFilter === true,
       supportsKeyword: field.supportsKeyword === true,
-      filterSourceFormId: filterMeta ? filterMeta.sourceFormId : '',
-      filterKeyId: filterMeta ? filterMeta.keyId : '',
-      filterControlType: filterMeta ? filterMeta.controlType : null,
-      filterOperator: filterMeta ? filterMeta.operator : null,
-      filterUseLikeOperator: filterMeta ? filterMeta.useLikeOperator === true : false,
-      filterControlWidth: filterMeta ? filterMeta.controlWidth : null,
-      filterValueField: filterMeta ? filterMeta.valueField : '',
-      filterDisplayField: filterMeta ? filterMeta.displayField : '',
-      filterDisplayColumns: filterMeta && Array.isArray(filterMeta.displayColumns)
-        ? filterMeta.displayColumns.slice()
-        : [],
-      filterDefaultValue: filterMeta ? filterMeta.defaultValue : '',
-      filterRememberLastValue: filterMeta ? filterMeta.rememberLastValue === true : false,
-      filterReload: filterMeta ? filterMeta.reload === true : false,
+      filterSourceFormId: filter ? filter.sourceFormId : '',
+      filterKeyId: filter ? filter.keyId : '',
+      filterControlType: filter ? filter.controlType : null,
+      filterOperator: filter ? filter.operator : null,
+      filterUseLikeOperator: filter ? filter.useLikeOperator === true : false,
+      filterControlWidth: filter ? filter.controlWidth : null,
+      filterValueField: filter ? filter.valueField : '',
+      filterDisplayField: filter ? filter.displayField : '',
+      filterDisplayColumns: filter && Array.isArray(filter.displayColumns) ? filter.displayColumns.slice() : [],
+      filterDefaultValue: filter ? filter.defaultValue : '',
+      filterRememberLastValue: filter ? filter.rememberLastValue === true : false,
+      filterReload: filter ? filter.reload === true : false,
       isPrimaryKey: field.isPrimaryKey === true,
       isIdentity: field.isIdentity === true,
       isComputed: field.isComputed === true,
@@ -2919,950 +2242,272 @@ window.FieldSyncService = (function (global) {
     };
   }
 
-  function mergeContractFields(allFields, selectedFields, predicate) {
+  function mergeFields(allFields, selectedFields, predicate) {
     var source = Array.isArray(allFields) ? allFields : [];
     var byName = Object.create(null);
     source.forEach(function (field) { byName[normalizeName(field && field.name)] = field; });
     var selected = Array.isArray(selectedFields) ? selectedFields : source.filter(predicate);
     return selected.map(function (field) {
-      var complete = byName[normalizeName(field && field.name)] || {};
-      return Object.assign({}, complete, field || {});
+      return Object.assign({}, byName[normalizeName(field && field.name)] || {}, field || {});
     });
   }
 
-  function createUnifiedRuntimeSchemas(contractOrFields, writeActive, entry) {
-    var contract = Array.isArray(contractOrFields) ? { fields: contractOrFields } : (contractOrFields || {});
-    var allFields = Array.isArray(contract.fields) ? contract.fields : (Array.isArray(contract.gridFields) ? contract.gridFields : []);
-    var enabled = entry || {};
+  function createRuntimeSchemas(schema, writable) {
+    var contract = schema || {};
+    var fields = Array.isArray(contract.fields) ? contract.fields : [];
     var collections = {
-      grid: mergeContractFields(allFields, contract.gridFields, function (field) { return field.showInGrid !== false; }),
-      add: mergeContractFields(allFields, contract.addFields, function (field) { return field.showInAdd === true; }),
-      edit: mergeContractFields(allFields, contract.editFields, function (field) { return field.showInEdit === true; }),
-      filters: mergeContractFields(allFields, contract.filterFields, function (field) { return field.showInFilter === true && field.supportsFilter === true; })
+      grid: mergeFields(fields, contract.gridFields, function (field) { return field.showInGrid !== false; }),
+      add: mergeFields(fields, contract.addFields, function (field) { return field.showInAdd === true; }),
+      edit: mergeFields(fields, contract.editFields, function (field) { return field.showInEdit === true; }),
+      filters: mergeFields(fields, contract.filterFields, function (field) {
+        return field.showInFilter === true && field.supportsFilter === true;
+      })
     };
     function adapt(collection, contextName) {
       return collection.map(function (field, index) {
-        return adaptUnifiedField(field, index, writeActive === true, contextName);
+        return adaptField(field, index, writable === true, contextName);
       });
     }
     return {
-      grid: enabled.enableGrid === false ? [] : cloneSchema(adapt(collections.grid, 'grid')),
-      edit: enabled.enableEdit === false ? [] : cloneSchema(adapt(collections.edit, 'edit')),
-      add: enabled.enableAdd === false ? [] : cloneSchema(adapt(collections.add, 'add')),
-      filters: enabled.enableFilter === false ? [] : cloneSchema(adapt(collections.filters, 'filters'))
+      grid: adapt(collections.grid, 'grid'),
+      edit: adapt(collections.edit, 'edit'),
+      add: adapt(collections.add, 'add'),
+      filters: adapt(collections.filters, 'filters')
     };
   }
 
-  function isManagedForm(formName) {
-    var state = states[stateKey(formName)];
-    return state ? state.managed === true : isPilot(formName);
+  function normalizeContract(schema) {
+    if (global.HRMetadataAdapter && typeof global.HRMetadataAdapter.normalizeContract === 'function') {
+      return global.HRMetadataAdapter.normalizeContract(schema);
+    }
+    if (!schema || String(schema.schemaVersion || '') !== '2.0' || !Array.isArray(schema.fields)) {
+      throw new Error('Field Contract V2 không hợp lệ.');
+    }
+    return cloneValue(schema);
   }
 
-  function hasBlockingDiagnostics(schema) {
+  function blockingDiagnostic(schema) {
     return Boolean(schema && Array.isArray(schema.diagnostics) && schema.diagnostics.some(function (item) {
       var severity = normalizeName(item && item.severity);
-      var code = normalizeName(item && item.code);
-      return severity === 'critical' || severity === 'error'
-        || code === 'resultset_fallback_to_table'
-        || code === 'shadow_view_not_registered';
+      return severity === 'error' || severity === 'critical';
     }));
   }
 
-  function isUnifiedContractReady(schema, formName, expectedErpFormId) {
-    if (!schema || schema.schemaVersion !== '2.0' || schema.capabilityVersion !== '1.0') return false;
-    if (normalizeName(schema.formName) !== normalizeName(formName)) return false;
-    if (normalizeName(schema.erpFormId) !== normalizeName(expectedErpFormId)) return false;
-    var entry = registryEntry(formName) || {};
-    if (entry.expectedTableName && normalizeName(schema.tableName) !== normalizeName(entry.expectedTableName)) return false;
-    if (entry.expectedPrimaryKey && normalizeName(schema.primaryKey) !== normalizeName(entry.expectedPrimaryKey)) return false;
-    if (normalizeName(schema.sourceKind) !== 'result_set' && normalizeName(schema.sourceKind) !== 'main_table') return false;
-    var fields = Array.isArray(schema.fields) ? schema.fields : [];
-    if (!fields.length || !Array.isArray(schema.gridFields) || !schema.gridFields.length) return false;
-    if (!Array.isArray(schema.addFields) || !Array.isArray(schema.editFields) || !Array.isArray(schema.filterFields)) return false;
-    var names = Object.create(null);
-    var previousOrder = 0;
-    for (var i = 0; i < fields.length; i++) {
-      var field = fields[i] || {};
-      var key = normalizeName(field.name);
-      var orderNo = Number(field.orderNo);
-      if (!safeFieldName(field.name) || names[key] || !Number.isInteger(orderNo) || orderNo <= previousOrder) return false;
-      if (typeof field.showInGrid !== 'boolean'
-        || typeof field.supportsInsert !== 'boolean'
-        || typeof field.supportsUpdate !== 'boolean'
-        || typeof field.supportsFilter !== 'boolean'
-        || typeof field.supportsSort !== 'boolean') return false;
-      names[key] = true;
-      previousOrder = orderNo;
+  function assertContract(schema, formName, contract) {
+    if (!schema || String(schema.schemaVersion || '') !== '2.0') throw new Error('Field Contract V2 không đúng phiên bản.');
+    if (normalizeName(schema.formName) !== normalizeName(formName)) throw new Error('Field Contract V2 không khớp FormName.');
+    if (contract && contract.erpFormId && normalizeName(schema.erpFormId) !== normalizeName(contract.erpFormId)) {
+      throw new Error('Field Contract V2 không khớp ERPFormID trong DB registry.');
     }
-    var primaryKeys = primaryKeyParts(schema.primaryKey);
-    if (primaryKeys.length !== 1 || !names[normalizeName(primaryKeys[0])]) return false;
-    return Boolean(schema.runtimeRoutes && schema.runtimeRoutes.view && schema.runtimeRoutes.save && schema.runtimeRoutes.delete);
-  }
-
-  function hasCriticalParity(schema, comparison, formName) {
-    var allowNewV2Fields = isManagedForm(formName);
-    if (schema && Array.isArray(schema.diagnostics) && schema.diagnostics.some(function (item) {
-      var severity = normalizeName(item && item.severity);
-      var code = normalizeName(item && item.code);
-      return severity === 'critical' || severity === 'error'
-        || code === 'resultset_fallback_to_table'
-        || code === 'shadow_view_not_registered';
-    })) return true;
-    if (comparison && comparison.primaryKey && normalizeName(comparison.primaryKey.status) === 'critical') return true;
-    return Boolean(comparison && Array.isArray(comparison.items) && comparison.items.some(function (item) {
-      var status = normalizeName(item && (item.severity || item.status));
-      return status === 'critical' || status === 'only_legacy' || (status === 'only_v2' && !allowNewV2Fields);
-    }));
-  }
-
-  function safeFieldName(value) {
-    var name = String(value || '');
-    var lower = name.toLowerCase();
-    return /^[A-Za-z_][A-Za-z0-9_@$#]{0,127}$/.test(name)
-      && lower !== '__proto__' && lower !== 'prototype' && lower !== 'constructor';
-  }
-
-  function primaryKeyParts(value) {
-    return String(value || '').split(/[,;+]/).map(function (part) {
-      return part.trim().replace(/^\[|\]$/g, '');
-    }).filter(Boolean);
-  }
-
-  function isActivationContractReady(schema, comparison, formName, expectedErpFormId) {
-    if (!schema || !comparison || schema.schemaVersion !== '2.0' || comparison.schemaVersion !== '2.0') return false;
-    if (normalizeName(schema.formName) !== normalizeName(formName) || normalizeName(comparison.formName) !== normalizeName(formName)) return false;
-    if (normalizeName(schema.erpFormId) !== normalizeName(expectedErpFormId) || normalizeName(comparison.erpFormId) !== normalizeName(expectedErpFormId)) return false;
-    if (normalizeName(schema.sourceKind) !== 'result_set') return false;
-    if (!Array.isArray(schema.gridFields) || !schema.gridFields.length || !Array.isArray(schema.lookups)) return false;
-
-    var fieldNames = Object.create(null);
-    var previousOrder = 0;
-    for (var i = 0; i < schema.gridFields.length; i++) {
-      var field = schema.gridFields[i] || {};
-      var fieldName = String(field.name || '');
-      var fieldKey = normalizeName(fieldName);
-      var orderNo = Number(field.orderNo);
-      if (!safeFieldName(fieldName) || fieldNames[fieldKey] || !Number.isInteger(orderNo) || orderNo <= previousOrder) return false;
-      fieldNames[fieldKey] = true;
-      previousOrder = orderNo;
+    if (contract && contract.expectedTableName && normalizeName(schema.tableName) !== normalizeName(contract.expectedTableName)) {
+      throw new Error('Field Contract V2 không khớp TableName trong DB registry.');
     }
-
-    var primaryKeys = primaryKeyParts(schema.primaryKey);
-    if (!primaryKeys.length || primaryKeys.some(function (key) { return !safeFieldName(key) || !fieldNames[normalizeName(key)]; })) return false;
-    var parityKey = comparison.primaryKey || {};
-    if (normalizeName(parityKey.status) !== 'match' || !normalizeName(parityKey.legacy) || !normalizeName(parityKey.v2)) return false;
-    if (normalizeName(parityKey.legacy) !== normalizeName(parityKey.v2) || normalizeName(parityKey.v2) !== normalizeName(schema.primaryKey)) return false;
-
-    if (!Array.isArray(comparison.items)) return false;
-    var allowedStatuses = { match: true, caption_diff: true, format_diff: true, lookup_diff: true, critical: true, only_v2: true, only_legacy: true };
-    var comparedFields = Object.create(null);
-    for (var j = 0; j < comparison.items.length; j++) {
-      var item = comparison.items[j] || {};
-      var comparedName = normalizeName(item.fieldName);
-      var status = normalizeName(item.status);
-      if (!safeFieldName(item.fieldName) || comparedFields[comparedName] || !allowedStatuses[status]) return false;
-      comparedFields[comparedName] = true;
+    if (contract && contract.expectedPrimaryKey && normalizeName(schema.primaryKey) !== normalizeName(contract.expectedPrimaryKey)) {
+      throw new Error('Field Contract V2 không khớp PrimaryKey trong DB registry.');
     }
-    if (Object.keys(fieldNames).some(function (fieldKey) { return !comparedFields[fieldKey]; })) return false;
-
-    var lookupFields = Object.create(null);
-    for (var k = 0; k < schema.lookups.length; k++) {
-      var lookup = schema.lookups[k] || {};
-      if (lookup.disabled === true) continue;
-      var lookupKey = String(lookup.key || '').toLowerCase();
-      var lookupField = normalizeName(lookup.fieldName);
-      if (!/^[a-f0-9]{64}$/.test(lookupKey) || lookupFields[lookupField] || !fieldNames[lookupField]) return false;
-      lookupFields[lookupField] = true;
+    if (!schema.tableName || !schema.primaryKey || !Array.isArray(schema.fields) || !schema.fields.length) {
+      throw new Error('Field Contract V2 thiếu bảng, khóa chính hoặc danh sách trường.');
     }
-    return true;
+    if (!Array.isArray(schema.gridFields) || !Array.isArray(schema.addFields)
+      || !Array.isArray(schema.editFields) || !Array.isArray(schema.filterFields)) {
+      throw new Error('Field Contract V2 thiếu runtime schema.');
+    }
+    if (blockingDiagnostic(schema)) throw new Error('Field Contract V2 có diagnostic chặn runtime.');
   }
 
-  function stateKey(formName) {
-    var userName = global.AppSession ? global.AppSession.getUserName() : '';
-    var branchId = global.AppSession ? global.AppSession.getBranchId() : '';
-    return [normalizeName(formName), normalizeName(erpFormId(formName)), normalizeName(userName), normalizeName(branchId)].join('|');
+  function errorDetails(error) {
+    var data = error && error.data && typeof error.data === 'object' ? error.data : {};
+    return {
+      status: Number(error && error.status) || 0,
+      code: String(data.code || (error && error.code) || 'METADATA_REQUEST_FAILED').trim().toUpperCase(),
+      message: String((error && error.message) || data.message || 'Không thể đọc metadata ERP.'),
+      diagnostic: data.diagnostic || null
+    };
   }
 
-  function storeParity(formName, comparison) {
-    try {
-      global.sessionStorage.setItem('ERP_FIELD_SYNC_PARITY:' + stateKey(formName), JSON.stringify(comparison));
-    } catch (ignore) { }
+  function failClosedState(formName, details) {
+    return {
+      status: 'metadata-error',
+      runtimeMode: 'METADATA_ERROR',
+      metadataActive: false,
+      active: false,
+      writeAvailable: false,
+      deleteAvailable: false,
+      writeActive: false,
+      deleteActive: false,
+      failClosed: true,
+      readOnly: true,
+      contextKey: stateKey(formName),
+      schema: null,
+      contract: null,
+      runtimeSchemas: { grid: [], edit: [], add: [], filters: [] },
+      loadedAt: Date.now(),
+      errorCode: details.code,
+      error: details.message,
+      diagnostic: details.diagnostic || null
+    };
   }
 
-  function dispatchUpdate(formName, state) {
-    if (!global.document || typeof global.CustomEvent !== 'function') return;
-    global.document.dispatchEvent(new global.CustomEvent('erpFieldSyncUpdated', {
-      detail: { formName: formName, contextKey: state && state.contextKey ? state.contextKey : stateKey(formName), state: state }
-    }));
+  function readOnlyState(formName, previous, details) {
+    return {
+      status: 'metadata-last-known-readonly',
+      runtimeMode: 'V2_READONLY',
+      metadataActive: true,
+      active: previous.active === true,
+      writeAvailable: false,
+      deleteAvailable: false,
+      writeActive: false,
+      deleteActive: false,
+      failClosed: false,
+      readOnly: true,
+      contextKey: stateKey(formName),
+      schema: previous.schema,
+      contract: previous.contract,
+      runtimeSchemas: createRuntimeSchemas(previous.schema, false),
+      loadedAt: Date.now(),
+      errorCode: details.code || 'METADATA_UNAVAILABLE_LAST_KNOWN_V2',
+      error: details.message,
+      diagnostic: details.diagnostic || null
+    };
   }
 
-  function requestMetadata(formName, includeComparison, forceRefresh) {
+  function requestMetadata(formName, forceRefresh) {
     var headers = requestHeaders();
-    var metadataRequestOptions = { headers: headers, logoutOnUnauthorized: false };
+    var options = { headers: headers, logoutOnUnauthorized: false };
     var encodedForm = encodeURIComponent(formName);
-    var expectedErpFormId = erpFormId(formName);
-    var stateUrl = metadataBaseUrl() + '/contract-state/' + encodedForm
-      + (forceRefresh === true ? '?refresh=1' : '');
-    return global.ApiClient.get(stateUrl, metadataRequestOptions).then(function (contractState) {
-      var control = contractState && contractState.contract;
-      if (!contractState || contractState.metadataEnabled !== true) {
-        return {
-          schema: null,
-          comparison: null,
-          control: control || null,
-          registered: Boolean(contractState && contractState.registered === true),
-          metadataEnabled: false,
-          backendActive: false,
-          reasonCode: String(
-            contractState && (
-              contractState.metadataReasonCode
-              || contractState.reasonCode
-            ) || ''
-          ).trim().toUpperCase(),
-          expectedErpFormId: expectedErpFormId
-        };
-      }
+    var refreshQuery = forceRefresh === true ? '?refresh=1' : '';
+    var contractUrl = metadataBaseUrl() + '/contract-state/' + encodedForm + refreshQuery;
 
-      var base = metadataBaseUrl() + '/grid-schema/' + encodedForm;
-      var aliasQuery = '?erpFormId=' + encodeURIComponent(expectedErpFormId)
-        + (forceRefresh === true ? '&refresh=1' : '');
-      var requests = [global.ApiClient.get(base + aliasQuery, metadataRequestOptions)];
-      if (includeComparison !== false) {
-        requests.push(global.ApiClient.get(base + '/compare' + aliasQuery, metadataRequestOptions));
+    return global.ApiClient.get(contractUrl, options).then(function (contractState) {
+      if (!contractState || contractState.registered !== true || contractState.metadataEnabled !== true || !contractState.contract) {
+        var blocked = new Error('Field Contract V2 chưa được đăng ký hoặc không cho phép đọc metadata.');
+        blocked.status = 409;
+        blocked.code = String(contractState && (contractState.metadataReasonCode || contractState.reasonCode) || 'FIELD_CONTRACT_NOT_REGISTERED');
+        throw blocked;
       }
-      return Promise.all(requests).then(function (responses) {
+      var schemaUrl = metadataBaseUrl() + '/grid-schema/' + encodedForm + refreshQuery;
+      return global.ApiClient.get(schemaUrl, options).then(function (response) {
+        if (!response || response.success !== true || !response.schema) {
+          var invalid = new Error('Backend không trả Field Contract V2 hợp lệ.');
+          invalid.status = 409;
+          invalid.code = 'FIELD_CONTRACT_INVALID';
+          throw invalid;
+        }
+        var schema = normalizeContract(response.schema);
+        assertContract(schema, formName, contractState.contract);
         return {
-          schema: responses[0] && responses[0].schema,
-          comparison: responses[1] && responses[1].comparison,
-          control: (responses[0] && responses[0].contract) || control,
-          registered: true,
-          metadataEnabled: true,
-          backendActive: Boolean(responses[0] && responses[0].active === true),
-          reasonCode: null,
-          expectedErpFormId: expectedErpFormId
+          schema: schema,
+          contract: response.contract || contractState.contract,
+          active: response.active === true && contractState.active === true
         };
       });
     });
   }
 
-  function clearFormTimers(formName) {
-    var prefix = normalizeName(formName) + '|';
-    Object.keys(timers).forEach(function (key) {
-      if (key.indexOf(prefix) !== 0) return;
-      if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
-      delete timers[key];
-    });
-  }
-
-  function legacyFullState(formName, legacySchema, status, schema, errorCode, errorMessage) {
-    return {
-      status: status || 'legacy-full',
-      runtimeMode: 'LEGACY_FULL',
-      managed: true,
-      metadataActive: false,
-      active: false,
-      writeAvailable: false,
-      deleteAvailable: false,
-      writeActive: false,
-      deleteActive: false,
-      contextKey: stateKey(formName),
-      schema: schema || null,
-      comparison: null,
-      runtimeSchemas: createRuntimeSchemas(legacySchema, [], false),
-      loadedAt: Date.now(),
-      errorCode: errorCode || null,
-      error: errorMessage || null
-    };
-  }
-
-  function errorState(formName, status, errorCode, errorMessage, schema) {
-    return {
-      status: status,
-      runtimeMode: status === 'cutover-contract-error' ? 'CUTOVER_CONTRACT_ERROR' : 'METADATA_ERROR',
-      managed: true,
-      metadataActive: false,
-      active: false,
-      writeAvailable: false,
-      deleteAvailable: false,
-      writeActive: false,
-      deleteActive: false,
-      contextKey: stateKey(formName),
-      schema: schema || null,
-      comparison: null,
-      runtimeSchemas: createUnifiedRuntimeSchemas([], false, registryEntry(formName) || {}),
-      loadedAt: Date.now(),
-      errorCode: errorCode,
-      error: errorMessage
-    };
-  }
-
-  function authVerifyEndpoint() {
-    var auth = global.API_CONFIG && global.API_CONFIG.ENDPOINTS && global.API_CONFIG.ENDPOINTS.AUTH;
-    return auth && auth.USER_INFO ? auth.USER_INFO : '/api/userinfo';
-  }
-
-  function verifyPrimarySession() {
-    return global.ApiClient.get(authVerifyEndpoint(), { logoutOnUnauthorized: false }).then(function () {
-      return { expired: false };
-    }).catch(function (error) {
-      return { expired: Boolean(error && error.status === 401), error: error };
-    });
-  }
-
-  function expirePrimarySession() {
-    if (typeof global.logoutApp === 'function') {
-      global.logoutApp();
-      return;
-    }
-    if (global.ApiClient && typeof global.ApiClient.deleteCookie === 'function') global.ApiClient.deleteCookie('auth_token');
-    try { global.localStorage.removeItem('pmql_user'); } catch (ignore) { }
-    if (global.location) global.location.href = 'login.html';
-  }
-
-  function managedDeleteReady(entry, registeredDelete, deleteMode) {
-    if (!entry || entry.enableDelete !== true) return false;
-    if (normalizeName(registeredDelete) !== normalizeName(entry.deleteV2)) return false;
-    var policy = String(entry.deletePolicy || 'BLOCKED_NO_SOFT_DELETE').toUpperCase();
-    if (policy === 'AUTO_SCHEMA') {
-      return deleteMode === 'soft' || deleteMode === 'hard' || deleteMode === 'hard_approved';
-    }
-    if (policy === 'SOFT') return deleteMode === 'soft';
-    if (policy === 'HARD_APPROVED') return deleteMode === 'hard_approved';
-    return false;
-  }
-
-  function fetchManagedState(formName, legacySchema, force) {
-    var key = stateKey(formName);
-    var entry = registryEntry(formName) || {};
+  function fetchState(formName, forceRefresh) {
+    var safeFormName = String(formName || '').trim();
+    var key = stateKey(safeFormName);
     var current = states[key];
-    var metadataRequested = isPilot(formName) && config().enabled === true;
-    var requestedActive = metadataRequested && config().shadowMode === false;
-    var ttlMs = Math.max(5, Number(config().pollSeconds) || 120) * 1000;
-    var resolvedLegacySchema = Array.isArray(legacySchema) && legacySchema.length
-      ? legacySchema
-      : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
+    var ttlMs = Math.max(1, Number(config().cacheSeconds) || 120) * 1000;
 
-    if (!metadataRequested) {
-      clearFormTimers(formName);
-      var legacyDisabled = legacyFullState(
-        formName,
-        resolvedLegacySchema,
-        'legacy-disabled'
-      );
-      legacyDisabled.managed = false;
-      states[key] = legacyDisabled;
-      return Promise.resolve(legacyDisabled);
-    }
-
-    if (current && current.pending) return current.pending;
-    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
-      current.runtimeSchemas = current.metadataActive === true
-        ? createUnifiedRuntimeSchemas(current.schema || [], current.writeAvailable === true, entry)
-        : createRuntimeSchemas(resolvedLegacySchema, [], false);
-      return Promise.resolve(current);
-    }
-
-    var lastKnownV2 = current && current.schema && current.metadataActive === true ? current : null;
-    var lastKnownLegacy = current && current.runtimeMode === 'LEGACY_FULL' ? current : null;
-    var pending = requestMetadata(formName, false, force === true).then(function (metadata) {
-      var schema = metadata.schema;
-      if (!schema || !Array.isArray(schema.gridFields)) {
-        var invalid = new Error('Unified Field Contract không hợp lệ.');
-        invalid.code = 'FIELD_CONTRACT_INVALID';
-        throw invalid;
-      }
-
-      var routes = schema.runtimeRoutes || {};
-      var registeredView = routes.view && routes.view.registeredProcedure;
-      var registeredSave = routes.save && routes.save.registeredProcedure;
-      var registeredDelete = routes.delete && routes.delete.registeredProcedure;
-      var deleteMode = normalizeName(routes.delete && routes.delete.mode);
-      var viewRouteReady = normalizeName(registeredView) === normalizeName(entry.viewV2);
-      var legacyViewRegistered = !viewRouteReady && (
-        normalizeName(registeredView) === normalizeName(entry.oldView) || !registeredView
-      );
-
-      var contractReady = isUnifiedContractReady(schema, formName, metadata.expectedErpFormId);
-      var blocked = !contractReady || hasBlockingDiagnostics(schema);
-      if ((!viewRouteReady && !legacyViewRegistered) || blocked) {
-        var cutoverError = errorState(
-          formName,
-          'cutover-contract-error',
-          !viewRouteReady && !legacyViewRegistered ? 'VIEW_ROUTE_UNEXPECTED' : 'FIELD_CONTRACT_INVALID',
-          !viewRouteReady && !legacyViewRegistered
-            ? 'Route xem dữ liệu không khớp contract đã đăng ký.'
-            : 'Metadata V2 không đạt điều kiện an toàn.',
-          schema
-        );
-        states[key] = cutoverError;
-        dispatchUpdate(formName, cutoverError);
-        return cutoverError;
-      }
-
-      var active = requestedActive && viewRouteReady;
-      var writeAvailable = entry.enableSave === true && Boolean(registeredSave);
-      var deleteAvailable = entry.enableDelete === true && Boolean(registeredDelete);
-      var writeActive = active && normalizeName(registeredSave) === normalizeName(entry.saveV2);
-      var deleteActive = active && managedDeleteReady(entry, registeredDelete, deleteMode);
-      var next = {
-        status: active
-          ? (writeActive ? 'unified-active' : 'unified-readonly')
-          : 'metadata-v2-current-business',
-        runtimeMode: active ? 'V2_FULL' : 'V2_METADATA_CURRENT_BUSINESS',
-        managed: true,
-        metadataActive: true,
-        active: active,
-        writeAvailable: writeAvailable,
-        deleteAvailable: deleteAvailable,
-        writeActive: writeActive,
-        deleteActive: deleteActive,
-        contextKey: key,
-        schema: schema,
-        comparison: null,
-        runtimeSchemas: createUnifiedRuntimeSchemas(schema, writeAvailable, entry),
-        loadedAt: Date.now(),
-        errorCode: null,
-        error: null
-      };
-      states[key] = next;
-      dispatchUpdate(formName, next);
-      return next;
-    }).catch(function (error) {
-      var status = Number(error && error.status) || 0;
-      var upstreamCode = String((error && error.data && error.data.code) || (error && error.code) || '').trim().toUpperCase();
-      if (status === 401) {
-        return verifyPrimarySession().then(function (verification) {
-          var sessionState;
-          if (verification.expired) {
-            sessionState = errorState(formName, 'metadata-session-expired', 'PRIMARY_SESSION_EXPIRED', 'Phiên đăng nhập đã hết hạn.');
-            expirePrimarySession();
-          } else {
-            sessionState = errorState(formName, 'metadata-session-error', 'METADATA_UNAUTHORIZED', 'Metadata từ chối xác thực nhưng phiên chính vẫn còn hiệu lực.');
-          }
-          states[key] = sessionState;
-          dispatchUpdate(formName, sessionState);
-          return sessionState;
-        });
-      }
-      if (status === 403) {
-        var denied = errorState(formName, 'metadata-permission-error', 'METADATA_FORBIDDEN', 'Tài khoản không có quyền đọc metadata của form này.');
-        states[key] = denied;
-        dispatchUpdate(formName, denied);
-        return denied;
-      }
-      var isContractFailure = status === 409 || upstreamCode.indexOf('FIELD_CONTRACT_') === 0;
-      if (isContractFailure) {
-        var rejected = errorState(
-          formName,
-          'cutover-contract-error',
-          upstreamCode || 'FIELD_CONTRACT_REJECTED',
-          error && error.message ? error.message : 'Unified Field Contract bị backend từ chối.'
-        );
-        states[key] = rejected;
-        dispatchUpdate(formName, rejected);
-        return rejected;
-      }
-      var isTransientMetadataFailure = status === 0 || status === 500 || status === 502 || status === 503 || status === 504;
-      if (isTransientMetadataFailure && lastKnownV2) {
-        var readOnly = {
-          status: 'unified-last-known-readonly',
-          runtimeMode: 'V2_READONLY',
-          managed: true,
-          metadataActive: true,
-          active: true,
-          writeAvailable: false,
-          deleteAvailable: false,
-          writeActive: false,
-          deleteActive: false,
-          contextKey: key,
-          schema: lastKnownV2.schema,
-          comparison: null,
-          runtimeSchemas: createUnifiedRuntimeSchemas(lastKnownV2.schema, false, entry),
-          loadedAt: Date.now(),
-          errorCode: 'METADATA_UNAVAILABLE_LAST_KNOWN',
-          error: error && error.message ? error.message : 'Không làm mới được Unified Field Contract.'
-        };
-        states[key] = readOnly;
-        dispatchUpdate(formName, readOnly);
-        return readOnly;
-      }
-      if (isTransientMetadataFailure && lastKnownLegacy) {
-        var fallbackLegacySchema = Array.isArray(legacySchema) && legacySchema.length
-          ? legacySchema
-          : ((lastKnownLegacy.runtimeSchemas && lastKnownLegacy.runtimeSchemas.grid) || []);
-        var legacyFallback = legacyFullState(formName, fallbackLegacySchema, 'legacy-last-known', lastKnownLegacy.schema, 'METADATA_UNAVAILABLE_LEGACY', error && error.message);
-        states[key] = legacyFallback;
-        dispatchUpdate(formName, legacyFallback);
-        return legacyFallback;
-      }
-      var unavailable = errorState(
-        formName,
-        'metadata-unavailable',
-        upstreamCode || (isTransientMetadataFailure ? 'METADATA_UNAVAILABLE_UNKNOWN_STATE' : 'METADATA_REQUEST_REJECTED'),
-        error && error.message ? error.message : 'Không thể đọc metadata ERP.'
-      );
-      states[key] = unavailable;
-      dispatchUpdate(formName, unavailable);
-      return unavailable;
-    });
-
-    states[key] = {
-      status: 'loading',
-      runtimeMode: current && current.runtimeMode ? current.runtimeMode : 'LOADING',
-      managed: true,
-      metadataActive: Boolean(current && current.metadataActive),
-      active: Boolean(current && current.active),
-      writeAvailable: false,
-      deleteAvailable: false,
-      writeActive: false,
-      deleteActive: false,
-      contextKey: key,
-      pending: pending,
-      schema: current && current.schema ? current.schema : null,
-      runtimeSchemas: current && current.runtimeSchemas ? current.runtimeSchemas : createUnifiedRuntimeSchemas([], false, entry)
-    };
-    return pending;
-  }
-
-  function fetchRegistryState(formName, legacySchema, force) {
-    var key = stateKey(formName);
-    var current = states[key];
-    var settings = config();
-    var ttlSeconds = Number(settings.pollSeconds);
-    var ttlMs = Math.max(30, Number.isFinite(ttlSeconds) ? ttlSeconds : 120) * 1000;
-    var resolvedLegacySchema = Array.isArray(legacySchema) && legacySchema.length
-      ? legacySchema
-      : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
-
-    if (!isPilot(formName) || settings.enabled !== true) {
-      clearFormTimers(formName);
-      var disabled = legacyFullState(formName, resolvedLegacySchema, 'legacy-disabled');
-      disabled.managed = false;
-      disabled.rolloutStatus = 'DISABLED';
-      disabled.pollAllowed = false;
+    if (!safeFormName || config().enabled !== true) {
+      var disabled = failClosedState(safeFormName, {
+        code: 'FIELD_METADATA_DISABLED',
+        message: 'Field Contract V2 đang bị tắt.'
+      });
       states[key] = disabled;
       return Promise.resolve(disabled);
     }
-    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
-      current.runtimeSchemas = current.metadataActive === true
-        ? createUnifiedRuntimeSchemas(current.schema || {}, current.writeAvailable === true, current.registryEntry || {})
-        : createRuntimeSchemas(resolvedLegacySchema, [], false);
+    if (current && current.pending) return current.pending;
+    if (forceRefresh !== true && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
       return Promise.resolve(current);
     }
-    if (current && current.pending) return current.pending;
 
-    var lastKnownMetadata = current && current.metadataActive === true && current.schema ? current : null;
-    var pending = requestMetadata(formName, false, force === true).then(function (metadata) {
-      var schema = metadata.schema;
-      var control = metadata.control || {};
-      var reasonStatus = String(metadata.reasonCode || '').replace(/^FIELD_CONTRACT_/, '');
-      var rolloutStatus = String(control.rolloutStatus || reasonStatus || 'NOT_REGISTERED').toUpperCase();
-      if (metadata.metadataEnabled !== true) {
-        clearFormTimers(formName);
-        var normName = normalizeName(formName);
-        var isReportForm = /(?:Report)$/i.test(String(formName || '').trim());
-        var hasCustomOrLegacy = isReportForm
-          || (Array.isArray(resolvedLegacySchema) && resolvedLegacySchema.length > 0)
-          || (entry && (entry.enableGrid === false || entry.legacyOnly === true))
-          || Boolean(
-              global.HRModuleDefinitions && Object.keys(global.HRModuleDefinitions).some(function (mod) {
-                var defs = global.HRModuleDefinitions[mod];
-                if (!defs || typeof defs !== 'object') return false;
-                return Object.keys(defs).some(function (key) {
-                  return normalizeName(key) === normName || key.toUpperCase() === String(formName).toUpperCase();
-                });
-              })
-          );
-
-        var isDeferredOrBlocked = rolloutStatus === 'DEFERRED'
-          || rolloutStatus === 'BLOCKED'
-          || rolloutStatus === 'NOT_REGISTERED'
-          || String(control.contractType || '').toUpperCase() === 'COMPLEX_DEFERRED';
-
-        // fallbackToLegacy: true → luôn dùng legacy state khi form chưa sẵn sàng V2,
-        // không cần custom schema. Đây là ý nghĩa chính xác của cờ này.
-        var shouldFallback = settings.fallbackToLegacy === true
-          ? (isDeferredOrBlocked || !metadata.registered)
-          : (hasCustomOrLegacy && isDeferredOrBlocked);
-
-        if (shouldFallback) {
-          var legacyState = legacyFullState(
-            formName,
-            resolvedLegacySchema,
-            'legacy-deferred-fallback',
-            null,
-            metadata.reasonCode || 'FIELD_CONTRACT_DEFERRED',
-            null
-          );
-          legacyState.managed = false;
-          legacyState.contract = control;
-          legacyState.rolloutStatus = rolloutStatus;
-          states[key] = legacyState;
-          dispatchUpdate(formName, legacyState);
-          return legacyState;
-        }
-
-        var blockedMetadata = errorState(
-          formName,
-          'metadata-contract-blocked',
-          metadata.reasonCode || 'FIELD_CONTRACT_METADATA_UNAVAILABLE',
-          'Form ' + formName + ' (' + rolloutStatus + ') chưa sẵn sàng Metadata V2 và không có custom/legacy loader.'
-        );
-        blockedMetadata.managed = metadata.registered === true;
-        blockedMetadata.contract = metadata.control || null;
-        blockedMetadata.rolloutStatus = rolloutStatus;
-        blockedMetadata.pollAllowed = false;
-        blockedMetadata.reasonCode = metadata.reasonCode || null;
-        blockedMetadata.failClosed = true;
-        states[key] = blockedMetadata;
-        dispatchUpdate(formName, blockedMetadata);
-        return blockedMetadata;
-      }
-      if (!schema || !Array.isArray(schema.gridFields) || !rolloutStatus) {
-        var invalid = new Error('Unified Field Contract không hợp lệ.');
-        invalid.code = 'FIELD_CONTRACT_INVALID';
-        throw invalid;
-      }
-      var backendActive = metadata.backendActive === true && control.active === true;
-      var active = backendActive && settings.shadowMode !== true;
-      var writeAvailable = String(control.contractType || '').toUpperCase() !== 'READ_ONLY'
-        && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.save && schema.runtimeRoutes.save.registeredProcedure);
-      var deleteAvailable = String(control.contractType || '').toUpperCase() !== 'READ_ONLY'
-        && Boolean(schema.runtimeRoutes && schema.runtimeRoutes.delete && schema.runtimeRoutes.delete.registeredProcedure);
-      var writeActive = active && writeAvailable;
-      var deleteActive = active && deleteAvailable;
+    var pending = requestMetadata(safeFormName, forceRefresh === true).then(function (metadata) {
+      var routes = metadata.schema.runtimeRoutes || {};
+      var readOnlyContract = String(metadata.contract && metadata.contract.contractType || '').toUpperCase() === 'READ_ONLY';
+      var writeAvailable = !readOnlyContract && Boolean(routes.save && routes.save.registeredProcedure);
+      var deleteAvailable = !readOnlyContract && Boolean(routes.delete && routes.delete.registeredProcedure);
       var next = {
-        status: active ? (writeActive ? 'unified-active' : 'unified-readonly') : 'metadata-v2-current-business',
-        runtimeMode: active ? 'V2_FULL' : 'V2_METADATA_CURRENT_BUSINESS',
-        managed: true,
+        status: metadata.active ? 'metadata-v2-active' : 'metadata-v2-current-business',
+        runtimeMode: metadata.active ? 'V2_FULL' : 'V2_METADATA_CURRENT_BUSINESS',
         metadataActive: true,
-        active: active,
+        active: metadata.active,
         writeAvailable: writeAvailable,
         deleteAvailable: deleteAvailable,
-        writeActive: writeActive,
-        deleteActive: deleteActive,
+        writeActive: metadata.active && writeAvailable,
+        deleteActive: metadata.active && deleteAvailable,
+        failClosed: false,
+        readOnly: !writeAvailable,
         contextKey: key,
-        schema: schema,
-        comparison: metadata.comparison || null,
-        contract: control,
-        rolloutStatus: rolloutStatus,
-        registryEntry: {},
-        pollAllowed: rolloutStatus === 'ACTIVE' || rolloutStatus === 'SHADOW',
-        runtimeSchemas: createUnifiedRuntimeSchemas(schema, writeAvailable, {}),
+        schema: metadata.schema,
+        contract: metadata.contract,
+        runtimeSchemas: createRuntimeSchemas(metadata.schema, writeAvailable),
         loadedAt: Date.now(),
         errorCode: null,
-        error: null
+        error: null,
+        diagnostic: null
       };
       states[key] = next;
-      if (metadata.comparison) storeParity(formName, metadata.comparison);
-      dispatchUpdate(formName, next);
+      lastKnownV2[key] = next;
+      dispatchUpdate(safeFormName, next);
       return next;
     }).catch(function (error) {
-      var status = Number(error && error.status) || 0;
-      var code = String(
-        (error && error.data && error.data.code)
-        || (error && error.code)
-        || ''
-      ).trim().toUpperCase();
-      if (status === 401) {
-        return verifyPrimarySession().then(function (verification) {
-          var sessionState = errorState(
-            formName,
-            verification.expired ? 'metadata-session-expired' : 'metadata-session-error',
-            verification.expired ? 'PRIMARY_SESSION_EXPIRED' : 'METADATA_UNAUTHORIZED',
-            verification.expired ? 'Phiên đăng nhập đã hết hạn.' : 'Metadata từ chối xác thực.'
-          );
-          sessionState.failClosed = true;
-          states[key] = sessionState;
-          if (verification.expired) expirePrimarySession();
-          dispatchUpdate(formName, sessionState);
-          return sessionState;
-        });
-      }
-      if (status === 403) {
-        /*
-         * Từ chối quyền phải dừng tại metadata V2. Không dùng schema cũ hoặc
-         * dữ liệu cache vì như vậy có thể làm sai phạm vi chi nhánh của tài khoản.
-         */
-        var forbidden = errorState(
-          formName,
-          'metadata-forbidden',
-          code || 'FIELD_METADATA_PERMISSION_DENIED',
-          'Bạn không có quyền xem dữ liệu của trang trong phạm vi chi nhánh hiện tại.'
-        );
-        forbidden.failClosed = true;
-        forbidden.pollAllowed = false;
-        states[key] = forbidden;
-        dispatchUpdate(formName, forbidden);
-        return forbidden;
-      }
-      if (lastKnownMetadata && (status === 0 || status >= 500)) {
-        var readOnly = Object.assign({}, lastKnownMetadata, {
-          status: 'unified-last-known-readonly',
-          runtimeMode: 'V2_READONLY',
-          metadataActive: true,
-          writeAvailable: false,
-          deleteAvailable: false,
-          writeActive: false,
-          deleteActive: false,
-          runtimeSchemas: createUnifiedRuntimeSchemas(lastKnownMetadata.schema, false, {}),
-          loadedAt: Date.now(),
-          errorCode: code || 'METADATA_UNAVAILABLE_LAST_KNOWN'
-        });
-        states[key] = readOnly;
-        dispatchUpdate(formName, readOnly);
-        return readOnly;
-      }
-      // Lỗi mạng/HTTP không liên quan đến quyền: nếu fallbackToLegacy thì dùng legacy
-      if (settings.fallbackToLegacy === true) {
-        var networkFallback = legacyFullState(
-          formName,
-          resolvedLegacySchema,
-          'legacy-deferred-fallback',
-          null,
-          code || 'METADATA_NETWORK_ERROR',
-          null
-        );
-        networkFallback.rolloutStatus = 'UNKNOWN';
-        states[key] = networkFallback;
-        dispatchUpdate(formName, networkFallback);
-        return networkFallback;
-      }
-      var unavailable = errorState(
-        formName,
-        'cutover-contract-error',
-        code || 'FIELD_CONTRACT_METADATA_UNAVAILABLE',
-        'Metadata V2 của form không sẵn sàng.'
-      );
-      unavailable.failClosed = true;
-      unavailable.pollAllowed = true;
-      states[key] = unavailable;
-      dispatchUpdate(formName, unavailable);
-      return unavailable;
+      var details = errorDetails(error);
+      var transient = details.status === 0 || details.status >= 500;
+      var previous = lastKnownV2[key];
+      var next = transient && previous && config().allowLastKnownReadOnly === true
+        ? readOnlyState(safeFormName, previous, details)
+        : failClosedState(safeFormName, details);
+      states[key] = next;
+      dispatchUpdate(safeFormName, next);
+      return next;
     });
 
     states[key] = {
       status: 'loading',
-      runtimeMode: current && current.runtimeMode ? current.runtimeMode : 'LOADING',
-      managed: true,
-      metadataActive: Boolean(current && current.metadataActive),
-      active: Boolean(current && current.active),
+      runtimeMode: 'LOADING',
+      metadataActive: false,
+      active: false,
       writeAvailable: false,
       deleteAvailable: false,
       writeActive: false,
       deleteActive: false,
+      failClosed: true,
+      readOnly: true,
       contextKey: key,
       pending: pending,
-      schema: current && current.schema ? current.schema : null,
-      runtimeSchemas: current && current.runtimeSchemas
-        ? current.runtimeSchemas
-        : createRuntimeSchemas(resolvedLegacySchema, [], false)
+      schema: null,
+      runtimeSchemas: { grid: [], edit: [], add: [], filters: [] }
     };
     return pending;
   }
 
-  function fetchState(formName, legacySchema, force) {
-    if (config().rolloutMode === 'registry') {
-      return fetchRegistryState(formName, legacySchema, force);
-    }
-    var unified = usesUnifiedSchema(formName);
-    if (unified) return fetchManagedState(formName, legacySchema, force);
-    if (!isPilot(formName)) {
-      clearFormTimers(formName);
-      return Promise.resolve({
-        status: unified ? 'unified-disabled' : 'not-pilot',
-        active: false,
-        writeActive: false,
-        deleteActive: false,
-        contextKey: stateKey(formName),
-        runtimeSchemas: unified ? createUnifiedRuntimeSchemas([], false) : createRuntimeSchemas(legacySchema, [], false)
-      });
-    }
+  function observeForm(formName) {
+    return fetchState(formName, false);
+  }
 
-    var key = stateKey(formName);
-    var current = states[key];
-    var ttlMs = config().pollSeconds * 1000;
-    if (!force && current && current.loadedAt && Date.now() - current.loadedAt < ttlMs) {
-      current.runtimeSchemas = unified
-        ? createUnifiedRuntimeSchemas(current.schema && (current.schema.fields || current.schema.gridFields), current.writeActive === true)
-        : createRuntimeSchemas(legacySchema, current.schema && current.schema.gridFields, current.active === true);
-      return Promise.resolve(current);
-    }
-    if (!force && current && current.pending) return current.pending;
+  function refreshForm(formName) {
+    return fetchState(formName, true);
+  }
 
-    var requestedActive = config().enabled === true && config().shadowMode === false;
-    var lastKnown = current && current.schema && current.active === true ? current : null;
-    var pending = requestMetadata(formName, !unified, force === true).then(function (metadata) {
-      var schema = metadata.schema;
-      var comparison = metadata.comparison;
-      var expectedErpFormId = metadata.expectedErpFormId;
-      if (!schema || !Array.isArray(schema.gridFields)) throw new Error('Grid Schema V2 không hợp lệ');
+  function getState(formName) {
+    return states[stateKey(formName)] || null;
+  }
 
-      if (unified) {
-        var entry = registryEntry(formName) || {};
-        var contractReady = isUnifiedContractReady(schema, formName, expectedErpFormId);
-        var routes = schema.runtimeRoutes || {};
-        var registeredView = routes.view && routes.view.registeredProcedure;
-        var registeredSave = routes.save && routes.save.registeredProcedure;
-        var registeredDelete = routes.delete && routes.delete.registeredProcedure;
-        var deleteMode = normalizeName(routes.delete && routes.delete.mode);
-        var viewRouteReady = normalizeName(registeredView) === normalizeName(entry.viewV2);
-        var saveRouteReady = normalizeName(registeredSave) === normalizeName(entry.saveV2);
-        var deleteRouteReady = normalizeName(registeredDelete) === normalizeName(entry.deleteV2)
-          && (deleteMode === 'soft' || deleteMode === 'hard' || deleteMode === 'hard_approved');
-        var blocked = !contractReady || hasBlockingDiagnostics(schema);
-        var active = requestedActive && !blocked && viewRouteReady;
-        var writeActive = active && saveRouteReady;
-        var deleteActive = active && deleteRouteReady;
-        var fields = schema.fields || schema.gridFields;
-        var nextUnified = {
-          status: active
-            ? (writeActive ? 'unified-active' : 'unified-readonly')
-            : (requestedActive ? 'unified-blocked' : 'shadow'),
-          active: active,
-          writeActive: writeActive,
-          deleteActive: deleteActive,
-          contextKey: key,
-          schema: schema,
-          comparison: null,
-          runtimeSchemas: active ? createUnifiedRuntimeSchemas(fields, writeActive) : createUnifiedRuntimeSchemas([], false),
-          loadedAt: Date.now(),
-          error: active ? null : 'Form Contract V2 chưa được kích hoạt hoặc route View V2 chưa đúng.'
-        };
-        states[key] = nextUnified;
-        dispatchUpdate(formName, nextUnified);
-        return nextUnified;
+  function getFilterSchema(formName) {
+    var current = getState(formName);
+    var pending = current && current.metadataActive === true
+      ? Promise.resolve(current)
+      : observeForm(formName);
+    return pending.then(function (state) {
+      if (!state || state.metadataActive !== true || !state.runtimeSchemas) {
+        var error = new Error(state && state.error ? state.error : 'Không thể tải cấu hình bộ lọc.');
+        error.code = state && state.errorCode ? state.errorCode : 'FIELD_METADATA_UNAVAILABLE';
+        throw error;
       }
-
-      var contractReady = isActivationContractReady(schema, comparison, formName, expectedErpFormId);
-      var critical = hasCriticalParity(schema, comparison, formName) || !contractReady;
-      var parityReady = contractReady && comparison && comparison.primaryKey && normalizeName(comparison.primaryKey.status) === 'match';
-      var active = requestedActive && !critical && parityReady;
-      var next = {
-        status: active ? 'pilot-active' : (requestedActive && critical ? 'pilot-blocked-critical' : (requestedActive ? 'pilot-blocked-parity' : 'shadow')),
-        active: active,
-        contextKey: key,
-        schema: schema,
-        comparison: comparison || null,
-        runtimeSchemas: createRuntimeSchemas(legacySchema, schema.gridFields, active),
-        loadedAt: Date.now(),
-        error: null
-      };
-      states[key] = next;
-      if (comparison) storeParity(formName, comparison);
-      dispatchUpdate(formName, next);
-      return next;
-    }).catch(function (error) {
-      if (unified && lastKnown) {
-        var readOnly = {
-          status: 'unified-last-known-readonly',
-          active: true,
-          writeActive: false,
-          deleteActive: false,
-          contextKey: key,
-          schema: lastKnown.schema,
-          comparison: null,
-          runtimeSchemas: createUnifiedRuntimeSchemas(lastKnown.schema.fields || lastKnown.schema.gridFields, false),
-          loadedAt: Date.now(),
-          error: error && error.message ? error.message : 'Không làm mới được Form Contract V2'
-        };
-        states[key] = readOnly;
-        dispatchUpdate(formName, readOnly);
-        return readOnly;
-      }
-      var fallback = {
-        status: unified ? 'unified-error' : 'legacy-fallback',
-        active: false,
-        writeActive: false,
-        deleteActive: false,
-        contextKey: key,
-        runtimeSchemas: unified ? createUnifiedRuntimeSchemas([], false) : createRuntimeSchemas(legacySchema, [], false),
-        loadedAt: Date.now(),
-        error: error && error.message ? error.message : 'Không tải được Form Contract V2'
-      };
-      states[key] = fallback;
-      dispatchUpdate(formName, fallback);
-      return fallback;
+      return cloneValue(state.runtimeSchemas.filters || []);
     });
-
-    states[key] = {
-      status: 'loading',
-      active: false,
-      writeActive: false,
-      deleteActive: false,
-      contextKey: key,
-      pending: pending,
-      runtimeSchemas: unified ? createUnifiedRuntimeSchemas([], false) : createRuntimeSchemas(legacySchema, [], false)
-    };
-    return pending;
-  }
-
-  function ensurePolling(formName, legacySchema) {
-    if (isReportForm(formName) || !isPilot(formName) || typeof global.setInterval !== 'function') return;
-    var key = stateKey(formName);
-    var current = states[key];
-    if (!current || current.pollAllowed !== true) {
-      clearFormTimers(formName);
-      return;
-    }
-    if (timers[key]) return;
-    var pollSeconds = Number(config().pollSeconds);
-    var intervalMs = Math.max(30, Number.isFinite(pollSeconds) ? pollSeconds : 120) * 1000;
-    timers[key] = global.setInterval(function () {
-      if (!isPilot(formName) || stateKey(formName) !== key) {
-        if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
-        delete timers[key];
-        return;
-      }
-      var current = states[key];
-      if (!current || current.pollAllowed !== true) {
-        if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
-        delete timers[key];
-        return;
-      }
-      var effectiveLegacySchema = Array.isArray(legacySchema) && legacySchema.length
-        ? legacySchema
-        : ((current && current.runtimeMode === 'LEGACY_FULL' && current.runtimeSchemas && current.runtimeSchemas.grid) || []);
-      fetchState(formName, effectiveLegacySchema, true);
-    }, intervalMs);
-  }
-
-  function observeForm(formName, legacySchema, forceRefresh) {
-    var activePrefix = normalizeName(formName) + '|';
-    Object.keys(timers).forEach(function (key) {
-      if (key.indexOf(activePrefix) === 0) return;
-      if (typeof global.clearInterval === 'function') global.clearInterval(timers[key]);
-      delete timers[key];
-    });
-    installRefreshListeners();
-    return fetchState(formName, legacySchema, forceRefresh === true).then(function (state) {
-      ensurePolling(formName, legacySchema);
-      return state;
-    });
-  }
-
-  function refreshForm(formName, legacySchema) {
-    return fetchState(formName, Array.isArray(legacySchema) ? legacySchema : [], true);
-  }
-
-  function installRefreshListeners() {
-    if (listenersInstalled || !global.addEventListener) return;
-    listenersInstalled = true;
-    function refreshVisibleContracts() {
-      if (global.document && global.document.visibilityState === 'hidden') return;
-      Object.keys(states).forEach(function (key) {
-        var state = states[key];
-        if (!state || state.pollAllowed !== true || state.pending) return;
-        var formName = state.contract && state.contract.webFormName;
-        if (!formName) return;
-        fetchState(formName, state.runtimeMode === 'LEGACY_FULL' ? state.runtimeSchemas.grid : [], true)
-          .then(function () { ensurePolling(formName, []); });
-      });
-    }
-    global.addEventListener('focus', refreshVisibleContracts);
-    if (global.document && global.document.addEventListener) {
-      global.document.addEventListener('visibilitychange', refreshVisibleContracts);
-    }
   }
 
   function lookupDependencies(values) {
@@ -3877,18 +2522,25 @@ window.FieldSyncService = (function (global) {
     return result;
   }
 
+  function declaredLookupDependencies(names, values) {
+    var source = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
+    var result = {};
+    var declared = Array.isArray(names) ? names : String(names || '').split(',');
+    declared.slice(0, 20).forEach(function (name) {
+      var safeName = String(name || '').trim();
+      if (safeName && Object.prototype.hasOwnProperty.call(source, safeName)) result[safeName] = source[safeName];
+    });
+    return result;
+  }
+
   function normalizeLookupError(error) {
     var safeError = error instanceof Error ? error : new Error('Không tải được danh mục.');
     var data = safeError.data && typeof safeError.data === 'object' ? safeError.data : {};
     var code = String(data.code || safeError.code || 'LOOKUP_LOAD_FAILED').trim().toUpperCase();
     var messages = {
       LOOKUP_KEY_NOT_FOUND: 'Danh mục chưa được đồng bộ. Vui lòng liên hệ quản trị viên.',
-      LOOKUP_CONTRACT_NOT_FOUND: 'Danh mục không thuộc contract hiện tại. Vui lòng liên hệ quản trị viên.',
-      LOOKUP_CONTRACT_NOT_UNIQUE: 'Cấu hình danh mục chưa đồng nhất. Vui lòng liên hệ quản trị viên.',
-      LOOKUP_DEPENDENCY_CONFLICT: 'Các field dùng chung danh mục có dependency không đồng nhất.',
-      LOOKUP_SOURCE_NOT_REGISTERED: 'Nguồn danh mục chưa được đăng ký.',
-      LOOKUP_COLUMNS_NOT_CONFIGURED: 'Danh mục chưa cấu hình đủ cột mã và tên.',
-      LOOKUP_COLUMNS_MISMATCH: 'Dữ liệu danh mục không khớp cấu hình.',
+      LOOKUP_CONTRACT_NOT_FOUND: 'Danh mục không thuộc contract hiện tại.',
+      LOOKUP_DEPENDENCY_CONFLICT: 'Các trường dùng chung danh mục có dependency không đồng nhất.',
       LOOKUP_DEPENDENCY_REQUIRED: 'Vui lòng chọn trường liên quan trước.',
       LOOKUP_LOAD_FAILED: 'Không tải được danh sách. Vui lòng thử lại.'
     };
@@ -3897,45 +2549,26 @@ window.FieldSyncService = (function (global) {
     return safeError;
   }
 
-  function declaredLookupDependencies(names, values) {
-    var source = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
-    var result = {};
-    var declared = Array.isArray(names)
-      ? names
-      : String(names || '').split(',');
-    declared.slice(0, 20).forEach(function (name) {
-      var safeName = String(name || '').trim();
-      if (!safeName || !Object.prototype.hasOwnProperty.call(source, safeName)) return;
-      result[safeName] = source[safeName];
-    });
-    return result;
-  }
-
   function searchLookup(formName, lookupKey, keyword, page, pageSize, dependencies, detailKey) {
-    var requestedLookupKey = String(lookupKey || '');
+    var requestedKey = String(lookupKey || '');
     var aliasPrefix = stateKey(formName) + '|';
-    var aliasKey = aliasPrefix + requestedLookupKey.toLowerCase();
-    var effectiveLookupKey = lookupKeyAliases[aliasKey] || requestedLookupKey;
-    var currentState = getState(formName);
-    if (!currentState || currentState.metadataActive !== true || !/^[A-Fa-f0-9]{64}$/.test(effectiveLookupKey)) {
-      return Promise.reject(normalizeLookupError(new Error('Lookup V2 không hợp lệ')));
+    var aliasKey = aliasPrefix + requestedKey.toLowerCase();
+    var effectiveKey = lookupKeyAliases[aliasKey] || requestedKey;
+    var current = getState(formName);
+    if (!current || current.metadataActive !== true || !/^[A-Fa-f0-9]{64}$/.test(effectiveKey)) {
+      return Promise.reject(normalizeLookupError(new Error('Lookup V2 không hợp lệ.')));
     }
-    var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(effectiveLookupKey) + '/search';
+    var endpoint = metadataBaseUrl() + '/lookups/' + encodeURIComponent(effectiveKey) + '/search';
     return global.ApiClient.post(endpoint, {
       formName: formName,
-      erpFormId: erpFormId(formName),
       keyword: String(keyword || '').slice(0, 200),
       page: Math.max(1, Number(page) || 1),
       pageSize: Math.min(100, Math.max(1, Number(pageSize) || 30)),
       dependencies: lookupDependencies(dependencies),
-      detailKey: /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(String(detailKey || '').trim())
-        ? String(detailKey).trim()
-        : ''
+      detailKey: /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(String(detailKey || '').trim()) ? String(detailKey).trim() : ''
     }, { headers: requestHeaders(), logoutOnUnauthorized: false }).then(function (response) {
-      var resolvedLookupKey = String(response && response.lookupKey || '');
-      if (/^[A-Fa-f0-9]{64}$/.test(resolvedLookupKey)) {
-        lookupKeyAliases[aliasKey] = resolvedLookupKey;
-      }
+      var resolvedKey = String(response && response.lookupKey || '');
+      if (/^[A-Fa-f0-9]{64}$/.test(resolvedKey)) lookupKeyAliases[aliasKey] = resolvedKey;
       var aliases = response && response.lookupAliases && typeof response.lookupAliases === 'object'
         ? response.lookupAliases
         : {};
@@ -3958,14 +2591,13 @@ window.FieldSyncService = (function (global) {
       var values = typeof settings.getDependencyValues === 'function'
         ? settings.getDependencyValues()
         : settings.dependencyValues;
-      var dependencies = declaredLookupDependencies(settings.dependsOn, values);
       return searchLookup(
         settings.formName,
         settings.lookupKey,
         keyword,
         page,
         pageSize,
-        dependencies,
+        declaredLookupDependencies(settings.dependsOn, values),
         settings.detailKey
       ).then(function (optionsList) {
         return {
@@ -3979,156 +2611,81 @@ window.FieldSyncService = (function (global) {
     };
   }
 
-  function getState(formName) {
-    return states[stateKey(formName)] || null;
-  }
-
-  function inspectForm(formName) {
-    return requestMetadata(formName, true, true).then(function (metadata) {
-      if (!metadata.schema || !metadata.comparison) throw new Error('Metadata compare V2 không hợp lệ');
-      return {
-        status: 'compare-only',
-        schema: metadata.schema,
-        comparison: metadata.comparison,
-        active: false
-      };
+  function updateFieldConfig(params) {
+    return global.ApiClient.post(metadataBaseUrl() + '/field-config', params, {
+      headers: requestHeaders(),
+      logoutOnUnauthorized: false
+    }).then(function (response) {
+      clearCache(params && params.formName);
+      if (global.EventBus && typeof global.EventBus.emit === 'function') {
+        global.EventBus.emit('fieldCaptionUpdated', params);
+      }
+      return response;
     });
   }
 
-  function updateFieldConfig(params) {
-    var endpoint = metadataBaseUrl() + '/field-config';
-    return global.ApiClient.post(endpoint, params, { headers: requestHeaders(), logoutOnUnauthorized: false })
-      .then(function (res) {
-        clearCache(params && params.formName);
-        if (global._uiConfigCache) {
-          global._uiConfigCache = Object.create(null);
-        }
-        if (typeof global.EventBus !== 'undefined' && typeof global.EventBus.emit === 'function') {
-          global.EventBus.emit('fieldCaptionUpdated', params);
-        }
-        return res;
-      });
-  }
-
   function getFormats() {
-    var endpoint = metadataBaseUrl() + '/formats';
-    return global.ApiClient.get(endpoint, { headers: requestHeaders(), logoutOnUnauthorized: false })
-      .then(function (res) {
-        return res && Array.isArray(res.formats) ? res.formats : [];
-      }).catch(function () {
-        return [
-          { formatId: '', type: 'Text', description: 'Văn bản mặc định (Text)' },
-          { formatId: 'D', type: 'Date', description: 'Ngày (dd/MM/yyyy)' },
-          { formatId: 'DT', type: 'DateTime', description: 'Ngày giờ (dd/MM/yyyy HH:mm)' },
-          { formatId: 'H', type: 'Time', description: 'Giờ (HH:mm)' },
-          { formatId: 'B', type: 'Money', description: 'Tiền tệ (Money)' },
-          { formatId: 'N', type: 'Number', description: 'Số nguyên (Number)' },
-          { formatId: 'Q', type: 'Decimal', description: 'Số thập phân (Decimal)' },
-          { formatId: 'C', type: 'Checkbox', description: 'Hộp chọn (Checkbox)' }
-        ];
-      });
+    return global.ApiClient.get(metadataBaseUrl() + '/formats', {
+      headers: requestHeaders(),
+      logoutOnUnauthorized: false
+    }).then(function (response) {
+      return response && Array.isArray(response.formats) ? response.formats : [];
+    });
   }
 
-  function getJoinSchema(
-    formName,
-    detailKey,
-    forceRefresh
-  ) {
-    var safeFormName =
-      String(formName || '').trim();
-
-    var safeDetailKey =
-      String(detailKey || '').trim();
-
-    if (
-      !/^[A-Za-z0-9_.-]{1,100}$/.test(
-        safeFormName
-      )
-    ) {
-      return Promise.reject(
-        new Error(
-          'FormName của JOIN contract không hợp lệ.'
-        )
-      );
+  function getJoinSchema(formName, detailKey, forceRefresh) {
+    var safeFormName = String(formName || '').trim();
+    var safeDetailKey = String(detailKey || '').trim();
+    if (!/^[A-Za-z0-9_.-]{1,100}$/.test(safeFormName)) {
+      return Promise.reject(new Error('FormName của JOIN contract không hợp lệ.'));
     }
-
-    if (
-      !/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(
-        safeDetailKey
-      )
-    ) {
-      return Promise.reject(
-        new Error(
-          'DetailKey của JOIN contract không hợp lệ.'
-        )
-      );
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(safeDetailKey)) {
+      return Promise.reject(new Error('DetailKey của JOIN contract không hợp lệ.'));
     }
-
-    var endpoint =
-      metadataBaseUrl()
-      + '/join-schema/'
-      + encodeURIComponent(safeFormName)
-      + '/'
-      + encodeURIComponent(safeDetailKey);
-
-    if (forceRefresh === true) {
-      endpoint += '?refresh=1';
-    }
-
-    return global.ApiClient.get(
-      endpoint,
-      {
-        headers: requestHeaders(),
-        logoutOnUnauthorized: false
-      }
-    ).then(function (response) {
-      if (
-        response
-        && response.success === true
-        && response.schema
-        && Array.isArray(response.schema.fields)
-      ) {
+    var endpoint = metadataBaseUrl() + '/join-schema/' + encodeURIComponent(safeFormName)
+      + '/' + encodeURIComponent(safeDetailKey) + (forceRefresh === true ? '?refresh=1' : '');
+    return global.ApiClient.get(endpoint, {
+      headers: requestHeaders(),
+      logoutOnUnauthorized: false
+    }).then(function (response) {
+      if (response && response.success === true && response.schema && Array.isArray(response.schema.fields)) {
         return response.schema;
       }
-
-      throw new Error(
-        response && response.message
-          ? response.message
-          : 'JOIN Field Contract không hợp lệ.'
-      );
+      throw new Error(response && response.message ? response.message : 'JOIN Field Contract không hợp lệ.');
     });
   }
 
   function clearCache(formName) {
-    if (formName) {
-      delete states[stateKey(formName)];
-      var aliasPrefix = stateKey(formName) + '|';
-      Object.keys(lookupKeyAliases).forEach(function (key) {
-        if (key.indexOf(aliasPrefix) === 0) delete lookupKeyAliases[key];
-      });
-    } else {
+    if (!formName) {
       states = Object.create(null);
+      lastKnownV2 = Object.create(null);
       lookupKeyAliases = Object.create(null);
+      return;
     }
+    var prefix = normalizeName(formName) + '|';
+    Object.keys(states).forEach(function (key) {
+      if (key.indexOf(prefix) === 0) delete states[key];
+    });
+    Object.keys(lastKnownV2).forEach(function (key) {
+      if (key.indexOf(prefix) === 0) delete lastKnownV2[key];
+    });
+    Object.keys(lookupKeyAliases).forEach(function (key) {
+      if (key.indexOf(prefix) === 0) delete lookupKeyAliases[key];
+    });
   }
 
   return Object.freeze({
     observeForm: observeForm,
     refreshForm: refreshForm,
+    clearCache: clearCache,
+    getState: getState,
+    getContextKey: stateKey,
+    getFilterSchema: getFilterSchema,
     searchLookup: searchLookup,
     createLookupDataSource: createLookupDataSource,
-    getState: getState,
-    getContextKey: function (formName) { return stateKey(formName); },
-    inspectForm: inspectForm,
-    isPilot: isPilot,
-    isManagedForm: isManagedForm,
-    createRuntimeSchemas: createRuntimeSchemas,
-    createUnifiedRuntimeSchemas: createUnifiedRuntimeSchemas,
-    usesUnifiedSchema: usesUnifiedSchema,
     updateFieldConfig: updateFieldConfig,
     getFormats: getFormats,
-    getJoinSchema: getJoinSchema,
-    clearCache: clearCache
+    getJoinSchema: getJoinSchema
   });
 })(window);
 
@@ -5116,19 +3673,18 @@ var SectionPanel = (function () {
 /**
  * ReportFilterDialog Component
  * ─────────────────────────────────────────────
- * Dialog "Chọn báo cáo / Lọc" — các field được fetch động từ API
- * theo cùng pattern với DynamicFormEngine (API_LayCacTruongGiaoDien)
+ * Dialog "Chọn báo cáo / Lọc" dùng filter schema của Field Contract V2.
  *
  * Usage:
  *   ReportFilterDialog.open({
- *     formName: 'frmReportFilter',       // Tên form trong SY_FormatFields
+ *     formName: 'frmReportFilter',       // Tên Field Contract V2
  *     title: 'Chọn báo cáo',             // optional
  *     onConfirm: function(values) {      // values = { fieldName: value, ... }
  *       console.log(values);
  *     }
  *   });
  *
- * Schema field (từ API_LayCacTruongGiaoDien):
+ * Schema field (từ state.runtimeSchemas.filters):
  *   renderRule = ''   → text input
  *   renderRule = 'dt' → date input
  *   renderRule = 'nm' → number input
@@ -5138,7 +3694,6 @@ var SectionPanel = (function () {
  */
 var ReportFilterDialog = (function () {
 
-  var _apiDictionary = '/api/API_LayCacTruongGiaoDien';
   var _activeModal = null;
 
   // ── Helpers ──────────────────────────────────────────────────
@@ -5148,24 +3703,12 @@ var ReportFilterDialog = (function () {
     return u.Username || u.UserName || u.username || 'Admin';
   }
 
-  /**
-   * Fetch field schema từ API (có cache RAM giống DynamicFormEngine)
-   */
+  /** Lấy filter schema từ service metadata duy nhất của runtime. */
   function _fetchSchema(formName) {
-    var cacheKey = 'ReportFilterSchema_' + formName;
-    var cached = window._reportFilterSchemaCache && window._reportFilterSchemaCache[cacheKey];
-    if (cached) return Promise.resolve(JSON.parse(cached));
-
-    return ApiClient.post(_apiDictionary, {
-      FormName: formName,
-      UserName: _currentUser()
-    }).then(function (res) {
-      if (res && res.code === 0 && (res.list || res.records)) {
-        window._reportFilterSchemaCache = window._reportFilterSchemaCache || {};
-        window._reportFilterSchemaCache[cacheKey] = JSON.stringify(res);
-      }
-      return res;
-    });
+    if (!window.FieldSyncService || typeof FieldSyncService.getFilterSchema !== 'function') {
+      return Promise.reject(new Error('FieldSyncService chưa sẵn sàng.'));
+    }
+    return FieldSyncService.getFilterSchema(formName);
   }
 
   /**
@@ -5182,6 +3725,21 @@ var ReportFilterDialog = (function () {
           label: opt.label || opt.Label || opt.text || opt.value || ''
         };
       }));
+    }
+
+    if (field && field.lookupKey) {
+      if (!window.FieldSyncService || typeof FieldSyncService.searchLookup !== 'function') {
+        return Promise.reject(new Error('FieldSyncService chưa sẵn sàng.'));
+      }
+      return FieldSyncService.searchLookup(
+        field.formName,
+        field.lookupKey,
+        '',
+        1,
+        100,
+        {},
+        ''
+      );
     }
 
     if (!dataSource) return Promise.resolve([]);
@@ -5445,7 +4003,7 @@ var ReportFilterDialog = (function () {
   /**
    * Parse và áp VisibleRule cho toàn bộ fields trong body
    *
-   * VisibleRule syntax (lưu trong SY_FormatFields.VisibleRule):
+   * VisibleRule syntax từ Field Contract V2:
    *   "KyBaoCao=custom"         → hiện khi KyBaoCao = 'custom'
    *   "KyBaoCao=custom|today"   → hiện khi KyBaoCao = 'custom' HOẶC 'today'
    *   "HinhThucPV!=online"      → hiện khi HinhThucPV KHÁC 'online'
@@ -5541,9 +4099,8 @@ var ReportFilterDialog = (function () {
   /**
    * Mở dialog filter
    * @param {Object} opts
-   * @param {string} opts.formName         - FormName trong SY_FormatFields
+   * @param {string} opts.formName         - FormName trong Field Contract V2
    * @param {string} [opts.title]          - Tiêu đề dialog, mặc định 'Chọn báo cáo'
-   * @param {string} [opts.apiDictionary]  - Override API endpoint
    * @param {Object} [opts.defaultValues]  - Giá trị mặc định { fieldName: value }
    * @param {Function} opts.onConfirm      - Callback khi bấm Đồng ý, nhận (values)
    * @param {Function} [opts.onCancel]     - Callback khi bấm Hủy
@@ -5551,8 +4108,6 @@ var ReportFilterDialog = (function () {
   function open(opts) {
     opts = opts || {};
     if (!opts.formName) { console.error('ReportFilterDialog: formName is required'); return; }
-    if (opts.apiDictionary) _apiDictionary = opts.apiDictionary;
-
     var title = opts.title || 'Chọn báo cáo';
 
     // ── Build modal body ──
@@ -5594,7 +4149,7 @@ var ReportFilterDialog = (function () {
     _fetchSchema(opts.formName)
       .then(function (res) {
         body.innerHTML = '';
-        var dataList = (res && (res.list || res.records)) || [];
+        var dataList = Array.isArray(res) ? res : [];
 
         if (!dataList.length) {
           body.innerHTML = '<div style="color:var(--color-text-secondary);padding:16px;">Không tìm thấy cấu hình filter cho form: ' + opts.formName + '</div>';
@@ -5605,15 +4160,18 @@ var ReportFilterDialog = (function () {
         dataList.sort(function (a, b) { return (a.OrderNo || a.orderNo || 0) - (b.OrderNo || b.orderNo || 0); });
 
         dataList.forEach(function (item) {
+          var hasLookup = !!item.lookupKey;
           var fieldDef = {
+            formName: opts.formName,
             name: item.name || item.FieldName,
             label: item.label || item.CaptionVN,
-            required: String(item.required || item.IsRequired) === '1',
-            renderRule: (item.renderRule || item.FormatID || '').toLowerCase().trim(),
+            required: item.required === true || item.IsRequired === true || Number(item.IsRequired) === 1,
+            renderRule: (hasLookup ? 'sr' : (item.renderRule || item.FormatID || '')).toLowerCase().trim(),
             dataSource: (item.dataSource || item.DataSource || '').trim(),
-            valueField: item.valueField || item.ValueField || 'Value',
-            labelField: item.labelField || item.LabelField || 'Label',
-            defaultValue: item.defaultValue || item.DefaultValue || '',
+            lookupKey: item.lookupKey || '',
+            valueField: item.filterValueField || item.valueField || item.ValueField || 'Value',
+            labelField: item.filterDisplayField || item.labelField || item.LabelField || 'Label',
+            defaultValue: item.filterDefaultValue || item.defaultValue || item.DefaultValue || '',
             placeholder: item.placeholder || '',
             visibleRule: (item.visibleRule || item.VisibleRule || '').trim()  // ← mới
           };
@@ -5673,16 +4231,10 @@ var ReportFilterDialog = (function () {
     };
   }
 
-  /**
-   * Xóa cache schema (dùng khi cấu hình thay đổi)
-   * @param {string} [formName] - Nếu không truyền, xóa tất cả
-   */
+  /** Xóa cache metadata qua FieldSyncService. */
   function clearCache(formName) {
-    if (!window._reportFilterSchemaCache) return;
-    if (formName) {
-      delete window._reportFilterSchemaCache['ReportFilterSchema_' + formName];
-    } else {
-      window._reportFilterSchemaCache = {};
+    if (window.FieldSyncService && typeof FieldSyncService.clearCache === 'function') {
+      FieldSyncService.clearCache(formName);
     }
   }
 
@@ -6111,7 +4663,7 @@ UIControls.utils = (function () {
     /**
      * Áp VisibleRule cho các field trong một container (form modal hoặc filter dialog)
      *
-     * Syntax (lưu trong SY_FormatFields.VisibleRule):
+     * Syntax của thuộc tính VisibleRule trong Field Contract V2:
      *   "fieldA=val"           → hiện khi fieldA = val
      *   "fieldA=v1|v2"         → hiện khi fieldA = v1 HOẶC v2
      *   "fieldA!=val"          → hiện khi fieldA KHÁC val
@@ -16410,7 +14962,8 @@ window.DynamicFormState = (function () {
 })();
 
 /* --- DynamicDetailManager.js --- */
-/** Detail tabs: loading, editable grid lifecycle and detail persistence. */
+
+/** Detail tabs: loading, editable grid lifecycle and detail persistence. */
 window.DynamicDetailManager = (function () {
   /**
    * _getFieldCaption – tra cứu nhãn tiếng Việt theo thứ tự ưu tiên:
@@ -16421,7 +14974,7 @@ window.DynamicDetailManager = (function () {
    * 5. Fallback tách CamelCase: "PersonName" → "Person Name"
    *
    * KHÔNG hard-code caption trong file JS.
-   * Caption phải đến từ DB (SY_FmtFldTbl / SY_FormatFields) qua API.
+   * Caption phải đến từ desktop dictionary qua Field Contract V2.
    */
   function _getFieldCaption(fieldName, fieldObj, tabHeaders, dict) {
     if (fieldObj && fieldObj.label) return fieldObj.label;
@@ -18067,24 +16620,6 @@ window.DynamicAttachmentManager = (function () {
       { name: 'IsSystem', title: 'Hệ thống', width: 90, hozAlign: 'center' }
     ]
   };
-  definitions.access['SY_FORMATFIELDS'] = {
-    FormName: 'SY_FormatfldTbl',
-    PrimaryKey: 'AutoID',
-    PageTitle: 'Cấu hình động',
-    TitleAdd: 'Thêm cấu hình động',
-    TitleEdit: 'Sửa cấu hình động',
-    TitleView: 'Chi tiết cấu hình động',
-    FormFields: [
-      { name: 'AutoID', title: 'ID', width: 80, hozAlign: 'center' },
-      { name: 'FormName', title: 'Mã Form', width: 220, hozAlign: 'left' },
-      { name: 'FieldName', title: 'Tên trường (FieldName)', width: 220, hozAlign: 'left' },
-      { name: 'CaptionVN', title: 'Tiêu đề VN', width: 200, hozAlign: 'left' },
-      { name: 'CaptionEN', title: 'Tiêu đề EN', width: 200, hozAlign: 'left' },
-      { name: 'FormatID', title: 'Định dạng (FormatID)', width: 140, hozAlign: 'center' },
-      { name: 'AlignX', title: 'Canh lề', width: 90, hozAlign: 'center' },
-      { name: 'IsSystem', title: 'Hệ thống', width: 90, hozAlign: 'center' }
-    ]
-  };
 })(window);
 
 /* --- employee.js --- */
@@ -19244,8 +17779,7 @@ window.DynamicAttachmentManager = (function () {
         dataSource: 'CF_BranchListFrm'
       }
     ],
-    // Fallback cục bộ chỉ dùng khi API metadata không trả SY_FormatFields.
-    // HRMetadataAdapter luôn ưu tiên contract trong DB trước các khai báo này.
+    // Cấu hình tĩnh của module chỉ dùng cho khai báo nghiệp vụ ngoài dynamic form.
     FormFields: [
       { name: 'DocumentID', label: 'Số chứng từ', required: true, isReadOnlyEdit: true, position: 'grid', orderNo: 1 },
       { name: 'DocumentDate', label: 'Ngày chứng từ', required: true, renderRule: 'd', position: 'grid', orderNo: 2 },
@@ -19726,7 +18260,11 @@ window.DynamicAttachmentManager = (function () {
     documentExport: {
       enabled: true,
       primaryKey: 'MaHopDong',
-      label: 'Xuất Hợp Đồng'
+      label: 'Xuất Hợp Đồng',
+      labels: {
+        manage: 'Quản lý hợp đồng',
+        editDocument: 'Sửa tài liệu hợp đồng'
+      }
     },
     UseSplitLayout: false,
     SplitLayoutSelectText: 'Vui lòng chọn hợp đồng lao động để xem chi tiết',
@@ -19802,7 +18340,7 @@ window.DynamicAttachmentManager = (function () {
       { name: 'DateCreate', label: 'Ngày tạo', required: false, showInAdd: false, showInEdit: false, isReadOnlyEdit: true, position: 'grid', orderNo: 28, renderRule: 'dt' }
     ],
 
-    // Cấu hình ghi đè lên SY_FormatFields từ Database
+    // Cấu hình nghiệp vụ bổ sung của module
     fieldOverrides: {
       PersonStatus: { renderRule: 'sl', dataSource: 'API_ComboPersonStatus' }
     },
@@ -20088,68 +18626,82 @@ window.DynamicAttachmentManager = (function () {
 })(window);
 
 /* --- HRMetadataAdapter.js --- */
-/**
- * Bộ nối metadata HR, chỉ đọc và không ghi ngược về cơ sở dữ liệu.
- * Ưu tiên: SY_FormatFields theo form -> dictionary theo form -> dictionary chung -> fallback cục bộ.
- */
+/** Normalize the Field Contract V2 document returned by the metadata backend. */
 window.HRMetadataAdapter = (function () {
-  function keyOf(value) { return String(value || '').trim().toLowerCase(); }
-
-  function fieldName(row) {
-    return row && (row.FieldName || row.fieldName || row.name || row.Name);
+  function copy(value) {
+    if (Array.isArray(value)) return value.map(copy);
+    if (value && typeof value === 'object') {
+      var result = {};
+      Object.keys(value).forEach(function (key) { result[key] = copy(value[key]); });
+      return result;
+    }
+    return value;
   }
 
-  function asRows(value) {
-    if (Array.isArray(value)) return value;
-    if (value && Array.isArray(value.list)) return value.list;
-    if (value && Array.isArray(value.records)) return value.records;
-    return [];
+  function safeName(value) {
+    return /^[A-Za-z_][A-Za-z0-9_@$#]{0,127}$/.test(String(value || ''));
   }
 
-  function mergeFields(specific, formDictionary, globalDictionary, fallback) {
-    var result = [];
-    var seen = Object.create(null);
-    [specific, formDictionary, globalDictionary, fallback].forEach(function (source) {
-      asRows(source).forEach(function (row) {
-        var name = fieldName(row);
-        var key = keyOf(name);
-        if (!key || seen[key]) return;
-        seen[key] = true;
-        result.push(row);
-      });
+  function normalizeField(field, index) {
+    if (!field || !safeName(field.name)) {
+      throw new Error('Field Contract V2 chứa tên trường không hợp lệ.');
+    }
+    var normalized = copy(field);
+    normalized.name = String(field.name);
+    normalized.label = String(field.label || field.name);
+    normalized.orderNo = Number(field.orderNo) || index + 1;
+    normalized.metadataSource = 'FIELD_CONTRACT_V2';
+    return normalized;
+  }
+
+  function selectFields(fields, supplied, predicate) {
+    var byName = Object.create(null);
+    fields.forEach(function (field) { byName[field.name.toLowerCase()] = field; });
+    var selected = Array.isArray(supplied) ? supplied : fields.filter(predicate);
+    return selected.map(function (field) {
+      var complete = byName[String(field && field.name || '').toLowerCase()];
+      if (!complete) throw new Error('Field Contract V2 tham chiếu trường không tồn tại.');
+      return copy(complete);
     });
-    return result;
   }
 
-  function resolve(response, formName, localConfig) {
-    var payload = response || {};
-    var specific = asRows(
-      payload.specificFields || payload.syFormatFields || payload.formatFields ||
-      payload.SY_FormatFields || payload.list || payload.records
-    );
-    var formDictionary = asRows(
-      payload.formDictionary || payload.formFieldsDictionary ||
-      payload.formSpecificFmtFldTbl || payload.formSpecificDictionary ||
-      payload.SY_FmtFldTblForm
-    );
-    var globalDictionary = asRows(
-      payload.globalDictionary || payload.dictionary ||
-      payload.globalFmtFldTbl || payload.globalFieldsDictionary ||
-      payload.SY_FmtFldTblGlobal
-    );
-    var fallback = localConfig && (localConfig.FormFields || localConfig.fields);
-    var fields = mergeFields(specific, formDictionary, globalDictionary, fallback);
+  function normalizeContract(payload) {
+    var schema = payload && payload.schema ? payload.schema : payload;
+    if (!schema || String(schema.schemaVersion || '') !== '2.0') {
+      throw new Error('Field Contract V2 không đúng phiên bản schema.');
+    }
+    if (!schema.formName || !schema.tableName || !schema.primaryKey || !Array.isArray(schema.fields)) {
+      throw new Error('Field Contract V2 thiếu định danh bắt buộc.');
+    }
 
-    if (!specific.length && fields.length) {
-      console.warn('[HRMetadataAdapter] Không có SY_FormatFields riêng cho form:', formName, '- dùng dictionary/fallback chỉ đọc.');
-    }
-    if (!fields.length) {
-      console.warn('[HRMetadataAdapter] Không có metadata field cho form:', formName);
-    }
-    return { fields: fields, source: specific.length ? 'SY_FormatFields' : 'fallback' };
+    var seen = Object.create(null);
+    var fields = schema.fields.map(normalizeField).sort(function (left, right) {
+      return left.orderNo - right.orderNo;
+    });
+    fields.forEach(function (field) {
+      var key = field.name.toLowerCase();
+      if (seen[key]) throw new Error('Field Contract V2 chứa trường trùng tên.');
+      seen[key] = true;
+    });
+
+    var normalized = copy(schema);
+    normalized.fields = fields;
+    normalized.gridFields = selectFields(fields, schema.gridFields, function (field) {
+      return field.showInGrid !== false;
+    });
+    normalized.addFields = selectFields(fields, schema.addFields, function (field) {
+      return field.showInAdd === true;
+    });
+    normalized.editFields = selectFields(fields, schema.editFields, function (field) {
+      return field.showInEdit === true;
+    });
+    normalized.filterFields = selectFields(fields, schema.filterFields, function (field) {
+      return field.showInFilter === true && field.supportsFilter === true;
+    });
+    return normalized;
   }
 
-  return { resolve: resolve, mergeFields: mergeFields };
+  return Object.freeze({ normalizeContract: normalizeContract });
 })();
 
 /* --- contract-document.api.js --- */
@@ -20288,10 +18840,33 @@ var ContractDocumentApi = (function (global) {
     });
   }
 
+  function templateRecordBody(data, file) {
+    var form = new FormData();
+    Object.keys(data || {}).forEach(function (key) {
+      var value = data[key];
+      if (value !== undefined && value !== null) form.append(key, String(value));
+    });
+    if (file) form.append('file', file, file.name);
+    return form;
+  }
+
   return {
     config: config,
     health: function () { return request(config().SERVICE_BASE.replace(/\/$/, '') + '/health'); },
     templates: function () { return api('/contract-templates'); },
+    templateRegistry: function () { return api('/contract-template-records'); },
+    createTemplateRecord: function (data, file) {
+      return api('/contract-template-records', { method: 'POST', body: templateRecordBody(data, file) });
+    },
+    updateTemplateRecord: function (recordId, data, file) {
+      return api('/contract-template-records/' + encodeURIComponent(recordId), {
+        method: 'PUT',
+        body: templateRecordBody(data, file)
+      });
+    },
+    deleteTemplateRecord: function (recordId) {
+      return api('/contract-template-records/' + encodeURIComponent(recordId), { method: 'DELETE' });
+    },
     createDraft: function (data) { return json('POST', '/contract-drafts', data); },
     draftEditor: function (draftId) { return api('/contract-drafts/' + encodeURIComponent(draftId) + '/editor'); },
     uploadDraft: function (draftId, file) {
@@ -20315,6 +18890,436 @@ var ContractDocumentApi = (function (global) {
     applyTemplateWorkspace: function (workspaceId) { return json('POST', '/contract-template-workspaces/' + encodeURIComponent(workspaceId) + '/apply', {}); },
     closeTemplateWorkspace: function (workspaceId) { return api('/contract-template-workspaces/' + encodeURIComponent(workspaceId), { method: 'DELETE' }); }
   };
+})(window);
+
+/* --- contract-template-manager.js --- */
+var ContractTemplateManager = (function (global) {
+  'use strict';
+
+  function createElement(tag, className, text) {
+    var element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+  }
+
+  function iconButton(label, icon, className) {
+    var button = createElement('button', 'contract-template-action ' + (className || ''));
+    button.type = 'button';
+    var symbol = createElement('span', 'material-symbols-outlined', icon);
+    symbol.setAttribute('aria-hidden', 'true');
+    button.appendChild(symbol);
+    button.appendChild(createElement('span', '', label));
+    return button;
+  }
+
+  function notify(type, title, message) {
+    if (global.Alert && typeof global.Alert[type] === 'function') {
+      global.Alert[type](title, message || '');
+      return;
+    }
+    if (global.UIToast && typeof global.UIToast.show === 'function') {
+      global.UIToast.show((title ? title + ': ' : '') + (message || ''), type);
+      return;
+    }
+    global.alert((title ? title + ': ' : '') + (message || ''));
+  }
+
+  function normalize(value) {
+    return String(value === undefined || value === null ? '' : value).trim().toLowerCase();
+  }
+
+  function open(options) {
+    var settings = options || {};
+    var api = settings.api || global.ContractDocumentApi;
+    var state = {
+      items: [],
+      schema: [],
+      selectedId: '',
+      search: '',
+      busy: false,
+      canDelete: true,
+      closed: false
+    };
+
+    var overlay = createElement('div', 'contract-template-manager-overlay');
+    var page = createElement('section', 'contract-template-manager-page');
+    page.setAttribute('role', 'dialog');
+    page.setAttribute('aria-modal', 'true');
+    page.setAttribute('aria-labelledby', 'contract-template-manager-title');
+    page.tabIndex = -1;
+
+    var header = createElement('header', 'contract-template-manager-header');
+    var headingGroup = createElement('div', 'contract-template-manager-heading');
+    var headingIcon = createElement('span', 'material-symbols-outlined', 'contract_edit');
+    headingIcon.setAttribute('aria-hidden', 'true');
+    var headingCopy = createElement('div');
+    var title = createElement('h2', '', 'Quản lý hợp đồng');
+    title.id = 'contract-template-manager-title';
+    var description = createElement('p', '', 'Quản lý loại hợp đồng và tệp DOCX dùng để xuất tài liệu.');
+    headingCopy.appendChild(title);
+    headingCopy.appendChild(description);
+    headingGroup.appendChild(headingIcon);
+    headingGroup.appendChild(headingCopy);
+    var closeButton = iconButton('Đóng', 'close', 'is-ghost contract-template-close');
+    header.appendChild(headingGroup);
+    header.appendChild(closeButton);
+
+    var toolbar = createElement('div', 'contract-template-manager-toolbar');
+    var primaryActions = createElement('div', 'contract-template-primary-actions');
+    var addButton = iconButton('Thêm mẫu', 'add', 'is-primary');
+    var editButton = iconButton('Sửa thông tin', 'edit', '');
+    var editDocumentButton = iconButton('Sửa tài liệu hợp đồng', 'edit_document', '');
+    var deleteButton = iconButton('Xóa', 'delete', 'is-danger');
+    primaryActions.appendChild(addButton);
+    primaryActions.appendChild(editButton);
+    primaryActions.appendChild(editDocumentButton);
+    primaryActions.appendChild(deleteButton);
+
+    var utilityActions = createElement('div', 'contract-template-utility-actions');
+    var searchBox = createElement('label', 'contract-template-search');
+    searchBox.appendChild(createElement('span', 'material-symbols-outlined', 'search'));
+    var searchInput = createElement('input');
+    searchInput.type = 'search';
+    searchInput.placeholder = 'Tìm loại hợp đồng hoặc tên tệp...';
+    searchInput.setAttribute('aria-label', 'Tìm mẫu hợp đồng');
+    searchBox.appendChild(searchInput);
+    var refreshButton = iconButton('Tải lại', 'refresh', 'is-icon');
+    utilityActions.appendChild(searchBox);
+    utilityActions.appendChild(refreshButton);
+    toolbar.appendChild(primaryActions);
+    toolbar.appendChild(utilityActions);
+
+    var content = createElement('div', 'contract-template-manager-content');
+    var status = createElement('div', 'contract-template-manager-status');
+    status.setAttribute('role', 'status');
+    var tableWrap = createElement('div', 'contract-template-table-wrap');
+    var table = createElement('table', 'contract-template-table');
+    var thead = document.createElement('thead');
+    var headerRow = document.createElement('tr');
+    ['', 'Loại hợp đồng', 'Tệp mẫu DOCX', 'Ghi chú', 'Trạng thái'].forEach(function (label) {
+      var th = createElement('th', '', label);
+      if (!label) th.setAttribute('aria-label', 'Chọn');
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    var tbody = document.createElement('tbody');
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    var emptyState = createElement('div', 'contract-template-empty');
+    emptyState.appendChild(createElement('span', 'material-symbols-outlined', 'folder_off'));
+    emptyState.appendChild(createElement('strong', '', 'Chưa có mẫu hợp đồng'));
+    emptyState.appendChild(createElement('p', '', 'Bấm “Thêm mẫu” để đăng ký loại hợp đồng và tải tệp DOCX lên.'));
+    content.appendChild(status);
+    content.appendChild(tableWrap);
+    content.appendChild(emptyState);
+
+    var footer = createElement('footer', 'contract-template-manager-footer');
+    var totalText = createElement('span', '', '0 mẫu hợp đồng');
+    var selectedText = createElement('span', 'contract-template-selected-text', 'Chưa chọn mẫu');
+    footer.appendChild(totalText);
+    footer.appendChild(selectedText);
+
+    page.appendChild(header);
+    page.appendChild(toolbar);
+    page.appendChild(content);
+    page.appendChild(footer);
+    overlay.appendChild(page);
+    document.body.appendChild(overlay);
+
+    function selectedItem() {
+      return state.items.find(function (item) { return item.id === state.selectedId; }) || null;
+    }
+
+    function setBusy(busy, message) {
+      state.busy = Boolean(busy);
+      status.textContent = message || '';
+      status.classList.toggle('is-active', state.busy);
+      updateActions();
+    }
+
+    function updateActions() {
+      var hasSelection = Boolean(selectedItem());
+      addButton.disabled = state.busy;
+      refreshButton.disabled = state.busy;
+      editButton.disabled = state.busy || !hasSelection;
+      editDocumentButton.disabled = state.busy || !hasSelection;
+      deleteButton.disabled = state.busy || !hasSelection || !state.canDelete;
+      selectedText.textContent = hasSelection
+        ? 'Đã chọn: ' + (selectedItem().loaiHD || selectedItem().templateFile)
+        : 'Chưa chọn mẫu';
+    }
+
+    function searchableFields() {
+      return state.schema.filter(function (field) { return field.searchable !== false; });
+    }
+
+    function visibleItems() {
+      var keyword = normalize(state.search);
+      if (!keyword) return state.items.slice();
+      return state.items.filter(function (item) {
+        return searchableFields().some(function (field) {
+          return normalize(item[field.name]).indexOf(keyword) >= 0;
+        });
+      });
+    }
+
+    function selectRow(id) {
+      state.selectedId = id || '';
+      renderRows();
+    }
+
+    function cell(label, value, className) {
+      var td = createElement('td', className || '', value);
+      td.dataset.label = label;
+      return td;
+    }
+
+    function renderRows() {
+      var visible = visibleItems();
+      tbody.innerHTML = '';
+      visible.forEach(function (item) {
+        var row = document.createElement('tr');
+        row.classList.toggle('is-selected', item.id === state.selectedId);
+        row.tabIndex = 0;
+        row.dataset.recordId = item.id;
+
+        var selectCell = document.createElement('td');
+        selectCell.dataset.label = 'Chọn';
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'contract-template-selected';
+        radio.checked = item.id === state.selectedId;
+        radio.setAttribute('aria-label', 'Chọn ' + (item.loaiHD || item.templateFile));
+        radio.addEventListener('change', function () { selectRow(item.id); });
+        selectCell.appendChild(radio);
+
+        var fileCell = cell('Tệp mẫu DOCX', item.templateFile, 'contract-template-file-name');
+        fileCell.title = item.templateFile || '';
+        var stateCell = document.createElement('td');
+        stateCell.dataset.label = 'Trạng thái';
+        var badge = createElement('span', 'contract-template-badge ' + (item.available ? 'is-ready' : 'is-missing'), item.available ? 'Sẵn sàng' : 'Thiếu tệp');
+        stateCell.appendChild(badge);
+
+        row.appendChild(selectCell);
+        row.appendChild(cell('Loại hợp đồng', item.loaiHD, 'contract-template-type'));
+        row.appendChild(fileCell);
+        row.appendChild(cell('Ghi chú', item.description || '—', 'contract-template-description'));
+        row.appendChild(stateCell);
+        row.addEventListener('click', function (event) {
+          if (event.target !== radio) selectRow(item.id);
+        });
+        row.addEventListener('dblclick', function () { openRecordForm(item); });
+        row.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            selectRow(item.id);
+          }
+        });
+        tbody.appendChild(row);
+      });
+      tableWrap.hidden = visible.length === 0;
+      emptyState.hidden = visible.length !== 0;
+      totalText.textContent = visible.length === state.items.length
+        ? state.items.length + ' mẫu hợp đồng'
+        : visible.length + '/' + state.items.length + ' mẫu phù hợp';
+      updateActions();
+    }
+
+    function load(preferredId) {
+      setBusy(true, 'Đang tải danh sách mẫu hợp đồng...');
+      return api.templateRegistry().then(function (data) {
+        state.items = Array.isArray(data.items) ? data.items : [];
+        state.schema = Array.isArray(data.schema) ? data.schema : [];
+        state.canDelete = !data.permissions || data.permissions.canDelete !== false;
+        title.textContent = data.title || title.textContent;
+        description.textContent = data.description || description.textContent;
+        var nextId = preferredId || state.selectedId;
+        state.selectedId = state.items.some(function (item) { return item.id === nextId; }) ? nextId : '';
+        setBusy(false, '');
+        renderRows();
+      }).catch(function (error) {
+        setBusy(false, '');
+        notify('error', 'Không tải được danh sách mẫu', error.message);
+        renderRows();
+      });
+    }
+
+    function showConfirm(item) {
+      return new Promise(function (resolve) {
+        var confirmOverlay = createElement('div', 'contract-template-confirm-overlay');
+        var dialog = createElement('div', 'contract-template-confirm');
+        dialog.setAttribute('role', 'alertdialog');
+        dialog.appendChild(createElement('span', 'material-symbols-outlined', 'warning'));
+        dialog.appendChild(createElement('h3', '', 'Xóa mẫu hợp đồng?'));
+        dialog.appendChild(createElement('p', '', 'Cấu hình “' + item.loaiHD + '” sẽ bị xóa. Tệp DOCX không bị mất mà được chuyển vào thư mục backups.'));
+        var actions = createElement('div', 'contract-template-confirm-actions');
+        var cancel = iconButton('Hủy', 'close', '');
+        var confirm = iconButton('Xóa mẫu', 'delete', 'is-danger');
+        actions.appendChild(cancel);
+        actions.appendChild(confirm);
+        dialog.appendChild(actions);
+        confirmOverlay.appendChild(dialog);
+        document.body.appendChild(confirmOverlay);
+        function finish(value) { confirmOverlay.remove(); resolve(value); }
+        cancel.onclick = function () { finish(false); };
+        confirm.onclick = function () { finish(true); };
+        cancel.focus();
+      });
+    }
+
+    function openRecordForm(item) {
+      var editing = Boolean(item);
+      var formOverlay = createElement('div', 'contract-template-form-overlay');
+      var dialog = createElement('form', 'contract-template-form');
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+      var formHeader = createElement('div', 'contract-template-form-header');
+      var formTitle = createElement('h3', '', editing ? 'Sửa thông tin mẫu hợp đồng' : 'Thêm mẫu hợp đồng');
+      var formClose = iconButton('Đóng', 'close', 'is-icon');
+      formHeader.appendChild(formTitle);
+      formHeader.appendChild(formClose);
+      var formBody = createElement('div', 'contract-template-form-body');
+      var controls = {};
+      var fileInput = null;
+      var fileHint = null;
+
+      state.schema.forEach(function (field) {
+        var group = createElement('div', 'contract-template-field');
+        var label = createElement('label', '', field.label || field.name);
+        if (field.required || (!editing && field.requiredOnCreate)) label.appendChild(createElement('span', 'is-required', ' *'));
+        group.appendChild(label);
+        if (field.type === 'file') {
+          var dropzone = createElement('label', 'contract-template-file-dropzone');
+          dropzone.appendChild(createElement('span', 'material-symbols-outlined', 'upload_file'));
+          fileHint = createElement('strong', '', editing && item.templateFile ? item.templateFile : 'Chọn tệp DOCX');
+          dropzone.appendChild(fileHint);
+          dropzone.appendChild(createElement('small', '', editing ? 'Để trống nếu muốn giữ nguyên tệp hiện tại.' : 'Chỉ nhận tệp .docx hợp lệ.'));
+          fileInput = document.createElement('input');
+          fileInput.type = 'file';
+          fileInput.accept = field.accept || '.docx';
+          fileInput.hidden = true;
+          fileInput.addEventListener('change', function () {
+            if (fileInput.files && fileInput.files[0]) fileHint.textContent = fileInput.files[0].name;
+          });
+          dropzone.appendChild(fileInput);
+          group.appendChild(dropzone);
+        } else {
+          var control = field.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
+          if (field.type !== 'textarea') control.type = field.type || 'text';
+          if (field.maxLength) control.maxLength = Number(field.maxLength);
+          control.required = Boolean(field.required);
+          control.value = editing ? String(item[field.name] || '') : '';
+          control.name = field.name;
+          controls[field.name] = control;
+          group.appendChild(control);
+        }
+        formBody.appendChild(group);
+      });
+
+      var formError = createElement('div', 'contract-template-form-error');
+      formError.setAttribute('role', 'alert');
+      var formActions = createElement('div', 'contract-template-form-actions');
+      var cancelButton = iconButton('Hủy', 'close', '');
+      var saveButton = iconButton(editing ? 'Lưu thay đổi' : 'Thêm mẫu', 'save', 'is-primary');
+      formActions.appendChild(cancelButton);
+      formActions.appendChild(saveButton);
+      dialog.appendChild(formHeader);
+      dialog.appendChild(formBody);
+      dialog.appendChild(formError);
+      dialog.appendChild(formActions);
+      formOverlay.appendChild(dialog);
+      document.body.appendChild(formOverlay);
+
+      function closeForm() { formOverlay.remove(); }
+      formClose.onclick = function (event) { event.preventDefault(); closeForm(); };
+      cancelButton.onclick = function (event) { event.preventDefault(); closeForm(); };
+      dialog.addEventListener('submit', function (event) {
+        event.preventDefault();
+        formError.textContent = '';
+        var values = {};
+        Object.keys(controls).forEach(function (name) { values[name] = controls[name].value.trim(); });
+        var file = fileInput && fileInput.files ? fileInput.files[0] : null;
+        if (!editing && !file) {
+          formError.textContent = 'Vui lòng chọn tệp mẫu DOCX.';
+          return;
+        }
+        if (file && !/\.docx$/i.test(file.name)) {
+          formError.textContent = 'Tệp mẫu phải có định dạng .docx.';
+          return;
+        }
+        saveButton.disabled = true;
+        cancelButton.disabled = true;
+        saveButton.lastChild.textContent = 'Đang lưu...';
+        var operation = editing
+          ? api.updateTemplateRecord(item.id, values, file)
+          : api.createTemplateRecord(values, file);
+        operation.then(function (saved) {
+          closeForm();
+          notify('success', editing ? 'Đã cập nhật mẫu' : 'Đã thêm mẫu', saved.loaiHD + ' — ' + saved.templateFile);
+          return load(saved.id);
+        }).catch(function (error) {
+          formError.textContent = error.message || 'Không thể lưu mẫu hợp đồng.';
+          saveButton.disabled = false;
+          cancelButton.disabled = false;
+          saveButton.lastChild.textContent = editing ? 'Lưu thay đổi' : 'Thêm mẫu';
+        });
+      });
+      var firstControl = formBody.querySelector('input:not([type="file"]), textarea');
+      if (firstControl) firstControl.focus();
+    }
+
+    function close() {
+      if (state.closed) return;
+      state.closed = true;
+      document.removeEventListener('keydown', onKeyDown);
+      overlay.remove();
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape' && !document.querySelector('.contract-template-form-overlay, .contract-template-confirm-overlay')) close();
+    }
+
+    closeButton.onclick = close;
+    addButton.onclick = function () { openRecordForm(null); };
+    editButton.onclick = function () {
+      var item = selectedItem();
+      if (item) openRecordForm(item);
+    };
+    editDocumentButton.onclick = function () {
+      var item = selectedItem();
+      if (item && typeof settings.editDocument === 'function') settings.editDocument(item);
+    };
+    deleteButton.onclick = function () {
+      var item = selectedItem();
+      if (!item) return;
+      showConfirm(item).then(function (confirmed) {
+        if (!confirmed) return;
+        setBusy(true, 'Đang xóa cấu hình và lưu bản sao an toàn...');
+        return api.deleteTemplateRecord(item.id).then(function () {
+          state.selectedId = '';
+          notify('success', 'Đã xóa mẫu hợp đồng', item.loaiHD);
+          return load();
+        }).catch(function (error) {
+          setBusy(false, '');
+          notify('error', 'Không thể xóa mẫu', error.message);
+        });
+      });
+    };
+    refreshButton.onclick = function () { load(state.selectedId); };
+    searchInput.addEventListener('input', function () {
+      state.search = searchInput.value;
+      renderRows();
+    });
+    document.addEventListener('keydown', onKeyDown);
+    page.focus();
+    load();
+
+    return { close: close, reload: load };
+  }
+
+  return { open: open };
 })(window);
 
 /* --- contract-document.actions.js --- */
@@ -20432,7 +19437,10 @@ var ContractDocumentActions = (function (global) {
         radio.value = item.templateFile;
         radio.checked = item.templateFile === selected.templateFile;
         var text = document.createElement('span');
-        text.textContent = (item.description || item.templateFile) + ' — ' + item.templateFile;
+        var itemTitle = item.description || item.loaiHD || item.templateFile;
+        text.textContent = itemTitle === item.templateFile
+          ? item.templateFile
+          : itemTitle + ' — ' + item.templateFile;
         label.appendChild(radio);
         label.appendChild(text);
         list.appendChild(label);
@@ -20522,6 +19530,9 @@ var ContractDocumentActions = (function (global) {
       toolbar.appendChild(createButton('Kiểm tra mẫu', 'validate'));
       toolbar.appendChild(createButton('Áp dụng mẫu', 'apply', true));
     }
+    var retryEditorButton = createButton('Kết nối lại', 'retry');
+    retryEditorButton.hidden = true;
+    toolbar.appendChild(retryEditorButton);
     toolbar.appendChild(createButton('Đóng', 'close'));
     header.appendChild(title);
     header.appendChild(toolbar);
@@ -20569,6 +19580,7 @@ var ContractDocumentActions = (function (global) {
       showLoadingOverlay('Đang tải văn bản...', 'Vui lòng chờ trình soạn thảo nạp nội dung hợp đồng...');
       return loadOnlyOffice(state.data.onlyOfficePublicUrl).then(function () {
         if (state.closed) return;
+        retryEditorButton.hidden = true;
         var editorCfg = state.data.editorConfig || {};
         var existingEvents = editorCfg.events || {};
         editorCfg.events = Object.assign({}, existingEvents, {
@@ -20586,10 +19598,12 @@ var ContractDocumentActions = (function (global) {
         state.editor = new global.DocsAPI.DocEditor(editorArea.id, editorCfg);
         setStatus('Trình soạn thảo đã sẵn sàng. Bạn có thể chỉnh sửa trực tiếp hoặc tải file DOCX về máy.', false);
         setTimeout(hideLoadingOverlay, 3500);
-      }).catch(function () {
+      }).catch(function (error) {
         hideLoadingOverlay();
-        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>Trình xem văn bản trực tuyến chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, chỉnh sửa bằng Microsoft Word / WPS Office rồi tải lên lại.</span></div>';
-        setStatus('Chưa kết nối được hệ thống xem văn bản trực tuyến.', true);
+        retryEditorButton.hidden = false;
+        var serviceUrl = String(state.data.onlyOfficePublicUrl || '').replace(/\/$/, '');
+        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>OnlyOffice chưa chạy tại ' + escapeHTML(serviceUrl) + '.</strong><span>Hãy khởi động Docker Desktop và dịch vụ OnlyOffice, sau đó bấm “Kết nối lại”. Bạn vẫn có thể tải DOCX, sửa bằng Microsoft Word / WPS Office rồi tải lên lại.</span></div>';
+        setStatus((error && error.message ? error.message + ' ' : '') + 'Không kết nối được dịch vụ OnlyOffice.', true);
       });
     }
 
@@ -20621,6 +19635,10 @@ var ContractDocumentActions = (function (global) {
       if (action === 'preview') return global.open(state.data.previewUrl, '_blank', 'noopener');
       if (action === 'download') return download(state.data.downloadUrl);
       if (action === 'close') return close();
+      if (action === 'retry') {
+        button.disabled = true;
+        return mountEditor().finally(function () { button.disabled = false; });
+      }
       if (action === 'upload') {
         return openFilePicker(function (file) {
           button.disabled = true;
@@ -20727,10 +19745,13 @@ var ContractDocumentActions = (function (global) {
       .catch(function (error) { notify('error', 'Không thể xuất hợp đồng', error.message); });
   }
 
-  function manageTemplates() {
+  function editTemplateDocument(selectedTemplateFile) {
     return checkBackend()
       .then(function () { return ContractDocumentApi.templates(); })
-      .then(function (templates) { return chooseTemplate(templates, null, 'Quản lý mẫu hợp đồng'); })
+      .then(function (templates) {
+        if (selectedTemplateFile) return selectedTemplateFile;
+        return chooseTemplate(templates, null, 'Sửa tài liệu hợp đồng');
+      })
       .then(function (templateFile) {
         if (!templateFile) return null;
         return ContractDocumentApi.createTemplateWorkspace(templateFile);
@@ -20740,7 +19761,7 @@ var ContractDocumentActions = (function (global) {
         return ContractDocumentApi.templateWorkspaceEditor(workspace.workspaceId).then(function (editor) {
           showEditor(editor, {
             kind: 'template',
-            title: 'Chỉnh sửa bản copy của ' + workspace.templateFile,
+            title: 'Sửa tài liệu hợp đồng — ' + workspace.templateFile,
             loadEditor: function () { return ContractDocumentApi.templateWorkspaceEditor(workspace.workspaceId); },
             upload: function (file) { return ContractDocumentApi.uploadTemplateWorkspace(workspace.workspaceId, file); },
             validate: function () { return ContractDocumentApi.validateTemplateWorkspace(workspace.workspaceId); },
@@ -20748,10 +19769,29 @@ var ContractDocumentActions = (function (global) {
           });
         });
       })
-      .catch(function (error) { notify('error', 'Không thể quản lý mẫu', error.message); });
+      .catch(function (error) { notify('error', 'Không thể sửa tài liệu hợp đồng', error.message); });
   }
 
-  return { exportContract: exportContract, manageTemplates: manageTemplates };
+  function manageTemplateRegistry() {
+    return checkBackend().then(function () {
+      if (!global.ContractTemplateManager) {
+        throw new Error('Chức năng quản lý hợp đồng chưa được tải. Hãy tải lại bundle frontend.');
+      }
+      return global.ContractTemplateManager.open({
+        api: ContractDocumentApi,
+        editDocument: function (item) { return editTemplateDocument(item.templateFile); }
+      });
+    }).catch(function (error) {
+      notify('error', 'Không thể mở quản lý hợp đồng', error.message);
+    });
+  }
+
+  return {
+    exportContract: exportContract,
+    editTemplateDocument: editTemplateDocument,
+    manageTemplateRegistry: manageTemplateRegistry,
+    manageTemplates: editTemplateDocument
+  };
 })(window);
 
 /* --- DocumentExportPlugin.js --- */
@@ -20779,8 +19819,12 @@ var DocumentExportPlugin = (function (global) {
   function getExtraButtons(formName, getSelectedRows, moduleConfig, onReload) {
     var documentOptions = moduleConfig && moduleConfig.documentExport;
     if (!documentOptions || documentOptions.enabled === false) return [];
+    var labels = documentOptions.labels || {};
+    var canManageTemplates = global.AppPermissions
+      ? global.AppPermissions.hasPermission(formName, 'isAdmin')
+      : Boolean(global.AppSession && global.AppSession.isAdmin());
 
-    return [
+    var buttons = [
       {
         id: 'btn-export-contract',
         text: documentOptions.label || 'Xuất Hợp Đồng',
@@ -20799,18 +19843,21 @@ var DocumentExportPlugin = (function (global) {
           }
           global.ContractDocumentActions.exportContract(rows[0], documentOptions, onReload);
         }
-      },
-      {
-        id: 'btn-manage-contract-templates',
-        text: 'Quản lý mẫu hợp đồng',
+      }
+    ];
+
+    if (canManageTemplates) buttons.push({
+        id: 'btn-manage-contract-registry',
+        text: labels.manage || 'Quản lý hợp đồng',
         icon: 'folder_managed',
         type: 'tool',
         onClick: function (event) {
           stopDefault(event);
-          if (global.ContractDocumentActions) global.ContractDocumentActions.manageTemplates();
+          if (global.ContractDocumentActions) global.ContractDocumentActions.manageTemplateRegistry();
         }
-      }
-    ];
+      });
+
+    return buttons;
   }
 
   global.FormActionPlugins = (global.FormActionPlugins || []).filter(function (plugin) {
@@ -22372,7 +21419,7 @@ window.DynamicFormEngine = (function () {
     return Array.isArray(schema) ? schema.map(_cloneSchemaValue) : [];
   }
 
-  function _setLegacyRuntimeSchemas() {
+  function _setStaticRuntimeSchemas() {
     runtimeSchemas = {
       grid: _cloneSchema(globalFormSchema),
       edit: _cloneSchema(globalFormSchema),
@@ -22488,10 +21535,15 @@ window.DynamicFormEngine = (function () {
     if (!state || !state.runtimeSchemas) return;
     if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
       && state.contextKey && state.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+    if (state.metadataActive !== true || state.failClosed === true || !state.schema) {
+      _renderMetadataError(_metadataErrorResponse(state));
+      return;
+    }
     var previousSignature = _gridSchemaSignature(runtimeSchemas);
     var nextSignature = _gridSchemaSignature(state.runtimeSchemas);
     fieldContractState = state;
     runtimeSchemas = state.runtimeSchemas;
+    globalFormSchema = state.runtimeSchemas.grid;
     if (previousSignature === nextSignature) return;
     if (_isUserEditing()) {
       pendingFieldSyncRender = true;
@@ -22500,20 +21552,6 @@ window.DynamicFormEngine = (function () {
     pendingFieldSyncRender = false;
     /* Schema/caption mới phải đi kèm dữ liệu mới, không chỉ dựng lại cột trên gridData cũ. */
     if ($container && $container.querySelector('#dynamic-grid-container')) _loadData();
-  }
-
-  function _observeFieldSync() {
-    if (!window.FieldSyncService || typeof FieldSyncService.observeForm !== 'function') return;
-    if (!_isUnifiedMetadataForm(currentFormName)) return;
-    var observedForm = currentFormName;
-    var observedContextKey = typeof FieldSyncService.getContextKey === 'function'
-      ? FieldSyncService.getContextKey(observedForm)
-      : '';
-    FieldSyncService.observeForm(observedForm, globalFormSchema.slice()).then(function (state) {
-      if (currentFormName !== observedForm || !state || !state.runtimeSchemas
-        || (observedContextKey && state.contextKey && state.contextKey !== observedContextKey)) return;
-      _applyFieldSyncState(state);
-    });
   }
 
   function _isUserEditing() {
@@ -22529,7 +21567,7 @@ window.DynamicFormEngine = (function () {
       if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
       if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
         && detail.contextKey && detail.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
-      if (MODULE_CONFIG && (MODULE_CONFIG.ReadOnlyReport === true || /(?:Report)$/i.test(String(currentFormName || '').trim()))) return;
+      if (_isFormBuilder()) return;
       _applyFieldSyncState(detail.state);
     });
     document.addEventListener('focusout', function () {
@@ -22642,11 +21680,71 @@ window.DynamicFormEngine = (function () {
 
   /** Kiểm tra form hiện tại có phải Form Builder không */
   function _isFormBuilder() {
-    return String(MODULE_CONFIG.FormName).toLowerCase() === 'frmformbuilder';
+    var formName = String(MODULE_CONFIG.FormName || '').toLowerCase();
+    return formName === 'frmformbuilder' || formName === 'sy_formatfldtbl';
   }
 
-  function _isUnifiedMetadataForm(formName) {
-    return /(?:Frm|Report)$/i.test(String(formName || '').trim());
+  function _formBuilderMetadataResponse() {
+    var fields = Array.isArray(MODULE_CONFIG.FormFields) ? MODULE_CONFIG.FormFields : [];
+    return {
+      code: 0,
+      _formBuilderStatic: true,
+      list: fields.map(function (field, index) {
+        var name = field.name || field.FieldName;
+        var isGeneratedKey = String(name || '').toLowerCase() === String(MODULE_CONFIG.PrimaryKey || '').toLowerCase();
+        return Object.assign({}, field, {
+          name: name,
+          label: field.label || field.title || field.CaptionVN || name,
+          orderNo: Number(field.orderNo || field.OrderNo) || index + 1,
+          showInGrid: field.showInGrid !== false,
+          showInAdd: field.showInAdd !== undefined ? field.showInAdd === true : !isGeneratedKey,
+          showInEdit: field.showInEdit !== undefined ? field.showInEdit === true : !isGeneratedKey,
+          showInFilter: field.showInFilter === true,
+          isReadOnlyAdd: isGeneratedKey || field.isReadOnlyAdd === true,
+          isReadOnlyEdit: isGeneratedKey || field.isReadOnlyEdit === true
+        });
+      }).filter(function (field) { return Boolean(field.name); })
+    };
+  }
+
+  function _metadataErrorResponse(state, error) {
+    return {
+      _metadataError: true,
+      state: state || null,
+      code: state && state.errorCode
+        ? state.errorCode
+        : (error && error.code ? error.code : 'FIELD_METADATA_UNAVAILABLE'),
+      detail: state && state.error
+        ? state.error
+        : (error && error.message ? error.message : 'Metadata V2 không sẵn sàng.')
+    };
+  }
+
+  function _renderMetadataError(response) {
+    _destroyTabulatorInstance();
+    gridData = [];
+    selectedRows = [];
+    globalDictionary = {};
+    globalFormSchema = [];
+    globalRenderers = {};
+    runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
+    fieldContractState = response && response.state ? response.state : null;
+    if (!$container) return;
+
+    $container.innerHTML = '';
+    var errorBox = document.createElement('div');
+    errorBox.className = 'metadata-error-state';
+    errorBox.setAttribute('role', 'alert');
+    errorBox.style.cssText = 'padding:24px;border:1px solid var(--color-danger);border-radius:8px;background:var(--color-surface);color:var(--color-danger);';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:6px;';
+    title.textContent = 'Không thể tải cấu hình màn hình.';
+    var detail = document.createElement('div');
+    detail.style.cssText = 'font-size:13px;color:var(--color-text-secondary);';
+    detail.textContent = response && response.code ? 'Mã lỗi: ' + response.code : 'Metadata V2 không sẵn sàng.';
+    errorBox.appendChild(title);
+    errorBox.appendChild(detail);
+    $container.appendChild(errorBox);
   }
 
   /**
@@ -22869,10 +21967,6 @@ window.DynamicFormEngine = (function () {
     return fallbackIndex;
   }
 
-  function _phase2RegistryEntry() {
-    var registry = window.Phase2MigrationRegistry;
-    return registry && typeof registry.get === 'function' ? registry.get(MODULE_CONFIG.FormName) : null;
-  }
   function _isHiddenTechnicalPrimaryKey(
     fieldName,
     primaryKey
@@ -23141,11 +22235,6 @@ window.DynamicFormEngine = (function () {
     return payload;
   }
 
-  function _isPhase2ManagedForm() {
-    var registry = window.Phase2MigrationRegistry;
-    return Boolean(registry && typeof registry.isManagedForm === 'function' && registry.isManagedForm(MODULE_CONFIG.FormName));
-  }
-
   function _hasPermission(action, options) {
     var userOnly = Boolean(options && options.userOnly === true);
     if (!userOnly && _usesUnifiedMetadata()) {
@@ -23229,48 +22318,27 @@ window.DynamicFormEngine = (function () {
     runtimeSchemas = { grid: [], edit: [], add: [], filters: [] };
     fieldContractState = null;
 
-    // API defaults: FormBuilder dùng API chuyên biệt, các form khác dùng generic No-Code API
+    // Business data routes remain independent from the V2 metadata route.
     _setDefaults(MODULE_CONFIG, {
       ApiSearch: _gateway(),
       ApiSave: _gateway(),
       ApiDelete: _gateway()
     });
-    _setDefaults(MODULE_CONFIG, { ApiDictionary: '/api/API_LayCacTruongGiaoDien' });
 
     _loadSelectedRows();
 
-
-    // 1. Lấy metadata. Form unified V2 không được gọi API legacy/SY_FormatFields.
-    var configEndpoint = MODULE_CONFIG.ApiDictionary;
-    var cacheKey = 'FormConfigCache_' + MODULE_CONFIG.FormName;
-    var cachedData = null;
-
-    // RAM Cache cho giao diện
-    if (!_isFormBuilder()) {
-      try { cachedData = window._uiConfigCache ? window._uiConfigCache[cacheKey] : null; } catch (e) { }
-    }
-
-    function loadLegacyMetadata() {
-      if (cachedData) return Promise.resolve(JSON.parse(cachedData));
-      return configEndpoint ? ApiClient.post(configEndpoint, { FormName: MODULE_CONFIG.FormName }).then(function (res) {
-        if (res && res.code === 0 && !_isFormBuilder()) {
-          window._uiConfigCache = window._uiConfigCache || {};
-          window._uiConfigCache[cacheKey] = JSON.stringify(res);
-        }
-        return res;
-      }) : Promise.resolve(null);
-    }
-
     var pConfig;
-    if (!_isFormBuilder()
-      && _isUnifiedMetadataForm(MODULE_CONFIG.FormName)
-      && window.FieldSyncService
-      && typeof FieldSyncService.observeForm === 'function') {
-      pConfig = FieldSyncService.observeForm(
-        MODULE_CONFIG.FormName,
-        [],
-        MODULE_CONFIG.RefreshV2MetadataOnLoad === true
-      ).then(function (state) {
+    if (_isFormBuilder()) {
+      pConfig = Promise.resolve(_formBuilderMetadataResponse());
+    } else if (window.FieldSyncService && typeof FieldSyncService.observeForm === 'function') {
+      // Mỗi lần mở lại màn hình phải đọc cấu trúc bảng mới nhất. Cache vẫn được
+      // dùng trong suốt vòng đời của màn hình, nhưng không được che mất cột vừa
+      // được thêm ở SQL Server sau một lần F5/chuyển trang.
+      var metadataRequest = MODULE_CONFIG.RefreshV2MetadataOnLoad !== false
+        && typeof FieldSyncService.refreshForm === 'function'
+        ? FieldSyncService.refreshForm(MODULE_CONFIG.FormName)
+        : FieldSyncService.observeForm(MODULE_CONFIG.FormName);
+      pConfig = metadataRequest.then(function (state) {
         fieldContractState = state || null;
         if (state && state.metadataActive === true && state.schema && state.runtimeSchemas) {
           if (!configuredPrimaryKey) MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
@@ -23281,40 +22349,28 @@ window.DynamicFormEngine = (function () {
             _fieldContractState: state
           };
         }
-        if (state && state.failClosed === true) {
-          throw new Error(state.error || 'Metadata V2 của form không sẵn sàng.');
-        }
-        if (state && state.error) {
-          throw new Error(state.error);
-        }
-        return loadLegacyMetadata().then(function (legacyResponse) {
-          if (legacyResponse && typeof legacyResponse === 'object') {
-            legacyResponse._fieldContractState = state || null;
-          }
-          return legacyResponse;
-        });
+        return _metadataErrorResponse(state);
       }).catch(function (err) {
-        if (err && err.message && err.message.indexOf('Metadata V2') !== -1) {
-          throw err;
-        }
-        return loadLegacyMetadata();
+        return _metadataErrorResponse(null, err);
       });
     } else {
-      pConfig = loadLegacyMetadata();
+      pConfig = Promise.resolve(_metadataErrorResponse(null, {
+        code: 'FIELD_SYNC_SERVICE_UNAVAILABLE',
+        message: 'FieldSyncService chưa được tải.'
+      }));
     }
 
     pConfig.then(function (resConfig) {
 
+      if (resConfig && resConfig._metadataError === true) {
+        _renderMetadataError(resConfig);
+        return;
+      }
+
       // 2. Lưu Từ điển vào biến toàn cục
       var dataList = resConfig ? (resConfig.list || resConfig.records) : null;
-      var resolvedMetadata = null;
       var isUnifiedMetadata = Boolean(resConfig && resConfig._unifiedContract === true);
-      if (!isUnifiedMetadata && window.HRMetadataAdapter && typeof window.HRMetadataAdapter.resolve === 'function') {
-        resolvedMetadata = window.HRMetadataAdapter.resolve(resConfig, MODULE_CONFIG.FormName, MODULE_CONFIG);
-        dataList = resolvedMetadata.fields;
-      }
-      var hasResolvedFallback = resolvedMetadata && dataList && dataList.length > 0;
-      if ((resConfig && resConfig.code === 0 && dataList) || hasResolvedFallback) {
+      if (resConfig && resConfig.code === 0 && dataList) {
 
         // --- NO-CODE MAGIC: Đọc cấu hình cấp Form từ Record đầu tiên ---
         if (dataList.length > 0) {
@@ -23463,7 +22519,7 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+          if (!isUnifiedMetadata && MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
             var ff = MODULE_CONFIG.FormFields.find(function (f) { return f.name.toLowerCase() === fieldName.toLowerCase(); });
             if (ff) {
               if (ff.isReadOnlyEdit !== undefined) isReadOnlyEditVal = ff.isReadOnlyEdit;
@@ -23479,7 +22535,9 @@ window.DynamicFormEngine = (function () {
             }
           }
 
-          globalFormSchema.push({
+          // In Unified V2, dataList can reference runtimeSchemas.grid directly.
+          // Appending the legacy projection here would duplicate every column.
+          if (!isUnifiedMetadata) globalFormSchema.push({
             name: fieldName,
             label: finalLabel,
             required: _bool(item.required, item.IsRequired),
@@ -23526,7 +22584,7 @@ window.DynamicFormEngine = (function () {
         });
 
         // Hỗ trợ CHÈN THÊM TRƯỜNG TỰ DO (ví dụ nút bấm) từ FormFields (Chỉ chèn những trường chưa có trong DB)
-        if (MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
+        if (!isUnifiedMetadata && MODULE_CONFIG.FormFields && Array.isArray(MODULE_CONFIG.FormFields)) {
           MODULE_CONFIG.FormFields.forEach(function (cf) {
             if (!globalFormSchema.find(function (sf) { return sf.name.toLowerCase() === cf.name.toLowerCase(); })) {
               globalFormSchema.push({
@@ -23572,12 +22630,9 @@ window.DynamicFormEngine = (function () {
       if (isUnifiedMetadata) {
         fieldContractState = resConfig._fieldContractState;
         runtimeSchemas = resConfig._fieldContractState.runtimeSchemas;
+        globalFormSchema = runtimeSchemas.grid;
       } else {
-        if (resConfig && resConfig._fieldContractState) {
-          fieldContractState = resConfig._fieldContractState;
-        }
-        _setLegacyRuntimeSchemas();
-        _observeFieldSync();
+        _setStaticRuntimeSchemas();
       }
       // Tự động sinh mã HTML (Không cần file .html rời nữa)
       if (MODULE_CONFIG.UseSplitLayout && MODULE_CONFIG.DetailTabs && MODULE_CONFIG.DetailTabs.length > 0) {
@@ -23885,9 +22940,64 @@ window.DynamicFormEngine = (function () {
           headerTop.appendChild(actionBtns);
           menu.appendChild(headerTop);
 
+          var searchWrap = document.createElement('div');
+          searchWrap.style.cssText = 'position: relative; width: min(280px, 100%); margin: -2px 0 12px; flex-shrink: 0;';
+
+          var searchIcon = document.createElement('span');
+          searchIcon.className = 'material-symbols-outlined';
+          searchIcon.textContent = 'search';
+          searchIcon.style.cssText = 'position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--color-text-secondary, #94a3b8); pointer-events: none;';
+
+          var searchInput = document.createElement('input');
+          searchInput.type = 'search';
+          searchInput.placeholder = 'Tìm cột...';
+          searchInput.setAttribute('aria-label', 'Tìm kiếm cột');
+          searchInput.autocomplete = 'off';
+          searchInput.spellcheck = false;
+          searchInput.style.cssText = 'width: 100%; height: 34px; box-sizing: border-box; padding: 7px 10px 7px 34px; border: 1px solid var(--color-border-strong, #dbe2ea); border-radius: 7px; outline: none; background: var(--color-surface, #fff); color: var(--color-text, #1e293b); font-size: 13px; transition: border-color 0.2s, box-shadow 0.2s;';
+          searchInput.onfocus = function () {
+            this.style.borderColor = 'var(--color-primary, #4361ee)';
+            this.style.boxShadow = '0 0 0 3px var(--color-primary-light, rgba(67, 97, 238, 0.12))';
+          };
+          searchInput.onblur = function () {
+            this.style.borderColor = 'var(--color-border-strong, #dbe2ea)';
+            this.style.boxShadow = 'none';
+          };
+
+          searchWrap.appendChild(searchIcon);
+          searchWrap.appendChild(searchInput);
+          menu.appendChild(searchWrap);
+
           var content = document.createElement('div');
           content.style.cssText = 'overflow-y: auto; flex: 1; padding-right: 8px; margin-bottom: 16px; column-width: 200px; column-gap: 16px; display: block;';
           menu.appendChild(content);
+
+          function _normalizeColumnSearch(value) {
+            return String(value || '')
+              .toLocaleLowerCase('vi-VN')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/đ/g, 'd')
+              .trim();
+          }
+
+          function _applyColumnSearch() {
+            var query = _normalizeColumnSearch(searchInput.value);
+            var labels = content.querySelectorAll('label[data-field]');
+            labels.forEach(function (columnLabel) {
+              var matches = !query || String(columnLabel.dataset.searchText || '').indexOf(query) !== -1;
+              columnLabel.style.display = matches ? 'flex' : 'none';
+            });
+          }
+
+          searchInput.addEventListener('input', _applyColumnSearch);
+          searchInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && this.value) {
+              event.preventDefault();
+              this.value = '';
+              _applyColumnSearch();
+            }
+          });
 
           function _saveColState() {
             if (!window.tabulatorInstance) return;
@@ -23975,6 +23085,7 @@ window.DynamicFormEngine = (function () {
                 // Drag & Drop cho nhãn
                 label.draggable = true;
                 label.dataset.field = field;
+                label.dataset.searchText = _normalizeColumnSearch((def.title || field) + ' ' + field);
 
                 label.ondragstart = function (e) {
                   e.dataTransfer.effectAllowed = 'move';
@@ -24093,7 +23204,11 @@ window.DynamicFormEngine = (function () {
                       maxWidth: def.maxWidth || 0,
                       onSuccess: function (updated) {
                         if (!updated) return;
-                        if (updated.captionVN) spanText.textContent = updated.captionVN;
+                        if (updated.captionVN) {
+                          spanText.textContent = updated.captionVN;
+                          label.dataset.searchText = _normalizeColumnSearch(updated.captionVN + ' ' + field);
+                          _applyColumnSearch();
+                        }
 
                         // Cập nhật đối tượng def trong bộ nhớ
                         if (def) {
@@ -24140,6 +23255,7 @@ window.DynamicFormEngine = (function () {
 
           backdrop.appendChild(menu);
           document.body.appendChild(backdrop);
+          setTimeout(function () { searchInput.focus(); }, 0);
 
           // Click ra ngoài modal để đóng
           backdrop.onclick = function (evt) {
@@ -24148,6 +23264,12 @@ window.DynamicFormEngine = (function () {
             }
           };
         }));
+
+        if (window.FieldSyncService && typeof FieldSyncService.refreshForm === 'function') {
+          tabulatorActionMenu.appendChild(createMenuItem('sync', 'Đồng bộ cấu trúc cột', function (event) {
+            _syncFieldMetadata(event && event.currentTarget);
+          }));
+        }
 
         if (_canImportExcel()) {
           tabulatorActionMenu.appendChild(createMenuItem('upload_file', 'Lấy dữ liệu Excel', function () {
@@ -24423,7 +23545,6 @@ window.DynamicFormEngine = (function () {
                 if (allSuccess) {
                   if (typeof UIToast !== 'undefined') UIToast.show(MODULE_CONFIG.ToastDelete, 'success');
                   selectedRows = [];
-                  if (_isFormBuilder()) window._uiConfigCache = {};
                   _updateSelectionCounter();
                   _loadData();
                 } else {
@@ -25600,11 +24721,6 @@ window.DynamicFormEngine = (function () {
           var changed = {};
           changed[field] = newVal;
           payloadObj = _buildContractWritePayload(changed, true, rowData);
-        } else if (_isPhase2ManagedForm()) {
-          payloadObj[MODULE_CONFIG.PrimaryKey] = rowData[MODULE_CONFIG.PrimaryKey];
-          payloadObj[field] = newVal;
-          payloadObj.UserName = (typeof _currentUser === 'function' ? _currentUser() : 'default');
-          payloadObj.IsEdit = 1;
         } else {
           Object.keys(rowData || {}).forEach(function (key) { payloadObj[key] = rowData[key]; });
           payloadObj[field] = newVal;
@@ -26887,7 +26003,6 @@ window.DynamicFormEngine = (function () {
         function () {                // onDone
           modalBulk.closeNow();
           Alert.success('Thành công', 'Đã lưu thành công ' + payloads.length + ' trường!');
-          if (_isFormBuilder()) window._uiConfigCache = {};
           _loadData();
         },
         function (err, payload) {   // onError → return false để dừng chuỗi
@@ -28288,7 +27403,7 @@ window.DynamicFormEngine = (function () {
       currentModalFormState[field.name] = _hasContractValue(field.value) ? field.value : '';
     });
 
-    // Áp VisibleRule: show/hide fields theo cấu hình trong SY_FormatFields.VisibleRule
+    // Áp VisibleRule từ Field Contract V2.
     if (typeof UIControls !== 'undefined' && UIControls.utils && UIControls.utils.applyVisibleRules) {
       UIControls.utils.applyVisibleRules(body);
     }
@@ -28768,7 +27883,6 @@ window.DynamicFormEngine = (function () {
         Alert.success('Thành công', 'Đã lưu xong ' + count + ' dòng!');
         if (!isAdd) selectedRows = [];
         if (_isFormBuilder()) {
-          window._uiConfigCache = {};
           $container.innerHTML = '';
           render($container, MODULE_CONFIG);
         } else {
@@ -28988,7 +28102,6 @@ window.DynamicFormEngine = (function () {
 
         if (MODULE_CONFIG.IsFullPageDetail) return; // Không cần load lại dữ liệu nếu là trang Detail (vì nó sẽ tự navigate back về Grid)
         if (_isFormBuilder()) {
-          window._uiConfigCache = {}; // Cache Invalidate
           selectedRows = [];
           $container.innerHTML = '';
           render($container, MODULE_CONFIG);
@@ -29205,6 +28318,55 @@ window.DynamicFormEngine = (function () {
 
   function reload() {
     _loadData();
+  }
+
+  function _syncFieldMetadata(trigger) {
+    var formName = String(MODULE_CONFIG && MODULE_CONFIG.FormName || '').trim();
+    if (!formName || !window.FieldSyncService || typeof FieldSyncService.refreshForm !== 'function') {
+      if (typeof Alert !== 'undefined') {
+        Alert.error('Không thể đồng bộ', 'Dịch vụ cấu trúc cột chưa sẵn sàng.');
+      }
+      return Promise.resolve(null);
+    }
+
+    var originalHtml = trigger ? trigger.innerHTML : '';
+    if (trigger) {
+      trigger.style.pointerEvents = 'none';
+      trigger.style.opacity = '0.65';
+      trigger.innerHTML = '<span class="material-symbols-outlined" style="font-size:20px;animation:spin 1s linear infinite;">sync</span><span>Đang đồng bộ...</span>';
+    }
+    if (window.LoadingSpinner && typeof LoadingSpinner.show === 'function') {
+      LoadingSpinner.show('Đang đọc lại cấu trúc cột từ SQL Server...');
+    }
+
+    var targetContainer = $container;
+    var rerenderConfig = Object.assign({}, MODULE_CONFIG, {
+      // refreshForm ở trên đã bỏ qua cả cache trình duyệt và cache backend.
+      RefreshV2MetadataOnLoad: false
+    });
+
+    return FieldSyncService.refreshForm(formName).then(function (state) {
+      if (!state || state.metadataActive !== true || !state.schema || !state.runtimeSchemas) {
+        throw new Error(state && state.error ? state.error : 'Máy chủ không trả cấu trúc cột hợp lệ.');
+      }
+      if (window.LoadingSpinner && typeof LoadingSpinner.hide === 'function') LoadingSpinner.hide();
+      render(targetContainer, rerenderConfig);
+      if (typeof Alert !== 'undefined') {
+        Alert.success('Đã đồng bộ', 'Cấu trúc cột của màn hình đã được cập nhật từ bảng dữ liệu.');
+      }
+      return state;
+    }).catch(function (error) {
+      if (window.LoadingSpinner && typeof LoadingSpinner.hide === 'function') LoadingSpinner.hide();
+      if (trigger && trigger.isConnected) {
+        trigger.style.pointerEvents = '';
+        trigger.style.opacity = '';
+        trigger.innerHTML = originalHtml;
+      }
+      if (typeof Alert !== 'undefined') {
+        Alert.error('Không thể đồng bộ', error && error.message ? error.message : 'Không đọc được cấu trúc cột mới.');
+      }
+      return null;
+    });
   }
 
   function getSelectedRows() {
@@ -29503,7 +28665,7 @@ var Router = (function () {
       }
     }
     var deducedKey = String(url || '').trim().replace(/-/g, '_').toUpperCase();
-    if (deducedKey === 'FORM_BUILDER' || deducedKey === 'SY_FORMATFIELDS') {
+    if (deducedKey === 'FORM_BUILDER') {
       return { FormName: 'SY_FormatfldTbl', PageTitle: 'Cấu hình động', UseSplitLayout: false };
     }
     return window.APP_MODULES[deducedKey] || null;

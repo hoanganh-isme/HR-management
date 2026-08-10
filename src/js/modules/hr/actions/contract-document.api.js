@@ -133,10 +133,33 @@ var ContractDocumentApi = (function (global) {
     });
   }
 
+  function templateRecordBody(data, file) {
+    var form = new FormData();
+    Object.keys(data || {}).forEach(function (key) {
+      var value = data[key];
+      if (value !== undefined && value !== null) form.append(key, String(value));
+    });
+    if (file) form.append('file', file, file.name);
+    return form;
+  }
+
   return {
     config: config,
     health: function () { return request(config().SERVICE_BASE.replace(/\/$/, '') + '/health'); },
     templates: function () { return api('/contract-templates'); },
+    templateRegistry: function () { return api('/contract-template-records'); },
+    createTemplateRecord: function (data, file) {
+      return api('/contract-template-records', { method: 'POST', body: templateRecordBody(data, file) });
+    },
+    updateTemplateRecord: function (recordId, data, file) {
+      return api('/contract-template-records/' + encodeURIComponent(recordId), {
+        method: 'PUT',
+        body: templateRecordBody(data, file)
+      });
+    },
+    deleteTemplateRecord: function (recordId) {
+      return api('/contract-template-records/' + encodeURIComponent(recordId), { method: 'DELETE' });
+    },
     createDraft: function (data) { return json('POST', '/contract-drafts', data); },
     draftEditor: function (draftId) { return api('/contract-drafts/' + encodeURIComponent(draftId) + '/editor'); },
     uploadDraft: function (draftId, file) {
