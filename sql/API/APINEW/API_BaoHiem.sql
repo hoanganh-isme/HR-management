@@ -1,6 +1,4 @@
-
-IF OBJECT_ID('dbo.API_BaoHiem', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.API_BaoHiem;
+USE [X26DIMTUTAC]
 GO
 
 SET ANSI_NULLS ON
@@ -10,9 +8,10 @@ GO
 
 -- =========================================================================
 -- Stored Procedure: API_BaoHiem
--- Description: Lấy danh sách chứng từ đóng bảo hiểm chính (Master list)
+-- Description: Lấy danh sách chứng từ đóng bảo hiểm chính từ View Desktop (HR_BaoHiemView)
+-- Khớp 100% với cấu hình Desktop ERP: Select Distinct top 1000 HR_BaoHiemView.* From HR_BaoHiemView
 -- =========================================================================
-CREATE PROCEDURE dbo.API_BaoHiem
+CREATE OR ALTER PROCEDURE dbo.API_BaoHiem
 (
     @Keyword   NVARCHAR(200) = '',
     @BranchID  NVARCHAR(250) = ''
@@ -21,19 +20,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
-        BH.DocumentID,
-        BH.DocumentDate,
-        BH.Notes,
-        BH.PeriodID,
-        BH.LoaiBaoHiem,
-        BH.BranchID,
-        CONCAT(BH.PeriodID, '_', BH.LoaiBaoHiem) AS PeriodKeyID,
-        BH.UserCreate,
-        BH.UserUpdate,
-        BH.DateUpdate,
-        BH.DateCreate
-    FROM dbo.HR_BaoHiemTbl BH
+    SELECT DISTINCT TOP 1000
+        BH.*,
+        CONCAT(BH.PeriodID, '_', BH.LoaiBaoHiem) AS PeriodKeyID
+    FROM dbo.HR_BaoHiemView BH
     WHERE 1=1
       AND (ISNULL(@Keyword, '') = '' 
            OR BH.DocumentID LIKE '%' + @Keyword + '%' 
@@ -42,4 +32,7 @@ BEGIN
            OR BH.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
     ORDER BY BH.DocumentDate DESC, BH.DocumentID DESC;
 END
+GO
+
+PRINT 'Da cap nhat API_BaoHiem truy van DISTINCT TOP 1000 HR_BaoHiemView thanh cong!';
 GO

@@ -4,14 +4,31 @@ import express from 'express';
 import { resolveFieldSyncContext } from './field-sync.auth.js';
 import { FieldSyncCache } from './field-sync.cache.js';
 import { createFieldSyncConfig } from './field-sync.config.js';
-import { FIELD_CONTRACT_MIGRATION_REGISTRY, getFieldContractMigration, getRegisteredLookupContract } from './field-contract.registry.js';
+import { getRegisteredLookupContract } from './field-contract.registry.js';
 import { createFieldSyncGateway, FieldSyncGatewayError } from './field-sync.gateway.js';
 import { classifyMobileFields, normalizeGridCompare, normalizeGridSchema, normalizeLookupSchema, normalizeRegisteredLookup, resolveRenderType } from './field-sync.resolver.js';
 import { createFieldSyncRouter } from './field-sync.routes.js';
 
 const HTTP_TEST_CONFIG = Object.freeze({
-    cacheTtlMs: 5_000,
-    aliases: Object.freeze({ WA_BangThueTNCNFrm: 'HR_BangThueTNCNFrm' })
+    cacheTtlMs: 5_000
+});
+
+const TEST_DB_CONTRACTS = Object.freeze({
+    wa_bangthuetncnfrm: Object.freeze({
+        WebFormName: 'WA_BangThueTNCNFrm', ERPFormID: 'HR_BangThueTNCNFrm',
+        ExpectedTableName: 'HR_BangThueTNCNTbl', ExpectedPrimaryKey: 'Bac',
+        ContractType: 'SIMPLE_TABLE'
+    }),
+    wa_titlelistfrm: Object.freeze({
+        WebFormName: 'WA_TitleListFrm', ERPFormID: 'WA_TitleListFrm',
+        ExpectedTableName: 'HR_TitleListTbl', ExpectedPrimaryKey: 'TitleName',
+        ContractType: 'SIMPLE_TABLE'
+    }),
+    wa_calamviecfrm: Object.freeze({
+        WebFormName: 'WA_CaLamViecFrm', ERPFormID: 'WA_CaLamViecFrm',
+        ExpectedTableName: 'HR_SapCaTbl', ExpectedPrimaryKey: 'SapCaID',
+        ContractType: 'MASTER_DETAIL_SIMPLE'
+    })
 });
 
 test('field-sync xác minh token qua endpoint userinfo chuẩn của API gốc', () => {
@@ -45,9 +62,30 @@ function gridSchemaRows(lookupKey = '', lookupDependsOn = '') {
 }
 
 async function startFieldSyncTestServer(t, gateway, config = HTTP_TEST_CONFIG) {
+    const routedGateway = Object.assign({
+        async fieldContractResolve(params) {
+            const contract = TEST_DB_CONTRACTS[String(params?.FormName || '').toLowerCase()];
+            if (!contract) return [];
+            return [{
+                ...contract,
+                PermissionFormName: contract.WebFormName,
+                ViewList: contract.WebFormName,
+                ViewProcedure: 'API_TruyVanDong_V2',
+                SaveProcedure: 'API_LuuDong_V2',
+                DeleteProcedure: 'API_XoaDong_V2',
+                WritePolicy: 'SAFE_TABLE_COLUMNS',
+                BranchPolicy: 'AUTO_SCHEMA',
+                DeletePolicy: 'AUTO_SCHEMA',
+                RolloutStatus: 'SHADOW',
+                RolloutReason: 'TEST_DB_REGISTRY',
+                SchemaVersion: 2,
+                IsEnabled: 1
+            }];
+        }
+    }, gateway);
     const app = express();
     app.use(express.json());
-    app.use('/api/metadata', createFieldSyncRouter({ gateway, config }));
+    app.use('/api/metadata', createFieldSyncRouter({ gateway: routedGateway, config }));
     app.use((error, req, res, next) => {
         if (res.headersSent) return next(error);
         const body = { success: false, message: error.message };
@@ -366,6 +404,7 @@ test('gateway chỉ gửi wire contract cố định và giữ placeholder metad
     assert.equal(sqlPayload.Limit, 50);
     const jsonData = JSON.parse(sqlPayload.JsonData);
     assert.equal(jsonData.FormName, 'WA_TestFrm');
+    assert.equal(jsonData.WebFormName, 'WA_TestFrm');
     assert.equal(jsonData.ERPFormID, 'HR_TestFrm');
     assert.equal(jsonData.BranchID, 'CN01');
     assert.deepEqual(Object.keys(sqlPayload).sort(), ['Func', 'JsonData', 'Keyword', 'Limit', 'List', 'Page', 'UserName'].sort());
@@ -456,7 +495,14 @@ test('gateway giữ mã lỗi SQL an toàn để phân biệt Para thiếu với
     const http = {
         post: async (url) => url.includes('API_UserInfo')
             ? { data: { UserName: 'Admin' } }
-            : { data: { records: [{ code: -1, error_number: 201, msg: 'internal SQL text must not escape' }] } }
+            : { data: { records: [{
+                code: -1,
+                error_number: 201,
+                error_line: 79,
+                error_procedure: 'API_Web_GridFieldSchemaV2',
+                error_message: 'PHASE3_FORM_NOT_ALLOWLISTED_FOR_CONTRACT',
+                msg: 'internal SQL text must not escape'
+            }] } }
     };
     const gateway = createFieldSyncGateway({ sqlGatewayUrl: 'http://sql/api/API_Gateway_Router', authVerifyUrl: 'http://sql/api/API_UserInfo', requestTimeoutMs: 100, authCacheTtlMs: 1000 }, http);
     await assert.rejects(
@@ -465,6 +511,9 @@ test('gateway giữ mã lỗi SQL an toàn để phân biệt Para thiếu với
             && error.diagnosticCode === 'ERP_GATEWAY_ENVELOPE_REJECTED'
             && error.details.upstreamCode === -1
             && error.details.errorNumber === 201
+            && error.details.sqlErrorLine === 79
+            && error.details.sqlErrorProcedure === 'API_Web_GridFieldSchemaV2'
+            && error.details.sqlErrorMessage === 'PHASE3_FORM_NOT_ALLOWLISTED_FOR_CONTRACT'
             && !error.message.includes('internal SQL')
     );
 });
@@ -798,21 +847,7 @@ test('HTTP lookup chỉ forward dependency đã khai báo trong Unified Field Co
     assert.equal(rejected.status, 400);
 });
 
-test('Phase 3 registry là allow-list duy nhất và alias backend được sinh từ registry', () => {
-    const expected = [
-        ['WA_BangThueTNCNFrm', 'HR_BangThueTNCNFrm', 'HR_BangThueTNCNTbl', 'Bac'],
-        ['WA_ChucDanhFrm', 'WA_ChucDanhFrm', 'HR_ChucDanhTbl', 'ChucDanhChuyenMon'],
-        ['WA_TitleListFrm', 'WA_TitleListFrm', 'HR_TitleListTbl', 'TitleName'],
-        ['WA_ShiftListFrm', 'WA_ShiftListFrm', 'HR_ShiftListTbl', 'ShiftID'],
-        ['WA_CaLamViecFrm', 'WA_CaLamViecFrm', 'HR_SapCaTbl', 'SapCaID']
-    ];
-    assert.deepEqual(FIELD_CONTRACT_MIGRATION_REGISTRY.map((contract) => [
-        contract.webFormName,
-        contract.erpFormId,
-        contract.expectedTableName,
-        contract.expectedPrimaryKey
-    ]), expected);
-    assert.equal(getFieldContractMigration('wa_chucdanhfrm')?.expectedPrimaryKey, 'ChucDanhChuyenMon');
+test('backend không giữ form registry tĩnh; lookup execution vẫn dùng allow-list riêng', () => {
     assert.equal(
         getRegisteredLookupContract('WA_CaLamViecFrm', 'shiftidthu2')?.registeredList,
         'API_HR_DropdownShifts'
@@ -821,8 +856,8 @@ test('Phase 3 registry là allow-list duy nhất và alias backend được sinh
     assert.equal(getRegisteredLookupContract('WA_ChucDanhFrm', 'ShiftIDThu2'), undefined);
 
     const config = createFieldSyncConfig({ sqlApiBase: 'http://sql.example' }, {});
-    assert.deepEqual(Object.entries(config.aliases), expected.map(([webFormName, erpFormId]) => [webFormName, erpFormId]));
-    assert.equal(config.migrationRegistry, FIELD_CONTRACT_MIGRATION_REGISTRY);
+    assert.equal(Object.hasOwn(config, 'aliases'), false);
+    assert.equal(Object.hasOwn(config, 'migrationRegistry'), false);
 });
 
 test('mobile classifier trả CORE/OPTIONAL/ADVANCED/HIDDEN và reasonCodes ổn định', () => {
@@ -879,7 +914,7 @@ test('HTTP metadata chặn form ngoài allow-list trước khi gọi metadata ga
     const response = await fetch(`${baseUrl}/grid-schema/WA_NotAuditedFrm`, { headers: authHeaders() });
     const body = await response.json();
     assert.equal(response.status, 404);
-    assert.equal(body.code, 'FIELD_CONTRACT_FORM_NOT_ALLOWLISTED');
+    assert.equal(body.code, 'FIELD_CONTRACT_NOT_REGISTERED');
     assert.equal(schemaCalls, 0);
 });
 
@@ -910,7 +945,7 @@ test('HTTP metadata fail-closed khi TableName hoặc PrimaryKey lệch registry'
     assert.equal(pkBody.code, 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
 });
 
-test('HTTP metadata Phase 3 truyền đúng ERP form từ registry và chấp nhận table/PK đã audit', async (t) => {
+test('HTTP metadata truyền đúng ERP form từ DB registry và chấp nhận table/PK đã audit', async (t) => {
     let received;
     const gateway = {
         async verifySession() {},

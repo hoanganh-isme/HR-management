@@ -103,6 +103,8 @@ export function toPublicContract(contract) {
         erpFormId: contract.erpFormId,
         permissionFormName: contract.permissionFormName,
         contractType: contract.contractType,
+        expectedTableName: contract.expectedTableName,
+        expectedPrimaryKey: contract.expectedPrimaryKey,
         rolloutStatus: policy.rolloutStatus,
         rolloutReason: contract.rolloutReason,
         schemaVersion: contract.schemaVersion,

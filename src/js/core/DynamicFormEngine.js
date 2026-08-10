@@ -98,9 +98,19 @@ window.DynamicFormEngine = (function () {
     return Array.isArray(schema) ? schema : globalFormSchema;
   }
   function _configuredFilterSchema() { return _schemaFor('filters').filter(function (field) { return field && field.showInFilter === true && field.supportsFilter !== false; }); }
+  function _reportFilterSchema() {
+    return Array.isArray(MODULE_CONFIG.ReportFilters)
+      ? MODULE_CONFIG.ReportFilters.filter(function (field) { return field && field.name; })
+      : [];
+  }
+  function _activeFilterSchema() {
+    var reportFilters = _reportFilterSchema();
+    return reportFilters.length > 0 ? reportFilters : _configuredFilterSchema();
+  }
 
   function _hasConfiguredFilters() {
     if (MODULE_CONFIG.HideFilterBtn) return false;
+    if (_reportFilterSchema().length > 0) return true;
 
     if (_usesUnifiedMetadata()) {
       return _configuredFilterSchema().length > 0;
@@ -135,6 +145,49 @@ window.DynamicFormEngine = (function () {
         field && field.orderNo
       ].join(':');
     }).join('|');
+  }
+
+  /*
+   * Report viewer capability: a report may expose its result schema from the
+   * stored procedure instead of maintaining a second list of day columns in
+   * the UI metadata. Existing CRUD forms continue to use their configured
+   * grid schema unchanged.
+   */
+  function _dynamicResultColumnsEnabled() {
+    return Boolean(MODULE_CONFIG && (
+      MODULE_CONFIG.DynamicResultColumns === true
+      || MODULE_CONFIG.dynamicResultColumns === true
+    ));
+  }
+
+  function _rowSelectionEnabled() {
+    return !(MODULE_CONFIG && (
+      MODULE_CONFIG.SelectableRows === false
+      || MODULE_CONFIG.selectableRows === false
+    ));
+  }
+
+  function _applyDynamicResultSchema(result, rows) {
+    if (!_dynamicResultColumnsEnabled()) return;
+    if (!window.DynamicResultSchema || typeof DynamicResultSchema.build !== 'function') return;
+
+    var nextGrid = DynamicResultSchema.build({
+      result: result,
+      rows: rows,
+      existingGrid: _schemaFor('grid')
+    });
+    if (!Array.isArray(nextGrid) || nextGrid.length === 0) return;
+
+    runtimeSchemas = runtimeSchemas || {};
+    runtimeSchemas.grid = nextGrid;
+    if (!Array.isArray(runtimeSchemas.edit)) runtimeSchemas.edit = [];
+    if (!Array.isArray(runtimeSchemas.add)) runtimeSchemas.add = [];
+
+    nextGrid.forEach(function (field) {
+      if (field && field.name && !globalDictionary[field.name]) {
+        globalDictionary[field.name] = field.label || field.name;
+      }
+    });
   }
 
   function _flushPendingFieldSyncRender() {
@@ -188,6 +241,7 @@ window.DynamicFormEngine = (function () {
       if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
       if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
         && detail.contextKey && detail.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+      if (MODULE_CONFIG && (MODULE_CONFIG.ReadOnlyReport === true || /(?:Report)$/i.test(String(currentFormName || '').trim()))) return;
       _applyFieldSyncState(detail.state);
     });
     document.addEventListener('focusout', function () {
@@ -343,6 +397,14 @@ window.DynamicFormEngine = (function () {
 
   /** Đọc selectedRows từ sessionStorage (silent fail, trả mảng rỗng nếu lỗi) */
   function _loadSelectedRows() {
+    // Selection is transient UI state. Read-only reports deliberately disable
+    // it, so purge any value left by an older bundle before rendering a badge.
+    if (!_rowSelectionEnabled()) {
+      selectedRows = [];
+      if (formState) formState.setSelectedRows([]);
+      _persistFormState();
+      return;
+    }
     selectedRows = formState ? formState.get().selectedRows || [] : [];
   }
 
@@ -367,13 +429,89 @@ window.DynamicFormEngine = (function () {
    * @returns {Object} payload đã gắn UserName, UserCreate, IsEdit
    */
   function _buildPayload(base, isEdit) {
-    var p = Object.assign({}, base);
+    var p = _normalizeWriteSource(
+      base,
+      isEdit
+    );
+
     p.UserName = _currentUser();
     p.UserCreate = _currentUser();
     p.IsEdit = isEdit ? 1 : 0;
+
     return p;
   }
+  function _isNullableWriteField(field) {
+    if (!field) return false;
 
+    return (
+      field.nullable === true
+      || field.nullable === 1
+      || String(field.nullable) === '1'
+      || field.isNullable === true
+      || field.isNullable === 1
+      || String(field.isNullable) === '1'
+      || field.IsNullable === true
+      || field.IsNullable === 1
+      || String(field.IsNullable) === '1'
+    );
+  }
+
+  /**
+   * Chuẩn hóa dữ liệu trước khi gửi API.
+   *
+   * Quy ước:
+   * - Input có giá trị: trim khoảng trắng.
+   * - Input rỗng và cột DB nullable: gửi null.
+   * - Input rỗng nhưng cột không nullable: giữ chuỗi rỗng
+   *   để validation/backend xử lý.
+   */
+  function _normalizeWriteSource(
+    base,
+    isEdit
+  ) {
+    var source =
+      base && typeof base === 'object'
+        ? Object.assign({}, base)
+        : {};
+
+    var schema =
+      _schemaFor(
+        isEdit ? 'edit' : 'add'
+      );
+
+    (schema || []).forEach(function (field) {
+      if (
+        !field
+        || !field.name
+        || !Object.prototype.hasOwnProperty.call(
+          source,
+          field.name
+        )
+      ) {
+        return;
+      }
+
+      var value = source[field.name];
+
+      if (typeof value !== 'string') {
+        return;
+      }
+
+      var normalized = value.trim();
+
+      if (normalized !== '') {
+        source[field.name] = normalized;
+        return;
+      }
+
+      source[field.name] =
+        _isNullableWriteField(field)
+          ? null
+          : '';
+    });
+
+    return source;
+  }
   function _hasContractValue(value) {
     return value !== undefined && value !== null && value !== '';
   }
@@ -646,16 +784,63 @@ window.DynamicFormEngine = (function () {
       && _hasPermission('EXPORT')
     );
   }
+  function _normalizeContractWriteValue(value, field) {
+    if (value === undefined || value === null) {
+      return value;
+    }
 
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    var normalized = value.trim();
+
+    if (normalized !== '') {
+      return normalized;
+    }
+
+    var renderRule = String(
+      field.renderRule
+      || field.formatType
+      || ''
+    ).trim().toLowerCase();
+
+    var hasLookup =
+      Boolean(
+        field.lookup
+        && field.lookup.disabled !== true
+      )
+      || renderRule === 'lookup'
+      || renderRule === 'sl'
+      || renderRule === 'select'
+      || renderRule === 'combo';
+
+    /*
+     * Lookup/select nullable để trống phải gửi NULL.
+     * Không gửi chuỗi rỗng vì cột có thể là khóa ngoại.
+     */
+    if (field.nullable === true && hasLookup) {
+      return null;
+    }
+
+    return normalized;
+  }
   function _buildContractWritePayload(base, isEdit, originalRow) {
-    var source = base && typeof base === 'object' ? base : {};
+    var source =
+      _normalizeWriteSource(
+        base,
+        isEdit
+      );
     var schema = _schemaFor(isEdit ? 'edit' : 'add');
     var payload = {};
     schema.forEach(function (field) {
       var allowed = isEdit ? field.supportsUpdate === true : field.supportsInsert === true;
       if (!allowed || !Object.prototype.hasOwnProperty.call(source, field.name)) return;
       if (_isBranchScopedWriteContract() && _isBranchPayloadField(field.name)) return;
-      payload[field.name] = source[field.name];
+      payload[field.name] = _normalizeContractWriteValue(
+        source[field.name],
+        field
+      );
     });
 
     if (isEdit && MODULE_CONFIG.PrimaryKey) {
@@ -793,7 +978,11 @@ window.DynamicFormEngine = (function () {
       && _isUnifiedMetadataForm(MODULE_CONFIG.FormName)
       && window.FieldSyncService
       && typeof FieldSyncService.observeForm === 'function') {
-      pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
+      pConfig = FieldSyncService.observeForm(
+        MODULE_CONFIG.FormName,
+        [],
+        MODULE_CONFIG.RefreshV2MetadataOnLoad === true
+      ).then(function (state) {
         fieldContractState = state || null;
         if (state && state.metadataActive === true && state.schema && state.runtimeSchemas) {
           if (!configuredPrimaryKey) MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
@@ -810,15 +999,17 @@ window.DynamicFormEngine = (function () {
         if (state && state.error) {
           throw new Error(state.error);
         }
-        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
-          return loadLegacyMetadata().then(function (legacyResponse) {
-            if (legacyResponse && typeof legacyResponse === 'object') {
-              legacyResponse._fieldContractState = state || null;
-            }
-            return legacyResponse;
-          });
+        return loadLegacyMetadata().then(function (legacyResponse) {
+          if (legacyResponse && typeof legacyResponse === 'object') {
+            legacyResponse._fieldContractState = state || null;
+          }
+          return legacyResponse;
+        });
+      }).catch(function (err) {
+        if (err && err.message && err.message.indexOf('Metadata V2') !== -1) {
+          throw err;
         }
-        throw new Error('Form chưa được đăng ký metadata V2.');
+        return loadLegacyMetadata();
       });
     } else {
       pConfig = loadLegacyMetadata();
@@ -1332,6 +1523,7 @@ window.DynamicFormEngine = (function () {
         tabulatorActionBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">table_chart</span> <span>Tùy chọn bảng</span> <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span>';
 
         var tabulatorActionMenu = document.createElement('div');
+        tabulatorActionMenu.className = 'tabulator-action-menu';
         tabulatorActionMenu.style.cssText = 'display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 200px; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #ccc); box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius: 8px; z-index: 9999; padding: 8px;';
 
         // Helper tạo item
@@ -1807,19 +1999,26 @@ window.DynamicFormEngine = (function () {
         // Bật/tắt menu
         tabulatorActionBtn.addEventListener('click', function (e) {
           e.stopPropagation();
+          var userProfile = document.getElementById('vertical-user-profile');
+          var userDropdown = document.getElementById('vertical-user-dropdown');
+          if (userProfile && userDropdown) {
+            userProfile.classList.remove('open');
+            userDropdown.classList.remove('open');
+          }
           var isVisible = tabulatorActionMenu.style.display === 'block';
           document.querySelectorAll('.dropdown-menu-custom').forEach(function (el) { el.style.display = 'none'; });
 
           if (!isVisible) {
             var rect = tabulatorActionBtn.getBoundingClientRect();
             tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
-            // Đẩy sang trái một chút nếu nút nằm ở góc phải
-            tabulatorActionMenu.style.left = (rect.right - 200) + 'px';
-            // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
-            if (parseInt(tabulatorActionMenu.style.left) < 10) {
-              tabulatorActionMenu.style.left = '10px';
-            }
             tabulatorActionMenu.style.display = 'block';
+
+            // Định vị theo kích thước thật của menu để không tràn cạnh màn hình
+            // trên các độ rộng desktop/tablet khác nhau.
+            var menuWidth = tabulatorActionMenu.getBoundingClientRect().width;
+            var maxLeft = Math.max(12, window.innerWidth - menuWidth - 12);
+            var preferredLeft = rect.right - menuWidth;
+            tabulatorActionMenu.style.left = Math.max(12, Math.min(preferredLeft, maxLeft)) + 'px';
           } else {
             tabulatorActionMenu.style.display = 'none';
           }
@@ -2044,6 +2243,15 @@ window.DynamicFormEngine = (function () {
           }, 500); // Tự động tìm sau 0.5s
         });
 
+        // Nếu người dùng đã nhập ở thanh search chung trước khi grid khởi tạo,
+        // tiếp tục dùng lại từ khóa đó thay vì bắt họ nhập lại.
+        if (window.__globalSearchKeyword) {
+          quickSearchInput.value = String(window.__globalSearchKeyword);
+          setTimeout(function () {
+            quickSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }, 0);
+        }
+
         searchWrapper.appendChild(quickSearchInput);
 
         // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
@@ -2062,10 +2270,10 @@ window.DynamicFormEngine = (function () {
         filterContainer.innerHTML = ''; // Xóa placeholder nếu có
 
         // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-        var dynamicFilters = _configuredFilterSchema()
+        var dynamicFilters = _activeFilterSchema()
           .map(function (f) {
             // Chuyển đổi định dạng từ FormEngine sang FilterComponent
-            var filterType = 'text';
+            var filterType = f.type || 'text';
             var erpFilterType = Number(f.filterControlType);
             if (erpFilterType === 3) filterType = 'select';
             else if (erpFilterType === 6) filterType = 'select';
@@ -2078,8 +2286,16 @@ window.DynamicFormEngine = (function () {
               id: f.name,
               label: filterLabel,
               type: filterType,
-              placeholder: filterLabel
+              placeholder: f.placeholder || filterLabel,
+              readOnly: f.readOnly === true,
+              submit: f.submit !== false
             };
+            var defaultValue = typeof f.defaultValue === 'function'
+              ? f.defaultValue({ userName: _currentUser(), branchId: _currentBranchId() })
+              : f.defaultValue;
+            if (defaultValue !== undefined && defaultValue !== null) {
+              filterObj.defaultValue = defaultValue;
+            }
 
             // Parse DataSource cho trường Select/Dropdown
             if (erpFilterType === 6 || f.renderRule === 'sw') {
@@ -2101,14 +2317,29 @@ window.DynamicFormEngine = (function () {
                 filterObj.dataSource = f.dataSource;
                 // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
                 var apiSearchUrl = MODULE_CONFIG.ApiSearch || _gateway();
-                ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
+                var lookupPayload = {
+                  List: f.dataSource,
+                  FormName: f.dataSource,
+                  Func: 'View',
+                  Limit: 1000,
+                  UserName: _currentUser(),
+                  User: _currentUser(),
+                  BranchID: _currentBranchId()
+                };
+                if (f.dataSourceParams && typeof f.dataSourceParams === 'object') {
+                  Object.assign(lookupPayload, f.dataSourceParams);
+                  lookupPayload.JsonData = JSON.stringify(f.dataSourceParams);
+                }
+                ApiClient.post(apiSearchUrl, lookupPayload).then(function (res) {
                   var dataList = res.list || res.records || [];
                   var options = [];
                   if (dataList && dataList.length > 0) {
                     var keys = Object.keys(dataList[0]);
-                    var valKey = keys[0];
+                    var valKey = f.valueField && keys.indexOf(f.valueField) >= 0 ? f.valueField : keys[0];
                     var labelRegex = /name|tên|ten|label|desc|title/i;
-                    var displayKey = keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0];
+                    var displayKey = f.displayField && keys.indexOf(f.displayField) >= 0
+                      ? f.displayField
+                      : (keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0]);
                     dataList.forEach(function (row) {
                       options.push({ value: row[valKey], label: row[displayKey] });
                     });
@@ -2118,7 +2349,10 @@ window.DynamicFormEngine = (function () {
                   var selectEl = document.getElementById(f.name);
                   if (selectEl) {
                     var hasSavedValue = window.currentFilters && window.currentFilters[f.name] !== undefined;
-                    var currentValue = hasSavedValue ? window.currentFilters[f.name] : '';
+                    var hasDefaultValue = defaultValue !== undefined && defaultValue !== null && defaultValue !== '';
+                    var currentValue = hasSavedValue
+                      ? window.currentFilters[f.name]
+                      : (hasDefaultValue ? defaultValue : '');
 
                     selectEl.innerHTML = '<option value="">-- Tất cả --</option>';
                     options.forEach(function (opt) {
@@ -2130,7 +2364,10 @@ window.DynamicFormEngine = (function () {
                     });
 
                     // Tự động chọn kỳ gần nhất nếu chưa có filter được thiết lập
-                    if (!hasSavedValue && options.length > 0 && (f.name.toLowerCase().indexOf('period') >= 0 || f.name.toLowerCase().indexOf('ky') >= 0)) {
+                    if (!hasSavedValue && !hasDefaultValue && options.length > 0
+                      && (f.autoSelect === 'closest-period'
+                        || f.name.toLowerCase().indexOf('period') >= 0
+                        || f.name.toLowerCase().indexOf('ky') >= 0)) {
                       var now = new Date();
                       var cy = now.getFullYear();
                       var cm = now.getMonth() + 1;
@@ -2283,7 +2520,9 @@ window.DynamicFormEngine = (function () {
         var allowedContractFilters = null;
         if (_usesUnifiedMetadata()) {
           allowedContractFilters = Object.create(null);
-          _schemaFor('filters').forEach(function (field) { allowedContractFilters[String(field.name).toLowerCase()] = true; });
+          _activeFilterSchema().forEach(function (field) {
+            if (field.submit !== false) allowedContractFilters[String(field.name).toLowerCase()] = true;
+          });
         }
         for (var k in window.currentFilters) {
           var normalizedFilterKey = String(k).toLowerCase();
@@ -2404,6 +2643,7 @@ window.DynamicFormEngine = (function () {
         var dataList = Array.isArray(result.list)
           ? result.list
           : (Array.isArray(result.records) ? result.records : []);
+        _applyDynamicResultSchema(result, dataList);
         gridData = dataList.map(function (item) {
           var row = Object.assign({}, item);
           // Lấy khóa chính từ cấu hình, nếu không có thì tự động lấy cột đầu tiên của dữ liệu
@@ -2491,6 +2731,7 @@ window.DynamicFormEngine = (function () {
 
 
       var tabulatorColumns = [];
+      var rowSelectionEnabled = _rowSelectionEnabled();
       var isMobile = window.innerWidth <= 768;
 
       // Đọc cấu hình cột đã lưu từ LocalStorage
@@ -2506,10 +2747,13 @@ window.DynamicFormEngine = (function () {
         if (storedOrderStr) savedOrder = JSON.parse(storedOrderStr);
       } catch (e) { }
 
-      // Cột Checkbox của Tabulator
-      tabulatorColumns.push({
-        formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: !isMobile
-      });
+      // Report viewers follow the desktop behavior: data is read-only and does
+      // not expose a row-selection checkbox or a persisted selection badge.
+      if (rowSelectionEnabled) {
+        tabulatorColumns.push({
+          formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: !isMobile
+        });
+      }
 
       var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
       var rowKeys = Object.keys(sampleRow);
@@ -2837,10 +3081,41 @@ window.DynamicFormEngine = (function () {
             };
           }
 
+          var fName = actualField.toLowerCase();
+          var title = (colDef.title || '').toLowerCase();
+
+
+          var isBoolField = (f.renderRule === 'c' || f.renderRule === 'b' || f.renderRule === 'checkbox')
+            || fName === 'nhanvienmoi' || fName === 'thieubaohiem' || fName === 'thieuhd'
+            || fName === 'isactive' || fName === 'isuse' || fName === 'istaituyen';
+
+          if (fName === 'danhsachhopdong') {
+            colDef.formatter = function (cell) {
+              var v = cell.getValue();
+              if (!v) return '';
+              var items = String(v).split(/[\r\n]+/);
+              var badges = items.map(function (item) {
+                var clean = item.trim();
+                if (!clean) return '';
+                return '<span class="badge-status badge-info" style="margin:2px; font-size:12px; display:inline-block; font-weight:500;">' + clean + '</span>';
+              }).filter(Boolean);
+              return badges.length > 0 ? badges.join(' ') : v;
+            };
+          } else if (isBoolField) {
+            colDef.hozAlign = 'center';
+            colDef.width = 110;
+            colDef.formatter = function (cell) {
+              var v = cell.getValue();
+              var isChecked = Boolean(v === 1 || v === '1' || v === true || String(v).toLowerCase() === 'true' || String(v).toLowerCase() === 'y');
+              if (isChecked) {
+                return '<span style="display:inline-flex; align-items:center; justify-content:center; color:#2563eb; line-height:1;"><span class="material-symbols-outlined" style="font-size:22px;">check_box</span></span>';
+              }
+              return '<span style="display:inline-flex; align-items:center; justify-content:center; color:#d1d5db; line-height:1;"><span class="material-symbols-outlined" style="font-size:22px;">check_box_outline_blank</span></span>';
+            };
+          }
+
           // Smart UI/UX Defaults (Kế thừa cho toàn bộ lưới nếu không bị ghi đè)
           if (!colDef.formatter) {
-            var fName = actualField.toLowerCase();
-            var title = (colDef.title || '').toLowerCase();
 
             if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid' || fName === 'personid' || title.includes('mã nhân viên')) {
               colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
@@ -2886,8 +3161,8 @@ window.DynamicFormEngine = (function () {
 
       // Khôi phục vị trí cột nếu đã có dữ liệu lưu
       if (savedOrder && savedOrder.length > 0) {
-        // tabulatorColumns[0] là checkbox, tách riêng ra
-        var checkboxCol = tabulatorColumns.shift();
+        // Tách checkbox riêng nếu màn hiện tại có bật chọn dòng.
+        var checkboxCol = rowSelectionEnabled ? tabulatorColumns.shift() : null;
         tabulatorColumns.sort(function (a, b) {
           var idxA = savedOrder.indexOf(a.field);
           var idxB = savedOrder.indexOf(b.field);
@@ -2896,7 +3171,7 @@ window.DynamicFormEngine = (function () {
           if (idxB === -1) idxB = 9999;
           return idxA - idxB;
         });
-        tabulatorColumns.unshift(checkboxCol);
+        if (checkboxCol) tabulatorColumns.unshift(checkboxCol);
       }
 
       // Tạo thanh Pagination trước
@@ -2933,7 +3208,7 @@ window.DynamicFormEngine = (function () {
         data: gridData,
         columns: tabulatorColumns,
         layout: "fitDataFill",
-        selectableRows: true, // bật chọn dòng
+        selectableRows: rowSelectionEnabled,
         selectableRowsRangeMode: "click", // Shift + click range
         height: "100%", // Chiếm 100% chiều cao của flex container
         movableColumns: true, // Cho phép kéo thả cột
@@ -2949,10 +3224,13 @@ window.DynamicFormEngine = (function () {
       window.tabulatorInstance = new Tabulator(tableWrapper, tabulatorConfig);
 
       // Bắt sự kiện chọn dòng để update biến selectedRows
-      window.tabulatorInstance.on("rowSelectionChanged", function (data, rows) {
-        selectedRows = data;
-        _updateSelectionCounter();
-      });
+      if (rowSelectionEnabled) {
+        selectedRows = [];
+        window.tabulatorInstance.on("rowSelectionChanged", function (data, rows) {
+          selectedRows = data || [];
+          _updateSelectionCounter();
+        });
+      }
 
       // Bắt sự kiện kéo thả cột để lưu vị trí mới vào LocalStorage
       window.tabulatorInstance.on("columnMoved", function (column) {
@@ -2964,22 +3242,6 @@ window.DynamicFormEngine = (function () {
         });
         localStorage.setItem('tabulator_col_order_' + userName + '_' + formName, JSON.stringify(colOrder));
       });
-
-      // Hack cho Mobile/Touch: Cho phép click vào bất kỳ đâu trên dòng để CHỌN NHIỀU (Toggle) mà không cần giữ Ctrl
-      tableWrapper.addEventListener('click', function (e) {
-        if (e.target.closest('.tabulator-header')) return;
-        // Bỏ qua nếu click vào nút, link, hoặc input (như checkbox của Tabulator)
-        if (e.target.closest('button, a, input, select, textarea')) return;
-
-        var rowEl = e.target.closest('.tabulator-row');
-        if (rowEl) {
-          var row = window.tabulatorInstance.getRow(rowEl);
-          if (row && typeof row.toggleSelect === 'function') {
-            e.stopPropagation(); // Ngăn Tabulator clear các dòng khác
-            row.toggleSelect();
-          }
-        }
-      }, true);
 
       // Bắt sự kiện chỉnh sửa ô để lưu tự động vào DB
       window.tabulatorInstance.on("cellEdited", function (cell) {
@@ -3150,6 +3412,16 @@ window.DynamicFormEngine = (function () {
   }
 
   function _updateSelectionCounter() {
+    if (!_rowSelectionEnabled()) {
+      selectedRows = [];
+      var staleCounter = document.getElementById('selection-counter');
+      if (staleCounter) {
+        staleCounter.style.display = 'none';
+        staleCounter.innerHTML = '';
+      }
+      return;
+    }
+
     if (!window.tabulatorInstance) {
       // Đồng bộ trạng thái checkbox
       var allTrs = $container.querySelectorAll('#dynamic-grid-container tbody tr');
@@ -3760,14 +4032,14 @@ window.DynamicFormEngine = (function () {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
           photoBox.className = 'photo-box-wrapper';
-          photoBox.style.cssText = 'width: 180px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
+          photoBox.style.cssText = 'width: 200px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
 
           var imgFrame = document.createElement('div');
           imgFrame.className = 'detail-img-frame';
-          imgFrame.style.cssText = 'width: 160px; height: 160px; border: 4px solid var(--color-surface, #fff); border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position: relative;';
+          imgFrame.style.cssText = 'width: 180px; height: 180px; border: 3px solid #ffffff; border-radius: 18px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8fafc; box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8); position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);';
 
           var img = document.createElement('img');
-          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; object-position: center top; transition: transform 0.3s ease;';
 
           var defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
           var rawContent = '';
@@ -4894,32 +5166,34 @@ window.DynamicFormEngine = (function () {
       console.log('[PHOTO DEBUG] Edit Modal - row:', row);
       var photoBox = document.createElement('div');
       photoBox.className = 'photo-box-wrapper';
-      photoBox.style.width = '160px';
+      photoBox.style.width = '180px';
       photoBox.style.flexShrink = '0';
       photoBox.style.display = 'flex';
       photoBox.style.flexDirection = 'column';
       photoBox.style.alignItems = 'center';
-      photoBox.style.marginTop = '16px';
+      photoBox.style.marginTop = '12px';
 
       var imgFrame = document.createElement('div');
-      imgFrame.style.width = '120px';
-      imgFrame.style.height = '120px';
-      imgFrame.style.borderRadius = '50%';
-      imgFrame.style.border = '3px solid var(--color-primary)';
+      imgFrame.style.width = '150px';
+      imgFrame.style.height = '150px';
+      imgFrame.style.borderRadius = '18px';
+      imgFrame.style.border = '3px solid #ffffff';
       imgFrame.style.overflow = 'hidden';
       imgFrame.style.display = 'flex';
       imgFrame.style.alignItems = 'center';
       imgFrame.style.justifyContent = 'center';
-      imgFrame.style.background = '#f1f5f9';
+      imgFrame.style.background = '#f8fafc';
       imgFrame.style.position = 'relative';
       imgFrame.style.cursor = 'pointer';
       imgFrame.title = 'Bấm để thay đổi ảnh đại diện';
-      imgFrame.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+      imgFrame.style.boxShadow = '0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8)';
+      imgFrame.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 
       var img = document.createElement('img');
       img.style.width = '100%';
       img.style.height = '100%';
       img.style.objectFit = 'cover';
+      img.style.objectPosition = 'center top';
 
       var rawContent = '';
       var fileNameVal = '';
@@ -5396,13 +5670,13 @@ window.DynamicFormEngine = (function () {
                     headers = Array.isArray(field.headers) && field.headers.length
                       ? field.headers.slice(0, displayKeys.length)
                       : displayKeys.map(function (k) {
-                      if (typeof currentDictionary !== 'undefined') {
-                        var kLower = k.toLowerCase();
-                        var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
-                        if (matchKey) return currentDictionary[matchKey].CaptionVN;
-                      }
-                      return k;
-                    });
+                        if (typeof currentDictionary !== 'undefined') {
+                          var kLower = k.toLowerCase();
+                          var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
+                          if (matchKey) return currentDictionary[matchKey].CaptionVN;
+                        }
+                        return k;
+                      });
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
                     if (displayKey) {

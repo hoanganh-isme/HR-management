@@ -6,35 +6,38 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 8px 0;
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
+  height: 48px;
+  padding: 0 16px;
+  background: var(--color-surface, #ffffff);
+  border-top: 1px solid var(--color-border, #e7eaf0);
   gap: 12px;
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-secondary, #667085);
+  box-sizing: border-box;
 }
 
 .pager-separator {
   width: 1px;
-  height: 20px;
-  background: var(--color-border);
+  height: 18px;
+  background: var(--color-border, #e7eaf0);
   margin: 0 4px;
 }
 
 /* 1. Size Selector */
 .pager-size-selector select {
-  padding: 4px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface);
-  color: var(--color-text);
+  padding: 5px 8px;
+  border: 1px solid var(--color-border-strong, #d8dde6);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text, #101828);
   outline: none;
   cursor: pointer;
   font-size: 13px;
+  transition: border-color var(--transition-fast);
 }
 
 .pager-size-selector select:hover {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary, #2563eb);
 }
 
 /* 2. Controls */
@@ -48,25 +51,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 4px;
-  color: var(--color-text-secondary);
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border, #e7eaf0);
+  background: var(--color-surface, #ffffff);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--color-text-secondary, #667085);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .pager-btn:hover:not(:disabled) {
-  background: var(--color-background);
-  color: var(--color-primary);
-  border-color: var(--color-border);
+  background: var(--color-surface-subtle, #f8fafc);
+  color: var(--color-primary, #2563eb);
+  border-color: var(--color-border-strong, #d8dde6);
 }
 
 .pager-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  background: var(--color-surface-subtle, #f8fafc);
 }
 
 .pager-btn .material-symbols-outlined {
@@ -81,68 +85,61 @@
 }
 
 .pager-input {
-  width: 45px;
-  height: 26px;
+  width: 44px;
+  height: 30px;
   text-align: center;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface);
-  color: var(--color-text);
+  border: 1px solid var(--color-border-strong, #d8dde6);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text, #101828);
   font-size: 13px;
 }
 
 .pager-input:focus {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary, #2563eb);
   outline: none;
 }
 
 /* 3. Info */
 .pager-info {
-  margin-left: auto; /* Push info to the right */
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--color-text-secondary, #667085);
 }
 
 /* --- RESPONSIVE PAGINATION --- */
 @media (max-width: 768px) {
   .datagrid-pager {
+    height: auto;
+    min-height: 48px;
+    padding: 8px 12px;
     flex-wrap: wrap;
-    justify-content: flex-start;
-    padding: 8px 0;
+    justify-content: space-between;
     gap: 8px;
   }
-  
+
   .pager-separator {
     display: none;
   }
 
   .pager-btn-capture {
-    display: none; /* Ẩn nút chụp màn hình cho đỡ tốn diện tích */
+    display: none;
   }
 
   .pager-btn {
-    width: 24px;
-    height: 24px;
-  }
-
-  .pager-btn .material-symbols-outlined {
-    font-size: 16px;
+    width: 36px;
+    height: 36px;
   }
 
   .pager-input {
-    width: 35px;
-    height: 24px;
-    font-size: 12px;
+    width: 40px;
+    height: 32px;
   }
 
-  .pager-size-selector select {
-    padding: 2px 6px;
-    font-size: 12px;
-  }
-  
   .pager-info {
     margin-left: 0;
     width: 100%;
     text-align: center;
-    margin-top: 6px;
     font-size: 12px;
   }
 }

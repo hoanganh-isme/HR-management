@@ -14,6 +14,15 @@
 
   function requireAuthentication() {
     var token = global.ApiClient && ApiClient.getCookie ? ApiClient.getCookie('auth_token') : null;
+    if (!token) {
+      try {
+        var userStr = global.localStorage.getItem('pmql_user');
+        if (userStr) {
+          var userObj = JSON.parse(userStr);
+          token = userObj.access_token || userObj.token || null;
+        }
+      } catch (e) {}
+    }
     if (token) return true;
     global.location.href = 'login.html';
     return false;
@@ -66,12 +75,7 @@
   function initializeUserInterface() {
     var hasUser = global.AppSession ? Object.keys(AppSession.getUser()).length > 0 : !!global.localStorage.getItem('pmql_user');
     if (hasUser && global.Navbar) {
-      Navbar.render('navbar-container');
-      if (Navbar.getLayout() === 'vertical') {
-        var verticalMain = document.getElementById('vertical-main');
-        var content = document.getElementById('app-content');
-        if (verticalMain && content && !verticalMain.contains(content)) verticalMain.appendChild(content);
-      }
+      Navbar.render();
     }
     if (global.AppTheme && typeof AppTheme.initialize === 'function') AppTheme.initialize();
   }

@@ -9,3 +9,6 @@ backend-app/uploads/**
 
 # Production secrets are created only on the deployment host.
 .env.production
+.env
+.env.*
+env.js

@@ -1,7 +1,7 @@
 (function (global) {
   var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
   definitions.contract = definitions.contract || {};
-    definitions.contract['WA_HOPDONGLAODONGFRM'] = {
+  definitions.contract['WA_HOPDONGLAODONGFRM'] = {
     FormName: 'WA_HopDongLaoDongFrm',
     PrimaryKey: 'MaHopDong',
     documentExport: {
@@ -87,36 +87,6 @@
     fieldOverrides: {
       PersonStatus: { renderRule: 'sl', dataSource: 'API_ComboPersonStatus' }
     },
-
-    // ── DetailFormFields: hiển thị trong panel split-detail bên phải ─────
-    DetailFormFields: [
-      { name: 'MaHopDong', label: 'Mã hợp đồng' },
-      { name: 'NamLap', label: 'Năm lập' },
-      { name: 'PersonID', label: 'Mã nhân viên' },
-      { name: 'PersonName', label: 'Họ tên' },
-      { name: 'LoaiHopDong', label: 'Loại hợp đồng' },
-      { name: 'LoaiHD', label: 'Loại HD' },
-      { name: 'NgayKyHopDong', label: 'Ngày ký HĐ', format: 'date' },
-      { name: 'NgayCoHieuLuc', label: 'Ngày có hiệu lực', format: 'date' },
-      { name: 'NgayHetHieuLuc', label: 'Ngày hết hiệu lực', format: 'date' },
-      { name: 'ThoiGianLamViec', label: 'Thời gian làm việc' },
-      { name: 'ThoiGianThuViec', label: 'Thử việc (tháng)' },
-      { name: 'NguoiKy', label: 'Người ký' },
-      { name: 'ChucVuNguoiKy', label: 'Chức vụ người ký' },
-      { name: 'ChucDanhChuyenMonHD', label: 'Chức danh chuyên môn' },
-      { name: 'LuongCoBan', label: 'Lương cơ bản', format: 'money' },
-      { name: 'MucDong', label: 'Mức đóng BH', format: 'money' },
-      { name: 'LoaiTien', label: 'Loại tiền' },
-      { name: 'HinhThucTraLuong', label: 'Hình thức trả lương' },
-      { name: 'DiaDiemLamViec', label: 'Địa điểm làm việc' },
-      { name: 'PhuongTien', label: 'Phương tiện đi làm' },
-      { name: 'PersonStatusName', label: 'Trạng thái NV' },
-      { name: 'CMND', label: 'Số CCCD/CMND' },
-      { name: 'CMNDNgayCap', label: 'Ngày cấp CCCD', format: 'date' },
-      { name: 'CMNDNoiCap', label: 'Nơi cấp CCCD' },
-      { name: 'DiaChiThuongTru', label: 'Địa chỉ thường trú' },
-      { name: 'NoiDung', label: 'Nội dung hợp đồng' }
-    ],
 
     // ── Tab chi tiết phụ cấp trong hợp đồng ─────────────────────────────
     DetailTabs: [

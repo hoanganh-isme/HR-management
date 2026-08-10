@@ -1,5 +1,16 @@
-/** Detail tabs: loading, editable grid lifecycle and detail persistence. */
+/** Detail tabs: loading, editable grid lifecycle and detail persistence. */
 window.DynamicDetailManager = (function () {
+  /**
+   * _getFieldCaption – tra cứu nhãn tiếng Việt theo thứ tự ưu tiên:
+   * 1. field.label từ join-schema / contract API (Caption / CaptionVN từ DB)
+   * 2. tabDef.headers (nếu form cũ còn khai báo tường minh)
+   * 3. dict() = globalDictionary từ DynamicFormEngine (đọc SY_FmtFldTbl qua API)
+   * 4. window._globalFieldDictionary (global – DynamicFormEngine populate)
+   * 5. Fallback tách CamelCase: "PersonName" → "Person Name"
+   *
+   * KHÔNG hard-code caption trong file JS.
+   * Caption phải đến từ DB (SY_FmtFldTbl / SY_FormatFields) qua API.
+   */
   function _getFieldCaption(fieldName, fieldObj, tabHeaders, dict) {
     if (fieldObj && fieldObj.label) return fieldObj.label;
     if (!fieldName) return '';
@@ -9,7 +20,7 @@ window.DynamicDetailManager = (function () {
     if (tabHeaders && tabHeaders[raw]) return tabHeaders[raw];
     if (tabHeaders && tabHeaders[lower]) return tabHeaders[lower];
 
-    // 1. Đọc từ Từ điển cấp Form (SY_FormatFldTbl theo FormName)
+    // 3. Từ điển form (DynamicFormEngine.globalDictionary – load từ SY_FmtFldTbl)
     var d = typeof dict === 'function' ? dict() : (dict || {});
     if (d[raw]) return d[raw];
     if (d[lower]) return d[lower];
@@ -17,11 +28,11 @@ window.DynamicDetailManager = (function () {
       if (k.toLowerCase() === lower && d[k]) return d[k];
     }
 
-    // 2. Đọc tự động từ Bảng SY_FormatFldTbl / SY_FormatFields toàn hệ thống CSDL
-    var gDict = window._globalFieldDictionary || {};
+    // 4. Dictionary toàn hệ thống (window._globalFieldDictionary – DynamicFormEngine)
+    var gDict = (typeof window !== 'undefined' && window._globalFieldDictionary) || {};
     if (gDict[lower]) return gDict[lower];
 
-    // 3. Fallback phân tách từ viết hoa (VD: PersonName -> Person Name)
+    // 5. Fallback tách CamelCase ("PersonName" → "Person Name")
     return raw.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
 

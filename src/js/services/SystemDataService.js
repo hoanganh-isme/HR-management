@@ -29,7 +29,7 @@ var SystemDataService = (function () {
     if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE) {
       return Promise.reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE');
     }
-    return ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE).then(function (response) {
+    return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayGiaTriSetup', Func: 'Execute' }).then(function (response) {
       var found = records(response).find(function (row) { return row.CodeID === codeId; });
       return found ? found.CodeValue : null;
     });

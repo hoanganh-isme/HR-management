@@ -1,6 +1,4 @@
 import { FieldSyncCache } from './field-sync.cache.js';
-import { getFieldContractMigration } from './field-contract.registry.js';
-import { getPhase4JoinContract } from './phase4-join.registry.js';
 import { FieldSyncGatewayError } from './field-sync.gateway.js';
 
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
@@ -155,73 +153,6 @@ function normalizeContractRows(rows, requestedFormName) {
     });
 }
 
-/*
- * @deprecated
- * DB contract registry is the primary rollout source.
- * Fallback này chỉ giữ năm form đã audit trong lúc DB chưa cài installer mới.
- */
-function compatibilityFallback(formName) {
-    const entry = getFieldContractMigration(formName);
-    if (!entry) return null;
-    const datasets = ['SHIFT_DETAIL', 'SHIFT_EMPLOYEES'].map((key) => {
-        const item = getPhase4JoinContract(formName, key);
-        if (!item) return null;
-        return Object.freeze({
-            datasetKey: item.detailKey,
-            apiList: item.apiList,
-            viewProcedure: item.expectedProcedure,
-            expectedTableName: item.expectedTableName,
-            expectedPrimaryKey: item.expectedPrimaryKey,
-            parentField: 'SapCaID',
-            childField: 'SapCaID',
-            readOnly: item.readOnly === true,
-            saveProcedure: item.expectedSaveProcedure || '',
-            deleteProcedure: item.expectedDeleteProcedure || '',
-            writePolicy: item.readOnly ? 'READ_ONLY' : 'VIEW_PHYSICAL_COLUMNS',
-            branchPolicy: 'AUTO_SCHEMA',
-            rolloutStatus: 'ACTIVE',
-            rolloutReason: 'COMPATIBILITY_FALLBACK',
-            schemaVersion: 2
-        });
-    }).filter(Boolean);
-    return Object.freeze({
-        webFormName: entry.webFormName,
-        erpFormId: entry.erpFormId,
-        permissionFormName: entry.permissionFormName || entry.webFormName,
-        contractType: datasets.length ? 'MASTER_DETAIL_SIMPLE' : (
-            entry.oldView && entry.oldView !== 'API_TruyVanDong'
-                ? 'JOIN_VIEW_SINGLE_TABLE'
-                : 'SIMPLE_TABLE'
-        ),
-        expectedTableName: entry.expectedTableName,
-        expectedPrimaryKey: entry.expectedPrimaryKey,
-        viewList: entry.webFormName,
-        viewProcedure: entry.viewV2,
-        saveProcedure: entry.saveV2,
-        deleteProcedure: entry.deleteV2,
-        writePolicy: entry.writePolicy || 'SAFE_TABLE_COLUMNS',
-        branchPolicy: entry.branchPolicy || 'AUTO_SCHEMA',
-        deletePolicy: entry.deletePolicy || 'AUTO_SCHEMA',
-        rolloutStatus: 'ACTIVE',
-        rolloutReason: 'COMPATIBILITY_FALLBACK',
-        schemaVersion: 2,
-        isEnabled: true,
-        source: 'STATIC_COMPATIBILITY_FALLBACK',
-        datasets: Object.freeze(datasets)
-    });
-}
-
-function shouldUseCompatibilityFallback(error) {
-    const code = String(error?.diagnosticCode || error?.code || '').toUpperCase();
-    return [
-        'ERP_GATEWAY_HTTP_ERROR',
-        'ERP_GATEWAY_NETWORK',
-        'ERP_GATEWAY_TIMEOUT',
-        'ERP_GATEWAY_UNKNOWN',
-        'ERP_GATEWAY_ENVELOPE_REJECTED'
-    ].includes(code);
-}
-
 export function createFieldContractRepository({
     gateway,
     config,
@@ -245,15 +176,16 @@ export function createFieldContractRepository({
         if (cached) return cached;
         if (pending.has(key)) return pending.get(key);
 
-        const request = gateway.fieldContractResolve({ FormName: formName }, context)
+        const resolvePromise = typeof gateway?.fieldContractResolve === 'function'
+            ? gateway.fieldContractResolve({ FormName: formName }, context)
+            : Promise.reject(new FieldSyncGatewayError(
+                'Gateway does not support fieldContractResolve',
+                502,
+                'ERP_GATEWAY_HTTP_ERROR'
+            ));
+
+        const request = resolvePromise
             .then((rows) => cache.set(key, normalizeContractRows(rows, formName)))
-            .catch((error) => {
-                const fallback = shouldUseCompatibilityFallback(error)
-                    ? compatibilityFallback(formName)
-                    : null;
-                if (fallback) return cache.set(key, fallback);
-                throw error;
-            })
             .finally(() => {
                 if (pending.get(key) === request) pending.delete(key);
             });

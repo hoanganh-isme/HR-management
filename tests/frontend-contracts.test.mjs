@@ -32,6 +32,7 @@ test('HR module registry includes the reusable branch-shift behavior profile', (
     'src/js/modules/hr/definitions/leave.js',
     'src/js/modules/hr/definitions/payroll.js',
     'src/js/modules/hr/definitions/contract.js',
+    'src/js/modules/hr/definitions/reports.js',
     'src/js/modules/hr/HRModuleRegistry.js'
   ];
   const window = {};
@@ -42,11 +43,34 @@ test('HR module registry includes the reusable branch-shift behavior profile', (
     { filename: file }
   ));
   const keys = window.HRModuleRegistry.keys().sort();
-  assert.equal(keys.length, 15);
+  assert.equal(keys.length, 18);
   assert.equal(window.APP_MODULES.WA_PERSONFULLFRM.FormName, 'WA_PersonFullFrm');
   assert.equal(window.APP_MODULES.WA_PAYROLLFRM.PrimaryKey, 'DocumentID');
   assert.equal(window.APP_MODULES.WA_CALAMVIECFRM.PrimaryKey, 'SapCaID');
   assert.equal(window.APP_MODULES.WA_CALAMVIECCNFRM.PrimaryKey, 'SapCaID');
+  assert.equal(window.APP_MODULES.WA_TIMESHEETTH2REPORT.ReadOnlyReport, true);
+  assert.equal(window.APP_MODULES.WA_TIMESHEETTH2REPORT.DynamicResultColumns, true);
+  assert.equal(window.APP_MODULES.WA_TIMESHEETTH2REPORT.SelectableRows, false);
+  assert.equal(window.APP_MODULES.WA_TIMESHEETTH2REPORT.HideEditBtn, true);
+  assert.deepEqual(
+    Array.from(window.APP_MODULES.WA_TIMESHEETTH2REPORT.ReportFilters, (filter) => filter.name),
+    ['Template', 'PeriodID', 'BranchID1', 'ReportUser']
+  );
+  assert.equal(
+    window.APP_MODULES.WA_TIMESHEETTH2REPORT.ReportFilters[0].dataSourceParams.ReportName,
+    'HR_TimeSheetTH2Report'
+  );
+  assert.equal(window.APP_MODULES.WA_TIMESHEETCTREPORT.ReadOnlyReport, true);
+  assert.equal(window.APP_MODULES.WA_TIMESHEETCTREPORT.DynamicResultColumns, true);
+  assert.equal(window.APP_MODULES.WA_TIMESHEETCTREPORT.SelectableRows, false);
+  assert.deepEqual(
+    Array.from(window.APP_MODULES.WA_TIMESHEETCTREPORT.ReportFilters, (filter) => filter.name),
+    ['Template', 'PeriodID', 'Ngay', 'BranchID']
+  );
+  assert.equal(
+    window.APP_MODULES.WA_TIMESHEETCTREPORT.ReportFilters[0].dataSourceParams.ReportName,
+    'HR_TimeSheetCTReport'
+  );
   assert.equal(window.APP_MODULES.WA_CALAMVIECCNFRM.FormFields.find((field) => field.name === 'BranchID').dataSource, 'CF_BranchListFrm');
   const branchShiftField = window.APP_MODULES.WA_CALAMVIECCNFRM.FormFields.find((field) => field.name === 'ShiftIDThu2');
   assert.equal(branchShiftField.dataSource, 'HR_ShiftListCNFrm|3');
@@ -701,6 +725,79 @@ test('Dynamic grid always renders a readable loading state and bounds bulk refre
   assert.match(source, /currentLimit = _refreshPageSize\(currentLimit\)/);
   assert.match(source, /loadingMessage:\s*GRID_UI_TEXT\.refreshingAfterSave/);
   assert.doesNotMatch(source, /innerHTML\s*=.*MODULE_CONFIG\.TextLoading/);
+});
+
+test('Filter popup stays open while navigating the date picker', () => {
+  const source = fs.readFileSync(path.join(root, 'src/components/filter/FilterComponent.js'), 'utf8');
+  assert.match(source, /closest\('\.flatpickr-calendar'\)/);
+  assert.match(source, /!isDatePickerClick/);
+});
+
+test('Timesheet report derives a read-only grid schema from the stored procedure result', () => {
+  const engineSource = fs.readFileSync(path.join(root, 'src/js/core/DynamicFormEngine.js'), 'utf8');
+  const schemaSource = fs.readFileSync(path.join(root, 'src/js/utils/DynamicResultSchema.js'), 'utf8');
+  const attendanceSource = fs.readFileSync(path.join(root, 'src/js/modules/hr/definitions/attendance.js'), 'utf8');
+  const apiSource = fs.readFileSync(path.join(root, 'sql/API/APINEW/API_BaoCaoChamCongTongHop.sql'), 'utf8');
+  const detailedApiSource = fs.readFileSync(path.join(root, 'sql/API/APINEW/API_BaoCaoChamCongChiTiet.sql'), 'utf8');
+  const templateApiSource = fs.readFileSync(path.join(root, 'sql/API/APINEW/API_ReportTemplateOptions.sql'), 'utf8');
+  const routeSource = fs.readFileSync(path.join(root, 'sql/Update/Configure_WA_TimeSheetTH2Report_ReadOnly.sql'), 'utf8');
+  const installSource = fs.readFileSync(path.join(root, 'sql/Deploy/HRM_Web_Install.sql'), 'utf8');
+  const bundleManifest = JSON.parse(fs.readFileSync(path.join(root, 'scripts/frontend-bundle.manifest.json'), 'utf8'));
+
+  assert.match(engineSource, /function _applyDynamicResultSchema\(result, rows\)/);
+  assert.match(engineSource, /function _rowSelectionEnabled\(\)/);
+  assert.match(engineSource, /if \(!_rowSelectionEnabled\(\)\)[\s\S]*selectedRows = \[\]/);
+  assert.match(engineSource, /if \(rowSelectionEnabled\)[\s\S]*formatter: "rowSelection"/);
+  assert.match(schemaSource, /result\.columns[\s\S]*result\._columns[\s\S]*result\.schema[\s\S]*result\._schema/);
+  assert.ok(bundleManifest.js.indexOf('src/js/utils/DynamicResultSchema.js') >= 0);
+  assert.ok(
+    bundleManifest.js.indexOf('src/js/utils/DynamicResultSchema.js')
+      < bundleManifest.js.indexOf('src/js/core/DynamicFormEngine.js')
+  );
+  assert.match(engineSource, /_applyDynamicResultSchema\(result, dataList\)/);
+  assert.match(attendanceSource, /WA_TIMESHEETTH2REPORT[\s\S]*ReadOnlyReport:\s*true[\s\S]*DynamicResultColumns:\s*true/);
+  assert.match(attendanceSource, /ReportFilters:[\s\S]*name:\s*'Template'[\s\S]*name:\s*'PeriodID'[\s\S]*name:\s*'BranchID1'/);
+  assert.match(engineSource, /function _activeFilterSchema\(\)[\s\S]*_reportFilterSchema\(\)/);
+  assert.match(engineSource, /dataSourceParams[\s\S]*lookupPayload\.JsonData/);
+  assert.match(templateApiSource, /FROM dbo\.SY_RpDTbl[\s\S]*PName = N'Template'/);
+  assert.match(templateApiSource, /OPENJSON\(@JsonOptions\)/);
+  assert.doesNotMatch(templateApiSource, /\b(?:DELETE|UPDATE|INSERT\s+INTO)\s+(?:dbo\.)?SY_RpDTbl\b/i);
+  assert.match(apiSource, /@ReadOnly BIT = 0/);
+  assert.match(apiSource, /@Template VARCHAR\(50\)[\s\S]*@BranchID1 NVARCHAR\(MAX\)[\s\S]*@User VARCHAR\(50\)/);
+  assert.match(apiSource, /HR_Branch_GetByUserStp[\s\S]*#FinalBranch[\s\S]*P\.BranchID IN \(SELECT BranchID FROM #FinalBranch\)/);
+  assert.match(apiSource, /IF ISNULL\(@ReadOnly, 0\) = 0[\s\S]*HR_TimeSheetDay_Process_Stp/);
+  assert.match(detailedApiSource, /@ReadOnly BIT = 0/);
+  assert.match(detailedApiSource, /IF ISNULL\(@ReadOnly, 0\) = 0[\s\S]*HR_TimeSheetDay_Process_Stp/);
+  assert.match(detailedApiSource, /sys\.columns[\s\S]*HR_PersonTbl[\s\S]*HR_TimeSheetDayTbl/);
+  assert.match(detailedApiSource, /NOT EXISTS[\s\S]*TC\.name = PC\.name/);
+  assert.match(installSource, /WA_TimeSheetCTReport[\s\S]*API_BaoCaoChamCongChiTiet[\s\S]*@ReadOnly=1/);
+  assert.match(routeSource, /WA_TimeSheetTH2Report[\s\S]*HR_TimeSheetTH2ReportStp[\s\S]*\{PeriodID\}[\s\S]*\{BranchID1\}[\s\S]*\{User\}[\s\S]*@ReadOnly=1/);
+  assert.doesNotMatch(routeSource, /Para\s*=\s*N'[^']*@Template/);
+  assert.doesNotMatch(routeSource, /\b(?:DELETE|UPDATE|INSERT\s+INTO)\s+(?:dbo\.)?(?:SY_RpDTbl|SY_FrmCfg)\b/i);
+
+  const { window } = loadBrowserScript('src/js/utils/DynamicResultSchema.js');
+  const schema = window.DynamicResultSchema.build({
+    result: {},
+    rows: [{ 1: '1.0', 2: 'OFF', PersonID: 'NV001', HoVaTen: 'Nguyen Van A' }],
+    existingGrid: [
+      { name: 'PersonID', label: 'Mã nhân viên', orderNo: 1 },
+      { name: 'HoVaTen', label: 'Họ và tên', orderNo: 2 },
+      { name: '1', label: '1', orderNo: 3 },
+      { name: '2', label: '2', orderNo: 4 }
+    ]
+  });
+  assert.deepEqual(Array.from(schema, (field) => field.name), ['PersonID', 'HoVaTen', '1', '2']);
+  assert.equal(schema.every((field) => field.isReadOnlyEdit === true && field.showInEdit === false), true);
+
+  const mergedSchema = window.DynamicResultSchema.build({
+    result: { columns: [{ name: 'PersonID', label: 'Mã nhân viên' }] },
+    rows: [{ PersonID: 'NV001', HoVaTen: 'Nguyễn Văn A', 1: '1.0', 2: 'OFF', TongCong: 26 }],
+    existingGrid: [{ name: 'PersonID', label: 'Mã nhân viên', orderNo: 1 }]
+  });
+  assert.deepEqual(
+    Array.from(mergedSchema, (field) => field.name),
+    ['PersonID', 'HoVaTen', 'TongCong', '1', '2']
+  );
 });
 
 test('HRM release SQL is add-only, dry-run safe, and has a unique FormatFields allow-list', () => {

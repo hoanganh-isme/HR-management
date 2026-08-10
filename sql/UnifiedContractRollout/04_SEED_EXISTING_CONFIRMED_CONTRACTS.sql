@@ -78,6 +78,14 @@ BEGIN TRY
             'SHADOW', N'CONFIRMED_BRANCH_DIRECTORY_READY_FOR_CUTOVER'
         ),
         (
+            'WA_TimeSheetCTReport', 'WA_TimeSheetCTReport', 'WA_TimeSheetCTReport',
+            'READ_ONLY', N'HR_TimeSheetDayTbl', N'UserAutoID',
+            'WA_TimeSheetCTReport', N'HR_TimeSheetCTReportStp',
+            NULL, NULL,
+            'READ_ONLY', 'AUTO_SCHEMA', 'NONE',
+            'SHADOW', N'DESKTOP_REPORT_RESULT_SET_METADATA_V2'
+        ),
+        (
             'WA_CaLamViecFrm', 'WA_CaLamViecFrm', 'WA_CaLamViecFrm',
             'MASTER_DETAIL_SIMPLE', N'HR_SapCaTbl', N'SapCaID',
             'WA_CaLamViecFrm', N'API_TruyVanDong_V2',
@@ -126,6 +134,37 @@ BEGIN TRY
     FROM dbo.WA_FieldContractRegistry AS R
     WHERE R.WebFormName = 'CF_BranchListFrm'
       AND R.CreatedBy = 'SYSTEM_DISCOVERY';
+
+    /* Contract báo cáo có thể đã được seed từ route cũ; đồng bộ theo SP desktop hiện tại. */
+    UPDATE R
+    SET R.ERPFormID = 'WA_TimeSheetCTReport',
+        R.PermissionFormName = 'WA_TimeSheetCTReport',
+        R.ContractType = 'READ_ONLY',
+        R.ExpectedTableName = N'HR_TimeSheetDayTbl',
+        R.ExpectedPrimaryKey = N'UserAutoID',
+        R.ViewList = 'WA_TimeSheetCTReport',
+        R.ViewProcedure = N'HR_TimeSheetCTReportStp',
+        R.SaveProcedure = NULL,
+        R.DeleteProcedure = NULL,
+        R.WritePolicy = 'READ_ONLY',
+        R.BranchPolicy = 'AUTO_SCHEMA',
+        R.DeletePolicy = 'NONE',
+        R.RolloutStatus = 'SHADOW',
+        R.RolloutReason = N'DESKTOP_REPORT_RESULT_SET_METADATA_V2',
+        R.SchemaVersion = 2,
+        R.IsEnabled = 1,
+        R.UpdatedAt = @Now,
+        R.UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'WA_TimeSheetCTReport'
+      AND EXISTS
+      (
+          SELECT 1
+          FROM dbo.WA_API AS A
+          WHERE A.[list] = 'WA_TimeSheetCTReport'
+            AND A.[func] = 'View'
+            AND PARSENAME(LTRIM(RTRIM(A.[SQL])), 1) = 'HR_TimeSheetCTReportStp'
+      );
 
     INSERT INTO dbo.WA_FieldDatasetRegistry
     (

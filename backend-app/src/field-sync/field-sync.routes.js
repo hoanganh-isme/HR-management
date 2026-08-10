@@ -8,6 +8,8 @@ import {
     toPublicContract
 } from './field-contract.policy.js';
 import { normalizeGridCompare, normalizeGridSchema, normalizeJoinSchema, normalizeLookupSchema, normalizeRegisteredLookup } from './field-sync.resolver.js';
+import { createFieldContractRepository } from './field-contract.repository.js';
+import { getRegisteredLookupContract } from './field-contract.registry.js';
 
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
 const SAFE_DETAIL_KEY = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
@@ -69,13 +71,13 @@ function assertSchemaMatchesContract(schema, contract) {
         throw contractError('Metadata không trả TableName.', 'FIELD_CONTRACT_TABLE_MISSING');
     }
     if (!sameIdentifier(schema.tableName, contract.expectedTableName)) {
-        throw contractError('TableName không khớp migration registry.', 'FIELD_CONTRACT_TABLE_MISMATCH');
+        throw contractError('TableName không khớp DB contract registry.', 'FIELD_CONTRACT_TABLE_MISMATCH');
     }
     if (!schema.primaryKey) {
         throw contractError('Metadata không trả PrimaryKey.', 'FIELD_CONTRACT_PRIMARY_KEY_MISSING');
     }
     if (!sameIdentifier(schema.primaryKey, contract.expectedPrimaryKey)) {
-        throw contractError('PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
+        throw contractError('PrimaryKey không khớp DB contract registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
     }
     if (contract.rolloutStatus === 'ACTIVE') {
         const registeredView = schema?.runtimeRoutes?.view?.registeredProcedure;
@@ -98,7 +100,7 @@ function assertComparisonMatchesContract(comparison, contract) {
         throw contractError('Compare metadata không trả V2 PrimaryKey.', 'FIELD_CONTRACT_PRIMARY_KEY_MISSING');
     }
     if (!sameIdentifier(v2PrimaryKey, contract.expectedPrimaryKey)) {
-        throw contractError('Compare V2 PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
+        throw contractError('Compare V2 PrimaryKey không khớp DB contract registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
     }
 }
 
@@ -260,9 +262,10 @@ function errorCode(error) {
 export function createFieldSyncRouter({
     gateway,
     config,
-    repository,
+    repository: _repository,
     cache = new FieldSyncCache(config.cacheTtlMs, undefined, config.cacheMaxEntries)
 }) {
+    const repository = _repository || createFieldContractRepository({ gateway, config, cache });
     const router = express.Router();
 
     router.use((req, res, next) => {
@@ -333,6 +336,10 @@ export function createFieldSyncRouter({
                         if (error?.statusCode === 401 || error?.statusCode === 403) {
                             throw error;
                         }
+                        // 502/network errors - pass through the original status so frontend can distinguish
+                        if (error?.statusCode === 502 || (error?.diagnosticCode || '').startsWith('ERP_GATEWAY_NETWORK')) {
+                            throw error;
+                        }
                         throw contractError(
                             'Metadata của form ACTIVE không sẵn sàng.',
                             'FIELD_CONTRACT_ACTIVE_METADATA_UNAVAILABLE',
@@ -343,9 +350,7 @@ export function createFieldSyncRouter({
                     throw error;
                 }
                 schema = normalizeGridSchema(rows, formName, erpFormName);
-                if (names.contract.rolloutStatus === 'ACTIVE') {
-                    assertSchemaMatchesContract(schema, names.contract);
-                }
+                assertSchemaMatchesContract(schema, names.contract);
                 schema = cache.set(key, schema);
             }
             return res.json({
@@ -394,9 +399,7 @@ export function createFieldSyncRouter({
                     throw error;
                 }
                 comparison = normalizeGridCompare(rows, formName, erpFormName);
-                if (names.contract.rolloutStatus === 'ACTIVE') {
-                    assertComparisonMatchesContract(comparison, names.contract);
-                }
+                assertComparisonMatchesContract(comparison, names.contract);
                 comparison = cache.set(key, comparison);
             }
             return res.json({
@@ -459,9 +462,7 @@ export function createFieldSyncRouter({
                         formName,
                         detailContract.detailKey
                     );
-                    if (detailContract.rolloutStatus === 'ACTIVE') {
-                        assertJoinSchemaMatchesContract(schema, detailContract);
-                    }
+                    assertJoinSchemaMatchesContract(schema, detailContract);
                 } else {
                     const schemaRows = await gateway.gridSchema(
                         { FormName: formName, ERPFormID: erpFormName },
@@ -538,9 +539,7 @@ export function createFieldSyncRouter({
                     )
                     : normalizeGridSchema(refreshedRows, formName, erpFormName);
                 if (detailContract) {
-                    if (detailContract.rolloutStatus === 'ACTIVE') {
-                        assertJoinSchemaMatchesContract(refreshedSchema, detailContract);
-                    }
+                    assertJoinSchemaMatchesContract(refreshedSchema, detailContract);
                 } else {
                     assertSchemaMatchesContract(refreshedSchema, names.contract);
                 }
@@ -578,6 +577,33 @@ export function createFieldSyncRouter({
 
             }
             if (descriptor.mode === 'BLOCKED') {
+                // Thử compatibility allow-list (khi LookupKey V2 chưa đồng bộ nhưng có registered API)
+                const fieldName = String(lookupFields[0]?.name || '');
+                const registeredCompat = getRegisteredLookupContract(formName, fieldName);
+                if (registeredCompat && registeredCompat.registeredList) {
+                    const compatRows = await gateway.registeredLookup(
+                        registeredCompat.registeredList,
+                        params,
+                        context
+                    );
+                    const compatDescriptor = {
+                        mode: 'REGISTERED_API',
+                        registeredList: registeredCompat.registeredList,
+                        valueField: registeredCompat.valueField,
+                        displayField: registeredCompat.displayField
+                    };
+                    const compatOptions = normalizeRegisteredLookup(compatRows, compatDescriptor);
+                    if (compatOptions) {
+                        return res.json({
+                            success: true,
+                            options: compatOptions.slice(0, pageSize),
+                            page,
+                            pageSize,
+                            lookupKey: params.LookupKey,
+                            lookupAliases
+                        });
+                    }
+                }
                 return res.status(409).json({ success: false, code: descriptor.diagnosticCode, message: 'Lookup này chưa có nguồn đọc an toàn được đăng ký.' });
             }
             let options = descriptor.options || [];
@@ -658,12 +684,10 @@ export function createFieldSyncRouter({
                         detailKey
                     );
 
-                    if (contract.rolloutStatus === 'ACTIVE') {
-                        assertJoinSchemaMatchesContract(
-                            schema,
-                            contract
-                        );
-                    }
+                    assertJoinSchemaMatchesContract(
+                        schema,
+                        contract
+                    );
 
                     schema = cache.set(key, schema);
                 }

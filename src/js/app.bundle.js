@@ -33,7 +33,17 @@ const ApiClient = (function () {
      * Lấy auth token từ Cookie
      */
     function getAuthToken() {
-        return getCookie('auth_token') || null;
+        let token = getCookie('auth_token');
+        if (!token) {
+            try {
+                const userStr = localStorage.getItem('pmql_user');
+                if (userStr) {
+                    const userObj = JSON.parse(userStr);
+                    token = userObj.access_token || userObj.token || null;
+                }
+            } catch (e) {}
+        }
+        return token || null;
     }
 
     /**
@@ -119,11 +129,22 @@ const ApiClient = (function () {
                 throw error;
             }
 
-            // Parse k\u1ebft qu\u1ea3
+            // Parse kết quả
             const textResponse = await response.text();
             try {
                 // Trả về Object nếu JSON hợp lệ
-                return textResponse ? parseJsonResponse(textResponse) : {};
+                const parsed = textResponse ? parseJsonResponse(textResponse) : {};
+                if (parsed && (parsed.code === 2 || parsed.code === '2') && !options.silent) {
+                    console.warn('[ApiClient] Phiên làm việc đã hết hạn (code: 2). Tự động đăng xuất.');
+                    if (typeof window.logoutApp === 'function') {
+                        window.logoutApp();
+                    } else {
+                        deleteCookie('auth_token');
+                        localStorage.removeItem('pmql_user');
+                        window.location.href = 'login.html';
+                    }
+                }
+                return parsed;
             } catch (err) {
                 const contentType = response.headers && typeof response.headers.get === 'function'
                     ? String(response.headers.get('content-type') || '').toLowerCase()
@@ -231,9 +252,26 @@ const ApiClient = (function () {
             if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
                 payload = Object.assign({}, payload);
                 if (!payload.UserName) {
-                    var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
-                        || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
-                        || localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    var uName = '';
+                    try {
+                        if (window.AppSession && typeof AppSession.getUserName === 'function') {
+                            uName = AppSession.getUserName();
+                        }
+                        if (!uName && window.Auth && typeof window.Auth.getUser === 'function') {
+                            var uObj = window.Auth.getUser();
+                            if (uObj) uName = uObj.username || uObj.UserName;
+                        }
+                        if (!uName) {
+                            var pmqlStr = localStorage.getItem('pmql_user') || sessionStorage.getItem('pmql_user');
+                            if (pmqlStr) {
+                                var parsedUser = JSON.parse(pmqlStr);
+                                uName = parsedUser.UserName || parsedUser.username || parsedUser.UserNameID || '';
+                            }
+                        }
+                    } catch (e) {}
+                    if (!uName) {
+                        uName = localStorage.getItem('username') || sessionStorage.getItem('username') || '';
+                    }
                     if (uName) payload.UserName = uName;
                 }
             }
@@ -1624,6 +1662,550 @@ var PrintUtils = (function () {
   });
 })(window);
 
+/* --- DynamicResultSchema.js --- */
+/**
+ * Builds a read-only grid schema from a stored-procedure result.
+ *
+ * The backend may return an explicit `columns`/`_columns`/`schema` array. When
+ * it does not, the first result row is used as the schema source. Existing UI
+ * metadata is used only for labels, formatting and a stable default order.
+ */
+(function (global) {
+  function columnName(column) {
+    if (typeof column === 'string') return column.trim();
+    if (!column || typeof column !== 'object') return '';
+    return String(
+      column.field
+      || column.name
+      || column.FieldName
+      || column.ColumnName
+      || ''
+    ).trim();
+  }
+
+  function textValue(value) {
+    if (value === undefined || value === null) return '';
+    return String(value).trim();
+  }
+
+  function localizedCaption(source) {
+    if (!source || typeof source !== 'object') return '';
+    return textValue(
+      source.CaptionVN
+      || source.captionVN
+      || source.captionVn
+      || source.vietnameseCaption
+    );
+  }
+
+  function configuredLabel(source) {
+    if (!source || typeof source !== 'object') return '';
+    return textValue(source.label || source.title || source.Caption || source.caption);
+  }
+
+  function columnLabel(column, fieldName, fallback) {
+    /*
+     * Caption precedence is deliberately metadata-first. Gateways frequently
+     * expose `title`/`label` as a mechanically humanized field name (for
+     * example `Phong Ban`). Letting that overwrite the configured Vietnamese
+     * caption made both the grid header and the column chooser regress.
+     */
+    var explicitVietnamese = localizedCaption(column);
+    if (explicitVietnamese) return explicitVietnamese;
+
+    var fallbackVietnamese = localizedCaption(fallback);
+    if (fallbackVietnamese) return fallbackVietnamese;
+
+    var fallbackLabel = configuredLabel(fallback);
+    if (fallbackLabel) return fallbackLabel;
+
+    if (column && typeof column === 'object') {
+      var label = column.title || column.label || column.caption || column.Caption || column.Header;
+      if (textValue(label)) return textValue(label);
+    }
+
+    return String(fieldName || '')
+      .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .trim() || String(fieldName || '');
+  }
+
+  function descriptorsFrom(result, rows, existingGrid) {
+    var explicitColumns = result && (
+      result.columns
+      || result._columns
+      || result.schema
+      || result._schema
+    );
+    var descriptors = Array.isArray(explicitColumns)
+      ? explicitColumns.map(function (column, index) {
+        return { column: column, name: columnName(column), index: index };
+      }).filter(function (item) { return item.name; })
+      : [];
+
+    if (!Array.isArray(rows) || rows.length === 0) return descriptors;
+
+    var rowKeys = Object.keys(rows[0] || {});
+    var rowKeyByName = {};
+    rowKeys.forEach(function (name) {
+      rowKeyByName[String(name).toLowerCase()] = name;
+    });
+
+    /*
+     * Some gateway versions expose a short `columns` list sourced from table
+     * metadata while each stored-procedure record contains additional dynamic
+     * columns. Keep useful descriptors/labels, discard descriptors that are not
+     * in the result row, then append every missing result key. The result set is
+     * therefore authoritative and SY_FormatFields remains only a UI fallback.
+     */
+    descriptors = descriptors.filter(function (descriptor) {
+      var actualName = rowKeyByName[descriptor.name.toLowerCase()];
+      if (!actualName) return false;
+      descriptor.name = actualName;
+      return true;
+    });
+
+    var descriptorNames = {};
+    descriptors.forEach(function (descriptor) {
+      descriptorNames[descriptor.name.toLowerCase()] = true;
+    });
+
+    var dynamicOffset = descriptors.length;
+    rowKeys.forEach(function (name, index) {
+      if (descriptorNames[name.toLowerCase()]) return;
+      descriptors.push({ column: null, name: name, index: dynamicOffset + index });
+      descriptorNames[name.toLowerCase()] = true;
+    });
+
+    var existingOrder = {};
+    (existingGrid || []).forEach(function (field, index) {
+      if (field && field.name) existingOrder[String(field.name).toLowerCase()] = index;
+    });
+
+    descriptors.sort(function (a, b) {
+      var aKnown = Object.prototype.hasOwnProperty.call(existingOrder, a.name.toLowerCase());
+      var bKnown = Object.prototype.hasOwnProperty.call(existingOrder, b.name.toLowerCase());
+      if (aKnown && bKnown) return existingOrder[a.name.toLowerCase()] - existingOrder[b.name.toLowerCase()];
+      if (aKnown !== bKnown) return aKnown ? -1 : 1;
+
+      // JavaScript enumerates integer-like object keys before text keys. Keep
+      // dynamically generated day columns in calendar order.
+      var aDay = /^\d+$/.test(a.name);
+      var bDay = /^\d+$/.test(b.name);
+      if (aDay !== bDay) return aDay ? 1 : -1;
+      if (aDay && bDay) return Number(a.name) - Number(b.name);
+      return a.index - b.index;
+    });
+
+    return descriptors;
+  }
+
+  function build(options) {
+    options = options || {};
+    var existingGrid = Array.isArray(options.existingGrid) ? options.existingGrid : [];
+    var descriptors = descriptorsFrom(options.result, options.rows, existingGrid);
+    if (descriptors.length === 0) return [];
+
+    var existingByName = {};
+    existingGrid.forEach(function (field) {
+      if (field && field.name) existingByName[String(field.name).toLowerCase()] = field;
+    });
+
+    return descriptors.map(function (descriptor, index) {
+      var fieldName = descriptor.name;
+      var existing = existingByName[fieldName.toLowerCase()] || {};
+      var next = Object.assign({}, existing);
+      next.name = fieldName;
+      next.label = columnLabel(descriptor.column, fieldName, existing);
+      next.captionVN = localizedCaption(descriptor.column)
+        || localizedCaption(existing)
+        || next.label;
+      next.position = 'grid';
+      next.orderNo = index + 1;
+      next.showInAdd = false;
+      next.showInEdit = false;
+      next.isReadOnlyAdd = true;
+      next.isReadOnlyEdit = true;
+      return next;
+    });
+  }
+
+  global.DynamicResultSchema = {
+    build: build
+  };
+})(window);
+
+/* --- MenuDefinition.js --- */
+/**
+ * MenuDefinition
+ * Pure domain model và normalization layer cho Menu và Sub-Datasets hệ thống.
+ * Không truy cập DOM, không gọi API, hoàn toàn deterministic và có thể chạy trên cả Browser lẫn Node.js.
+ */
+(function (global) {
+  'use strict';
+
+  var DATASET_KEY_REGEX = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
+
+  function _prop(obj, names, fallback) {
+    if (!obj || typeof obj !== 'object') return fallback;
+    for (var i = 0; i < names.length; i++) {
+      var val = obj[names[i]];
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        return val;
+      }
+    }
+    return fallback;
+  }
+
+  function _bool(val) {
+    return val === true || val === 1 || val === '1' || String(val || '').toLowerCase() === 'true';
+  }
+
+  function isDynamicFormName(formName) {
+    if (!formName || typeof formName !== 'string') return false;
+    var name = formName.trim();
+    if (!name) return false;
+    if (/^[A-Za-z0-9_]+(Frm|Report)$/i.test(name)) return true;
+    if (name.toLowerCase() === 'sy_formatfldtbl' || name.toLowerCase() === 'sy_formatfields') return true;
+    return false;
+  }
+
+  function _fallbackDatasetLabel(datasetKey, index) {
+    var key = String(datasetKey || '').trim();
+    if (!key || /^DETAIL_TAB_\d+$/i.test(key)) return 'Chi tiết ' + ((index || 0) + 1);
+    if (/\s|[^\x00-\x7F]/.test(key)) return key;
+    return key.replace(/_/g, ' ').replace(/(^|\s)\S/g, function (letter) {
+      return letter.toUpperCase();
+    });
+  }
+
+  function normalizeDataset(raw, index, masterPrimaryKey) {
+    raw = raw || {};
+    var idx = typeof index === 'number' ? index : 0;
+    var rawKey = _prop(raw, ['datasetKey', 'DatasetKey', 'key', 'Key'], '');
+    var datasetKey = String(rawKey || '').trim().toUpperCase();
+    if (!datasetKey) {
+      datasetKey = 'DETAIL_TAB_' + (idx + 1);
+    }
+
+    var label = _prop(raw, ['label', 'Label', 'title', 'Title'], '');
+    label = String(label || '').trim() || _fallbackDatasetLabel(datasetKey, idx);
+
+    var sortOrder = parseInt(_prop(raw, ['sortOrder', 'SortOrder', 'order', 'Order'], idx + 1), 10);
+    if (isNaN(sortOrder) || sortOrder <= 0) sortOrder = idx + 1;
+
+    var isReadOnly = _bool(_prop(raw, ['isReadOnly', 'IsReadOnly', 'readOnly', 'ReadOnly'], false));
+    var tableName = String(_prop(raw, ['tableName', 'TableName', 'table', 'Table'], '')).trim();
+    var apiList = String(_prop(raw, ['apiList', 'ApiList', 'list', 'List'], datasetKey)).trim();
+    var primaryKey = String(_prop(raw, ['primaryKey', 'PrimaryKey', 'expectedPrimaryKey', 'ExpectedPrimaryKey', 'pk', 'PK'], 'UserAutoID')).trim();
+    var parentField = String(_prop(raw, ['parentField', 'ParentField', 'parentKey', 'ParentKey'], masterPrimaryKey || '')).trim();
+    var childField = String(_prop(raw, ['childField', 'ChildField', 'filterField', 'FilterField', 'childKey', 'ChildKey'], parentField)).trim();
+    var viewProcedure = String(_prop(raw, ['viewProcedure', 'ViewProcedure', 'viewProc', 'ViewProc', 'customViewProc', 'CustomViewProc'], '')).trim();
+
+    var rawSaveProc = raw.saveProcedure !== undefined ? raw.saveProcedure : (raw.SaveProcedure !== undefined ? raw.SaveProcedure : (raw.saveProc !== undefined ? raw.saveProc : raw.SaveProc));
+    var rawDeleteProc = raw.deleteProcedure !== undefined ? raw.deleteProcedure : (raw.DeleteProcedure !== undefined ? raw.DeleteProcedure : (raw.deleteProc !== undefined ? raw.deleteProc : raw.DeleteProc));
+
+    var saveProcedure = isReadOnly ? '' : (rawSaveProc !== undefined ? String(rawSaveProc).trim() : (tableName ? 'API_LuuDong_V2' : ''));
+    var deleteProcedure = isReadOnly ? '' : (rawDeleteProc !== undefined ? String(rawDeleteProc).trim() : (tableName ? 'API_XoaDong_V2' : ''));
+
+    var writePolicy = String(_prop(raw, ['writePolicy', 'WritePolicy'], isReadOnly ? 'READ_ONLY' : 'VIEW_PHYSICAL_COLUMNS')).trim();
+    var branchPolicy = String(_prop(raw, ['branchPolicy', 'BranchPolicy'], 'AUTO_SCHEMA')).trim();
+    var rolloutStatus = String(_prop(raw, ['rolloutStatus', 'RolloutStatus'], 'SHADOW')).trim();
+
+    return {
+      datasetKey: datasetKey,
+      label: label,
+      sortOrder: sortOrder,
+      apiList: apiList,
+      tableName: tableName,
+      primaryKey: primaryKey,
+      parentField: parentField,
+      childField: childField,
+      viewProcedure: viewProcedure,
+      isReadOnly: isReadOnly,
+      saveProcedure: saveProcedure,
+      deleteProcedure: deleteProcedure,
+      writePolicy: writePolicy,
+      branchPolicy: branchPolicy,
+      rolloutStatus: rolloutStatus
+    };
+  }
+
+  function normalizeDatasets(rawDatasets, masterPrimaryKey) {
+    if (!rawDatasets) return [];
+    var parsed = rawDatasets;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch (e) {
+        parsed = [];
+      }
+    }
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map(function (ds, idx) {
+        return normalizeDataset(ds, idx, masterPrimaryKey);
+      })
+      .sort(function (a, b) {
+        return a.sortOrder - b.sortOrder;
+      })
+      .map(function (ds, idx) {
+        ds.sortOrder = idx + 1;
+        return ds;
+      });
+  }
+
+  function normalizeMenu(raw) {
+    raw = raw || {};
+    var id = String(_prop(raw, ['MenuID', 'menuId', 'id', 'ID'], '')).trim();
+    var oldId = String(_prop(raw, ['OldMenuID', 'oldMenuId', 'oldId', 'OldID'], id)).trim();
+    var parent = String(_prop(raw, ['ParentID', 'parentId', 'parent', 'Parent'], '')).trim();
+    var label = String(_prop(raw, ['Label', 'label', 'VN', 'vn', 'title', 'Title'], '')).trim();
+    var en = String(_prop(raw, ['EN', 'en', 'labelEN', 'LabelEN'], '')).trim();
+    var subtitle = String(_prop(raw, ['SubTitle', 'subTitle', 'subtitle', 'Subtitle'], '')).trim();
+    var formName = String(_prop(raw, ['FormName', 'formName'], '')).trim();
+    var formKey = String(_prop(raw, ['FormKey', 'formKey'], '')).trim();
+    var urlPara = String(_prop(raw, ['URLPara', 'urlPara', 'url', 'URL'], '')).trim();
+    var icon = String(_prop(raw, ['Icon', 'icon'], 'horizontal_rule')).trim();
+    var isDisable = _bool(_prop(raw, ['IsDisable', 'isDisable', 'disabled', 'Disabled'], false)) ? 1 : 0;
+    var isEdit = _bool(_prop(raw, ['IsEdit', 'isEdit'], oldId && oldId === id)) ? 1 : 0;
+
+    var tableName = String(_prop(raw, ['TableName', 'tableName', 'table', 'Table'], '')).trim();
+    var primaryKey = String(_prop(raw, ['PrimaryKey', 'primaryKey', 'pk', 'PK'], '')).trim();
+    var allowHardDelete = _bool(_prop(raw, ['AllowHardDelete', 'allowHardDelete'], false)) ? 1 : 0;
+
+    var rawContract = String(_prop(raw, ['ContractType', 'contractType', 'contract', 'Contract'], 'SIMPLE_TABLE')).trim().toUpperCase();
+    var contractType = 'SIMPLE_TABLE';
+    if (rawContract.indexOf('MASTER_DETAIL') !== -1) {
+      contractType = 'MASTER_DETAIL';
+    } else if (rawContract.indexOf('JOIN_VIEW') !== -1) {
+      contractType = 'JOIN_VIEW';
+    } else if (rawContract.indexOf('CUSTOM_API') !== -1) {
+      contractType = 'CUSTOM_API';
+    }
+
+    var customViewProc = String(_prop(raw, ['CustomViewProc', 'customViewProc', 'viewProcedure', 'ViewProcedure'], '')).trim();
+    var customSaveProc = String(_prop(raw, ['CustomSaveProc', 'customSaveProc', 'saveProcedure', 'SaveProcedure'], '')).trim();
+    var customDeleteProc = String(_prop(raw, ['CustomDeleteProc', 'customDeleteProc', 'deleteProcedure', 'DeleteProcedure'], '')).trim();
+
+    var rawDatasets = _prop(raw, ['datasets', 'Datasets', 'datasetsJson', 'DatasetsJson'], null);
+    var datasets = normalizeDatasets(rawDatasets, primaryKey);
+
+    return {
+      MenuID: id,
+      OldMenuID: oldId,
+      ParentID: parent,
+      Label: label,
+      EN: en,
+      SubTitle: subtitle,
+      FormName: formName,
+      FormKey: formKey,
+      URLPara: urlPara,
+      Icon: icon,
+      IsDisable: isDisable,
+      IsEdit: isEdit,
+      TableName: tableName,
+      PrimaryKey: primaryKey,
+      AllowHardDelete: allowHardDelete,
+      ContractType: contractType,
+      CustomViewProc: customViewProc,
+      CustomSaveProc: customSaveProc,
+      CustomDeleteProc: customDeleteProc,
+      datasets: datasets
+    };
+  }
+
+  function mergeMenu(currentMenu, patch) {
+    var base = normalizeMenu(currentMenu || {});
+    patch = patch || {};
+
+    var merged = Object.assign({}, base);
+
+    if (patch.MenuID !== undefined || patch.menuId !== undefined || patch.id !== undefined) {
+      merged.MenuID = String(_prop(patch, ['MenuID', 'menuId', 'id'], merged.MenuID)).trim();
+    }
+    if (patch.OldMenuID !== undefined || patch.oldMenuId !== undefined || patch.oldId !== undefined) {
+      merged.OldMenuID = String(_prop(patch, ['OldMenuID', 'oldMenuId', 'oldId'], merged.OldMenuID)).trim();
+    }
+    if (patch.ParentID !== undefined || patch.parentId !== undefined || patch.parent !== undefined) {
+      merged.ParentID = String(_prop(patch, ['ParentID', 'parentId', 'parent'], merged.ParentID)).trim();
+    }
+    if (patch.Label !== undefined || patch.label !== undefined || patch.VN !== undefined || patch.vn !== undefined) {
+      merged.Label = String(_prop(patch, ['Label', 'label', 'VN', 'vn'], merged.Label)).trim();
+    }
+    if (patch.EN !== undefined || patch.en !== undefined) {
+      merged.EN = String(_prop(patch, ['EN', 'en'], merged.EN)).trim();
+    }
+    if (patch.SubTitle !== undefined || patch.subTitle !== undefined || patch.subtitle !== undefined) {
+      merged.SubTitle = String(_prop(patch, ['SubTitle', 'subTitle', 'subtitle'], merged.SubTitle)).trim();
+    }
+    if (patch.FormName !== undefined || patch.formName !== undefined) {
+      merged.FormName = String(_prop(patch, ['FormName', 'formName'], merged.FormName)).trim();
+    }
+    if (patch.FormKey !== undefined || patch.formKey !== undefined) {
+      merged.FormKey = String(_prop(patch, ['FormKey', 'formKey'], merged.FormKey)).trim();
+    }
+    if (patch.URLPara !== undefined || patch.urlPara !== undefined) {
+      merged.URLPara = String(_prop(patch, ['URLPara', 'urlPara'], merged.URLPara)).trim();
+    }
+    if (patch.Icon !== undefined || patch.icon !== undefined) {
+      merged.Icon = String(_prop(patch, ['Icon', 'icon'], merged.Icon)).trim();
+    }
+    if (patch.IsDisable !== undefined || patch.isDisable !== undefined) {
+      merged.IsDisable = _bool(_prop(patch, ['IsDisable', 'isDisable'], merged.IsDisable)) ? 1 : 0;
+    }
+    if (patch.IsEdit !== undefined || patch.isEdit !== undefined) {
+      merged.IsEdit = _bool(_prop(patch, ['IsEdit', 'isEdit'], merged.IsEdit)) ? 1 : 0;
+    }
+    if (patch.TableName !== undefined || patch.tableName !== undefined) {
+      merged.TableName = String(_prop(patch, ['TableName', 'tableName'], merged.TableName)).trim();
+    }
+    if (patch.PrimaryKey !== undefined || patch.primaryKey !== undefined) {
+      merged.PrimaryKey = String(_prop(patch, ['PrimaryKey', 'primaryKey'], merged.PrimaryKey)).trim();
+    }
+    if (patch.AllowHardDelete !== undefined || patch.allowHardDelete !== undefined) {
+      merged.AllowHardDelete = _bool(_prop(patch, ['AllowHardDelete', 'allowHardDelete'], merged.AllowHardDelete)) ? 1 : 0;
+    }
+    if (patch.ContractType !== undefined || patch.contractType !== undefined) {
+      merged.ContractType = String(_prop(patch, ['ContractType', 'contractType'], merged.ContractType)).trim().toUpperCase() || 'SIMPLE_TABLE';
+    }
+    if (patch.CustomViewProc !== undefined || patch.customViewProc !== undefined) {
+      merged.CustomViewProc = String(_prop(patch, ['CustomViewProc', 'customViewProc'], merged.CustomViewProc)).trim();
+    }
+    if (patch.CustomSaveProc !== undefined || patch.customSaveProc !== undefined) {
+      merged.CustomSaveProc = String(_prop(patch, ['CustomSaveProc', 'customSaveProc'], merged.CustomSaveProc)).trim();
+    }
+    if (patch.CustomDeleteProc !== undefined || patch.customDeleteProc !== undefined) {
+      merged.CustomDeleteProc = String(_prop(patch, ['CustomDeleteProc', 'customDeleteProc'], merged.CustomDeleteProc)).trim();
+    }
+
+    var rawPatchDatasets = _prop(patch, ['datasets', 'Datasets', 'datasetsJson', 'DatasetsJson'], null);
+    if (rawPatchDatasets !== null) {
+      merged.datasets = normalizeDatasets(rawPatchDatasets, merged.PrimaryKey);
+    }
+
+    return merged;
+  }
+
+  function validate(definition) {
+    var d = normalizeMenu(definition);
+    var errors = [];
+
+    if (!d.MenuID) errors.push('Thiếu MenuID.');
+    if (!d.Label) errors.push('Thiếu Tên Menu (Label/VN).');
+    if (!d.FormName) errors.push('Thiếu Tên Form hệ thống (FormName).');
+
+    if (d.ContractType === 'MASTER_DETAIL') {
+      if (!Array.isArray(d.datasets) || d.datasets.length === 0) {
+        errors.push('Menu Master-Detail cần có ít nhất một Tab con (Dataset).');
+      } else {
+        var seenKeys = {};
+        d.datasets.forEach(function (ds, idx) {
+          var key = ds.datasetKey;
+          if (!key) {
+            errors.push('Tab con #' + (idx + 1) + ' thiếu DatasetKey.');
+            return;
+          }
+          if (!DATASET_KEY_REGEX.test(key)) {
+            errors.push('DatasetKey "' + key + '" không hợp lệ (phải bắt đầu bằng chữ cái và chỉ chứa chữ cái, số, gạch dưới).');
+          }
+          if (seenKeys[key.toUpperCase()]) {
+            errors.push('Trùng lặp DatasetKey: "' + key + '".');
+          }
+          seenKeys[key.toUpperCase()] = true;
+
+          if (!ds.apiList) {
+            errors.push('Dataset ' + key + ' thiếu ApiList.');
+          }
+
+          if (!ds.isReadOnly) {
+            if (!ds.tableName) errors.push('Dataset ' + key + ' thiếu TableName.');
+            if (!ds.primaryKey) errors.push('Dataset ' + key + ' thiếu PrimaryKey.');
+            if (!ds.parentField) errors.push('Dataset ' + key + ' thiếu ParentField.');
+            if (!ds.childField) errors.push('Dataset ' + key + ' thiếu ChildField.');
+            if (!ds.saveProcedure) errors.push('Dataset ' + key + ' thiếu SaveProcedure.');
+            if (!ds.deleteProcedure) errors.push('Dataset ' + key + ' thiếu DeleteProcedure.');
+          }
+        });
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors: errors
+    };
+  }
+
+  function toSavePayload(definition, currentGroupId) {
+    var d = normalizeMenu(definition);
+    var datasetsPayload = [];
+
+    if (d.ContractType === 'MASTER_DETAIL' && Array.isArray(d.datasets) && d.datasets.length > 0) {
+      datasetsPayload = d.datasets.map(function (ds, i) {
+        return {
+          datasetKey: ds.datasetKey,
+          label: ds.label,
+          sortOrder: i + 1,
+          apiList: ds.apiList,
+          tableName: ds.tableName,
+          primaryKey: ds.primaryKey,
+          parentField: ds.parentField,
+          childField: ds.childField,
+          viewProcedure: ds.viewProcedure,
+          isReadOnly: !!ds.isReadOnly,
+          saveProcedure: ds.isReadOnly ? '' : ds.saveProcedure,
+          deleteProcedure: ds.isReadOnly ? '' : ds.deleteProcedure,
+          writePolicy: ds.writePolicy,
+          branchPolicy: ds.branchPolicy,
+          rolloutStatus: ds.rolloutStatus
+        };
+      });
+    }
+
+    return {
+      NhomNguoiDangThaoTac: currentGroupId || 'admin',
+      MenuID: d.MenuID,
+      OldMenuID: d.OldMenuID || d.MenuID,
+      ParentID: d.ParentID,
+      Label: d.Label,
+      EN: d.EN,
+      SubTitle: d.SubTitle,
+      FormName: d.FormName,
+      FormKey: d.FormKey,
+      URLPara: d.URLPara,
+      Icon: d.Icon,
+      IsDisable: d.IsDisable,
+      IsEdit: d.IsEdit,
+      TableName: d.TableName,
+      PrimaryKey: d.PrimaryKey,
+      AllowHardDelete: d.AllowHardDelete,
+      ContractType: d.ContractType,
+      CustomViewProc: d.CustomViewProc,
+      CustomSaveProc: d.CustomSaveProc,
+      CustomDeleteProc: d.CustomDeleteProc,
+      DatasetsJson: datasetsPayload.length > 0 ? JSON.stringify(datasetsPayload) : ''
+    };
+  }
+
+  var MenuDefinition = {
+    normalizeDataset: normalizeDataset,
+    normalizeDatasets: normalizeDatasets,
+    normalizeMenu: normalizeMenu,
+    mergeMenu: mergeMenu,
+    validate: validate,
+    toSavePayload: toSavePayload,
+    isDynamicFormName: isDynamicFormName
+  };
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = MenuDefinition;
+  }
+  if (global) {
+    global.MenuDefinition = MenuDefinition;
+  }
+})(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
+
 /* --- SystemDataService.js --- */
 /** Shared HR system-data repository (shifts, setup values and menu version). */
 var SystemDataService = (function () {
@@ -1656,7 +2238,7 @@ var SystemDataService = (function () {
     if (typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.SYSTEM || !API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE) {
       return Promise.reject('Missing API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE');
     }
-    return ApiClient.get(API_CONFIG.ENDPOINTS.SYSTEM.SETUP_VALUE).then(function (response) {
+    return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayGiaTriSetup', Func: 'Execute' }).then(function (response) {
       var found = records(response).find(function (row) { return row.CodeID === codeId; });
       return found ? found.CodeValue : null;
     });
@@ -1691,13 +2273,23 @@ var MenusService = (function () {
   }
 
   function _currentGroupId() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var rawUser = (typeof localStorage !== 'undefined') ? localStorage.getItem('pmql_user') : null;
+    var u = {};
+    try {
+      u = JSON.parse(rawUser || '{}');
+    } catch (e) {
+      u = {};
+    }
     var rawGroup = u.UserGroupID || u.userGroupID || u.GroupID || u.groupID || u.GroupUser || u.Group || u.NhomQuyen || 'admin';
     var grpStr = String(rawGroup).trim();
     if (grpStr.toLowerCase().indexOf('quản trị') !== -1 || grpStr.toLowerCase() === 'admin') {
       return 'admin';
     }
     return grpStr;
+  }
+
+  function isSuccessResponse(response) {
+    return !!(response && Number(response.code) === 0);
   }
 
   /**
@@ -1709,7 +2301,7 @@ var MenusService = (function () {
       var endpoint = _ep('GET_ALL');
       ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId() })
         .then(function (res) {
-          if (res && res.code === 0) {
+          if (isSuccessResponse(res)) {
             resolve(res.records || []);
           } else {
             console.warn('[MenusService] getAll — code != 0:', res && res.msg);
@@ -1724,7 +2316,7 @@ var MenusService = (function () {
   }
 
   /**
-   * Lưu menu (thêm mới hoặc cập nhật)
+   * Lưu menu raw (thêm mới hoặc cập nhật)
    * @param {Object} payload
    * @returns {Promise}
    */
@@ -1733,16 +2325,75 @@ var MenusService = (function () {
       var endpoint = _ep('SAVE');
       ApiClient.post(endpoint, payload)
         .then(function (res) {
-          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
-            res.code = 0;
-            res.msg = 'Lưu Menu thành công!';
-          }
           resolve(res);
         })
         .catch(function (err) {
           console.error('[MenusService] Lỗi save:', err);
           reject(err);
         });
+    });
+  }
+
+  /**
+   * Lưu menu thông qua MenuDefinition domain model và tự động làm mới metadata nếu cần
+   * @param {Object} definition
+   * @returns {Promise<Object>}
+   */
+  function saveDefinition(definition) {
+    var model = window.MenuDefinition || (typeof require !== 'undefined' ? require('../core/MenuDefinition') : null);
+    if (!model) {
+      return Promise.reject(new Error('MenuDefinition model không khả dụng.'));
+    }
+
+    var normalized = model.normalizeMenu(definition);
+    var validation = model.validate(normalized);
+    if (!validation.isValid) {
+      return Promise.reject(new Error(validation.errors.join('\n')));
+    }
+
+    var payload = model.toSavePayload(normalized, _currentGroupId());
+
+    return save(payload).then(function (res) {
+      if (!isSuccessResponse(res)) {
+        var errText = (res && res.msg) ? res.msg : 'Lưu Menu thất bại';
+        throw new Error(errText);
+      }
+
+      var formName = normalized.FormName;
+      var isDynamic = model.isDynamicFormName(formName);
+
+      if (isDynamic && window.FieldSyncService) {
+        if (typeof FieldSyncService.clearCache === 'function') {
+          FieldSyncService.clearCache(formName);
+        }
+
+        if (typeof FieldSyncService.refreshForm === 'function') {
+          return FieldSyncService.refreshForm(formName, [])
+            .then(function (state) {
+              return {
+                menuSaved: true,
+                metadataReady: true,
+                metadataState: state,
+                response: res
+              };
+            })
+            .catch(function (metaErr) {
+              console.warn('[MenusService] Menu đã lưu nhưng làm mới Metadata V2 gặp cảnh báo:', metaErr);
+              return {
+                menuSaved: true,
+                metadataReady: false,
+                metadataError: metaErr,
+                response: res
+              };
+            });
+        }
+      }
+
+      return {
+        menuSaved: true,
+        metadataReady: true,
+        response: res
+      };
     });
   }
 
@@ -1756,10 +2407,6 @@ var MenusService = (function () {
       var endpoint = _ep('DELETE');
       ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId(), MenuID: menuId })
         .then(function (res) {
-          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
-            res.code = 0;
-            res.msg = 'Xóa Menu thành công!';
-          }
           resolve(res);
         })
         .catch(function (err) {
@@ -1794,11 +2441,20 @@ var MenusService = (function () {
   return {
     getAll: getAll,
     save: save,
+    saveDefinition: saveDefinition,
     deleteMenu: deleteMenu,
     updateOrder: updateOrder,
+    isSuccessResponse: isSuccessResponse,
     currentGroupId: _currentGroupId
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.MenusService = MenusService;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = MenusService;
+}
 
 /* --- PeriodManager.js --- */
 // Quản lý Kỳ kế toán (Period Manager) - Tích hợp Real DB (SY_Period)
@@ -2036,6 +2692,10 @@ window.FieldSyncService = (function (global) {
     return /(?:Frm|Report)$/i.test(String(formName || '').trim());
   }
 
+  function isReportForm(formName) {
+    return /(?:Report)$/i.test(String(formName || '').trim());
+  }
+
   function isPilot(formName) {
     // Form CRUD và report động đều dùng cùng nguồn metadata V2.
     if (!isMetadataContractForm(formName)) return false;
@@ -2098,12 +2758,21 @@ window.FieldSyncService = (function (global) {
       return {
         name: field.name,
         label: field.label || field.name,
+        captionVN: field.captionVN || field.CaptionVN || legacy.captionVN || legacy.CaptionVN || field.label || legacy.label || field.name,
         orderNo: field.orderNo || index + 1,
         position: 'grid',
         renderRule: engineRule(field.renderRule || legacy.renderRule || legacy.FormatID),
+        semanticRenderRule: field.semanticRenderRule || field.renderRule || legacy.semanticRenderRule || legacy.renderRule || legacy.FormatID || '',
         formatId: field.formatId || legacy.formatId || legacy.FormatID || '',
         FormatID: field.formatId || legacy.formatId || legacy.FormatID || '',
         formatType: field.formatType || legacy.formatType || legacy.FormatType || '',
+        sqlType: field.sqlType || legacy.sqlType || legacy.SqlType || '',
+        semanticRole: field.semanticRole || legacy.semanticRole || legacy.SemanticRole || '',
+        displayVariant: field.displayVariant || legacy.displayVariant || legacy.DisplayVariant || '',
+        toneMap: cloneValue(field.toneMap !== undefined ? field.toneMap : (legacy.toneMap || legacy.ToneMap || null)),
+        statusMap: cloneValue(field.statusMap !== undefined ? field.statusMap : (legacy.statusMap || legacy.StatusMap || null)),
+        avatarField: field.avatarField || legacy.avatarField || legacy.AvatarField || '',
+        secondaryField: field.secondaryField || legacy.secondaryField || legacy.SecondaryField || '',
         metadataSource: 'FIELD_SYNC_V2',
         // Field chỉ có ở V2 được hiển thị read-only và không gửi server-sort cho tới khi API có contract tương ứng.
         serverSortable: hasLegacyField,
@@ -2114,6 +2783,9 @@ window.FieldSyncService = (function (global) {
         isReadOnlyEdit: legacy.isReadOnlyEdit,
         ShowInEdit: editable ? 1 : 0,
         IsReadOnlyEdit: legacy.isReadOnlyEdit ? 1 : 0,
+        isPrimaryKey: field.isPrimaryKey === true || legacy.isPrimaryKey === true || legacy.IsPrimaryKey === 1,
+        isIdentity: field.isIdentity === true || legacy.isIdentity === true || legacy.IsIdentity === 1,
+        isSensitiveOrDenied: field.isSensitiveOrDenied === true || legacy.isSensitiveOrDenied === true || legacy.IsSensitiveOrDenied === 1,
         dataSource: field.dataSource || legacy.dataSource || legacy.DataSource || '',
         lookupKey: lookup && lookup.key ? lookup.key : (legacy.lookupKey || legacy.LookupKey || ''),
         minWidth: field.minWidth !== undefined ? field.minWidth : legacy.minWidth,
@@ -2176,13 +2848,21 @@ window.FieldSyncService = (function (global) {
     return {
       name: field.name,
       label: contextLabel,
+      captionVN: field.captionVN || field.CaptionVN || contextLabel,
       orderNo: contextOrder,
       position: 'grid',
       renderRule: engineRule(field.renderRule),
+      semanticRenderRule: field.semanticRenderRule || field.renderRule || '',
       formatId: field.formatId || '',
       FormatID: field.formatId || '',
       formatType: field.formatType || '',
       sqlType: field.sqlType || '',
+      semanticRole: field.semanticRole || '',
+      displayVariant: field.displayVariant || '',
+      toneMap: cloneValue(field.toneMap || null),
+      statusMap: cloneValue(field.statusMap || null),
+      avatarField: field.avatarField || '',
+      secondaryField: field.secondaryField || '',
       nullable: field.nullable === true,
       required: field.requiredOnInsert === true,
       metadataSource: 'FIELD_CONTRACT_V2',
@@ -2779,11 +3459,54 @@ window.FieldSyncService = (function (global) {
       var rolloutStatus = String(control.rolloutStatus || reasonStatus || 'NOT_REGISTERED').toUpperCase();
       if (metadata.metadataEnabled !== true) {
         clearFormTimers(formName);
+        var normName = normalizeName(formName);
+        var isReportForm = /(?:Report)$/i.test(String(formName || '').trim());
+        var hasCustomOrLegacy = isReportForm
+          || (Array.isArray(resolvedLegacySchema) && resolvedLegacySchema.length > 0)
+          || (entry && (entry.enableGrid === false || entry.legacyOnly === true))
+          || Boolean(
+              global.HRModuleDefinitions && Object.keys(global.HRModuleDefinitions).some(function (mod) {
+                var defs = global.HRModuleDefinitions[mod];
+                if (!defs || typeof defs !== 'object') return false;
+                return Object.keys(defs).some(function (key) {
+                  return normalizeName(key) === normName || key.toUpperCase() === String(formName).toUpperCase();
+                });
+              })
+          );
+
+        var isDeferredOrBlocked = rolloutStatus === 'DEFERRED'
+          || rolloutStatus === 'BLOCKED'
+          || rolloutStatus === 'NOT_REGISTERED'
+          || String(control.contractType || '').toUpperCase() === 'COMPLEX_DEFERRED';
+
+        // fallbackToLegacy: true → luôn dùng legacy state khi form chưa sẵn sàng V2,
+        // không cần custom schema. Đây là ý nghĩa chính xác của cờ này.
+        var shouldFallback = settings.fallbackToLegacy === true
+          ? (isDeferredOrBlocked || !metadata.registered)
+          : (hasCustomOrLegacy && isDeferredOrBlocked);
+
+        if (shouldFallback) {
+          var legacyState = legacyFullState(
+            formName,
+            resolvedLegacySchema,
+            'legacy-deferred-fallback',
+            null,
+            metadata.reasonCode || 'FIELD_CONTRACT_DEFERRED',
+            null
+          );
+          legacyState.managed = false;
+          legacyState.contract = control;
+          legacyState.rolloutStatus = rolloutStatus;
+          states[key] = legacyState;
+          dispatchUpdate(formName, legacyState);
+          return legacyState;
+        }
+
         var blockedMetadata = errorState(
           formName,
           'metadata-contract-blocked',
           metadata.reasonCode || 'FIELD_CONTRACT_METADATA_UNAVAILABLE',
-          'Form chưa đủ thông tin để tạo metadata V2.'
+          'Form ' + formName + ' (' + rolloutStatus + ') chưa sẵn sàng Metadata V2 và không có custom/legacy loader.'
         );
         blockedMetadata.managed = metadata.registered === true;
         blockedMetadata.contract = metadata.control || null;
@@ -2889,6 +3612,21 @@ window.FieldSyncService = (function (global) {
         states[key] = readOnly;
         dispatchUpdate(formName, readOnly);
         return readOnly;
+      }
+      // Lỗi mạng/HTTP không liên quan đến quyền: nếu fallbackToLegacy thì dùng legacy
+      if (settings.fallbackToLegacy === true) {
+        var networkFallback = legacyFullState(
+          formName,
+          resolvedLegacySchema,
+          'legacy-deferred-fallback',
+          null,
+          code || 'METADATA_NETWORK_ERROR',
+          null
+        );
+        networkFallback.rolloutStatus = 'UNKNOWN';
+        states[key] = networkFallback;
+        dispatchUpdate(formName, networkFallback);
+        return networkFallback;
       }
       var unavailable = errorState(
         formName,
@@ -3060,7 +3798,7 @@ window.FieldSyncService = (function (global) {
   }
 
   function ensurePolling(formName, legacySchema) {
-    if (!isPilot(formName) || typeof global.setInterval !== 'function') return;
+    if (isReportForm(formName) || !isPilot(formName) || typeof global.setInterval !== 'function') return;
     var key = stateKey(formName);
     var current = states[key];
     if (!current || current.pollAllowed !== true) {
@@ -3089,7 +3827,7 @@ window.FieldSyncService = (function (global) {
     }, intervalMs);
   }
 
-  function observeForm(formName, legacySchema) {
+  function observeForm(formName, legacySchema, forceRefresh) {
     var activePrefix = normalizeName(formName) + '|';
     Object.keys(timers).forEach(function (key) {
       if (key.indexOf(activePrefix) === 0) return;
@@ -3097,7 +3835,7 @@ window.FieldSyncService = (function (global) {
       delete timers[key];
     });
     installRefreshListeners();
-    return fetchState(formName, legacySchema, false).then(function (state) {
+    return fetchState(formName, legacySchema, forceRefresh === true).then(function (state) {
       ensurePolling(formName, legacySchema);
       return state;
     });
@@ -4436,14 +5174,24 @@ var ReportFilterDialog = (function () {
    *   '/api/API_DanhSachKhuVuc'       → gọi API, lấy [{ value, label }]
    *   'STATIC:--Tất cả--=,value1=Nhãn 1,value2=Nhãn 2'
    */
-  function _fetchOptions(dataSource, valueField, labelField) {
+  function _fetchOptions(dataSource, valueField, labelField, field) {
+    if (field && Array.isArray(field.options) && field.options.length > 0) {
+      return Promise.resolve(field.options.map(function (opt) {
+        return {
+          value: opt.value !== undefined ? opt.value : (opt.Value !== undefined ? opt.Value : ''),
+          label: opt.label || opt.Label || opt.text || opt.value || ''
+        };
+      }));
+    }
+
     if (!dataSource) return Promise.resolve([]);
 
     // STATIC: prefix
     if (dataSource.indexOf('STATIC:') === 0) {
       var raw = dataSource.substring(7);
       var opts = raw.split(',').map(function (item) {
-        var parts = item.split('=');
+        var parts = item.split('|');
+        if (parts.length < 2) parts = item.split('=');
         return { value: parts[1] !== undefined ? parts[1] : parts[0], label: parts[0] };
       });
       return Promise.resolve(opts);
@@ -4500,9 +5248,13 @@ var ReportFilterDialog = (function () {
 
     // ── Date range (dr): Từ ngày + Đến ngày trên cùng hàng ──
     if (rule === 'dr') {
+      var fromWrap = UIInput.createDate({ name: name + '_From', value: defaultVal, placeholder: 'Từ ngày' });
+      var toWrap = UIInput.createDate({ name: name + '_To', placeholder: 'Đến ngày' });
+      var fromInput = fromWrap.querySelector('input');
+      var toInput = toWrap.querySelector('input');
+
       var row = document.createElement('div');
       row.className = 'rfd-row';
-
       var lbl = document.createElement('label');
       lbl.className = 'rfd-label';
       lbl.textContent = label;
@@ -4510,25 +5262,12 @@ var ReportFilterDialog = (function () {
 
       var rangeWrap = document.createElement('div');
       rangeWrap.className = 'rfd-date-range';
-
-      var fromInput = document.createElement('input');
-      fromInput.type = 'date';
-      fromInput.className = 'ui-input rfd-input';
-      fromInput.dataset.fieldName = name + '_From';
-      if (defaultVal) fromInput.value = defaultVal;
-
+      rangeWrap.appendChild(fromWrap);
       var sep = document.createElement('span');
       sep.className = 'rfd-date-sep';
       sep.textContent = 'Đến';
-
-      var toInput = document.createElement('input');
-      toInput.type = 'date';
-      toInput.className = 'ui-input rfd-input';
-      toInput.dataset.fieldName = name + '_To';
-
-      rangeWrap.appendChild(fromInput);
       rangeWrap.appendChild(sep);
-      rangeWrap.appendChild(toInput);
+      rangeWrap.appendChild(toWrap);
       row.appendChild(rangeWrap);
       if (visibleRule) row.dataset.visibleRule = visibleRule;
 
@@ -4549,15 +5288,13 @@ var ReportFilterDialog = (function () {
 
     // ── Date (dt) ──
     if (rule === 'dt') {
-      var input = document.createElement('input');
-      input.type = 'date';
+      var dateWrap = UIInput.createDate({ label: '', name: name, value: defaultVal, required: required });
+      var input = dateWrap.querySelector('input');
       input.className = 'ui-input rfd-input';
       input.dataset.fieldName = name;
-      input.required = required;
-      if (defaultVal) input.value = defaultVal;
 
       return {
-        row: _buildRow(label, required, input, visibleRule),
+        row: _buildRow(label, required, dateWrap, visibleRule),
         getValue: function () { var o = {}; o[name] = input.value; return o; },
         setValue: function (v) { input.value = v || ''; }
       };
@@ -4581,19 +5318,94 @@ var ReportFilterDialog = (function () {
 
     // ── Select (sl hoặc sr) ──
     if (rule === 'sl' || rule === 'sr') {
+      var selectedVal = defaultVal || '';
+
+      if (window.UIControls && typeof UIControls.createDataComboBox === 'function') {
+        var hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.dataset.fieldName = name;
+        hiddenInput.value = selectedVal;
+
+        var comboContainer = document.createElement('div');
+        comboContainer.style.width = '100%';
+
+        var comboLoading = UIControls.createDataComboBox({
+          placeholder: label ? ('Chọn ' + label + '...') : '-- Tất cả --',
+          disabled: false
+        });
+        comboContainer.appendChild(comboLoading);
+
+        _fetchOptions(field.dataSource, field.valueField, field.labelField, field)
+          .then(function (opts) {
+            var comboData = [];
+            opts.forEach(function (opt) {
+              if (opt.value !== '') {
+                comboData.push([opt.value, opt.label]);
+              }
+            });
+
+            var newCombo = UIControls.createDataComboBox({
+              placeholder: field.placeholder || label || '-- Tất cả --',
+              headers: ['Mã / Giá trị', 'Tên / Nhãn'],
+              data: comboData,
+              colFilterIndex: 1,
+              onSelect: function (r) {
+                selectedVal = r ? r[0] : '';
+                hiddenInput.value = selectedVal;
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              },
+              onChange: function (val) {
+                selectedVal = val;
+                hiddenInput.value = val;
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+
+            var displayInput = newCombo.querySelector('input.ui-input');
+            if (selectedVal && displayInput) {
+              var matched = comboData.find(function (r) { return String(r[0]) === String(selectedVal); });
+              if (matched) {
+                displayInput.value = matched[1];
+              } else {
+                displayInput.value = selectedVal;
+              }
+            }
+
+            comboContainer.innerHTML = '';
+            comboContainer.appendChild(newCombo);
+          });
+
+        var wrapper = document.createElement('div');
+        wrapper.appendChild(hiddenInput);
+        wrapper.appendChild(comboContainer);
+
+        return {
+          row: _buildRow(label, required, wrapper, visibleRule),
+          getValue: function () {
+            var o = {};
+            o[name] = hiddenInput.value || selectedVal;
+            return o;
+          },
+          setValue: function (v) {
+            selectedVal = v || '';
+            hiddenInput.value = selectedVal;
+            var displayInput = wrapper.querySelector('input.ui-input');
+            if (displayInput) displayInput.value = selectedVal;
+          }
+        };
+      }
+
       var sel = document.createElement('select');
       sel.className = 'ui-input rfd-input rfd-select';
       sel.dataset.fieldName = name;
       sel.required = required;
 
-      // Placeholder option
       var placeholder = document.createElement('option');
       placeholder.value = '';
       placeholder.textContent = '--Tất cả--';
       sel.appendChild(placeholder);
 
-      // Load options async
-      _fetchOptions(field.dataSource, field.valueField, field.labelField)
+      _fetchOptions(field.dataSource, field.valueField, field.labelField, field)
         .then(function (opts) {
           opts.forEach(function (opt) {
             var o = document.createElement('option');
@@ -4605,16 +5417,8 @@ var ReportFilterDialog = (function () {
           if (defaultVal) sel.value = defaultVal;
         });
 
-      // sr = select + search icon (dùng SearchDropdown nếu có)
-      var wrap = sel;
-      if (rule === 'sr' && typeof SearchDropdown !== 'undefined') {
-        // SearchDropdown sẽ wrap select thành combobox có tìm kiếm
-        // (SearchDropdown.attachTo pattern)
-        // Giữ nguyên select để đơn giản, tích hợp sau
-      }
-
       return {
-        row: _buildRow(label, required, wrap, visibleRule),
+        row: _buildRow(label, required, sel, visibleRule),
         getValue: function () { var o = {}; o[name] = sel.value; return o; },
         setValue: function (v) { sel.value = v || ''; }
       };
@@ -5393,35 +6197,36 @@ UIControls.utils = (function () {
 
 /* --- Navbar.js --- */
 /**
- * Navbar Component
- * Thanh điều hướng ngang trên cùng — thay thế sidebar dọc.
- * Có dropdown xổ xuống cho từng nhóm menu.
- * Hỗ trợ chuyển đổi layout ngang ↔ dọc (sidebar mode).
+ * Navbar / Sidebar Component
+ * Tách biệt hoàn toàn trách nhiệm: Sidebar & Header render độc lập trong container riêng.
+ * KHÔNG BAO GIỜ chạm, append hay reparent #app-content.
  */
 var Navbar = (function () {
 
-  /* ─────────────────────────────────────────
-     Layout Mode (lưu vào localStorage)
-  ───────────────────────────────────────── */
   var LAYOUT_KEY = 'pmql_layout_mode';
-  var LAYOUT_HORIZONTAL = 'horizontal';
   var LAYOUT_VERTICAL = 'vertical';
+  var LAYOUT_HORIZONTAL = 'horizontal';
+
+  var CACHE_KEY = 'pmql_nav_cache';
+  var CACHE_CONTRACT_VERSION = 3;
+  var SESSION_OPEN_GROUPS_KEY = 'pmql_sidebar_open_groups';
+
+  var NAV_CONFIG_TREE = [];
+  var RAW_MENU_RECORDS = [];
+  var _listenersBound = false;
 
   function getLayout() {
-    return localStorage.getItem(LAYOUT_KEY) || LAYOUT_HORIZONTAL;
+    return localStorage.getItem(LAYOUT_KEY) || LAYOUT_VERTICAL;
   }
 
   function setLayout(mode) {
     localStorage.setItem(LAYOUT_KEY, mode);
   }
 
-  /* Áp dụng layout lên <body> */
   function applyLayout(mode) {
     document.body.setAttribute('data-layout', mode);
-
     var $app = document.getElementById('app');
     if (!$app) return;
-
     if (mode === LAYOUT_VERTICAL) {
       $app.classList.add('layout-vertical');
       $app.classList.remove('layout-horizontal');
@@ -5431,188 +6236,280 @@ var Navbar = (function () {
     }
   }
 
+  function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   /* ─────────────────────────────────────────
-     Cấu hình menu — load từ DB (100% dynamic)
+     Menu Normalization & Tree Builder (Section 6)
   ───────────────────────────────────────── */
-  var NAV_CONFIG = [];
+  function normalizeMenuRecords(records) {
+    if (!Array.isArray(records)) return [];
+    var seen = {};
+    var normalized = [];
+    records.forEach(function (r) {
+      if (!r) return;
+      var id = String(r.MenuID || r.id || r.ID || r.MenuId || '').trim();
+      if (!id || seen[id]) return;
+      seen[id] = true;
 
-  function _buildConfigFromDB(dbMenus) {
-    var config = [];
-    // API trả về: id, parent, label, icon, URLPara
-    var parents = dbMenus.filter(function (m) { return !m.parent || String(m.parent).trim() === ''; });
-    parents.sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
+      var parentId = String(r.Parent || r.parent || r.ParentID || r.parentId || '').trim();
+      var label = String(r.VN || r.label || r.TenMenu || r.Title || r.VN || '').trim();
+      var icon = String(r.icon || r.IconIndex || r.IconClass || 'circle').trim();
+      var href = String(r.URLPara || r.urlPara || r.FormKey || r.href || '').trim();
 
-    parents.forEach(function (p) {
-      var children = dbMenus.filter(function (m) { return m.parent === p.id; });
-      if (children.length > 0) {
-        children.sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
-        var items = children.map(function (c) {
-          return {
-            href: c.URLPara || c.urlPara || c.FormKey || '',
-            icon: c.icon || c.IconClass || 'circle',
-            label: c.label || c.TenMenu || c.VN || ''
-          };
-        });
-        config.push({
-          type: 'group',
-          icon: p.icon || p.IconClass || 'folder',
-          label: p.label || p.TenMenu || p.VN || '',
-          items: items
-        });
+      if (href && !href.startsWith('#/')) {
+        if (href.startsWith('/')) href = '#' + href;
+        else if (!href.startsWith('#')) href = '#/' + href;
+      }
+
+      normalized.push({
+        id: id,
+        parentId: parentId,
+        label: label,
+        icon: icon,
+        href: href
+      });
+    });
+    return normalized;
+  }
+
+  function buildMenuTree(records) {
+    var normalized = normalizeMenuRecords(records);
+    var itemMap = {};
+    normalized.forEach(function (item) {
+      item.children = [];
+      itemMap[item.id] = item;
+    });
+
+    var tree = [];
+    normalized.forEach(function (item) {
+      if (item.parentId && itemMap[item.parentId] && item.parentId !== item.id) {
+        itemMap[item.parentId].children.push(item);
       } else {
-        config.push({
-          type: 'link',
-          href: p.URLPara || p.urlPara || p.FormKey || '',
-          icon: p.icon || p.IconClass || 'link',
-          label: p.label || p.TenMenu || p.VN || ''
-        });
+        tree.push(item);
       }
     });
-    return config;
+    return tree;
   }
 
   /* ─────────────────────────────────────────
-     Build HTML helpers
+     Active Route Helpers (Section 13)
   ───────────────────────────────────────── */
-  function _buildMenuHTML() {
-    return NAV_CONFIG.map(function (item) {
-      if (item.type === 'link') {
-        return `
-          <a href="${item.href}" class="nav-link" data-href="${item.href}">
-            <span class="material-symbols-outlined nav-icon">${item.icon}</span>
-            ${item.label}
-          </a>`;
-      }
-
-      var dropdownItems = item.items.map(function (di) {
-        return `
-          <a href="${di.href}" class="dropdown-item" data-href="${di.href}">
-            <span class="material-symbols-outlined drop-icon">${di.icon}</span>
-            ${di.label}
-          </a>`;
-      }).join('');
-
-      return `
-        <div class="nav-group" data-group>
-          <button class="nav-group-btn">
-            <span class="material-symbols-outlined nav-icon">${item.icon}</span>
-            ${item.label}
-            <span class="material-symbols-outlined chevron">expand_more</span>
-          </button>
-          <div class="nav-dropdown">
-            ${dropdownItems}
-          </div>
-        </div>`;
-    }).join('');
+  function normalizeRouteHref(href) {
+    if (!href) return '';
+    var hash = href.split('?')[0].split('&')[0];
+    return hash.trim();
   }
 
-  /* Sidebar nav items (for vertical mode) */
-  function _buildSidebarNavHTML() {
-    var html = '';
-    NAV_CONFIG.forEach(function (item) {
-      if (item.type === 'link') {
-        html += `
-          <a href="${item.href}" class="nav-item" data-href="${item.href}">
-            <span class="material-symbols-outlined icon">${item.icon}</span>
-            ${item.label}
-          </a>`;
-        return;
-      }
-      html += `<div class="nav-group-title">${item.label}</div>`;
-      item.items.forEach(function (di) {
-        html += `
-          <a href="${di.href}" class="nav-item" data-href="${di.href}">
-            <span class="material-symbols-outlined icon">${di.icon}</span>
-            ${di.label}
-          </a>`;
-      });
-    });
-    return html;
+  function isRouteActive(menuHref, currentHash) {
+    if (!menuHref || !currentHash) return false;
+    var normMenu = normalizeRouteHref(menuHref);
+    var normCurrent = normalizeRouteHref(currentHash);
+    return normMenu === normCurrent;
   }
 
-  /* Mobile drawer nav */
-  function _buildMobileNavHTML() {
-    var html = '';
-    NAV_CONFIG.forEach(function (item) {
-      if (item.type === 'link') {
-        html += `
-          <a href="${item.href}" class="mobile-nav-item" data-href="${item.href}">
-            <span class="material-symbols-outlined">${item.icon}</span>
-            ${item.label}
-          </a>`;
-        return;
-      }
-      html += `<div class="mobile-nav-divider"></div>
-               <div class="mobile-nav-section-label">${item.label}</div>`;
-      item.items.forEach(function (di) {
-        html += `
-          <a href="${di.href}" class="mobile-nav-item" data-href="${di.href}">
-            <span class="material-symbols-outlined">${di.icon}</span>
-            ${di.label}
-          </a>`;
-      });
-    });
-    return html;
+  function getStoredOpenGroups() {
+    try {
+      return JSON.parse(sessionStorage.getItem(SESSION_OPEN_GROUPS_KEY) || '[]');
+    } catch (e) {
+      return [];
+    }
   }
 
-  /* ── Layout switcher buttons HTML ── */
+  function setStoredOpenGroups(groups) {
+    try {
+      sessionStorage.setItem(SESSION_OPEN_GROUPS_KEY, JSON.stringify(groups));
+    } catch (e) { }
+  }
 
   /* ─────────────────────────────────────────
-     Render — Horizontal (Navbar) mode
+     HTML Rendering Helpers
   ───────────────────────────────────────── */
-  function _renderHorizontal(container) {
-    var layout = getLayout();
+  function renderSidebarTreeHTML(tree, currentHash) {
+    var openGroups = getStoredOpenGroups();
+    var html = '';
+
+    tree.forEach(function (item) {
+      var isLink = !item.children || item.children.length === 0;
+
+      if (isLink) {
+        var activeClass = isRouteActive(item.href, currentHash) ? 'sidebar-menu__item--active active' : '';
+        html += `
+          <a href="${escapeHTML(item.href)}" class="sidebar-menu__item nav-item ${activeClass}" data-href="${escapeHTML(item.href)}" title="${escapeHTML(item.label)}">
+            <span class="material-symbols-outlined sidebar-menu__icon icon">${escapeHTML(item.icon)}</span>
+            <span class="sidebar-menu__label nav-text">${escapeHTML(item.label)}</span>
+          </a>`;
+      } else {
+        var hasActiveChild = item.children.some(function (child) { return isRouteActive(child.href, currentHash); });
+        var isOpen = hasActiveChild || openGroups.indexOf(item.id) !== -1;
+        var groupOpenClass = isOpen ? 'sidebar-group--open open' : '';
+
+        var subItemsHtml = item.children.map(function (child) {
+          var childActive = isRouteActive(child.href, currentHash) ? 'sidebar-menu__item--active active' : '';
+          var iconName = (child.icon && child.icon !== 'remove' && child.icon !== '-') ? child.icon : 'fiber_manual_record';
+          var iconClass = iconName === 'fiber_manual_record' ? 'sidebar-menu__icon--bullet' : '';
+          return `
+            <a href="${escapeHTML(child.href)}" class="sidebar-menu__item nav-item sub-item ${childActive}" data-href="${escapeHTML(child.href)}" title="${escapeHTML(child.label)}">
+              <span class="material-symbols-outlined sidebar-menu__icon icon ${iconClass}">${escapeHTML(iconName)}</span>
+              <span class="sidebar-menu__label nav-text">${escapeHTML(child.label)}</span>
+            </a>`;
+        }).join('');
+
+        html += `
+          <div class="sidebar-group nav-group-accordion ${groupOpenClass}" data-group-id="${escapeHTML(item.id)}">
+            <button type="button" class="sidebar-group__trigger nav-group-accordion-btn" title="${escapeHTML(item.label)}">
+              <div class="sidebar-group__left nav-group-left">
+                <span class="material-symbols-outlined sidebar-menu__icon icon">${escapeHTML(item.icon)}</span>
+                <span class="sidebar-menu__label nav-group-text">${escapeHTML(item.label)}</span>
+              </div>
+              <span class="material-symbols-outlined sidebar-menu__chevron chevron">expand_more</span>
+            </button>
+            <div class="sidebar-group__children nav-group-accordion-content">
+              ${subItemsHtml}
+            </div>
+          </div>`;
+      }
+    });
+
+    return html;
+  }
+
+  function _getCompanyBrandInfo() {
+    var currentUser = {};
+    try {
+      var raw = localStorage.getItem('pmql_user') || sessionStorage.getItem('pmql_user') || '{}';
+      currentUser = JSON.parse(raw);
+    } catch (e) {}
+
+    // Lấy tên đơn vị / công ty / chi nhánh động từ dữ liệu DB trong phiên đăng nhập
+    var title = currentUser.TenCongTy || currentUser.CompanyName || currentUser.Company || currentUser.TenDonVi || currentUser.BrandTitle || 'DIM TU TAC';
+    var subtitle = currentUser.TenChiNhanh || currentUser.BranchName || currentUser.ChiNhanh || currentUser.TenNhom || currentUser.GroupName || currentUser.UserGroupID || currentUser.BrandSubtitle || 'CÔNG TY CP TM DV DIM TU TAC';
+
+    return {
+      title: title,
+      subtitle: subtitle
+    };
+  }
+
+  /* ─────────────────────────────────────────
+     Render Sidebar Component (Section 5)
+  ───────────────────────────────────────── */
+  function renderSidebar(containerId) {
+    var id = containerId || 'sidebar-container';
+    var container = document.getElementById(id);
+    if (!container) return;
+
+    var brandInfo = _getCompanyBrandInfo();
+    var currentHash = window.location.hash || '#/dashboard';
     var html = `
-      <!-- ═══ TOP NAVBAR ═══ -->
-      <nav class="app-navbar" id="app-navbar">
-
-        <!-- Hamburger (mobile only) -->
-        <button class="navbar-hamburger" id="navbar-hamburger">
-          <span class="material-symbols-outlined">menu</span>
-        </button>
-
-        <!-- Brand / Logo -->
-        <div class="navbar-brand" onclick="window.location.hash='#/dashboard'" style="display:flex; align-items:center; cursor: pointer;">
-          <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
-          <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px; margin-left: 16px;">
-        </div>
-
-        <!-- Desktop Menu with scroll arrows -->
-        <div class="navbar-menu-wrapper" id="navbar-menu-wrapper">
-          <button class="navbar-scroll-arrow navbar-scroll-left" id="navbar-scroll-left" title="Cuộn trái">
-            <span class="material-symbols-outlined">chevron_left</span>
+      <aside class="app-sidebar" id="app-sidebar">
+        <!-- Sidebar Header / Brand -->
+        <div class="sidebar-header">
+          <button type="button" class="sidebar-brand-link" data-sidebar-home aria-label="Về trang tổng quan">
+            <span class="sidebar-brand-mark" aria-hidden="true">
+              <img class="sidebar-brand-logo" src="./src/assets/logo-full-cropped.png" alt="Logo" />
+            </span>
+            <div class="sidebar-brand-info">
+              <span class="sidebar-brand-title" id="sidebar-brand-title">${escapeHTML(brandInfo.title)}</span>
+              <span class="sidebar-brand-subtitle" id="sidebar-brand-subtitle">${escapeHTML(brandInfo.subtitle)}</span>
+            </div>
           </button>
-          <ul class="navbar-menu" id="navbar-menu">
-            ${_buildMenuHTML()}
-          </ul>
-          <button class="navbar-scroll-arrow navbar-scroll-right" id="navbar-scroll-right" title="Cuộn phải">
-            <span class="material-symbols-outlined">chevron_right</span>
+          <button type="button" class="btn-close-sidebar" id="btn-close-sidebar" title="Đóng menu" aria-label="Đóng menu">
+            <span class="material-symbols-outlined">arrow_back</span>
           </button>
         </div>
 
-        <!-- Right Actions -->
-        <div class="navbar-right">
-          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
-            <span class="material-symbols-outlined" id="header-theme-icon-horizontal">dark_mode</span>
+        <div class="sidebar-section-label">Main Menu</div>
+
+        <!-- Scrollable Navigation -->
+        <nav class="sidebar-nav" id="sidebar-nav">
+          ${renderSidebarTreeHTML(NAV_CONFIG_TREE, currentHash)}
+        </nav>
+
+        <!-- Fixed Footer -->
+        <div class="sidebar-footer">
+          <div class="widget-meeting">
+            <div class="widget-header">
+              <div class="widget-icon">
+                <span class="material-symbols-outlined">groups</span>
+              </div>
+              <div>
+                <div class="widget-title">Hệ thống HRM</div>
+                <div class="widget-sub">Phiên bản 2.15 • Enterprise</div>
+              </div>
+            </div>
           </div>
-          <div class="navbar-icon-btn" id="navbar-btn-notif" title="Thông báo">
+        </div>
+      </aside>
+
+      <!-- Sidebar Overlay (Mobile) -->
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    `;
+
+    container.innerHTML = html;
+    _bindSidebarEvents(container);
+  }
+
+  /* ─────────────────────────────────────────
+     Render Header Component (Section 5)
+  ───────────────────────────────────────── */
+  function renderHeader(containerId) {
+    var id = containerId || 'header-container';
+    var container = document.getElementById(id);
+    if (!container) return;
+
+    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
+
+    var html = `
+      <header class="app-header" id="app-header">
+        <div class="header-left">
+          <button type="button" class="btn-hamburger" id="btn-hamburger" title="Mở menu" aria-label="Mở menu" aria-controls="app-sidebar" aria-expanded="false">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+          <button type="button" class="mobile-header-brand" data-header-home aria-label="Về trang tổng quan">
+            <img src="./src/assets/logo-full-cropped.png" alt="HRM" />
+          </button>
+          <div class="header-welcome d-none d-md-block">
+            <span>Xin chào, <strong id="header-user-greeting">${escapeHTML(userName)}</strong> 👋</span>
+          </div>
+          <div class="search-box ms-md-3" data-global-search-container>
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" data-global-search aria-label="Tìm kiếm dữ liệu" autocomplete="off" placeholder="Tìm kiếm dữ liệu...">
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="header-lang-btn" title="Ngôn ngữ">
+            <span class="material-symbols-outlined" style="font-size:18px;">language</span>
+            <span class="lang-code">VN</span>
+          </div>
+          <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
+            <span class="material-symbols-outlined" id="header-theme-icon-vertical">dark_mode</span>
+          </div>
+          <div class="navbar-icon-btn" onclick="if(window.Alert) Alert.info('Thông báo', 'Bạn không có thông báo mới')">
             <span class="material-symbols-outlined">notifications</span>
             <span class="badge-dot"></span>
           </div>
-          <div class="navbar-user" id="navbar-user">
+          <div class="navbar-user" id="vertical-user-profile">
             <div class="user-avatar-nav">
-              <img id="nav-avatar-img" src="https://ui-avatars.com/api/?name=User&background=3C50E0&color=fff" alt="User">
+              <img id="vert-nav-avatar-img" src="https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=3C50E0&color=fff" alt="User">
             </div>
             <div class="user-info-nav">
-              <div class="user-name-nav" id="nav-user-name">Người dùng</div>
-              <div class="user-role-nav" id="nav-user-role">Nhân viên</div>
+              <div class="user-name-nav" id="vert-nav-user-name">${escapeHTML(userName)}</div>
+              <div class="user-role-nav" id="vert-nav-user-role">Quản trị hệ thống</div>
             </div>
             <span class="material-symbols-outlined expand-icon">expand_more</span>
 
-            <!-- User dropdown -->
-            <div class="user-dropdown" id="user-dropdown">
-              <!-- No Header (Admin/Role removed) -->
-
+            <!-- Vertical user dropdown -->
+            <div class="user-dropdown" id="vertical-user-dropdown">
               <div class="user-dropdown-item">
                 <span class="material-symbols-outlined">person</span>
                 Hồ sơ cá nhân
@@ -5621,195 +6518,305 @@ var Navbar = (function () {
                 <span class="material-symbols-outlined">palette</span>
                 Cài đặt Giao diện
               </a>
-
               <div class="dropdown-divider"></div>
-
-              <div class="user-dropdown-item danger" onclick="ConfirmModal.show({ title: 'Đăng xuất', message: 'Bạn muốn đăng xuất khỏi hệ thống?', onConfirm: window.logoutApp })">
+              <div class="user-dropdown-item danger" onclick="if(window.ConfirmModal) ConfirmModal.show({ title: 'Đăng xuất', message: 'Bạn muốn đăng xuất?', onConfirm: window.logoutApp }); else if(window.logoutApp) window.logoutApp();">
                 <span class="material-symbols-outlined">logout</span>
                 Đăng xuất
               </div>
             </div>
           </div>
         </div>
-      </nav>
-
-      <!-- ═══ MOBILE DRAWER ═══ -->
-      <div class="mobile-drawer-overlay" id="mobile-drawer-overlay"></div>
-      <div class="mobile-drawer" id="mobile-drawer">
-        <div class="mobile-drawer-header">
-          <div class="mobile-drawer-brand" onclick="window.location.hash='#/dashboard'" style="display:flex; align-items:center; justify-content:center; width:100%; margin: 12px 0; cursor: pointer;">
-            <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
-            <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
-          </div>
-          <button class="mobile-drawer-close" id="mobile-drawer-close">
-            <span class="material-symbols-outlined">arrow_back</span>
-          </button>
-        </div>
-        <nav class="mobile-drawer-nav" id="mobile-drawer-nav">
-          ${_buildMobileNavHTML()}
-        </nav>
-      </div>
+      </header>
     `;
+
     container.innerHTML = html;
-    _attachHorizontalEvents();
+    _bindHeaderEvents(container);
   }
 
   /* ─────────────────────────────────────────
-     Render — Vertical (Sidebar) mode
+     Event Binding (Delegation ONCE, Section 7)
   ───────────────────────────────────────── */
-  function _renderVertical(container) {
-    var layout = getLayout();
-    var html = `
-      <!-- ════ VERTICAL LAYOUT: Sidebar + Header ════ -->
-      <div class="vertical-layout-shell" id="vertical-layout-shell">
+  function _bindSidebarEvents(container) {
+    container.onclick = function (e) {
+      var homeBtn = e.target.closest('[data-sidebar-home]');
+      if (homeBtn) {
+        e.preventDefault();
+        window.location.hash = '#/dashboard';
+        if (window.innerWidth <= 1024) _closeMobileDrawer();
+        return;
+      }
 
-        <!-- Sidebar -->
-        <aside class="app-sidebar" id="app-sidebar">
-          <div class="sidebar-header">
-            <div onclick="window.location.hash='#/dashboard'" style="display:flex; align-items:center; justify-content:flex-start; width:100%; margin: 16px 0; padding-left: 16px; cursor: pointer;">
-              <img src="./src/assets/logo-full-cropped.png" class="app-logo-light" alt="Nhân sự Logo" style="width: 45px; height: 45px; border-radius: 6px;">
-              <img src="./src/assets/logo-full-cropped-dark.png" class="app-logo-dark" alt="Nhân sự Logo" style="width: 45px; height: 45px;">
-            </div>
-            <button class="btn-close-sidebar" id="btn-close-sidebar">
-              <span class="material-symbols-outlined">arrow_back</span>
-            </button>
-          </div>
-          <nav class="sidebar-nav" id="sidebar-nav">
-            ${_buildSidebarNavHTML()}
-          </nav>
-        </aside>
+      var trigger = e.target.closest('.sidebar-group__trigger, .nav-group-accordion-btn');
+      if (trigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        var group = trigger.closest('.sidebar-group, .nav-group-accordion');
+        if (group) {
+          var isNowOpen = !group.classList.contains('sidebar-group--open') && !group.classList.contains('open');
+          group.classList.toggle('sidebar-group--open', isNowOpen);
+          group.classList.toggle('open', isNowOpen);
 
-        <!-- Sidebar overlay (mobile) -->
-        <div class="sidebar-overlay" id="sidebar-overlay"></div>
-
-        <!-- Main area (header + content) -->
-        <div class="vertical-main" id="vertical-main">
-
-          <!-- Vertical Header -->
-          <header class="app-header" id="app-header">
-            <div class="header-left">
-              <button class="btn-hamburger" id="btn-hamburger">
-                <span class="material-symbols-outlined">menu</span>
-              </button>
-              <div class="search-box">
-                <span class="material-symbols-outlined">search</span>
-                <input type="text" placeholder="Type to search...">
-              </div>
-            </div>
-
-            <div class="header-right">
-              <div class="navbar-icon-btn" onclick="var isDark = document.body.classList.toggle('dark-theme'); localStorage.setItem('pmql_theme', isDark ? 'dark' : 'light'); this.querySelector('span').innerText = isDark ? 'light_mode' : 'dark_mode';" title="Chuyển giao diện">
-                <span class="material-symbols-outlined" id="header-theme-icon-vertical">dark_mode</span>
-              </div>
-              <div class="navbar-icon-btn" onclick="Alert.info('Thông báo', 'Bạn không có thông báo mới')">
-                <span class="material-symbols-outlined">notifications</span>
-                <span class="badge-dot"></span>
-              </div>
-              <div class="navbar-user" id="vertical-user-profile">
-                <div class="user-avatar-nav">
-                  <img id="vert-nav-avatar-img" src="https://ui-avatars.com/api/?name=User&background=3C50E0&color=fff" alt="User">
-                </div>
-                <div class="user-info-nav">
-                  <div class="user-name-nav" id="vert-nav-user-name">Người dùng</div>
-                  <div class="user-role-nav" id="vert-nav-user-role">Nhân viên</div>
-                </div>
-                <span class="material-symbols-outlined expand-icon">expand_more</span>
-
-                <!-- Vertical user dropdown -->
-                <div class="user-dropdown" id="vertical-user-dropdown">
-                  <!-- No Header (Admin/Role removed) -->
-                  <div class="user-dropdown-item">
-                    <span class="material-symbols-outlined">person</span>
-                    Hồ sơ cá nhân
-                  </div>
-                  <a href="#/appearance" class="user-dropdown-item" style="text-decoration: none;">
-                    <span class="material-symbols-outlined">palette</span>
-                    Cài đặt Giao diện
-                  </a>
-
-                  <div class="dropdown-divider"></div>
-
-                  <div class="user-dropdown-item danger" onclick="ConfirmModal.show({ title: 'Đăng xuất', message: 'Bạn muốn đăng xuất?', onConfirm: window.logoutApp })">
-                    <span class="material-symbols-outlined">logout</span>
-                    Đăng xuất
-                  </div>
-                </div>
-              </div>
-            </div>
-          </header>
-
-        </div><!-- /vertical-main -->
-      </div><!-- /vertical-layout-shell -->
-    `;
-    container.innerHTML = html;
-    _attachVerticalEvents();
-  }
-
-  var CACHE_KEY = 'pmql_nav_cache';
-  var CACHE_CONTRACT_VERSION = 2;
-
-  function _isCurrentMenuCache(cached, groupId) {
-    return !!(
-      cached
-      && cached.contractVersion === CACHE_CONTRACT_VERSION
-      && cached.groupId === groupId
-      && cached.config
-      && cached.config.length > 0
-      && Array.isArray(cached.rawRecords)
-    );
-  }
-
-  function render(containerId) {
-    var container = document.getElementById(containerId);
-    if (!container) return;
-
-    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    var groupId = currentUser.UserGroupID || currentUser.userGroupID || currentUser.Group || currentUser.GroupID || currentUser.NhomQuyen || 'Admin';
-    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
-
-    // Check version server trước — nếu khác cache thì tự clear (bắt được thay đổi từ máy Admin)
-    if (window.SystemDataService && SystemDataService.getMenuSyncVersion) {
-      SystemDataService.getMenuSyncVersion().then(function (serverVer) {
-        try {
-          var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
-          var cacheVer = cached && cached.syncVer ? cached.syncVer : null;
-          // Nếu server version khác với cache version → xóa cache, fetch lại
-          if (serverVer && cacheVer && serverVer !== cacheVer) {
-            sessionStorage.removeItem(CACHE_KEY);
-            cached = null;
+          var groupId = group.getAttribute('data-group-id');
+          if (groupId) {
+            var openGroups = getStoredOpenGroups();
+            var idx = openGroups.indexOf(groupId);
+            if (isNowOpen && idx === -1) openGroups.push(groupId);
+            else if (!isNowOpen && idx !== -1) openGroups.splice(idx, 1);
+            setStoredOpenGroups(openGroups);
           }
-          if (_isCurrentMenuCache(cached, groupId)) {
-            NAV_CONFIG = cached.config;
-            if (cached.rawRecords && window.Router && typeof Router.addDynamicRoutes === 'function') {
-              Router.addDynamicRoutes(cached.rawRecords);
-            }
-            _doRender(container);
-            return;
-          }
-        } catch (e) { }
-        _fetchAndRender(container, groupId, serverVer);
-      }).catch(function () {
-        // Lỗi API → dùng cache nếu có, không thì fetch nav
-        _fetchAndRender(container, groupId, null);
-      });
-    } else {
-      // Fallback: không có SystemDataService → dùng cache như cũ
-      try {
-        var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
-        if (_isCurrentMenuCache(cached, groupId)) {
-          NAV_CONFIG = cached.config;
-          if (cached.rawRecords && window.Router && typeof Router.addDynamicRoutes === 'function') {
-            Router.addDynamicRoutes(cached.rawRecords);
-          }
-          _doRender(container);
-          return;
         }
-      } catch (e) { }
-      _fetchAndRender(container, groupId, null);
+        return;
+      }
+
+      var closeBtn = e.target.closest('#btn-close-sidebar');
+      var overlay = e.target.closest('#sidebar-overlay');
+      if (closeBtn || overlay) {
+        _closeMobileDrawer();
+        return;
+      }
+
+      var linkItem = e.target.closest('.sidebar-menu__item, .nav-item');
+      if (linkItem && window.innerWidth <= 1024) {
+        setTimeout(_closeMobileDrawer, 150);
+      }
+    };
+  }
+
+  function _getQuickSearchInput() {
+    return document.getElementById('toolbar-quick-search') ||
+      document.querySelector('#dynamic-filter-container input[type="search"], #dynamic-filter-container input[type="text"]');
+  }
+
+  function _filterVisibleTableRows(keyword) {
+    var normalized = String(keyword || '').trim().toLocaleLowerCase();
+    document.querySelectorAll('#app-content .data-table tbody tr').forEach(function (row) {
+      var matches = !normalized || String(row.textContent || '').toLocaleLowerCase().indexOf(normalized) !== -1;
+      row.hidden = !matches;
+    });
+  }
+
+  function _applyGlobalSearch(value) {
+    var keyword = String(value || '').trim();
+    window.__globalSearchKeyword = keyword;
+
+    var quickSearchInput = _getQuickSearchInput();
+    if (quickSearchInput) {
+      if (quickSearchInput.value !== keyword) quickSearchInput.value = keyword;
+      quickSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (window.tabulatorInstance && typeof window.tabulatorInstance.setFilter === 'function') {
+      var table = window.tabulatorInstance;
+      if (!keyword && typeof table.clearFilter === 'function') {
+        table.clearFilter();
+      } else {
+        var lowered = keyword.toLocaleLowerCase();
+        table.setFilter(function (data) {
+          if (!lowered) return true;
+          return Object.keys(data || {}).some(function (key) {
+            return String(data[key] == null ? '' : data[key]).toLocaleLowerCase().indexOf(lowered) !== -1;
+          });
+        });
+      }
+    } else {
+      _filterVisibleTableRows(keyword);
+    }
+
+    document.dispatchEvent(new CustomEvent('app:global-search', {
+      detail: { keyword: keyword }
+    }));
+  }
+
+  function _resetGlobalSearch() {
+    window.__globalSearchKeyword = '';
+    var headerInput = document.querySelector('[data-global-search]');
+    if (headerInput) headerInput.value = '';
+    var quickSearchInput = _getQuickSearchInput();
+    if (quickSearchInput && quickSearchInput.value) {
+      quickSearchInput.value = '';
+      quickSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (window.tabulatorInstance && typeof window.tabulatorInstance.clearFilter === 'function') {
+      window.tabulatorInstance.clearFilter();
+    } else {
+      _filterVisibleTableRows('');
     }
   }
 
-  function _fetchAndRender(container, groupId, syncVer) {
+  function _bindHeaderEvents(container) {
+    var headerHome = container.querySelector('[data-header-home]');
+    if (headerHome) {
+      headerHome.onclick = function () {
+        window.location.hash = '#/dashboard';
+      };
+    }
+
+    var btnOpen = container.querySelector('#btn-hamburger');
+    if (btnOpen) {
+      btnOpen.onclick = function (e) {
+        e.stopPropagation();
+        _openMobileDrawer();
+      };
+    }
+
+    var globalSearchInput = container.querySelector('[data-global-search]');
+    if (globalSearchInput) {
+      var searchTimer;
+      globalSearchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+          _applyGlobalSearch(globalSearchInput.value);
+        }, 250);
+      });
+      globalSearchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          globalSearchInput.value = '';
+          _applyGlobalSearch('');
+        }
+      });
+    }
+
+    var uProf = container.querySelector('#vertical-user-profile');
+    var uDrop = container.querySelector('#vertical-user-dropdown');
+    if (uProf && uDrop) {
+      var userTriggers = uProf.querySelectorAll('.user-avatar-nav, .user-info-nav, .expand-icon');
+      var toggleUserDropdown = function (e) {
+        e.stopPropagation();
+        var isOpen = uProf.classList.contains('open');
+        uProf.classList.toggle('open', !isOpen);
+        uDrop.classList.toggle('open', !isOpen);
+      };
+      if (userTriggers.length) {
+        userTriggers.forEach(function (trigger) {
+          trigger.addEventListener('click', toggleUserDropdown);
+        });
+      } else {
+        uProf.addEventListener('click', toggleUserDropdown);
+      }
+      uDrop.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+  }
+
+  function _openMobileDrawer() {
+    var sidebar = document.querySelector('.app-sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    var trigger = document.getElementById('btn-hamburger');
+    if (sidebar) sidebar.classList.add('open');
+    if (overlay) overlay.classList.add('active');
+    if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('sidebar-drawer-open');
+    document.body.style.overflow = 'hidden';
+    window.requestAnimationFrame(function () {
+      var closeBtn = document.getElementById('btn-close-sidebar');
+      if (closeBtn) closeBtn.focus();
+    });
+  }
+
+  function _closeMobileDrawer() {
+    var sidebar = document.querySelector('.app-sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    var trigger = document.getElementById('btn-hamburger');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('sidebar-drawer-open');
+    document.body.style.overflow = '';
+  }
+
+  function _bindGlobalOnce() {
+    if (_listenersBound) return;
+    _listenersBound = true;
+
+    window.addEventListener('hashchange', function () {
+      updateActiveRoute();
+      _resetGlobalSearch();
+      if (window.innerWidth <= 1024) _closeMobileDrawer();
+    });
+
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 1024) _closeMobileDrawer();
+    });
+
+    document.addEventListener('click', function (e) {
+      var uProf = document.getElementById('vertical-user-profile');
+      var uDrop = document.getElementById('vertical-user-dropdown');
+      if (uProf && uDrop && !uProf.contains(e.target)) {
+        uProf.classList.remove('open');
+        uDrop.classList.remove('open');
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        _closeMobileDrawer();
+        var uProf = document.getElementById('vertical-user-profile');
+        var uDrop = document.getElementById('vertical-user-dropdown');
+        if (uProf && uDrop) {
+          uProf.classList.remove('open');
+          uDrop.classList.remove('open');
+        }
+      }
+    });
+  }
+
+  /* ─────────────────────────────────────────
+     Update Active Route (Section 13)
+  ───────────────────────────────────────── */
+  function updateActiveRoute() {
+    var currentHash = window.location.hash || '#/dashboard';
+
+    document.querySelectorAll('.sidebar-nav .sidebar-menu__item, .sidebar-nav .nav-item').forEach(function (el) {
+      var href = el.getAttribute('data-href') || el.getAttribute('href');
+      var isActive = isRouteActive(href, currentHash);
+      el.classList.toggle('sidebar-menu__item--active', isActive);
+      el.classList.toggle('active', isActive);
+
+      if (isActive) {
+        var group = el.closest('.sidebar-group, .nav-group-accordion');
+        if (group) {
+          group.classList.add('sidebar-group--open');
+          group.classList.add('open');
+          var groupId = group.getAttribute('data-group-id');
+          if (groupId) {
+            var openGroups = getStoredOpenGroups();
+            if (openGroups.indexOf(groupId) === -1) {
+              openGroups.push(groupId);
+              setStoredOpenGroups(openGroups);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  /* ─────────────────────────────────────────
+     Cache & Fetch Logic (Section 14)
+  ───────────────────────────────────────── */
+  function clearMenuCache() {
+    sessionStorage.removeItem(CACHE_KEY);
+    NAV_CONFIG_TREE = [];
+    RAW_MENU_RECORDS = [];
+  }
+
+  function refreshMenu() {
+    clearMenuCache();
+    return renderSidebar();
+  }
+
+  function _loadMenuData(callback) {
+    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var groupId = currentUser.UserGroupID || currentUser.userGroupID || currentUser.Group || currentUser.GroupID || currentUser.NhomQuyen || 'Admin';
+
+    try {
+      var cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+      if (cached && cached.contractVersion === CACHE_CONTRACT_VERSION && cached.groupId === groupId && Array.isArray(cached.rawRecords) && cached.rawRecords.length > 0) {
+        RAW_MENU_RECORDS = cached.rawRecords;
+        NAV_CONFIG_TREE = buildMenuTree(RAW_MENU_RECORDS);
+        if (window.Router && typeof Router.addDynamicRoutes === 'function') {
+          Router.addDynamicRoutes(RAW_MENU_RECORDS);
+        }
+        callback();
+        return;
+      }
+    } catch (e) { }
+
     var endpoint = (window.API_CONFIG && window.API_CONFIG.ENDPOINTS && window.API_CONFIG.ENDPOINTS.PERMISSIONS)
       ? window.API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MENU_BY_GROUP : null;
 
@@ -5820,320 +6827,62 @@ var Navbar = (function () {
       }).then(function (res) {
         var records = (res && res.records) ? res.records : (res && res.data ? res.data : []);
         if (records && records.length > 0) {
-          NAV_CONFIG = _buildConfigFromDB(records);
+          RAW_MENU_RECORDS = records;
+          NAV_CONFIG_TREE = buildMenuTree(records);
           if (window.Router && typeof Router.addDynamicRoutes === 'function') {
             Router.addDynamicRoutes(records);
           }
-          // Lưu cache kèm syncVer để lần sau so sánh
           try {
             sessionStorage.setItem(CACHE_KEY, JSON.stringify({
               groupId: groupId,
-              config: NAV_CONFIG,
               rawRecords: records,
-              syncVer: syncVer || '',
               contractVersion: CACHE_CONTRACT_VERSION
             }));
           } catch (e) { }
         }
-        _doRender(container);
+        callback();
       }).catch(function (err) {
         console.error('[Navbar] Lỗi tải menu từ DB:', err);
-        _doRender(container);
+        callback();
       });
     } else {
-      _doRender(container);
+      callback();
     }
   }
 
-  /* Xóa cache khi logout hoặc đổi nhóm quyền */
-  function clearMenuCache() {
-    sessionStorage.removeItem(CACHE_KEY);
-    NAV_CONFIG = [];
+  /* ─────────────────────────────────────────
+     Public API Method Navbar.render() (Section 5)
+  ───────────────────────────────────────── */
+  function render(sidebarContainerId, headerContainerId) {
+    applyLayout(getLayout());
+    _bindGlobalOnce();
+
+    _loadMenuData(function () {
+      renderSidebar(sidebarContainerId || 'sidebar-container');
+      renderHeader(headerContainerId || 'header-container');
+      updateActiveRoute();
+    });
   }
 
   /* Lắng nghe EventBus để tự động clear cache */
   if (window.EventBus) {
-    EventBus.on('user:logout', clearMenuCache); // khi đăng xuất
-    EventBus.on('permissions:changed', clearMenuCache); // khi admin đổi quyền
-    EventBus.on('menu:changed', clearMenuCache); // khi menu được chỉnh sửa
-  }
-
-  function _doRender(container) {
-    var mode = getLayout();
-    applyLayout(mode);
-    _adjustAppLayout(mode);
-
-    if (mode === LAYOUT_VERTICAL) {
-      _renderVertical(container);
-    } else {
-      _renderHorizontal(container);
-    }
-
-    // UPDATE USER INFO IN DOM AFTER RENDER
-    var currentUser = JSON.parse(localStorage.getItem('pmql_user') || '{}');
-    var userName = currentUser.HoTen || currentUser.FullName || currentUser.UserName || currentUser.username || currentUser.TaiKhoan || 'Admin';
-    var navUserName = document.getElementById('nav-user-name');
-    var vertNavUserName = document.getElementById('vert-nav-user-name');
-    var navAvatar = document.getElementById('nav-avatar-img');
-    var vertNavAvatar = document.getElementById('vert-nav-avatar-img');
-
-    if (navUserName) navUserName.textContent = userName;
-    if (vertNavUserName) vertNavUserName.textContent = userName;
-    if (navAvatar) navAvatar.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=3C50E0&color=fff";
-    if (vertNavAvatar) vertNavAvatar.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=3C50E0&color=fff";
-
-    // Fetch and update Com1 setup value for user roles (outer nav only)
-    if (window.SystemDataService && window.SystemDataService.getSetupValue) {
-      SystemDataService.getSetupValue('Com1').then(function (val) {
-        if (val) {
-          document.querySelectorAll('.user-role-nav').forEach(function (el) {
-            el.innerText = val;
-          });
-        }
-      }).catch(function (err) {
-        console.error('[Navbar] Lỗi tải SetupValue Com1:', err);
-      });
-    }
-  }
-
-  /* Adjust #app and #app-content structure per mode */
-  function _adjustAppLayout(mode) {
-    var $app = document.getElementById('app');
-    var $content = document.getElementById('app-content');
-    if (!$app) return;
-
-    // Reset any inline styles that might interfere
-    $app.style.flexDirection = '';
-  }
-
-  /* ─────────────────────────────────────────
-     Move #app-content into vertical-main
-     (only for vertical mode)
-  ───────────────────────────────────────── */
-  function _moveContentToVerticalMain() {
-    var $vertMain = document.getElementById('vertical-main');
-    var $content = document.getElementById('app-content');
-    if ($vertMain && $content && !$vertMain.contains($content)) {
-      $vertMain.appendChild($content);
-    }
-  }
-
-  /* Move #app-content back to #app (horizontal mode) */
-  function _moveContentToApp() {
-    var $app = document.getElementById('app');
-    var $content = document.getElementById('app-content');
-    if ($app && $content && $content.parentNode !== $app) {
-      $app.appendChild($content);
-    }
-  }
-
-  /* ─────────────────────────────────────────
-     Events — Horizontal mode
-  ───────────────────────────────────────── */
-  function _attachHorizontalEvents() {
-    var groups = document.querySelectorAll('.nav-group[data-group]');
-
-    function _positionDropdown(group) {
-      var btn = group.querySelector('.nav-group-btn');
-      var dropdown = group.querySelector('.nav-dropdown');
-      if (!btn || !dropdown) return;
-      var rect = btn.getBoundingClientRect();
-      var left = rect.left;
-      var top = rect.bottom + 8;
-      // Đảm bảo không tràn phải
-      var dropW = dropdown.offsetWidth || 220;
-      if (left + dropW > window.innerWidth - 10) {
-        left = window.innerWidth - dropW - 10;
-      }
-      if (left < 5) left = 5;
-      dropdown.style.left = left + 'px';
-      dropdown.style.top = top + 'px';
-    }
-
-    groups.forEach(function (group) {
-      var btn = group.querySelector('.nav-group-btn');
-      if (btn) {
-        btn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          var isOpen = group.classList.contains('open');
-          groups.forEach(function (g) { g.classList.remove('open'); });
-          _closeUserDropdown();
-          if (!isOpen) {
-            group.classList.add('open');
-            _positionDropdown(group);
-          }
-        });
-      }
-    });
-
-    var $user = document.getElementById('navbar-user');
-    if ($user) {
-      $user.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var isOpen = $user.classList.contains('open');
-        groups.forEach(function (g) { g.classList.remove('open'); });
-        if (isOpen) {
-          _closeUserDropdown();
-        } else {
-          $user.classList.add('open');
-        }
-      });
-    }
-
-    var $notif = document.getElementById('navbar-btn-notif');
-    if ($notif) {
-      $notif.addEventListener('click', function () {
-        Alert.info('Thông báo', 'Bạn không có thông báo mới');
-      });
-    }
-
-    document.addEventListener('click', function () {
-      groups.forEach(function (g) { g.classList.remove('open'); });
-      _closeUserDropdown();
-    });
-
-    // Mobile drawer
-    var $hamburger = document.getElementById('navbar-hamburger');
-    var $overlay = document.getElementById('mobile-drawer-overlay');
-    var $drawer = document.getElementById('mobile-drawer');
-    var $drawerClose = document.getElementById('mobile-drawer-close');
-
-    function openDrawer() { if ($drawer) $drawer.classList.add('open'); if ($overlay) $overlay.classList.add('active'); }
-    function closeDrawer() { if ($drawer) $drawer.classList.remove('open'); if ($overlay) $overlay.classList.remove('active'); }
-
-    if ($hamburger) $hamburger.addEventListener('click', openDrawer);
-    if ($drawerClose) $drawerClose.addEventListener('click', closeDrawer);
-    if ($overlay) $overlay.addEventListener('click', closeDrawer);
-
-    document.querySelectorAll('.mobile-nav-item').forEach(function (item) {
-      item.addEventListener('click', function () { setTimeout(closeDrawer, 150); });
-    });
-
-    // ── Scroll arrows cho navbar-menu ──
-    var $menu = document.getElementById('navbar-menu');
-    var $scrollLeft = document.getElementById('navbar-scroll-left');
-    var $scrollRight = document.getElementById('navbar-scroll-right');
-
-    function updateScrollArrows() {
-      if (!$menu || !$scrollLeft || !$scrollRight) return;
-      var scrollable = $menu.scrollWidth > $menu.clientWidth + 2;
-      $scrollLeft.style.display = (scrollable && $menu.scrollLeft > 5) ? 'flex' : 'none';
-      $scrollRight.style.display = (scrollable && $menu.scrollLeft < $menu.scrollWidth - $menu.clientWidth - 5) ? 'flex' : 'none';
-    }
-
-    if ($menu && $scrollLeft && $scrollRight) {
-      $scrollLeft.addEventListener('click', function (e) {
-        e.stopPropagation();
-        $menu.scrollBy({ left: -200, behavior: 'smooth' });
-      });
-      $scrollRight.addEventListener('click', function (e) {
-        e.stopPropagation();
-        $menu.scrollBy({ left: 200, behavior: 'smooth' });
-      });
-      $menu.addEventListener('scroll', updateScrollArrows);
-      window.addEventListener('resize', updateScrollArrows);
-      setTimeout(updateScrollArrows, 100);
-    }
-
-    _highlightActive();
-    window.addEventListener('hashchange', _highlightActive);
-  }
-
-  /* ─────────────────────────────────────────
-     Events — Vertical mode
-  ───────────────────────────────────────── */
-  function _attachVerticalEvents() {
-    // Move content into vertical-main
-    _moveContentToVerticalMain();
-
-    // Sidebar toggle
-    var $sidebar = document.getElementById('app-sidebar');
-    var $overlay = document.getElementById('sidebar-overlay');
-    var $btnOpen = document.getElementById('btn-hamburger');
-    var $btnClose = document.getElementById('btn-close-sidebar');
-
-    function openSidebar() { if ($sidebar) $sidebar.classList.add('open'); if ($overlay) $overlay.classList.add('active'); }
-    function closeSidebar() { if ($sidebar) $sidebar.classList.remove('open'); if ($overlay) $overlay.classList.remove('active'); }
-
-    if ($btnOpen) $btnOpen.addEventListener('click', openSidebar);
-    if ($btnClose) $btnClose.addEventListener('click', closeSidebar);
-    if ($overlay) $overlay.addEventListener('click', closeSidebar);
-
-    // Auto-close sidebar on mobile when a nav item is clicked
-    if ($sidebar) {
-      $sidebar.querySelectorAll('.nav-item').forEach(function (item) {
-        item.addEventListener('click', function () {
-          if (window.innerWidth <= 768) {
-            setTimeout(closeSidebar, 150);
-          }
-        });
-      });
-    }
-
-    // User dropdown in vertical header
-    var $uProf = document.getElementById('vertical-user-profile');
-    var $uDrop = document.getElementById('vertical-user-dropdown');
-    if ($uProf && $uDrop) {
-      $uProf.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var isOpen = $uProf.classList.contains('open');
-        $uProf.classList.toggle('open', !isOpen);
-
-        // Also toggle 'open' on dropdown if needed by other CSS
-        $uDrop.classList.toggle('open', !isOpen);
-
-        var expandIcon = $uProf.querySelector('.expand-icon');
-        if (expandIcon) {
-          expandIcon.textContent = isOpen ? 'expand_more' : 'expand_less';
-        }
-      });
-    }
-
-    document.addEventListener('click', function () {
-      if ($uDrop) $uDrop.classList.remove('open');
-      if ($uProf) $uProf.classList.remove('open');
-    });
-
-    _highlightActive();
-    window.addEventListener('hashchange', _highlightActive);
-  }
-
-  /* ─────────────────────────────────────────
-     Helpers
-  ───────────────────────────────────────── */
-  function _closeUserDropdown() {
-    var $user = document.getElementById('navbar-user');
-    if ($user) $user.classList.remove('open');
-  }
-
-  function _highlightActive() {
-    var hash = window.location.hash || '#/dashboard';
-
-    // Horizontal: nav-links & dropdown items
-    document.querySelectorAll('.navbar-menu .nav-link').forEach(function (el) {
-      el.classList.toggle('active', el.getAttribute('data-href') === hash);
-    });
-    document.querySelectorAll('.navbar-menu .dropdown-item').forEach(function (el) {
-      el.classList.toggle('active', el.getAttribute('data-href') === hash);
-    });
-    document.querySelectorAll('.mobile-nav-item').forEach(function (el) {
-      el.classList.toggle('active', el.getAttribute('data-href') === hash);
-    });
-
-    // Vertical: sidebar items
-    document.querySelectorAll('.sidebar-nav .nav-item').forEach(function (el) {
-      el.classList.toggle('active', el.getAttribute('data-href') === hash);
-    });
+    EventBus.on('user:logout', clearMenuCache);
+    EventBus.on('permissions:changed', clearMenuCache);
+    EventBus.on('menu:changed', refreshMenu);
   }
 
   return {
     render: render,
+    renderSidebar: renderSidebar,
+    renderHeader: renderHeader,
+    refreshMenu: refreshMenu,
+    updateActiveRoute: updateActiveRoute,
+    clearMenuCache: clearMenuCache,
     getLayout: getLayout,
     setLayout: setLayout,
     applyLayout: applyLayout,
-    clearMenuCache: clearMenuCache,
-    moveContentToApp: _moveContentToApp,
-    moveContentToVerticalMain: _moveContentToVerticalMain
+    normalizeMenuRecords: normalizeMenuRecords,
+    buildMenuTree: buildMenuTree
   };
 })();
 
@@ -7600,8 +8349,34 @@ var FilterComponent = (function () {
     wrapper.appendChild(gridContainer);
 
     var inputs = {};
+    var filterById = {};
+
+    function defaultValueFor(filter) {
+      return filter.defaultValue !== undefined && filter.defaultValue !== null
+        ? filter.defaultValue
+        : '';
+    }
+
+    function initialValueFor(filter) {
+      if (typeof window !== 'undefined'
+        && window.currentFilters
+        && window.currentFilters[filter.id] !== undefined) {
+        return window.currentFilters[filter.id];
+      }
+      return defaultValueFor(filter);
+    }
+
+    function collectValues() {
+      var values = {};
+      for (var key in inputs) {
+        var filter = filterById[key];
+        if (!filter || filter.submit !== false) values[key] = inputs[key].value;
+      }
+      return values;
+    }
 
     filters.forEach(function (f) {
+      filterById[f.id] = f;
       var controlWrapper;
       var config = { id: f.id, label: f.label, placeholder: f.placeholder };
 
@@ -7621,11 +8396,7 @@ var FilterComponent = (function () {
           hiddenInput.id = f.id;
           hiddenInput.name = f.id;
 
-          if (typeof window !== 'undefined' && window.currentFilters && window.currentFilters[f.id] !== undefined) {
-            hiddenInput.value = window.currentFilters[f.id];
-          } else {
-            hiddenInput.value = '';
-          }
+          hiddenInput.value = initialValueFor(f);
           controlWrapper.appendChild(hiddenInput);
 
           var comboLoading = UIControls.createDataComboBox({ placeholder: 'Đang tải...' });
@@ -7710,7 +8481,51 @@ var FilterComponent = (function () {
 
         } else {
           var opts = f.options ? f.options.map(function (o) { return { value: o.value !== undefined ? o.value : o, label: o.label || o }; }) : [];
-          controlWrapper = UIInput.createSelect(config, opts);
+
+          if (window.UIControls && typeof UIControls.createDataComboBox === 'function') {
+            controlWrapper = document.createElement('div');
+            controlWrapper.className = 'form-group';
+
+            if (config.label) {
+              var lbl = document.createElement('label');
+              lbl.innerText = config.label;
+              controlWrapper.appendChild(lbl);
+            }
+
+            var hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.id = f.id;
+            hiddenInput.name = f.id;
+            var initVal = initialValueFor(f) || (opts[0] ? opts[0].value : '');
+            hiddenInput.value = initVal;
+            controlWrapper.appendChild(hiddenInput);
+
+            var comboData = opts.map(function (o) { return [o.value, o.label]; });
+            var newCombo = UIControls.createDataComboBox({
+              placeholder: f.placeholder || '-- Tất cả --',
+              headers: ['Mã / Giá trị', 'Tên / Nhãn'],
+              data: comboData,
+              colFilterIndex: 1,
+              onSelect: function (r) {
+                hiddenInput.value = r ? r[0] : '';
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              },
+              onChange: function (val) {
+                hiddenInput.value = val;
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+
+            var displayInput = newCombo.querySelector('input.ui-input');
+            if (initVal && displayInput) {
+              var matchedOpt = opts.find(function (o) { return String(o.value) === String(initVal); });
+              if (matchedOpt) displayInput.value = matchedOpt.label;
+            }
+
+            controlWrapper.appendChild(newCombo);
+          } else {
+            controlWrapper = UIInput.createSelect(config, opts);
+          }
         }
       } else if (f.type === 'date') {
         controlWrapper = UIInput.createDate(config);
@@ -7765,8 +8580,14 @@ var FilterComponent = (function () {
           });
         }
 
-        if (typeof window !== 'undefined' && window.currentFilters && window.currentFilters[f.id] !== undefined) {
-          inp.value = window.currentFilters[f.id];
+        inp.value = initialValueFor(f);
+
+        if (f.readOnly === true) {
+          inp.readOnly = true;
+          inp.setAttribute('aria-readonly', 'true');
+          inp.style.background = 'var(--color-surface-elevated, #f8fafc)';
+          inp.style.color = 'var(--color-text-secondary, #64748b)';
+          inp.style.cursor = 'not-allowed';
         }
 
         inputs[f.id] = inp;
@@ -7783,9 +8604,7 @@ var FilterComponent = (function () {
       keywordInput.addEventListener('input', function () {
         clearTimeout(_liveTimer);
         _liveTimer = setTimeout(function () {
-          var values = {};
-          for (var k in inputs) { values[k] = inputs[k].value; }
-          onSearch(values);
+          onSearch(collectValues());
           // KHÔNG đóng panel — để người dùng tiếp tục tinh chỉnh
         }, 400);
       });
@@ -7793,9 +8612,7 @@ var FilterComponent = (function () {
       keywordInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
           clearTimeout(_liveTimer);
-          var values = {};
-          for (var k in inputs) { values[k] = inputs[k].value; }
-          onSearch(values);
+          onSearch(collectValues());
         }
       });
     }
@@ -7811,16 +8628,16 @@ var FilterComponent = (function () {
     btnReset.onmouseout = function() { this.style.background = 'var(--color-surface, #fff)'; this.style.color = 'var(--color-text-secondary, #64748b)'; };
     btnReset.onclick = function () {
       for (var key in inputs) {
-        inputs[key].value = '';
+        inputs[key].value = defaultValueFor(filterById[key]);
         var wrapper = inputs[key].closest('.form-group') || inputs[key].parentElement;
         if (wrapper) {
           var displayInput = wrapper.querySelector('.combo-box-container input.ui-input');
-          if (displayInput) {
-            displayInput.value = '';
+          if (displayInput && inputs[key].type !== 'hidden') {
+            displayInput.value = inputs[key].value;
           }
         }
       }
-      if (typeof onSearch === 'function') onSearch({});
+      if (typeof onSearch === 'function') onSearch(collectValues());
     };
 
     var btnSearch = document.createElement('button');
@@ -7829,10 +8646,7 @@ var FilterComponent = (function () {
     btnSearch.style.cssText = 'font-weight: 600; border-radius: 6px; padding: 8px 16px; border: none; cursor: pointer; transition: all 0.2s;';
     btnSearch.onclick = function () {
       if (typeof onSearch === 'function') {
-        var values = {};
-        for (var key in inputs) {
-          values[key] = inputs[key].value;
-        }
+        var values = collectValues();
         console.log('[FilterComponent] Submitting values:', values);
         onSearch(values);
 
@@ -7953,15 +8767,26 @@ var FilterComponent = (function () {
     // Click bên ngoài thì tự đóng Panel
     document.addEventListener('click', function (e) {
       if (wrapper.style.display !== 'none') {
-        var isInsidePanel = wrapper.contains(e.target);
-        var isDropdownClick = e.target.closest('.data-dropdown-menu'); // allow clicking combobox dropdown
+        var targetNode = e.target;
+
+        // Nếu e.target đã bị gỡ khỏi DOM (ví dụ: nút chuyển tháng/năm của Flatpickr re-render), bỏ qua không đóng panel
+        if (!targetNode || targetNode.isConnected === false || (typeof document.contains === 'function' && !document.contains(targetNode))) {
+          return;
+        }
+
+        var clickTarget = targetNode.nodeType === 1 ? targetNode : targetNode.parentElement;
+        if (!clickTarget) return;
+
+        var isInsidePanel = wrapper.contains(clickTarget);
+        var isDropdownClick = clickTarget.closest('.data-dropdown-menu, .search-dropdown-menu, .combo-box-dropdown');
+        var isDatePickerClick = clickTarget.closest('.flatpickr-calendar, .flatpickr-monthDropdown-months, .flatpickr-current-month');
         var isClickOnButton = false;
-        var clickedBtn = e.target.closest('button');
+        var clickedBtn = clickTarget.closest('button');
         if (clickedBtn && (clickedBtn.innerHTML.indexOf('filter_alt') !== -1 || clickedBtn.innerText.trim() === 'Lọc' || clickedBtn.getAttribute('data-tooltip') === 'Lọc / Tìm kiếm dữ liệu')) {
           isClickOnButton = true;
         }
 
-        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && dummyContainer.parentElement) {
+        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && !isDatePickerClick && dummyContainer.parentElement) {
           dummyContainer.parentElement.style.display = 'none'; // Ẩn cha đi thì Observer sẽ ẩn Panel
         }
       }
@@ -8071,56 +8896,78 @@ var UIInput = (function () {
     return match[3] + '/' + match[2] + '/' + match[1];
   }
 
+  function _attachFlatpickr(inputEl, defaultValue) {
+    if (!inputEl) return null;
+    if (inputEl._flatpickr) return inputEl._flatpickr;
+
+    var normalizedValue = _normalizeDateInput(defaultValue || inputEl.value);
+
+    function doAttach() {
+      if (typeof window.flatpickr !== 'undefined' && !inputEl._flatpickr) {
+        var locale = (window.flatpickr.l10ns && window.flatpickr.l10ns.vn) ? "vn" : "default";
+        var fp = window.flatpickr(inputEl, {
+          altInput: true,
+          altFormat: "d/m/Y",
+          dateFormat: "Y-m-d",
+          defaultDate: normalizedValue || null,
+          locale: locale,
+          allowInput: true,
+          disableMobile: true
+        });
+        return fp;
+      }
+      return null;
+    }
+
+    var instance = doAttach();
+    if (!instance) {
+      var handleFocus = function () {
+        var fp = doAttach();
+        if (fp) {
+          inputEl.removeEventListener('focus', handleFocus);
+          inputEl.removeEventListener('click', handleFocus);
+          setTimeout(function () { fp.open(); }, 50);
+        }
+      };
+      inputEl.addEventListener('focus', handleFocus);
+      inputEl.addEventListener('click', handleFocus);
+    }
+    return instance;
+  }
+
   function createDate(config) {
     var normalizedValue = _normalizeDateInput(config.value);
-    var displayValue = _toVietnameseDate(normalizedValue);
     var inputConfig = Object.assign({}, config, { value: normalizedValue || '' });
     var obj = _createBaseWrapper(inputConfig, 'text');
-    if (normalizedValue) obj.input.value = normalizedValue;
+    obj.input.type = 'text';
+    obj.input.placeholder = config.placeholder || 'dd/mm/yyyy';
 
-    // Thêm icon lịch (tùy chọn)
+    // Thêm icon lịch click được
     var icon = document.createElement('span');
     icon.className = 'material-symbols-outlined';
-    icon.innerText = 'calendar_today';
+    icon.innerText = 'calendar_month';
     icon.style.position = 'absolute';
     icon.style.right = '10px';
-    icon.style.top = '36px'; // canh giữa theo height của input
-    icon.style.color = 'var(--color-text-secondary)';
-    icon.style.pointerEvents = 'none';
+    icon.style.top = config.label ? '34px' : '10px';
+    icon.style.color = 'var(--color-primary, #2563eb)';
+    icon.style.cursor = 'pointer';
     icon.style.fontSize = '18px';
+    icon.style.zIndex = '2';
 
-    // Đảm bảo wrapper là relative để canh vị trí icon
     obj.wrapper.style.position = 'relative';
-
-    // Ẩn icon nếu đang dùng label inline hoặc config khác
-    if (!config.label) icon.style.top = '10px';
     obj.wrapper.appendChild(icon);
 
-    if (typeof window.flatpickr !== 'undefined') {
-      window.flatpickr(obj.input, {
-        altInput: true,
-        altFormat: "d/m/Y",
-        dateFormat: "Y-m-d",
-        defaultDate: normalizedValue || null,
-        locale: "vn",
-        allowInput: true
-      });
-    } else {
-      /*
-       * Không dùng native input[type=date] ở fallback vì trình duyệt/OS có thể
-       * hiển thị mm/dd/yyyy. Giữ text dd/mm/yyyy để UI nhân sự thống nhất.
-       * DynamicFormEngine sẽ chuẩn hóa về yyyy-mm-dd trước khi gửi API.
-       */
-      obj.input.type = 'text';
-      obj.input.inputMode = 'numeric';
-      obj.input.placeholder = config.placeholder || 'dd/mm/yyyy';
-      obj.input.pattern = '\\d{1,2}/\\d{1,2}/\\d{4}';
-      obj.input.value = displayValue || '';
-      obj.input.onblur = function () {
-        var normalized = _normalizeDateInput(obj.input.value);
-        obj.input.value = _toVietnameseDate(normalized);
-      };
-    }
+    var fp = _attachFlatpickr(obj.input, normalizedValue);
+
+    icon.onclick = function (e) {
+      e.stopPropagation();
+      var fpInst = obj.input._flatpickr || _attachFlatpickr(obj.input, normalizedValue);
+      if (fpInst) {
+        fpInst.open();
+      } else {
+        obj.input.focus();
+      }
+    };
 
     return obj.wrapper;
   }
@@ -8775,6 +9622,422 @@ var UICard = (function () {
   };
 })();
 
+/* --- TableSemantic.js --- */
+/**
+ * Shared metadata-driven presentation for UITable, Tabulator and mobile tables.
+ * It never mutates row data: semantic markup is presentation-only.
+ */
+var TableSemantic = (function () {
+  var ROLES = {
+    'default': true,
+    'primary-identifier': true,
+    'secondary-identifier': true,
+    'person': true,
+    'status': true,
+    'category': true,
+    'boolean': true,
+    'date': true,
+    'datetime': true,
+    'time': true,
+    'period': true,
+    'metric': true,
+    'currency': true,
+    'percentage': true,
+    'contact': true,
+    'note': true,
+    'reason': true,
+    'sensitive': true,
+    'selection': true,
+    'action': true
+  };
+
+  // Field-name aliases live here so table renderers never duplicate captions.
+  var VOCABULARY = Object.freeze({
+    person: [
+      'fullname', 'hoten', 'hovaten', 'personname', 'employeename',
+      'staffname', 'tennhanvien', 'tennguoidung', 'approvername',
+      'creatorname', 'nguoitao', 'nguoiduyet'
+    ],
+    status: [
+      'status', 'state', 'trangthai', 'approvalstatus', 'workflowstatus'
+    ],
+    identifier: [
+      'id', 'code', 'ma', 'manhanvien', 'manv', 'employeecode',
+      'employeeid', 'personid', 'personcode', 'documentno', 'contractno',
+      'sohopdong', 'machungtu'
+    ],
+    category: [
+      'type', 'category', 'group', 'department', 'departmentname', 'bophan',
+      'branch', 'branchname', 'chinhanh', 'team', 'position', 'chucvu',
+      'title', 'chucdanh', 'contracttype', 'loaithongtin', 'loaidulieu',
+      'loainghi', 'loaitailieu'
+    ],
+    date: [
+      'date', 'ngay', 'birthday', 'ngaysinh', 'createddate', 'modifieddate',
+      'ngaynhanviec', 'startdate', 'enddate'
+    ],
+    datetime: [
+      'datetime', 'createdat', 'updatedat', 'modifiedat', 'thoidiem'
+    ],
+    time: [
+      'time', 'gio', 'giovao', 'giora', 'checkin', 'checkout',
+      'thoigianvao', 'thoigianra'
+    ],
+    period: [
+      'period', 'periodid', 'periodkeyid', 'ky', 'month', 'thang', 'year', 'nam'
+    ],
+    contact: [
+      'email', 'phone', 'mobile', 'dienthoai', 'sodienthoai'
+    ],
+    note: [
+      'note', 'ghichu', 'description', 'mota', 'remark'
+    ],
+    reason: [
+      'reason', 'lydo', 'reasontext'
+    ],
+    sensitive: [
+      'cccd', 'cmnd', 'idcard', 'identitycard', 'cancuoccongdan'
+    ],
+    metric: [
+      'count', 'total', 'tong', 'soluong', 'songay', 'sogio', 'sophut',
+      'amount', 'quantity'
+    ],
+    currency: [
+      'money', 'currency', 'sotien', 'tongtien', 'luong', 'salary'
+    ],
+    percentage: [
+      'percentage', 'percent', 'tyle', 'phantram'
+    ]
+  });
+
+  var CATEGORY_TONES = Object.freeze([
+    'blue', 'indigo', 'violet', 'cyan', 'teal', 'green', 'amber', 'rose', 'slate'
+  ]);
+
+  var STATUS_REGISTRY = Object.freeze({
+    danger: [
+      'rejected', 'cancelled', 'failed', 'expired', 'inactive', 'deleted',
+      'tuchoi', 'huy', 'nghiviec', 'quahan', 'khongdat'
+    ],
+    warning: [
+      'pending', 'requested', 'waiting', 'draft', 'choduyet', 'dangxuly',
+      'thuviec', 'saphethan', 'tamhoan'
+    ],
+    info: [
+      'processing', 'submitted', 'inprogress', 'dangthuchien', 'dagui'
+    ],
+    success: [
+      'approved', 'active', 'completed', 'valid', 'success', 'daduyet',
+      'danghoatdong', 'hoanthanh', 'chinhthuc', 'dugiocong', 'dat'
+    ]
+  });
+
+  function normalizeText(value) {
+    var text = String(value == null ? '' : value)
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[\u0111\u0110]/g, 'd');
+    if (typeof text.normalize === 'function') {
+      text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
+
+  function stableHash(value) {
+    var text = normalizeText(value);
+    var hash = 0;
+    for (var i = 0; i < text.length; i++) {
+      hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash);
+  }
+
+  function safeMap(value) {
+    if (!value) return null;
+    if (typeof value === 'object' && !Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        var parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+      } catch (ignore) { }
+    }
+    return null;
+  }
+
+  function mapValue(map, value) {
+    if (!map) return undefined;
+    var rawKey = String(value == null ? '' : value);
+    if (Object.prototype.hasOwnProperty.call(map, rawKey)) return map[rawKey];
+    var normalizedKey = normalizeText(rawKey);
+    var keys = Object.keys(map);
+    for (var i = 0; i < keys.length; i++) {
+      if (normalizeText(keys[i]) === normalizedKey) return map[keys[i]];
+    }
+    return undefined;
+  }
+
+  function metadataFlag(value) {
+    return value === true || value === 1 || String(value || '').toLowerCase() === 'true' || String(value || '') === '1';
+  }
+
+  function matchesVocabulary(value, groupName) {
+    var normalized = normalizeText(value);
+    if (!normalized) return false;
+    var aliases = VOCABULARY[groupName] || [];
+    return aliases.some(function (alias) {
+      if (normalized === alias) return true;
+      return alias.length >= 4 && (normalized.indexOf(alias) === 0 || normalized.lastIndexOf(alias) === normalized.length - alias.length);
+    });
+  }
+
+  function matchesField(name, label, groupName) {
+    return matchesVocabulary(name, groupName) || matchesVocabulary(label, groupName);
+  }
+
+  function normalizeRole(value) {
+    var role = String(value || '').trim().toLowerCase().replace(/_/g, '-');
+    return ROLES[role] ? role : '';
+  }
+
+  function defaultVariant(role) {
+    if (role === 'person') return 'avatar';
+    if (role === 'status' || role === 'boolean') return 'badge';
+    if (role === 'category' || role === 'period') return 'chip';
+    return 'text';
+  }
+
+  function inferRole(metadata, fieldName, label, sampleValues) {
+    var explicitRole = normalizeRole(metadata.semanticRole || metadata.SemanticRole);
+    if (explicitRole) return explicitRole;
+
+    if (metadataFlag(metadata.isSensitiveOrDenied) || metadataFlag(metadata.IsSensitiveOrDenied)) return 'sensitive';
+
+    var normalizedName = normalizeText(fieldName);
+    if (normalizedName === 'rowselect' || normalizedName === 'selection' || normalizedName === 'checkbox') return 'selection';
+    if (normalizedName === 'action' || normalizedName === 'actions' || normalizedName === 'actioncolumn') return 'action';
+    if (metadataFlag(metadata.isPrimaryKey) || metadataFlag(metadata.IsPrimaryKey)
+      || metadataFlag(metadata.isIdentity) || metadataFlag(metadata.IsIdentity)) return 'primary-identifier';
+
+    var rule = normalizeText(metadata.semanticRenderRule || metadata.renderRule || metadata.RenderRule);
+    var format = normalizeText(metadata.formatType || metadata.FormatType || metadata.formatId || metadata.FormatID || metadata.formatString || metadata.FormatString);
+    var sqlType = normalizeText(metadata.sqlType || metadata.SqlType);
+
+    if (rule === 'sw' || rule === 'boolean' || sqlType === 'bit' || format === 'boolean') return 'boolean';
+    if (rule === 'dt' || rule === 'datetime' || sqlType === 'datetime' || sqlType === 'datetime2' || sqlType === 'smalldatetime') return 'datetime';
+    if (rule === 'd' || rule === 'date' || sqlType === 'date') return 'date';
+    if (rule === 'tm' || rule === 'time' || sqlType === 'time') return 'time';
+    if (rule === 'money' || rule === 'currency' || format.indexOf('money') >= 0 || format.indexOf('currency') >= 0) return 'currency';
+    if (rule === 'percentage' || rule === 'percent' || format.indexOf('percent') >= 0) return 'percentage';
+    if (rule === 'n' || rule === 'number' || rule === 'decimal' || /^(tinyint|smallint|int|bigint|decimal|numeric|float|real|money|smallmoney)$/.test(sqlType)) return 'metric';
+
+    if (metadata.lookupKey || metadata.LookupKey) return 'category';
+
+    if (matchesField(fieldName, label, 'person')) return 'person';
+    if (matchesField(fieldName, label, 'status')) return 'status';
+    if (matchesField(fieldName, label, 'sensitive')) return 'sensitive';
+    if (matchesField(fieldName, label, 'reason')) return 'reason';
+    if (matchesField(fieldName, label, 'note')) return 'note';
+    if (matchesField(fieldName, label, 'contact')) return 'contact';
+    if (matchesField(fieldName, label, 'period')) return 'period';
+    if (matchesField(fieldName, label, 'datetime')) return 'datetime';
+    if (matchesField(fieldName, label, 'time')) return 'time';
+    if (matchesField(fieldName, label, 'date')) return 'date';
+    if (matchesField(fieldName, label, 'currency')) return 'currency';
+    if (matchesField(fieldName, label, 'percentage')) return 'percentage';
+    if (matchesField(fieldName, label, 'metric')) return 'metric';
+    if (matchesField(fieldName, label, 'category') || metadata.dataSource || metadata.DataSource) return 'category';
+    if (matchesField(fieldName, label, 'identifier')) return 'primary-identifier';
+
+    var samples = (sampleValues || []).filter(function (value) { return value !== null && value !== undefined && value !== ''; });
+    if (samples.length && samples.every(function (value) { return typeof value === 'number' && isFinite(value); })) return 'metric';
+    if (samples.length && samples.every(function (value) { return Object.prototype.toString.call(value) === '[object Date]'; })) return 'datetime';
+
+    return 'default';
+  }
+
+  function resolveColumn(fieldMetadata, header, sampleValues) {
+    var source = fieldMetadata || {};
+    var metadata = Object.assign({}, source.fieldMetadata || {}, source);
+    var headerObject = header && typeof header === 'object' ? header : {};
+    var fieldName = metadata.name || metadata.field || headerObject.field || headerObject.name || '';
+    var label = metadata.label || headerObject.label || headerObject.title || (typeof header === 'string' ? header : fieldName);
+    var role = inferRole(metadata, fieldName, label, sampleValues);
+    var variant = String(metadata.displayVariant || metadata.DisplayVariant || defaultVariant(role)).trim().toLowerCase();
+
+    return {
+      role: role,
+      variant: variant || defaultVariant(role),
+      tone: String(metadata.tone || '').trim().toLowerCase(),
+      field: fieldName,
+      label: label,
+      metadata: metadata,
+      toneMap: safeMap(metadata.toneMap || metadata.ToneMap),
+      statusMap: safeMap(metadata.statusMap || metadata.StatusMap),
+      avatarField: metadata.avatarField || metadata.AvatarField || '',
+      secondaryField: metadata.secondaryField || metadata.SecondaryField || '',
+      classNames: ['table-cell', 'table-cell--' + role]
+    };
+  }
+
+  function valueFromRow(row, fieldName) {
+    if (!row || !fieldName) return undefined;
+    if (Object.prototype.hasOwnProperty.call(row, fieldName)) return row[fieldName];
+    var normalizedField = normalizeText(fieldName);
+    var key = Object.keys(row).find(function (item) { return normalizeText(item) === normalizedField; });
+    return key ? row[key] : undefined;
+  }
+
+  function relatedDisplayValue(columnSemantic, row) {
+    var explicit = valueFromRow(row, columnSemantic.secondaryField);
+    if (explicit !== undefined && explicit !== null && explicit !== '') return explicit;
+    if (columnSemantic.role !== 'status' && columnSemantic.role !== 'category') return undefined;
+
+    var fieldName = columnSemantic.field || '';
+    var candidates = [fieldName + 'Name', fieldName + 'Text', fieldName + 'Label'];
+    for (var i = 0; i < candidates.length; i++) {
+      var candidate = valueFromRow(row, candidates[i]);
+      if (candidate !== undefined && candidate !== null && candidate !== '') return candidate;
+    }
+    return undefined;
+  }
+
+  function statusTone(value, toneMap) {
+    var override = mapValue(toneMap, value);
+    if (override && typeof override === 'object') override = override.tone;
+    var normalizedOverride = String(override || '').toLowerCase();
+    if (['success', 'warning', 'danger', 'info', 'primary', 'neutral'].indexOf(normalizedOverride) >= 0) return normalizedOverride;
+
+    var normalized = normalizeText(value);
+    var registryOrder = ['danger', 'warning', 'info', 'success'];
+    for (var i = 0; i < registryOrder.length; i++) {
+      var tone = registryOrder[i];
+      if (STATUS_REGISTRY[tone].some(function (item) { return normalized === item || normalized.indexOf(item) >= 0; })) return tone;
+    }
+    return 'neutral';
+  }
+
+  function formattedValue(role, value, metadata) {
+    if (value === null || value === undefined) return '';
+    if (role === 'date' && typeof FormatUtils !== 'undefined' && FormatUtils.date) return FormatUtils.date(value);
+    if (role === 'currency' && typeof FormatUtils !== 'undefined' && FormatUtils.currency && value !== '') return FormatUtils.currency(value);
+    if ((role === 'metric' || role === 'percentage') && typeof FormatUtils !== 'undefined' && FormatUtils.number && value !== '' && !isNaN(value)) {
+      var numberText = FormatUtils.number(value);
+      return role === 'percentage' ? numberText + '%' : numberText;
+    }
+    return String(value);
+  }
+
+  function resolveCell(columnSemantic, value, row) {
+    var semantic = columnSemantic || resolveColumn({}, {}, [value]);
+    var role = semantic.role || 'default';
+    var displayValue = value;
+    var mappedStatus = role === 'status' ? mapValue(semantic.statusMap, value) : undefined;
+    var mappedTone = '';
+
+    if (mappedStatus && typeof mappedStatus === 'object') {
+      mappedTone = mappedStatus.tone || '';
+      displayValue = mappedStatus.label !== undefined ? mappedStatus.label : (mappedStatus.text !== undefined ? mappedStatus.text : value);
+    } else if (mappedStatus !== undefined) {
+      displayValue = mappedStatus;
+    } else {
+      var related = relatedDisplayValue(semantic, row);
+      if (related !== undefined) displayValue = related;
+    }
+
+    if (role === 'boolean') {
+      var isTrue = value === true || value === 1 || String(value).toLowerCase() === 'true' || String(value) === '1';
+      displayValue = isTrue ? 'C\u00f3' : 'Kh\u00f4ng';
+    } else {
+      displayValue = formattedValue(role, displayValue, semantic.metadata || {});
+    }
+
+    var tone = semantic.tone;
+    var toneOverride = mapValue(semantic.toneMap, value);
+    if (toneOverride && typeof toneOverride === 'object') toneOverride = toneOverride.tone;
+    if (role === 'status') tone = mappedTone || toneOverride || semantic.tone || statusTone(displayValue, null);
+    if (role === 'boolean') tone = displayValue === 'C\u00f3' ? 'success' : 'neutral';
+    if (role === 'category') tone = toneOverride || semantic.tone || CATEGORY_TONES[stableHash(displayValue) % CATEGORY_TONES.length];
+    if (role === 'period') tone = 'slate';
+
+    var avatarValue = role === 'person' ? valueFromRow(row, semantic.avatarField) : '';
+    if (avatarValue === undefined || avatarValue === null || avatarValue === '') avatarValue = displayValue;
+
+    return Object.assign({}, semantic, {
+      displayValue: displayValue,
+      rawValue: value,
+      tone: tone || 'neutral',
+      avatarValue: avatarValue,
+      avatarTone: CATEGORY_TONES[stableHash(avatarValue) % CATEGORY_TONES.length],
+      secondaryValue: role === 'person' ? valueFromRow(row, semantic.secondaryField) : ''
+    });
+  }
+
+  function initials(value) {
+    var words = String(value || '').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '--';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+  }
+
+  function textNode(tagName, className, value) {
+    var element = document.createElement(tagName || 'span');
+    if (className) element.className = className;
+    element.textContent = value == null ? '' : String(value);
+    return element;
+  }
+
+  function createContent(cellSemantic, value, row) {
+    var semantic = cellSemantic || resolveCell(resolveColumn({}, {}, [value]), value, row);
+    var displayValue = semantic.displayValue == null ? '' : String(semantic.displayValue);
+
+    if (!displayValue) return textNode('span', 'table-cell__text', '');
+
+    if (semantic.variant === 'avatar' || (semantic.role === 'person' && semantic.variant !== 'text')) {
+      var person = document.createElement('div');
+      person.className = 'cell-person';
+      var avatar = textNode('span', 'cell-person__avatar cell-person__avatar--' + semantic.avatarTone, initials(semantic.avatarValue || displayValue));
+      avatar.setAttribute('aria-hidden', 'true');
+      var personText = document.createElement('span');
+      personText.className = 'cell-person__text';
+      personText.appendChild(textNode('span', 'cell-person__name', displayValue));
+      if (semantic.secondaryValue !== undefined && semantic.secondaryValue !== null && semantic.secondaryValue !== '') {
+        personText.appendChild(textNode('span', 'cell-person__secondary', semantic.secondaryValue));
+      }
+      person.appendChild(avatar);
+      person.appendChild(personText);
+      return person;
+    }
+
+    if (semantic.variant === 'badge' || ((semantic.role === 'status' || semantic.role === 'boolean') && semantic.variant !== 'text')) {
+      var badge = document.createElement('span');
+      badge.className = 'semantic-badge semantic-badge--' + semantic.tone;
+      var dot = document.createElement('span');
+      dot.className = 'semantic-badge__dot';
+      dot.setAttribute('aria-hidden', 'true');
+      badge.appendChild(dot);
+      badge.appendChild(document.createTextNode(displayValue));
+      return badge;
+    }
+
+    if (semantic.variant === 'chip' || ((semantic.role === 'category' || semantic.role === 'period') && semantic.variant !== 'text')) {
+      var chip = textNode('span', 'semantic-chip semantic-chip--' + semantic.tone, displayValue);
+      if (displayValue) chip.title = displayValue;
+      return chip;
+    }
+
+    var text = textNode('span', 'table-cell__text', displayValue);
+    if ((semantic.role === 'note' || semantic.role === 'reason') && displayValue) text.title = displayValue;
+    return text;
+  }
+
+  return Object.freeze({
+    VOCABULARY: VOCABULARY,
+    normalizeText: normalizeText,
+    resolveColumn: resolveColumn,
+    resolveCell: resolveCell,
+    createContent: createContent
+  });
+})();
+
 /* --- Table.js --- */
 /**
  * Table Component
@@ -8791,15 +10054,6 @@ var UITable = (function () {
 
     var wrapper = document.createElement('div');
     wrapper.className = 'table-wrapper ' + (config.className || '');
-    // Bỏ viền 2 bên
-    wrapper.style.borderRadius = '0';
-    wrapper.style.borderTop = '1px solid var(--color-border, #e2e8f0)';
-    wrapper.style.borderBottom = '1px solid var(--color-border, #e2e8f0)';
-    wrapper.style.borderLeft = 'none';
-    wrapper.style.borderRight = 'none';
-    // Hỗ trợ scroll ngang trên cả mobile và desktop để xem toàn bộ cột
-    wrapper.style.overflowX = 'auto';
-    wrapper.style.overflowY = 'auto';
 
     var table = document.createElement('table');
     table.className = 'data-table';
@@ -8817,108 +10071,10 @@ var UITable = (function () {
     // Cập nhật lại style khi resize cửa sổ (responsive)
     window.addEventListener('resize', function () {
       var nowMobile = window.innerWidth <= 768;
-      wrapper.style.overflowX = 'auto';
       table.style.width = nowMobile ? '100%' : 'max-content';
       table.style.whiteSpace = nowMobile ? 'normal' : 'nowrap';
       table.style.tableLayout = nowMobile ? 'fixed' : 'auto';
     });
-
-    // Ép style thu gọn khoảng cách (Compact Density) + Sticky Columns
-    var styleDensity = document.createElement('style');
-    styleDensity.innerHTML = `
-      .table-wrapper .data-table th {
-         padding: 6px 10px !important;
-         height: 36px !important;
-         font-size: 13px !important;
-         font-weight: 700 !important;
-         background-color: var(--color-surface-elevated, #f1f5f9) !important;
-         color: var(--color-text, #1e293b) !important;
-      }
-      .table-wrapper .data-table td {
-         padding: 6px 10px !important;
-         height: 36px !important;
-         font-size: 13px !important;
-      }
-      .table-wrapper .data-table.no-mobile-stack {
-        width: max-content !important;
-        white-space: nowrap !important;
-        table-layout: auto !important;
-      }
-      /* ── Sticky Columns ── */
-      .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-        position: sticky !important;
-        z-index: 2 !important;
-        background: var(--color-surface, #fff);
-      }
-      /* Header sticky-col cần z-index cao hơn th thường (z-index:10) để không bị che khuất khi scroll */
-      .table-wrapper.has-sticky-cols .data-table thead th.sticky-col {
-        position: sticky !important;
-        z-index: 30 !important;  /* > 10 (th thường) và > resizer z-index: 10 */
-        background: var(--color-surface-elevated, #f1f5f9) !important;
-      }
-      .table-wrapper.has-sticky-cols .data-table th.sticky-col-last,
-      .table-wrapper.has-sticky-cols .data-table td.sticky-col-last {
-        box-shadow: 2px 0 6px -2px rgba(0,0,0,0.12);
-        border-right: 1px solid var(--color-border, #e2e8f0) !important;
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table th.sticky-col,
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-        background: var(--color-surface, #1e293b);
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
-        background: rgba(255,255,255,0.05);
-      }
-      body.dark-theme .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background-color: var(--color-surface, #1e293b) !important;
-        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.18)), var(--color-primary-light, rgba(67,97,238,0.18))) !important;
-      }
-      .table-wrapper.has-sticky-cols .data-table tbody tr:hover td.sticky-col {
-        background: var(--color-surface-elevated, #f8fafc);
-      }
-      .table-wrapper.has-sticky-cols .data-table tbody tr.active td.sticky-col {
-        background-color: var(--color-surface, #fff) !important;
-        background-image: linear-gradient(var(--color-primary-light, rgba(67,97,238,0.06)), var(--color-primary-light, rgba(67,97,238,0.06))) !important;
-      }
-      @media (max-width: 768px) {
-        .table-wrapper .data-table th,
-        .table-wrapper .data-table td {
-          white-space: normal !important;
-          word-break: break-word !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-        }
-        .table-wrapper .data-table.no-mobile-stack th,
-        .table-wrapper .data-table.no-mobile-stack td {
-          white-space: nowrap !important;
-          word-break: normal !important;
-          overflow: visible !important;
-          text-overflow: clip !important;
-        }
-        .dynamic-grid-card .table-wrapper {
-          margin-left: 0 !important;
-          margin-right: 0 !important;
-          width: 100% !important;
-          overflow-x: auto !important;
-        }
-        .dynamic-grid-card .datagrid-pager {
-          margin-left: 0 !important;
-          margin-right: 0 !important;
-          width: 100% !important;
-        }
-        .table-wrapper .data-table th:first-child,
-        .table-wrapper .data-table td:first-child {
-          padding-left: 16px !important;
-        }
-        /* Tắt sticky trên mobile để không bị chồng lấp */
-        .table-wrapper.has-sticky-cols .data-table th.sticky-col,
-        .table-wrapper.has-sticky-cols .data-table td.sticky-col {
-          position: static !important;
-          box-shadow: none !important;
-          border-right: none !important;
-        }
-      }
-    `;
-    wrapper.appendChild(styleDensity);
 
     // Số cột cần sticky (mặc định 0 = tắt)
     var stickyCount = (typeof config.stickyColumns === 'number' && config.stickyColumns > 0) ? config.stickyColumns : 0;
@@ -8966,8 +10122,32 @@ var UITable = (function () {
     var currentData = config.data ? config.data.slice() : [];
     var currentSort = config.currentSort ? { field: config.currentSort.field, dir: config.currentSort.dir } : { field: null, dir: 'asc' };
 
+    function semanticColumnFor(col, idx) {
+      if (typeof TableSemantic === 'undefined') return null;
+      var header = config.headers && config.headers[idx] ? config.headers[idx] : {
+        field: col.field,
+        label: col.label || col.field
+      };
+      var samples = currentData.slice(0, 20).map(function (row) {
+        return row ? row[col.field] : undefined;
+      });
+      return TableSemantic.resolveColumn(col.fieldMetadata || col, header, samples);
+    }
+
+    function appendSemanticContent(td, semanticCell, value, row) {
+      if (semanticCell && typeof TableSemantic !== 'undefined') {
+        td.appendChild(TableSemantic.createContent(semanticCell, value, row));
+      } else {
+        td.textContent = value !== undefined && value !== null ? value : '';
+      }
+    }
+
     function renderBody() {
       tbody.innerHTML = '';
+      var semanticColumns = config.columns
+        ? config.columns.map(function (col, idx) { return semanticColumnFor(col, idx); })
+        : [];
+
       if (currentData && currentData.length > 0) {
         currentData.forEach(function (row) {
           var tr = document.createElement('tr');
@@ -8977,60 +10157,56 @@ var UITable = (function () {
               var td = document.createElement('td');
               if (col.align) td.style.textAlign = col.align;
 
-              if (config.headers && config.headers[idx] && config.headers[idx].label) {
-                td.setAttribute('data-label', config.headers[idx].label);
-              }
+              var header = config.headers && config.headers[idx];
+              var headerLabel = header && typeof header === 'object' ? header.label : header;
+              if (headerLabel) td.setAttribute('data-label', headerLabel);
 
-              // Sticky column: gắn class + left ngay khi tạo td (không cần đợi rAF)
               if (stickyCount > 0 && idx < stickyCount) {
                 td.classList.add('sticky-col');
                 if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
                 td.style.left = (_stickyOffsets[idx] || 0) + 'px';
               }
 
-              var val = row[col.field];
-              var fieldName = (col.field || '').toLowerCase();
-              var headerLabel = (config.headers && config.headers[idx] && config.headers[idx].label ? config.headers[idx].label : '').toLowerCase();
+              var value = row[col.field];
+              var semanticCell = semanticColumns[idx] && typeof TableSemantic !== 'undefined'
+                ? TableSemantic.resolveCell(semanticColumns[idx], value, row)
+                : null;
 
-              // Tự động map trạng thái nếu là PersonStatus (để tránh hiển thị số 4, 1, 8 trên lưới)
-              if (fieldName === 'personstatus' || headerLabel.includes('trạng thái')) {
-                var statusMap = { '1': 'Thử việc', '4': 'Chính thức', '8': 'Nghỉ việc' };
-                val = statusMap[String(val)] || val;
+              if (semanticCell) {
+                semanticCell.classNames.forEach(function (className) {
+                  td.classList.add(className);
+                });
               }
 
-              if (fieldName.includes('cmnd') || fieldName.includes('cccd') || fieldName.includes('dienthoai') || fieldName.includes('sohopdong') || fieldName.includes('personid') || fieldName.includes('manhanvien') || fieldName === 'id' || fieldName === 'manv' || headerLabel.includes('cccd') || headerLabel.includes('mã nhân viên') || headerLabel.includes('điện thoại') || headerLabel.includes('hợp đồng')) {
-                td.style.color = 'var(--color-primary)';
-                td.style.fontWeight = '600';
-                td.style.fontVariantNumeric = 'tabular-nums';
-              } else if (fieldName.includes('ngay') || fieldName.includes('date') || headerLabel.includes('ngày') || headerLabel.includes('date')) {
-                td.style.color = '#475569'; // Slate 600 - subtle and premium for dates
-                td.style.fontWeight = '500';
-                td.style.fontVariantNumeric = 'tabular-nums'; // Ensures numbers align vertically without looking like a typewriter
-              } else if (fieldName.includes('status') || fieldName.includes('trangthai') || headerLabel.includes('trạng thái')) {
-                td.style.color = '#10b981';
-                td.style.fontWeight = '700';
-              }
               if (col.render) {
-                var rendered = col.render(val, row);
-                if (typeof rendered === 'string') td.innerHTML = rendered;
-                else if (rendered instanceof Node) td.appendChild(rendered);
+                var rendered = col.render(value, row);
+                if ((rendered === null || rendered === undefined) && col.semanticFallback === true) {
+                  appendSemanticContent(td, semanticCell, value, row);
+                } else if (typeof rendered === 'string') {
+                  td.innerHTML = rendered;
+                } else if (typeof Node !== 'undefined' && rendered instanceof Node) {
+                  td.appendChild(rendered);
+                } else if (rendered !== null && rendered !== undefined) {
+                  td.textContent = String(rendered);
+                }
               } else {
-                td.innerText = val !== undefined && val !== null ? val : '';
+                appendSemanticContent(td, semanticCell, value, row);
               }
+
               tr.appendChild(td);
             });
           } else {
-            row.forEach(function (cellStr, idx) {
+            row.forEach(function (cellValue, idx) {
               var td = document.createElement('td');
               if (stickyCount > 0 && idx < stickyCount) {
                 td.classList.add('sticky-col');
                 if (idx === stickyCount - 1) td.classList.add('sticky-col-last');
                 td.style.left = (_stickyOffsets[idx] || 0) + 'px';
               }
-              if (typeof cellStr === 'string' && cellStr.indexOf('<') > -1) {
-                td.innerHTML = cellStr;
+              if (typeof cellValue === 'string' && cellValue.indexOf('<') > -1) {
+                td.innerHTML = cellValue;
               } else {
-                td.innerText = cellStr;
+                td.textContent = cellValue !== undefined && cellValue !== null ? cellValue : '';
               }
               tr.appendChild(td);
             });
@@ -9041,24 +10217,16 @@ var UITable = (function () {
       } else {
         var trEmpty = document.createElement('tr');
         trEmpty.className = 'empty-row';
-        trEmpty.style.border = 'none';
-        trEmpty.style.background = 'transparent';
-        trEmpty.style.boxShadow = 'none';
 
         var tdEmpty = document.createElement('td');
+        tdEmpty.className = 'table-empty-cell';
         tdEmpty.colSpan = config.headers ? config.headers.length : 1;
-        tdEmpty.style.display = 'block';
-        tdEmpty.style.textAlign = 'center';
-        tdEmpty.style.padding = '32px 16px';
-        tdEmpty.style.color = 'var(--color-text-secondary)';
-        tdEmpty.style.borderBottom = 'none';
-        tdEmpty.innerText = 'Không có dữ liệu';
+        tdEmpty.textContent = 'Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u';
 
         trEmpty.appendChild(tdEmpty);
         tbody.appendChild(trEmpty);
       }
     }
-
     // Thead
     function renderHead() {
       thead.innerHTML = '';
@@ -9364,6 +10532,19 @@ var UITable = (function () {
 
     var dynamicHeaders = [];
     var dynamicColumns = [];
+    var suppliedFields = options.fieldMetadata || options.fields || [];
+
+    function metadataFor(key, label) {
+      var metadata = null;
+      if (Array.isArray(suppliedFields)) {
+        metadata = suppliedFields.find(function (field) {
+          return field && String(field.name || field.field || '').toLowerCase() === String(key).toLowerCase();
+        });
+      } else if (suppliedFields && typeof suppliedFields === 'object') {
+        metadata = suppliedFields[key];
+      }
+      return Object.assign({ name: key, field: key, label: label }, metadata || {});
+    }
 
     // Lấy keys: ưu tiên lọc theo dictionary nếu dictionary không rỗng để chỉ hiện các cột được cấu hình.
     // Nếu dictionary rỗng hoặc không khớp khóa nào, ta mới lấy toàn bộ keys từ data.
@@ -9390,7 +10571,16 @@ var UITable = (function () {
 
         var headerLabel = dictionary[key] || key;
         var header = { label: headerLabel, sortable: true, field: key };
-        var col = { field: key };
+        var fieldMetadata = metadataFor(key, headerLabel);
+        var col = {
+          field: key,
+          label: headerLabel,
+          align: fieldMetadata.align,
+          fieldMetadata: fieldMetadata,
+          semanticRole: fieldMetadata.semanticRole || '',
+          displayVariant: fieldMetadata.displayVariant || '',
+          semanticFallback: true
+        };
 
         // Default render: JSON-aware or Tooltip
         col.render = function (v) {
@@ -9477,8 +10667,7 @@ var UITable = (function () {
               // Ignore and fallback
             }
           }
-          var safeVal = String(v).replace(/"/g, '&quot;');
-          return '<span title="' + safeVal + '">' + safeVal + '</span>';
+          return null;
         };
 
         // Heuristic Width
@@ -9499,17 +10688,18 @@ var UITable = (function () {
         if ((keyLower.indexOf('date') >= 0 || keyLower.indexOf('ngày') >= 0 || keyLower.indexOf('ngay') >= 0) && keyLower.indexOf('songay') === -1 && keyLower.indexOf('so_ngay') === -1) {
           header.align = 'center';
           col.align = 'center';
-          col.render = function (v) { return typeof FormatUtils !== 'undefined' ? FormatUtils.date(v) : v; };
         }
 
         // Custom renderer (nếu truyền vào)
         if (options.actionRenderers && options.actionRenderers[key]) {
           var customRender = options.actionRenderers[key];
           col.render = function (v, row) { return customRender(v, row, key); };
+          col.semanticFallback = false;
         } else if (options.actionRenderers && options.actionRenderers[headerLabel]) {
           // Hoặc kiểm tra theo label tiếng Việt nếu dev truyền key là label
           var customRenderLabel = options.actionRenderers[headerLabel];
           col.render = function (v, row) { return customRenderLabel(v, row, key); };
+          col.semanticFallback = false;
         }
 
         dynamicHeaders.push(header);
@@ -11043,6 +12233,7 @@ var UIFileUpload = (function () {
     input.type = 'file';
     if (config.id) input.id = config.id;
     if (config.accept) input.accept = config.accept;
+    if (config.multiple) input.multiple = true;
 
     var icon = document.createElement('span');
     icon.className = 'material-symbols-outlined ui-upload-icon';
@@ -11063,6 +12254,7 @@ var UIFileUpload = (function () {
 
     // Xử lý sự kiện Drag & Drop css ảo diệu
     wrapper.addEventListener('dragover', function(e) {
+      e.preventDefault();
       wrapper.classList.add('dragover');
     });
 
@@ -11071,13 +12263,27 @@ var UIFileUpload = (function () {
     });
 
     wrapper.addEventListener('drop', function(e) {
+      e.preventDefault();
       wrapper.classList.remove('dragover');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        if (typeof config.onChange === 'function') {
+          if (config.multiple) {
+            config.onChange(Array.from(e.dataTransfer.files));
+          } else {
+            config.onChange(e.dataTransfer.files[0]);
+          }
+        }
+      }
     });
 
     if (typeof config.onChange === 'function') {
       input.addEventListener('change', function(e) {
         if (e.target.files && e.target.files.length > 0) {
-          config.onChange(e.target.files[0]);
+          if (config.multiple) {
+            config.onChange(Array.from(e.target.files));
+          } else {
+            config.onChange(e.target.files[0]);
+          }
         }
       });
     }
@@ -13004,12 +14210,6 @@ var ScreenCapture = (function () {
  * Desktop keeps a table; mobile receives the same records as stacked cards.
  */
 window.ResponsiveDataRenderer = (function () {
-  function escape(value) {
-    return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
-    });
-  }
-
   function columns(metadata) {
     return (metadata || []).filter(function (field) { return field && field.MobileVisible !== false; }).sort(function (a, b) {
       return (a.MobileOrder == null ? 9999 : a.MobileOrder) - (b.MobileOrder == null ? 9999 : b.MobileOrder);
@@ -13018,24 +14218,60 @@ window.ResponsiveDataRenderer = (function () {
 
   function render(container, records, metadata) {
     if (!container) return null;
+    var rows = records || [];
     var fields = columns(metadata);
+    var semantics = fields.map(function (field) {
+      var key = field.name || field.field;
+      var samples = rows.slice(0, 20).map(function (record) { return record ? record[key] : undefined; });
+      return typeof TableSemantic !== 'undefined'
+        ? TableSemantic.resolveColumn(field, {
+          field: key,
+          label: field.MobileLabel || field.label || key
+        }, samples)
+        : null;
+    });
+
     var wrapper = document.createElement('div');
     wrapper.className = 'responsive-data-renderer';
     var table = document.createElement('table');
     table.className = 'data-table responsive-data-renderer__table';
+
     var head = document.createElement('thead');
-    head.innerHTML = '<tr>' + fields.map(function (field) { return '<th>' + escape(field.label || field.MobileLabel || field.name) + '</th>'; }).join('') + '</tr>';
+    var headRow = document.createElement('tr');
+    fields.forEach(function (field) {
+      var cell = document.createElement('th');
+      cell.textContent = field.label || field.MobileLabel || field.name || field.field || '';
+      headRow.appendChild(cell);
+    });
+    head.appendChild(headRow);
+
     var body = document.createElement('tbody');
-    (records || []).forEach(function (record) {
+    rows.forEach(function (record) {
       var row = document.createElement('tr');
-      row.innerHTML = fields.map(function (field) {
+      fields.forEach(function (field, index) {
         var key = field.name || field.field;
-        return '<td data-label="' + escape(field.MobileLabel || field.label || key) + '">' + escape(record[key]) + '</td>';
-      }).join('');
+        var value = record[key];
+        var cell = document.createElement('td');
+        cell.setAttribute('data-label', field.MobileLabel || field.label || key);
+
+        var semanticColumn = semantics[index];
+        if (semanticColumn && typeof TableSemantic !== 'undefined') {
+          var semanticCell = TableSemantic.resolveCell(semanticColumn, value, record);
+          semanticCell.classNames.forEach(function (className) { cell.classList.add(className); });
+          cell.appendChild(TableSemantic.createContent(semanticCell, value, record));
+        } else {
+          cell.textContent = value == null ? '' : String(value);
+        }
+        row.appendChild(cell);
+      });
       body.appendChild(row);
     });
-    table.appendChild(head); table.appendChild(body); wrapper.appendChild(table);
-    container.innerHTML = ''; container.appendChild(wrapper);
+
+    table.appendChild(head);
+    table.appendChild(body);
+    wrapper.appendChild(table);
+    container.innerHTML = '';
+    container.appendChild(wrapper);
     return wrapper;
   }
 
@@ -13312,10 +14548,10 @@ var WizardForm = (function () {
 
       /* ── Avatar Layout ───────────────────────────────────────────── */
       '.wz-step-body-wrapper { display:flex; gap:24px; align-items:flex-start; margin-top:16px; }',
-      '.wz-avatar-col { width:180px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
-      '.wz-avatar-frame { width:150px; height:150px; border-radius:50%; overflow:hidden; border:4px solid var(--color-primary,#4338ca); box-shadow:0 6px 16px rgba(67,56,202,0.16); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:transform 0.2s ease; }',
-      '.wz-avatar-frame:hover { transform:scale(1.05); }',
-      '.wz-avatar-btn { border-radius:16px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
+      '.wz-avatar-col { width:200px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
+      '.wz-avatar-frame { width:175px; height:175px; border-radius:18px; overflow:hidden; border:3px solid #ffffff; box-shadow:0 8px 24px -4px rgba(15,23,42,0.12), 0 0 0 1px rgba(226,232,240,0.8); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:all 0.3s cubic-bezier(0.4,0,0.2,1); }',
+      '.wz-avatar-frame:hover { transform:scale(1.02); box-shadow:0 12px 32px -4px rgba(67,56,202,0.2); }',
+      '.wz-avatar-btn { border-radius:12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
       '.wz-avatar-btn:hover { background-color:var(--color-primary,#4338ca); color:#fff; }',
 
       /* ── Empty state ────────────────────────────────────────────── */
@@ -15174,8 +16410,19 @@ window.DynamicFormState = (function () {
 })();
 
 /* --- DynamicDetailManager.js --- */
-/** Detail tabs: loading, editable grid lifecycle and detail persistence. */
+/** Detail tabs: loading, editable grid lifecycle and detail persistence. */
 window.DynamicDetailManager = (function () {
+  /**
+   * _getFieldCaption – tra cứu nhãn tiếng Việt theo thứ tự ưu tiên:
+   * 1. field.label từ join-schema / contract API (Caption / CaptionVN từ DB)
+   * 2. tabDef.headers (nếu form cũ còn khai báo tường minh)
+   * 3. dict() = globalDictionary từ DynamicFormEngine (đọc SY_FmtFldTbl qua API)
+   * 4. window._globalFieldDictionary (global – DynamicFormEngine populate)
+   * 5. Fallback tách CamelCase: "PersonName" → "Person Name"
+   *
+   * KHÔNG hard-code caption trong file JS.
+   * Caption phải đến từ DB (SY_FmtFldTbl / SY_FormatFields) qua API.
+   */
   function _getFieldCaption(fieldName, fieldObj, tabHeaders, dict) {
     if (fieldObj && fieldObj.label) return fieldObj.label;
     if (!fieldName) return '';
@@ -15185,7 +16432,7 @@ window.DynamicDetailManager = (function () {
     if (tabHeaders && tabHeaders[raw]) return tabHeaders[raw];
     if (tabHeaders && tabHeaders[lower]) return tabHeaders[lower];
 
-    // 1. Đọc từ Từ điển cấp Form (SY_FormatFldTbl theo FormName)
+    // 3. Từ điển form (DynamicFormEngine.globalDictionary – load từ SY_FmtFldTbl)
     var d = typeof dict === 'function' ? dict() : (dict || {});
     if (d[raw]) return d[raw];
     if (d[lower]) return d[lower];
@@ -15193,11 +16440,11 @@ window.DynamicDetailManager = (function () {
       if (k.toLowerCase() === lower && d[k]) return d[k];
     }
 
-    // 2. Đọc tự động từ Bảng SY_FormatFldTbl / SY_FormatFields toàn hệ thống CSDL
-    var gDict = window._globalFieldDictionary || {};
+    // 4. Dictionary toàn hệ thống (window._globalFieldDictionary – DynamicFormEngine)
+    var gDict = (typeof window !== 'undefined' && window._globalFieldDictionary) || {};
     if (gDict[lower]) return gDict[lower];
 
-    // 3. Fallback phân tách từ viết hoa (VD: PersonName -> Person Name)
+    // 5. Fallback tách CamelCase ("PersonName" → "Person Name")
     return raw.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
 
@@ -16455,6 +17702,16 @@ window.DynamicDetailManager = (function () {
 /* --- DynamicAttachmentManager.js --- */
 /** Attachment tab orchestration. Business keys come only from tab configuration. */
 window.DynamicAttachmentManager = (function () {
+  function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function endpoint(moduleConfig) {
     return moduleConfig.apiGateway || AppConfig.apiGateway;
   }
@@ -16647,45 +17904,90 @@ window.DynamicAttachmentManager = (function () {
       var wrap = document.createElement('div');
       wrap.style.cssText = 'border:1px dashed var(--color-border-strong);border-radius:8px;padding:16px;background:var(--color-surface);display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;';
 
-      function processFile(file) {
-        if (!file) return;
-        if (file.size > 10 * 1024 * 1024) {
-          notify('error', 'Tệp quá lớn', 'Hệ thống chỉ hỗ trợ tệp tối đa 10MB.');
-          return;
+      function processFiles(fileList) {
+        if (!fileList) return;
+        var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
+        if (!files.length) return;
+
+        var validFiles = [];
+        for (var i = 0; i < files.length; i++) {
+          if (files[i].size > 10 * 1024 * 1024) {
+            notify('error', 'Tệp quá lớn', 'Tệp ' + files[i].name + ' vượt quá dung lượng tối đa 10MB.');
+          } else {
+            validFiles.push(files[i]);
+          }
         }
+        if (!validFiles.length) return;
+
         var keyField = tabDef.filterField || moduleConfig.PrimaryKey;
         var keyValue = row && row[moduleConfig.PrimaryKey];
-        var reader = new FileReader();
-        reader.onload = function (event) {
-          var bytes = new Uint8Array(event.target.result);
-          var hex = '0x' + Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-          var base64Reader = new FileReader();
-          base64Reader.onload = function (base64Event) {
-            var data = { IsEdit: 0, FileName: file.name, FileType: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) ? 1 : 0, STT: nextOrder, FileSize: file.size, Base64Content: String(base64Event.target.result).split(',')[1] || '', Content: hex };
-            data[keyField] = keyValue || '';
-            wrap.innerHTML = '<span style="color:var(--color-text-secondary);">Đang lưu tài liệu lên máy chủ...</span>';
-            api.post(gateway, { List: tabDef.saveApi || tabDef.api, Func: tabDef.saveFunc || 'Save', JsonData: JSON.stringify(data), UserName: currentUser() }).then(function (result) {
-              if (codeOf(result) === 0 || codeOf(result) === '0') { notify('success', 'Thành công', 'Tải tệp đính kèm lên thành công!'); reload(); }
-              else { notify('error', 'Lỗi lưu tệp', result && (result.msg || result.Msg) || 'Không thể lưu tệp lên CSDL.'); reload(); }
-            }).catch(function () { notify('error', 'Lỗi', 'Không thể kết nối đến máy chủ.'); reload(); });
+        var total = validFiles.length;
+
+        function uploadNext(index) {
+          if (index >= total) {
+            notify('success', 'Thành công', 'Đã tải lên thành công ' + total + ' tài liệu đính kèm!');
+            reload();
+            return;
+          }
+          var file = validFiles[index];
+          var currentSTT = nextOrder + index;
+          wrap.innerHTML = '<span style="color:var(--color-primary); font-weight:600;"><span class="spinner-border spinner-border-sm me-2"></span>Đang tải lên (' + (index + 1) + '/' + total + '): ' + escapeHTML(file.name) + '...</span>';
+
+          var reader = new FileReader();
+          reader.onload = function (event) {
+            var bytes = new Uint8Array(event.target.result);
+            var hex = '0x' + Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+            var base64Reader = new FileReader();
+            base64Reader.onload = function (base64Event) {
+              var data = {
+                IsEdit: 0,
+                FileName: file.name,
+                FileType: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) ? 1 : 0,
+                STT: currentSTT,
+                FileSize: file.size,
+                Base64Content: String(base64Event.target.result).split(',')[1] || '',
+                Content: hex
+              };
+              data[keyField] = keyValue || '';
+              api.post(gateway, {
+                List: tabDef.saveApi || tabDef.api,
+                Func: tabDef.saveFunc || 'Save',
+                JsonData: JSON.stringify(data),
+                UserName: currentUser()
+              }).then(function (result) {
+                if (codeOf(result) === 0 || codeOf(result) === '0') {
+                  uploadNext(index + 1);
+                } else {
+                  notify('error', 'Lỗi lưu tệp', (result && (result.msg || result.Msg)) || ('Không thể lưu tệp ' + file.name + ' lên CSDL.'));
+                  reload();
+                }
+              }).catch(function () {
+                notify('error', 'Lỗi', 'Không thể kết nối đến máy chủ.');
+                reload();
+              });
+            };
+            base64Reader.readAsDataURL(file);
           };
-          base64Reader.readAsDataURL(file);
-        };
-        reader.readAsArrayBuffer(file);
+          reader.readAsArrayBuffer(file);
+        }
+
+        uploadNext(0);
       }
 
       if (window.UIFileUpload && typeof UIFileUpload.create === 'function') {
         wrap.appendChild(UIFileUpload.create({
           id: 'attach-upload-input',
-          text: 'Kéo thả tệp/ảnh hoặc click để tải lên',
-          hint: 'Hỗ trợ: PDF, JPG, PNG... Tối đa 10MB',
-          onChange: processFile
+          text: 'Kéo thả tệp/ảnh hoặc click để tải lên nhiều tệp',
+          hint: 'Hỗ trợ: PDF, JPG, PNG, DOCX... (Tối đa 10MB/tệp)',
+          multiple: true,
+          onChange: processFiles
         }));
       } else {
         var input = document.createElement('input');
         input.type = 'file';
+        input.multiple = true;
         input.accept = tabDef.accept || '*/*';
-        input.onchange = function () { processFile(input.files && input.files[0]); };
+        input.onchange = function () { processFiles(input.files); };
         wrap.appendChild(input);
       }
       container.appendChild(wrap);
@@ -16713,19 +18015,75 @@ window.DynamicAttachmentManager = (function () {
 (function (global) {
   var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
   definitions.access = definitions.access || {};
-    definitions.access['WA_NGUOIDUNGNHOMFRM'] = {
+  definitions.access['WA_NGUOIDUNGNHOMFRM'] = {
     FormName: 'WA_NguoiDungNhomFrm',
     PrimaryKey: 'UserGroupID',
+    PageTitle: 'Danh sách nhóm người dùng',
     TitleAdd: 'Thêm nhóm',
     TitleEdit: 'Sửa nhóm',
-    TitleView: 'Chi tiết nhóm'
+    TitleView: 'Chi tiết nhóm',
+    FormFields: [
+      { name: 'UserGroupID', title: 'Mã nhóm', width: 140, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
+      { name: 'UserGroupName', title: 'Tên nhóm', width: 220, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'CountUser', title: 'Số người dùng', width: 130, hozAlign: 'center', showInGrid: true, showInAdd: false, showInEdit: false },
+      { name: 'IsDisable', title: 'Ngưng dùng', width: 110, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true }
+    ]
   };
   definitions.access['WA_NGUOIDUNGFRM'] = {
     FormName: 'WA_NguoiDungFrm',
-    PrimaryKey: 'UserID',
+    PrimaryKey: 'UserName',
+    PageTitle: 'Danh sách người dùng',
     TitleAdd: 'Thêm người dùng',
     TitleEdit: 'Sửa người dùng',
-    TitleView: 'Chi tiết người dùng'
+    TitleView: 'Chi tiết người dùng',
+    FormFields: [
+      { name: 'UserName', title: 'Tên đăng nhập', width: 150, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true, isReadOnlyEdit: true },
+      { name: 'HoTen', title: 'Họ và tên', width: 200, hozAlign: 'left', required: true, showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'TenNgan', title: 'Tên ngắn', width: 120, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'UserGroupName', title: 'Nhóm quyền', width: 180, hozAlign: 'left', showInGrid: true, showInAdd: false, showInEdit: false },
+      { name: 'UserGroupID', title: 'Mã nhóm quyền', width: 160, hozAlign: 'left', required: true, showInGrid: false, showInAdd: true, showInEdit: true, dataSource: 'SY_UserGroup', formatID: 'sl' },
+      { name: 'BranchName', title: 'Chi nhánh', width: 180, hozAlign: 'left', showInGrid: true, showInAdd: false, showInEdit: false },
+      { name: 'BranchID', title: 'Mã chi nhánh', width: 150, hozAlign: 'left', showInGrid: false, showInAdd: true, showInEdit: true, dataSource: 'CF_BranchListFrm', formatID: 'sl' },
+      { name: 'EmployeeID', title: 'Mã nhân viên', width: 140, hozAlign: 'left', showInGrid: true, showInAdd: true, showInEdit: true, dataSource: 'HR_PersonTbl', formatID: 'sl' },
+      { name: 'Disable', title: 'Khóa tài khoản', width: 120, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true },
+      { name: 'Manager', title: 'Quản lý', width: 100, hozAlign: 'center', formatter: 'tickCross', showInGrid: true, showInAdd: true, showInEdit: true }
+    ]
+  };
+  definitions.access['SY_FORMATFLDTBL'] = {
+    FormName: 'SY_FormatfldTbl',
+    PrimaryKey: 'AutoID',
+    PageTitle: 'Cấu hình động',
+    TitleAdd: 'Thêm cấu hình động',
+    TitleEdit: 'Sửa cấu hình động',
+    TitleView: 'Chi tiết cấu hình động',
+    FormFields: [
+      { name: 'AutoID', title: 'ID', width: 80, hozAlign: 'center' },
+      { name: 'FormName', title: 'Mã Form', width: 220, hozAlign: 'left' },
+      { name: 'FieldName', title: 'Tên trường (FieldName)', width: 220, hozAlign: 'left' },
+      { name: 'CaptionVN', title: 'Tiêu đề VN', width: 200, hozAlign: 'left' },
+      { name: 'CaptionEN', title: 'Tiêu đề EN', width: 200, hozAlign: 'left' },
+      { name: 'FormatID', title: 'Định dạng (FormatID)', width: 140, hozAlign: 'center' },
+      { name: 'AlignX', title: 'Canh lề', width: 90, hozAlign: 'center' },
+      { name: 'IsSystem', title: 'Hệ thống', width: 90, hozAlign: 'center' }
+    ]
+  };
+  definitions.access['SY_FORMATFIELDS'] = {
+    FormName: 'SY_FormatfldTbl',
+    PrimaryKey: 'AutoID',
+    PageTitle: 'Cấu hình động',
+    TitleAdd: 'Thêm cấu hình động',
+    TitleEdit: 'Sửa cấu hình động',
+    TitleView: 'Chi tiết cấu hình động',
+    FormFields: [
+      { name: 'AutoID', title: 'ID', width: 80, hozAlign: 'center' },
+      { name: 'FormName', title: 'Mã Form', width: 220, hozAlign: 'left' },
+      { name: 'FieldName', title: 'Tên trường (FieldName)', width: 220, hozAlign: 'left' },
+      { name: 'CaptionVN', title: 'Tiêu đề VN', width: 200, hozAlign: 'left' },
+      { name: 'CaptionEN', title: 'Tiêu đề EN', width: 200, hozAlign: 'left' },
+      { name: 'FormatID', title: 'Định dạng (FormatID)', width: 140, hozAlign: 'center' },
+      { name: 'AlignX', title: 'Canh lề', width: 90, hozAlign: 'center' },
+      { name: 'IsSystem', title: 'Hệ thống', width: 90, hozAlign: 'center' }
+    ]
   };
 })(window);
 
@@ -17060,6 +18418,123 @@ window.DynamicAttachmentManager = (function () {
     HidePrintBtn: true
   };
 
+  definitions.attendance['WA_TIMESHEETFRM'] = {
+    FormName: 'WA_TimeSheetFrm',
+    PrimaryKey: 'UserAutoID',
+    UpdateStatusAction: 'hr.timesheet.update_status',
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    HidePrintBtn: true
+  };
+
+  definitions.attendance['WA_TIMESHEETCTREPORT'] = {
+    FormName: 'WA_TimeSheetCTReport',
+    PrimaryKey: 'UserAutoID',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    MetadataSource: 'FIELD_SYNC_V2',
+    RefreshV2MetadataOnLoad: true,
+    SelectableRows: false,
+    HideSearch: true,
+    BranchFilterAsContext: true,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'Template',
+        label: 'Chọn mẫu',
+        renderRule: 'sl',
+        dataSource: 'API_ReportTemplateOptions',
+        dataSourceParams: { ReportName: 'HR_TimeSheetCTReport' },
+        valueField: 'Template',
+        displayField: 'TemplateName',
+        submit: false
+      },
+      {
+        name: 'PeriodID',
+        label: 'Kỳ',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period'
+      },
+      {
+        name: 'Ngay',
+        label: 'Ngày',
+        renderRule: 'd',
+        type: 'date',
+        submitFormat: 'yyyyMMdd'
+      },
+      {
+        name: 'BranchID',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      }
+    ]
+  };
+
+  /*
+   * Read-only report: its grid schema comes from the desktop stored procedure
+   * result so adding/removing result columns does not require UI metadata edits.
+   * Template is a presentation/PDF choice and does not change the read-only
+   * dataset, therefore the grid request does not submit it to the procedure.
+   */
+  definitions.attendance['WA_TIMESHEETTH2REPORT'] = {
+    FormName: 'WA_TimeSheetTH2Report',
+    PrimaryKey: 'UserAutoID',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    SelectableRows: false,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'Template',
+        label: 'Chọn mẫu',
+        renderRule: 'sl',
+        dataSource: 'API_ReportTemplateOptions',
+        dataSourceParams: { ReportName: 'HR_TimeSheetTH2Report' },
+        valueField: 'Template',
+        displayField: 'TemplateName',
+        submit: false
+      },
+      {
+        name: 'PeriodID',
+        label: 'Kỳ',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period'
+      },
+      {
+        name: 'BranchID1',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      },
+      {
+        name: 'ReportUser',
+        label: 'Người dùng',
+        type: 'text',
+        readOnly: true,
+        submit: false,
+        defaultValue: function (context) {
+          return context && context.userName ? context.userName : '';
+        }
+      }
+    ]
+  };
+
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
@@ -17290,7 +18765,7 @@ window.DynamicAttachmentManager = (function () {
           list: 'WA_CaLamViecCNFrm',
           func: 'HR_SapCaChiNhanh_Process_Stp',
           idField: 'SapCaID',
-          leaveMessage: 'Đơn nghỉ phép đã duyệt, chưa hủy sẽ được procedure hiện có đưa vào bảng ca.'
+          leaveMessage: 'Các đơn nghỉ phép đã được duyệt sẽ được tự động tích hợp vào lịch làm việc.'
         }
       }
     ],
@@ -17370,6 +18845,14 @@ window.DynamicAttachmentManager = (function () {
                       newRow['PhongBan'] = rowData.PhongBan || '';
                       newRow['TitleName'] = rowData.TitleName || '';
                       newRow['BranchID'] = rowData.BranchID || ctx.row['BranchID'] || '';
+                      newRow['ShiftID'] = rowData.ShiftID || '';
+                      newRow['Thu2'] = false;
+                      newRow['Thu3'] = false;
+                      newRow['Thu4'] = false;
+                      newRow['Thu5'] = false;
+                      newRow['Thu6'] = false;
+                      newRow['Thu7'] = false;
+                      newRow['ChuNhat'] = false;
                       newRow['GhiChu'] = '';
                       ctx.panel._currentRows.push(newRow);
                       added++;
@@ -17399,15 +18882,42 @@ window.DynamicAttachmentManager = (function () {
               }
               return [d.PersonID || '', d.PersonName || '', d.PhongBan || d.BoPhan || '', d.TitleName || d.ChucVu || '', d.BranchID || ''];
             }
+          },
+          ShiftID: {
+            apiList: 'HR_ShiftListCNFrm',
+            headers: ['Chi nhánh', 'Mã ca', 'Tên ca', 'Loại ca'],
+            sourceFields: ['BranchID', 'ShiftID', 'ShiftName', 'LoaiCa'],
+            valueFields: ['BranchID', 'ShiftID'],
+            valueIndex: 1,
+            displayIndex: 1,
+            strictSelection: true,
+            masterFilters: { BranchID: 'BranchID' }
           }
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fieldTypes: {
+          Thu2: 'boolean',
+          Thu3: 'boolean',
+          Thu4: 'boolean',
+          Thu5: 'boolean',
+          Thu6: 'boolean',
+          Thu7: 'boolean',
+          ChuNhat: 'boolean'
+        },
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ tên',
+          BranchID: 'Chi nhánh',
           PhongBan: 'Bộ phận',
           TitleName: 'Chức vụ',
-          BranchID: 'Chi nhánh',
+          ShiftID: 'Ca',
+          Thu2: 'T2',
+          Thu3: 'T3',
+          Thu4: 'T4',
+          Thu5: 'T5',
+          Thu6: 'T6',
+          Thu7: 'T7',
+          ChuNhat: 'CN',
           GhiChu: 'Ghi chú'
         }
       },
@@ -17641,7 +19151,7 @@ window.DynamicAttachmentManager = (function () {
           Thu7: 'boolean',
           ChuNhat: 'boolean'
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           SapCa: 'Sắp ca',
           PersonID: 'Mã nhân viên',
@@ -17691,14 +19201,14 @@ window.DynamicAttachmentManager = (function () {
     FormName: 'WA_QuanLyNghiPhepNamFrm',
     PrimaryKey: 'PersonID',
     ModalWidth: '960px',
-    hideDetailTabsInEditMode: true,
-    UseSplitLayout: true,
-    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem chi tiết',
     DetailTabs: [
       {
-        label: 'Chi tiết phép năm',
+        tabId: 'DETAIL_TAB_1',
+        label: 'Chi tiết Phép năm',
         api: 'API_QuanLyNghiPhepNam_ChiTiet',
         filterField: 'PersonID',
+        tableName: 'HR_PersonNghiPhepTbl',
+        primaryKey: 'UserAutoID',
         fields: [
           'Nam', 'SoNgay', 'GhiChu', 'PhepThamNien', 'SoNgayDaSuDung',
           'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat'
@@ -17796,6 +19306,7 @@ window.DynamicAttachmentManager = (function () {
   };
   definitions.payroll['WA_LUONGKHOANFRM'] = {
     FormName: 'WA_LuongKhoanFrm',
+    PrimaryKey: 'UserAutoID',
     FilterKeywordLabel: 'Mã/Tên nhân viên',
     SearchPlaceholder: 'Nhập mã hoặc tên nhân viên...'
   };
@@ -17826,7 +19337,100 @@ window.DynamicAttachmentManager = (function () {
           TitleName: 'Chức vụ',
           GhiChu: 'Ghi chú',
           NoiDungPhuCap: 'Nội dung phụ cấp'
-        }
+        },
+        lookupConfig: {
+          PersonID: {
+            apiList: 'HR_PersonTbl',
+            headers: ['Mã nhân viên', 'Họ Tên', 'Bộ phận', 'Chức vụ'],
+            sourceFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName'],
+            valueFields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName'],
+            valueIndex: 0,
+            displayIndex: 0,
+            strictSelection: false
+          }
+        },
+        customButtons: [
+          {
+            id: 'btn-chon-nhanvien',
+            label: 'Chọn nhiều nhân viên',
+            icon: 'group_add',
+            className: 'btn-outline-success',
+            onClick: function (ctx) {
+              var loadingMsg = null;
+              if (typeof UIToast !== 'undefined') loadingMsg = UIToast.show('Đang tải danh sách nhân viên...', 'info', 0);
+
+              var _closeMsg = function (msg) {
+                if (!msg) return;
+                if (typeof msg.close === 'function') msg.close();
+                else if (typeof UIToast !== 'undefined' && typeof UIToast.hide === 'function') UIToast.hide(msg);
+                else if (typeof Alert !== 'undefined' && typeof Alert.hide === 'function') Alert.hide(msg);
+                else if (typeof msg.remove === 'function') msg.remove();
+              };
+
+              var uName = (window.AppSession && typeof AppSession.getUserName === 'function' && AppSession.getUserName())
+                || (window.Auth && typeof window.Auth.getUser === 'function' && window.Auth.getUser() && window.Auth.getUser().username)
+                || localStorage.getItem('username') || sessionStorage.getItem('username') || 'admin';
+
+              ApiClient.post(ctx.MODULE_CONFIG.ApiSearch || AppConfig.apiGateway, {
+                List: 'HR_PersonTbl',
+                Func: 'View',
+                Keyword: '',
+                UserName: uName,
+                User: uName
+              }).then(function (res) {
+                _closeMsg(loadingMsg);
+                var rawList = res ? (res.list || res.records || (Array.isArray(res) ? res : [])) : [];
+                var dataList = rawList.map(function (r) {
+                  if (Array.isArray(r)) {
+                    return { PersonID: r[0] || '', PersonName: r[1] || '', PhongBan: r[2] || '', TitleName: r[3] || '' };
+                  }
+                  return r;
+                });
+                _showNhanVienModal(dataList, ctx);
+              }).catch(function () {
+                _closeMsg(loadingMsg);
+                if (typeof UIToast !== 'undefined') UIToast.show('Lỗi khi tải danh sách nhân viên', 'error');
+              });
+
+              function _showNhanVienModal(dataList, ctx) {
+                UIControls.utils.showMultiSelectGridModal({
+                  title: 'Chọn nhân viên',
+                  dataList: dataList,
+                  ctx: ctx,
+                  keyField: 'PersonID',
+                  headers: ['Mã NV', 'Họ Tên', 'Bộ phận', 'Chức vụ', 'Cảnh báo'],
+                  fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', '_warning_'],
+                  onRowRender: function (rData, isDuplicate) {
+                    var warningText = isDuplicate ? 'Đã có trên form' : '';
+                    return {
+                      warningText: warningText,
+                      warningStyle: warningText ? 'color: red;' : ''
+                    };
+                  },
+                  onConfirm: function (selectedRows) {
+                    var added = 0;
+                    selectedRows.forEach(function (rowData) {
+                      var newRow = {};
+                      newRow[ctx.tabDef.filterField] = ctx.row[ctx.MODULE_CONFIG.PrimaryKey] || '';
+                      newRow['PersonID'] = rowData.PersonID || '';
+                      newRow['PersonName'] = rowData.PersonName || '';
+                      newRow['PhongBan'] = rowData.PhongBan || '';
+                      newRow['TitleName'] = rowData.TitleName || '';
+                      newRow['GhiChu'] = '';
+                      newRow['NoiDungPhuCap'] = '';
+                      ctx.panel._currentRows.push(newRow);
+                      added++;
+                    });
+                    if (added > 0) {
+                      if (typeof ctx.renderGrid === 'function') ctx.renderGrid(ctx.tabDef, ctx.panel);
+                      if (typeof UIToast !== 'undefined') UIToast.show('Đã thêm ' + added + ' nhân viên', 'success');
+                    }
+                  }
+                });
+              }
+            }
+          }
+        ]
       }
     ]
   };
@@ -17834,9 +19438,6 @@ window.DynamicAttachmentManager = (function () {
     FormName: 'WA_BaoHiemFrm',
     PrimaryKey: 'DocumentID',
     UseSplitLayout: false,
-    SplitLayoutSelectText: 'Vui lòng chọn chứng từ đóng bảo hiểm để xem chi tiết',
-    SplitLayoutEmptyText: 'Không có chi tiết bảo hiểm nào cho chứng từ này',
-    SplitLayoutDetailWidth: '960px',
     ModalWidth: '1020px',
     FilterKeywordLabel: 'Tìm nhanh',
     SearchPlaceholder: 'Nhập số chứng từ hoặc ghi chú...',
@@ -17862,10 +19463,13 @@ window.DynamicAttachmentManager = (function () {
       {
         label: 'Chi tiết đóng bảo hiểm',
         api: 'API_BaoHiem_Detail',
+        metadataMode: 'JOIN_RESULT_SET_EDITABLE',
+        joinContractKey: 'DETAIL_TAB_1',
+        primaryKey: 'UserAutoID',
         filterField: 'DocumentID',
         editable: true,
         duplicateField: 'PersonID',
-        readOnlyFields: ['PersonName', 'PhongBan', 'ChucDanhChuyenMon'],
+        readOnlyFields: ['PersonName', 'PhongBan', 'ChucDanhChuyenMon', 'BranchID'],
         customButtons: [
           {
             id: 'btn-multi-select',
@@ -18065,20 +19669,6 @@ window.DynamicAttachmentManager = (function () {
               });
             }
           }
-        },
-        headers: {
-          PersonID: 'Mã nhân viên',
-          PersonName: 'Họ Tên',
-          ChucDanhChuyenMon: 'Chuyên môn',
-          PhongBan: 'Bộ phận',
-          MucDong: 'Mức đóng',
-          MucDongBHXHNLD: 'BHXH Người LD',
-          MucDongBHXHNSDLD: 'BHXH Công Ty',
-          MucDongBHYTNLD: 'BHYT Người LD',
-          MucDongBHYTNSDLD: 'BHYT Công Ty',
-          MucDongBHTNNLD: 'BHTN Người LD',
-          MucDongBHTNNSDLD: 'BHTN Công Ty',
-          GhiChu: 'Ghi chú'
         }
       }
     ]
@@ -18130,7 +19720,7 @@ window.DynamicAttachmentManager = (function () {
 (function (global) {
   var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
   definitions.contract = definitions.contract || {};
-    definitions.contract['WA_HOPDONGLAODONGFRM'] = {
+  definitions.contract['WA_HOPDONGLAODONGFRM'] = {
     FormName: 'WA_HopDongLaoDongFrm',
     PrimaryKey: 'MaHopDong',
     documentExport: {
@@ -18216,36 +19806,6 @@ window.DynamicAttachmentManager = (function () {
     fieldOverrides: {
       PersonStatus: { renderRule: 'sl', dataSource: 'API_ComboPersonStatus' }
     },
-
-    // ── DetailFormFields: hiển thị trong panel split-detail bên phải ─────
-    DetailFormFields: [
-      { name: 'MaHopDong', label: 'Mã hợp đồng' },
-      { name: 'NamLap', label: 'Năm lập' },
-      { name: 'PersonID', label: 'Mã nhân viên' },
-      { name: 'PersonName', label: 'Họ tên' },
-      { name: 'LoaiHopDong', label: 'Loại hợp đồng' },
-      { name: 'LoaiHD', label: 'Loại HD' },
-      { name: 'NgayKyHopDong', label: 'Ngày ký HĐ', format: 'date' },
-      { name: 'NgayCoHieuLuc', label: 'Ngày có hiệu lực', format: 'date' },
-      { name: 'NgayHetHieuLuc', label: 'Ngày hết hiệu lực', format: 'date' },
-      { name: 'ThoiGianLamViec', label: 'Thời gian làm việc' },
-      { name: 'ThoiGianThuViec', label: 'Thử việc (tháng)' },
-      { name: 'NguoiKy', label: 'Người ký' },
-      { name: 'ChucVuNguoiKy', label: 'Chức vụ người ký' },
-      { name: 'ChucDanhChuyenMonHD', label: 'Chức danh chuyên môn' },
-      { name: 'LuongCoBan', label: 'Lương cơ bản', format: 'money' },
-      { name: 'MucDong', label: 'Mức đóng BH', format: 'money' },
-      { name: 'LoaiTien', label: 'Loại tiền' },
-      { name: 'HinhThucTraLuong', label: 'Hình thức trả lương' },
-      { name: 'DiaDiemLamViec', label: 'Địa điểm làm việc' },
-      { name: 'PhuongTien', label: 'Phương tiện đi làm' },
-      { name: 'PersonStatusName', label: 'Trạng thái NV' },
-      { name: 'CMND', label: 'Số CCCD/CMND' },
-      { name: 'CMNDNgayCap', label: 'Ngày cấp CCCD', format: 'date' },
-      { name: 'CMNDNoiCap', label: 'Nơi cấp CCCD' },
-      { name: 'DiaChiThuongTru', label: 'Địa chỉ thường trú' },
-      { name: 'NoiDung', label: 'Nội dung hợp đồng' }
-    ],
 
     // ── Tab chi tiết phụ cấp trong hợp đồng ─────────────────────────────
     DetailTabs: [
@@ -18378,6 +19938,153 @@ window.DynamicAttachmentManager = (function () {
       }
     ]
   };
+})(window);
+
+/* --- reports.js --- */
+(function (global) {
+  var definitions = global.HRModuleDefinitions = global.HRModuleDefinitions || {};
+  definitions.reports = definitions.reports || {};
+
+  /*
+   * Read-only report module definitions for HR Management:
+   * 1. WA_BaoCaoNhanSuReport  - Báo cáo nhân sự
+   * 2. WA_BaoCaoLuongReport   - Báo cáo lương
+   * 3. WA_BaoCaoNghiPhepReport - Báo cáo nghỉ phép
+   */
+
+  var currentYear = new Date().getFullYear();
+  var defaultFromDate = currentYear + '-01-01';
+  var defaultToDate = new Date().toISOString().split('T')[0];
+
+  definitions.reports['WA_BAOCAONHANSUREPORT'] = {
+    FormName: 'WA_BaoCaoNhanSuReport',
+    PrimaryKey: 'PersonID',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    MetadataSource: 'FIELD_SYNC_V2',
+    RefreshV2MetadataOnLoad: true,
+    SelectableRows: false,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    SearchPlaceholder: 'Tìm theo Mã NV, Tên NV, CMND, Số HĐ...',
+    ReportFilters: [
+      {
+        name: 'Template',
+        label: 'Chọn mẫu báo cáo',
+        renderRule: 'sl',
+        options: [
+          { value: '', label: 'Báo cáo nhân sự (Tất cả)' },
+          { value: 'HR_BaoCaoNhanSuNVNReport', label: 'Báo cáo nhân sự NVN (Việt Nam)' },
+          { value: 'HR_BaoCaoNhanSuNNNReport', label: 'Báo cáo nhân sự NNN (Nước ngoài)' },
+          { value: 'HR_BaoCaoNhanSuThieuHDReport', label: 'Báo cáo nhân sự thiếu HĐLĐ' },
+          { value: 'HR_BaoCaoNhanSuThieuBHReport', label: 'Báo cáo nhân sự thiếu BHXH' }
+        ],
+        dataSource: 'STATIC:|Báo cáo nhân sự (Tất cả),HR_BaoCaoNhanSuNVNReport|Báo cáo nhân sự NVN,HR_BaoCaoNhanSuNNNReport|Báo cáo nhân sự NNN,HR_BaoCaoNhanSuThieuHDReport|Báo cáo nhân sự thiếu HĐLĐ,HR_BaoCaoNhanSuThieuBHReport|Báo cáo nhân sự thiếu BH',
+        defaultValue: '',
+        submit: true
+      },
+      {
+        name: 'FromDate',
+        label: 'Từ ngày',
+        renderRule: 'd',
+        type: 'date',
+        defaultValue: defaultFromDate,
+        submit: true
+      },
+      {
+        name: 'ToDate',
+        label: 'Đến ngày',
+        renderRule: 'd',
+        type: 'date',
+        defaultValue: defaultToDate,
+        submit: true
+      },
+      {
+        name: 'BranchID1',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      }
+    ]
+  };
+
+  definitions.reports['WA_BAOCAOLUONGREPORT'] = {
+    FormName: 'WA_BaoCaoLuongReport',
+    PrimaryKey: 'Số TT',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    MetadataSource: 'FIELD_SYNC_V2',
+    RefreshV2MetadataOnLoad: true,
+    SelectableRows: false,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'PeriodID',
+        label: 'Kỳ lương',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period',
+        submit: true
+      },
+      {
+        name: 'BranchID1',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      },
+      {
+        name: 'PhongBan',
+        label: 'Bộ phận',
+        renderRule: 'sl',
+        dataSource: 'HR_DepartmentListTbl',
+        valueField: 'PhongBan',
+        displayField: 'PhongBan'
+      }
+    ]
+  };
+
+  definitions.reports['WA_BAOCAONGHIPHEPREPORT'] = {
+    FormName: 'WA_BaoCaoNghiPhepReport',
+    PrimaryKey: 'TT',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    MetadataSource: 'FIELD_SYNC_V2',
+    RefreshV2MetadataOnLoad: true,
+    SelectableRows: false,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'PeriodID',
+        label: 'Kỳ báo cáo',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period',
+        submit: true
+      },
+      {
+        name: 'BranchID1',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      }
+    ]
+  };
+
 })(window);
 
 /* --- HRMetadataAdapter.js --- */
@@ -18616,16 +20323,38 @@ var ContractDocumentActions = (function (global) {
 
   var onlyOfficeLoader = null;
 
+  function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function notify(type, title, message) {
+    var titleStr = title || (type === 'error' ? 'Lỗi' : 'Thành công');
+    var msgStr = message || '';
     if (global.Alert && typeof global.Alert[type] === 'function') {
-      global.Alert[type](title, message);
+      global.Alert[type](titleStr, msgStr);
+      return;
+    }
+    if (global.Swal && typeof global.Swal.fire === 'function') {
+      global.Swal.fire({
+        icon: type === 'error' ? 'error' : 'success',
+        title: titleStr,
+        text: msgStr,
+        timer: 2500,
+        showConfirmButton: false
+      });
       return;
     }
     if (global.UIToast && typeof global.UIToast.show === 'function') {
-      global.UIToast.show(message, type === 'error' ? 'error' : type);
+      global.UIToast.show((titleStr ? titleStr + ': ' : '') + msgStr, type === 'error' ? 'error' : type);
       return;
     }
-    global.alert((title ? title + ': ' : '') + message);
+    global.alert((titleStr ? titleStr + ': ' : '') + msgStr);
   }
 
   function delay(milliseconds) {
@@ -18784,12 +20513,13 @@ var ContractDocumentActions = (function (global) {
     editorArea.className = 'contract-doc-editor-area';
     editorArea.id = 'contract-doc-editor-' + Date.now();
 
+    toolbar.appendChild(createButton('Phóng to / Thu nhỏ', 'fullscreen'));
     toolbar.appendChild(createButton('Xem trước', 'preview'));
     toolbar.appendChild(createButton('Tải DOCX', 'download'));
     toolbar.appendChild(createButton('Tải bản đã sửa lên', 'upload'));
     if (options.kind === 'draft') toolbar.appendChild(createButton('Lưu vào hợp đồng', 'finalize', true));
     if (options.kind === 'template') {
-      toolbar.appendChild(createButton('Kiểm tra placeholder', 'validate'));
+      toolbar.appendChild(createButton('Kiểm tra mẫu', 'validate'));
       toolbar.appendChild(createButton('Áp dụng mẫu', 'apply', true));
     }
     toolbar.appendChild(createButton('Đóng', 'close'));
@@ -18804,6 +20534,25 @@ var ContractDocumentActions = (function (global) {
     function setStatus(message, error) {
       status.textContent = message || '';
       status.classList.toggle('is-error', Boolean(error));
+      status.classList.toggle('is-active', Boolean(message && !error && message.indexOf('sẵn sàng') === -1));
+    }
+
+    function showLoadingOverlay(titleText, subtitleText) {
+      hideLoadingOverlay();
+      var loader = document.createElement('div');
+      loader.className = 'contract-doc-loading-overlay';
+      loader.id = 'contract-doc-loading-overlay';
+      loader.innerHTML = '<div class="contract-doc-loading-box">' +
+        '<div class="contract-doc-spinner"></div>' +
+        '<div class="contract-doc-loading-title">' + escapeHTML(titleText || 'Đang xử lý...') + '</div>' +
+        '<div class="contract-doc-loading-sub">' + escapeHTML(subtitleText || 'Vui lòng chờ trong giây lát...') + '</div>' +
+        '</div>';
+      shell.appendChild(loader);
+    }
+
+    function hideLoadingOverlay() {
+      var existing = shell.querySelector('#contract-doc-loading-overlay');
+      if (existing) existing.remove();
     }
 
     function destroyEditor() {
@@ -18816,14 +20565,31 @@ var ContractDocumentActions = (function (global) {
     function mountEditor() {
       destroyEditor();
       editorArea.innerHTML = '';
-      setStatus('Đang kết nối OnlyOffice...', false);
+      setStatus('Đang khởi tạo trình soạn thảo hợp đồng...', false);
+      showLoadingOverlay('Đang tải văn bản...', 'Vui lòng chờ trình soạn thảo nạp nội dung hợp đồng...');
       return loadOnlyOffice(state.data.onlyOfficePublicUrl).then(function () {
         if (state.closed) return;
-        state.editor = new global.DocsAPI.DocEditor(editorArea.id, state.data.editorConfig);
-        setStatus('OnlyOffice đã sẵn sàng. Bạn cũng có thể tải DOCX để sửa bằng WPS/Word.', false);
+        var editorCfg = state.data.editorConfig || {};
+        var existingEvents = editorCfg.events || {};
+        editorCfg.events = Object.assign({}, existingEvents, {
+          onAppReady: function () {
+            hideLoadingOverlay();
+            if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+            if (existingEvents.onAppReady) existingEvents.onAppReady();
+          },
+          onDocumentReady: function () {
+            hideLoadingOverlay();
+            if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+            if (existingEvents.onDocumentReady) existingEvents.onDocumentReady();
+          }
+        });
+        state.editor = new global.DocsAPI.DocEditor(editorArea.id, editorCfg);
+        setStatus('Trình soạn thảo đã sẵn sàng. Bạn có thể chỉnh sửa trực tiếp hoặc tải file DOCX về máy.', false);
+        setTimeout(hideLoadingOverlay, 3500);
       }).catch(function () {
-        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>OnlyOffice chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, sửa bằng WPS/Word rồi tải lại.</span></div>';
-        setStatus('Không mở được OnlyOffice tại ' + state.data.onlyOfficePublicUrl + '.', true);
+        hideLoadingOverlay();
+        editorArea.innerHTML = '<div class="contract-doc-offline"><strong>Trình xem văn bản trực tuyến chưa sẵn sàng.</strong><span>Bạn vẫn có thể tải DOCX, chỉnh sửa bằng Microsoft Word / WPS Office rồi tải lên lại.</span></div>';
+        setStatus('Chưa kết nối được hệ thống xem văn bản trực tuyến.', true);
       });
     }
 
@@ -18837,6 +20603,7 @@ var ContractDocumentActions = (function (global) {
     function close() {
       state.closed = true;
       destroyEditor();
+      hideLoadingOverlay();
       overlay.remove();
       global.__contractDocumentEditorOpen = false;
     }
@@ -18847,17 +20614,24 @@ var ContractDocumentActions = (function (global) {
       event.preventDefault();
       event.stopPropagation();
       var action = button.dataset.action;
+      if (action === 'fullscreen') {
+        overlay.classList.toggle('is-fullscreen');
+        return;
+      }
       if (action === 'preview') return global.open(state.data.previewUrl, '_blank', 'noopener');
       if (action === 'download') return download(state.data.downloadUrl);
       if (action === 'close') return close();
       if (action === 'upload') {
         return openFilePicker(function (file) {
           button.disabled = true;
-          setStatus('Đang tải file DOCX lên workspace...', false);
+          setStatus('Đang tải bản tài liệu mới...', false);
+          showLoadingOverlay('Đang tải file lên...', 'Vui lòng chờ hệ thống cập nhật tài liệu mới.');
           options.upload(file).then(function () {
-            notify('success', 'Thành công', 'Đã cập nhật bản DOCX trong workspace, chưa lưu vào DB.');
+            hideLoadingOverlay();
+            notify('success', 'Thành công', 'Đã cập nhật bản tài liệu mới.');
             return refreshEditor();
           }).catch(function (error) {
+            hideLoadingOverlay();
             notify('error', 'Không tải được file', error.message);
             setStatus(error.message, true);
           }).finally(function () { button.disabled = false; });
@@ -18868,23 +20642,41 @@ var ContractDocumentActions = (function (global) {
         return options.validate().then(function (result) {
           var valid = result.valid.length ? result.valid.join(', ') : '(không có)';
           var unknown = result.unknown.length ? result.unknown.join(', ') : '(không có)';
-          global.alert('Placeholder hợp lệ:\n' + valid + '\n\nPlaceholder chưa xác định:\n' + unknown);
+          global.alert('Trường dữ liệu hợp lệ:\n' + valid + '\n\nTrường chưa xác định:\n' + unknown);
         }).catch(function (error) { notify('error', 'Kiểm tra thất bại', error.message); })
           .finally(function () { button.disabled = false; });
       }
       if (action === 'finalize' || action === 'apply') {
         button.disabled = true;
-        destroyEditor();
-        setStatus('Đang chờ OnlyOffice lưu phiên bản mới nhất...', false);
-        return delay(1200).then(function () {
-          return retryAfterOnlyOfficeSave(options.complete, 6);
-        }).then(function (result) {
-          if (action === 'finalize') {
-            notify('success', 'Đã lưu', 'DOCX đã được lưu vào tài liệu đính kèm của hợp đồng.');
-          } else {
-            notify('success', 'Đã áp dụng mẫu', 'Mẫu cũ đã được backup thành ' + result.backupName + '.');
+        var loadingTitle = action === 'finalize' ? 'Đang lưu hợp đồng...' : 'Đang áp dụng mẫu...';
+        var loadingSub = action === 'finalize'
+          ? 'Hệ thống đang đồng bộ phiên bản hợp đồng vừa chỉnh sửa...'
+          : 'Hệ thống đang đồng bộ và cập nhật mẫu mới...';
+        setStatus('Đang đồng bộ dữ liệu...', false);
+        showLoadingOverlay(loadingTitle, loadingSub);
+
+        // Kích hoạt OnlyOffice đẩy bản ghi chỉnh sửa mới nhất về backend
+        if (state.editor && typeof state.editor.serviceCommand === 'function') {
+          try {
+            state.editor.serviceCommand('forcesave');
+          } catch (e) {
+            console.warn('[OnlyOffice] forcesave:', e);
           }
+        }
+
+        // Đóng trình biên tập để OnlyOffice gửi callback lưu phiên làm việc cuối cùng
+        destroyEditor();
+
+        // Chờ 1.5s để backend hoàn tất tải file DOCX mới nhất ghi vào ổ đĩa trước khi áp dụng
+        return delay(1500).then(function () {
+          return options.complete();
+        }).then(function (result) {
+          hideLoadingOverlay();
           close();
+          var successMsg = action === 'finalize'
+            ? 'Hợp đồng đã được lưu thành công vào CSDL và danh sách tài liệu đính kèm!'
+            : 'Mẫu hợp đồng mới đã được áp dụng thành công!';
+          notify('success', 'Thành công', successMsg);
           if (action === 'finalize') {
             if (global.DynamicFormEngine && typeof global.DynamicFormEngine.reloadDetailTabs === 'function') {
               global.DynamicFormEngine.reloadDetailTabs();
@@ -18893,6 +20685,7 @@ var ContractDocumentActions = (function (global) {
             }
           }
         }).catch(function (error) {
+          hideLoadingOverlay();
           notify('error', action === 'finalize' ? 'Không thể lưu hợp đồng' : 'Không thể áp dụng mẫu', error.message);
           setStatus(error.message, true);
           button.disabled = false;
@@ -19067,8 +20860,8 @@ var DocumentExportPlugin = (function (global) {
           var input = document.getElementById('payroll-process-period');
           var periodId = input && input.value;
           if (!periodId) return;
-          if (global.LoadingSpinner) LoadingSpinner.show(true, 'Đang tính toán bảng lương kỳ ' + periodId + '...');
-          ApiClient.post(gateway(), { List: 'WA_PayRoll_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId }) }).then(function (result) {
+          if (global.LoadingSpinner) LoadingSpinner.show('Đang tính toán bảng lương kỳ ' + periodId + '...');
+          ApiClient.post(gateway(), { List: 'HR_PayRoll_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId }) }).then(function (result) {
             if (global.LoadingSpinner) LoadingSpinner.hide();
             var data = Array.isArray(result) ? result[0] : (result.records && result.records[0] || result);
             var code = data && (data.code !== undefined ? data.code : data.Code);
@@ -19109,13 +20902,15 @@ var DocumentExportPlugin = (function (global) {
 
 /* --- timesheet-actions.js --- */
 (function (global) {
-  var ACTION_NAME = 'hr.timesheet.process';
+  var PROCESS_ACTION = 'hr.timesheet.process';
+  var UPDATE_STATUS_ACTION = 'hr.timesheet.update_status';
 
   function gateway() { return AppConfig.apiGateway; }
   function rowsOf(response) { return response ? (response.list || response.records || (Array.isArray(response) ? response : [])) : []; }
   function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]; }); }
 
-  function run(context) {
+  // 1. Chức năng Tạo bảng chấm công hàng ngày (HR_TimeSheetDay_Process_Stp)
+  function runProcessDay(context) {
     var loading = global.UIToast ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
     return ApiClient.post(gateway(), { List: 'SY_Period', Func: 'View', Limit: 1000 }).then(function (periodResponse) {
       var periods = rowsOf(periodResponse).sort(function (a, b) { return String(b.PeriodID).localeCompare(String(a.PeriodID)); });
@@ -19124,10 +20919,39 @@ var DocumentExportPlugin = (function (global) {
         if (global.Alert) Alert.warning('Cảnh báo', 'Không tìm thấy kỳ chấm công nào trong hệ thống!');
         return;
       }
-      return ApiClient.post(gateway(), { List: 'API_DanhSachChiNhanh', Func: 'View', Limit: 1000 }).then(function (branchResponse) {
+
+      var userBranchId = global.AppSession ? global.AppSession.getBranchId() : '';
+      var cachedBranches = global.AppSession ? global.AppSession.getBranches() : [];
+
+      var fetchBranches = (cachedBranches && cachedBranches.length > 0)
+        ? Promise.resolve(cachedBranches)
+        : (function () {
+            var branchPayload = global.AppSession && typeof global.AppSession.withActorContext === 'function'
+              ? global.AppSession.withActorContext({ List: 'CF_BranchListFrm', Func: 'View', Limit: 1000 })
+              : { List: 'CF_BranchListFrm', Func: 'View', Limit: 1000 };
+            return ApiClient.post(gateway(), branchPayload).then(rowsOf);
+          })();
+
+      return fetchBranches.then(function (branchRows) {
         if (loading && global.UIToast) UIToast.hide(loading);
-        var periodOptions = periods.map(function (period) { return '<option value="' + escapeHtml(period.PeriodID) + '">' + escapeHtml(period.PeriodID) + ' (' + escapeHtml(period.PeriodName || period.PeriodID) + ')</option>'; }).join('');
-        var branchOptions = '<option value="">-- Tất cả Chi nhánh --</option>' + rowsOf(branchResponse).map(function (branch) { return '<option value="' + escapeHtml(branch.BranchID) + '">' + escapeHtml(branch.BranchName || branch.BranchID) + '</option>'; }).join('');
+
+        var branches = branchRows || [];
+        var activeFilters = global.currentFilters || {};
+        var selectedPeriod = activeFilters.PeriodID || (periods[0] && periods[0].PeriodID);
+        var selectedBranch = activeFilters.BranchID || userBranchId || (branches.length === 1 ? (branches[0].BranchID || branches[0].branchID) : '');
+
+        var periodOptions = periods.map(function (period) {
+          var isSelected = String(period.PeriodID) === String(selectedPeriod) ? ' selected' : '';
+          return '<option value="' + escapeHtml(period.PeriodID) + '"' + isSelected + '>' + escapeHtml(period.PeriodID) + ' (' + escapeHtml(period.PeriodName || period.PeriodID) + ')</option>';
+        }).join('');
+
+        var branchOptions = '<option value="">-- Tất cả Chi nhánh --</option>' + branches.map(function (branch) {
+          var bId = branch.BranchID || branch.branchID || branch.Branch || '';
+          var bName = branch.BranchName || branch.branchName || bId;
+          var isSelected = String(bId) === String(selectedBranch) ? ' selected' : '';
+          return '<option value="' + escapeHtml(bId) + '"' + isSelected + '>' + escapeHtml(bName) + '</option>';
+        }).join('');
+
         ConfirmModal.show({
           title: 'Tạo Bảng Chấm Công Hàng Ngày',
           message: '<div style="text-align:left;margin-top:10px;"><label style="font-weight:600;display:block;margin-bottom:8px;">Chọn kỳ chấm công:</label><select id="timesheet-process-period" class="ui-input" style="width:100%;height:38px;">' + periodOptions + '</select><label style="font-weight:600;display:block;margin:12px 0 8px;">Chọn chi nhánh:</label><select id="timesheet-process-branch" class="ui-input" style="width:100%;height:38px;">' + branchOptions + '</select></div>',
@@ -19139,12 +20963,17 @@ var DocumentExportPlugin = (function (global) {
             var periodId = period && period.value;
             var branchId = branch && branch.value;
             if (!periodId) return;
-            if (global.LoadingSpinner) LoadingSpinner.show(true, 'Đang tạo bảng chấm công kỳ ' + periodId + '...');
-            ApiClient.post(gateway(), { List: 'WA_TimeSheetDay_Process_Stp', Func: 'View', JsonData: JSON.stringify({ PeriodID: periodId, BranchID: branchId }) }).then(function (result) {
+            if (global.LoadingSpinner) LoadingSpinner.show('Đang tạo bảng chấm công kỳ ' + periodId + '...');
+
+            var processPayload = global.AppSession && typeof global.AppSession.withActorContext === 'function'
+              ? global.AppSession.withActorContext({ List: 'HR_TimeSheetDay_Process_Stp', Func: 'View', JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId, BranchID: branchId }) })
+              : { List: 'HR_TimeSheetDay_Process_Stp', Func: 'View', JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId, BranchID: branchId }) };
+
+            ApiClient.post(gateway(), processPayload).then(function (result) {
               if (global.LoadingSpinner) LoadingSpinner.hide();
               var data = Array.isArray(result) ? result[0] : (result.records && result.records[0] || result);
-              var code = data && (data.code !== undefined ? data.code : data.Code);
-              var message = data && (data.msg || data.Msg || data.message) || 'Thành công';
+              var code = data && (data.code !== undefined ? data.code : (data.Code !== undefined ? data.Code : 0));
+              var message = data && (data.msg || data.Msg || data.message) || ('Tạo bảng chấm công thành công cho kỳ ' + periodId + '!');
               if (code == 0) {
                 if (global.Alert) Alert.success('Thành công', message);
                 global.currentFilters = Object.assign({}, global.currentFilters || {}, { PeriodID: periodId, BranchID: branchId });
@@ -19163,20 +20992,119 @@ var DocumentExportPlugin = (function (global) {
     });
   }
 
+  // 2. Chức năng Xử lý chấm công (HR_TimeSheet_UpdateDailyStatus_Stp)
+  function runUpdateDailyStatus(context) {
+    var loading = global.UIToast ? UIToast.show('Đang tải danh sách kỳ...', 'info') : null;
+    return ApiClient.post(gateway(), { List: 'SY_Period', Func: 'View', Limit: 1000 }).then(function (periodResponse) {
+      var periods = rowsOf(periodResponse).sort(function (a, b) { return String(b.PeriodID).localeCompare(String(a.PeriodID)); });
+      if (loading && global.UIToast) UIToast.hide(loading);
+
+      if (!periods.length) {
+        if (global.Alert) Alert.warning('Cảnh báo', 'Không tìm thấy kỳ chấm công nào trong hệ thống!');
+        return;
+      }
+
+      var activeFilters = global.currentFilters || {};
+      var selectedPeriod = activeFilters.PeriodID || (periods[0] && periods[0].PeriodID);
+
+      var periodOptions = periods.map(function (period) {
+        var isSelected = String(period.PeriodID) === String(selectedPeriod) ? ' selected' : '';
+        return '<option value="' + escapeHtml(period.PeriodID) + '"' + isSelected + '>' + escapeHtml(period.PeriodID) + ' (' + escapeHtml(period.PeriodName || period.PeriodID) + ')</option>';
+      }).join('');
+
+      ConfirmModal.show({
+        title: 'Xử lý Chấm Công Tổng Hợp',
+        message: '<div style="text-align:left;margin-top:10px;"><label style="font-weight:600;display:block;margin-bottom:8px;">Chọn kỳ chấm công cần xử lý:</label><select id="timesheet-updatestatus-period" class="ui-input" style="width:100%;height:38px;">' + periodOptions + '</select></div>',
+        confirmText: 'Xử lý',
+        confirmClass: 'btn-warning',
+        onConfirm: function () {
+          var periodSelect = document.getElementById('timesheet-updatestatus-period');
+          var periodId = periodSelect && periodSelect.value;
+          if (!periodId) return;
+
+          if (global.LoadingSpinner) LoadingSpinner.show('Đang xử lý chấm công kỳ ' + periodId + '...');
+
+          var payload = global.AppSession && typeof global.AppSession.withActorContext === 'function'
+            ? global.AppSession.withActorContext({
+                List: 'HR_TimeSheet_UpdateDailyStatus_Stp',
+                Func: 'View',
+                Period: periodId,
+                PeriodID: periodId,
+                JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId })
+              })
+            : {
+                List: 'HR_TimeSheet_UpdateDailyStatus_Stp',
+                Func: 'View',
+                Period: periodId,
+                PeriodID: periodId,
+                JsonData: JSON.stringify({ Period: periodId, PeriodID: periodId })
+              };
+
+          ApiClient.post(gateway(), payload).then(function (result) {
+            if (global.LoadingSpinner) LoadingSpinner.hide();
+            var data = Array.isArray(result) ? result[0] : (result.records && result.records[0] || result);
+            var code = data && (data.code !== undefined ? data.code : (data.Code !== undefined ? data.Code : 0));
+            var message = data && (data.msg || data.Msg || data.message) || ('Xử lý chấm công thành công cho kỳ ' + periodId + '!');
+
+            if (code == 0) {
+              if (global.Alert) Alert.success('Thành công', message);
+              global.currentFilters = Object.assign({}, global.currentFilters || {}, { PeriodID: periodId });
+              if (typeof context.onReload === 'function') context.onReload();
+            } else if (global.Alert) Alert.error('Lỗi xử lý chấm công', message);
+          }).catch(function (error) {
+            if (global.LoadingSpinner) LoadingSpinner.hide();
+            if (global.Alert) Alert.error('Lỗi kết nối', error.message || 'Không thể kết nối đến máy chủ.');
+          });
+        }
+      });
+    }).catch(function () {
+      if (loading && global.UIToast) UIToast.hide(loading);
+      if (global.Alert) Alert.error('Lỗi', 'Không thể tải danh sách kỳ chấm công.');
+    });
+  }
+
   function register() {
     if (!global.FormActionRegistry) return;
-    FormActionRegistry.register(ACTION_NAME, run);
+    FormActionRegistry.register(PROCESS_ACTION, runProcessDay);
+    FormActionRegistry.register(UPDATE_STATUS_ACTION, runUpdateDailyStatus);
+
     global.FormActionPlugins = (global.FormActionPlugins || []).filter(function (plugin) { return plugin.id !== 'timesheet_day_plugin'; });
     global.FormActionPlugins.push({
       id: 'timesheet_day_plugin',
       getExtraButtons: function (formName, getSelected, config, onReload) {
-        if (!config || config.ProcessAction !== ACTION_NAME) return [];
-        return [{ text: 'Tạo bảng chấm công', icon: 'today', type: 'primary', onClick: function () { FormActionRegistry.execute(ACTION_NAME, { config: config, onReload: onReload }); } }];
+        var fName = String(formName || (config && config.FormName) || '').toLowerCase();
+        var buttons = [];
+
+        // Trang Xử lý chấm công hàng ngày (WA_TimeSheetDayFrm) -> Nút "Tạo bảng chấm công"
+        if (fName === 'wa_timesheetdayfrm' || (config && config.ProcessAction && !config.UpdateStatusAction)) {
+          buttons.push({
+            text: 'Tạo bảng chấm công',
+            icon: 'today',
+            type: 'primary',
+            onClick: function () {
+              FormActionRegistry.execute(PROCESS_ACTION, { config: config, onReload: onReload });
+            }
+          });
+        }
+
+        // Trang Bảng chấm công tổng hợp (WA_TimeSheetFrm) -> Nút "Xử lý chấm công"
+        if (fName === 'wa_timesheetfrm' || (config && config.UpdateStatusAction && !config.ProcessAction)) {
+          buttons.push({
+            text: 'Xử lý chấm công',
+            icon: 'settings',
+            type: 'warning',
+            onClick: function () {
+              FormActionRegistry.execute(UPDATE_STATUS_ACTION, { config: config, onReload: onReload });
+            }
+          });
+        }
+
+        return buttons;
       }
     });
   }
 
-  global.TimesheetActions = { register: register, run: run };
+  global.TimesheetActions = { register: register, run: runProcessDay, runUpdateDailyStatus: runUpdateDailyStatus };
   register();
 })(window);
 
@@ -19224,7 +21152,11 @@ var DocumentExportPlugin = (function (global) {
 
   function responseMessage(response, fallback) {
     var data = responseData(response);
-    return data.msg || data.Msg || data.message || data.Message || fallback;
+    var msg = data.msg || data.Msg || data.message || data.Message;
+    if (!msg || msg === 'OK' || msg === '0' || msg === 'SUCCESS') {
+      return fallback || 'Đã cập nhật lịch làm việc thành công.';
+    }
+    return msg;
   }
 
   function configOf(context) {
@@ -19286,7 +21218,6 @@ var DocumentExportPlugin = (function (global) {
       User: currentUser(),
       BranchID: currentBranch()
     };
-    // API_Gateway_Router hỗ trợ thay thế trực tiếp {SapCaID} trong WA_API.
     payload[config.idField] = shiftId;
 
     setButtonLoading(context.button, true);
@@ -19296,7 +21227,7 @@ var DocumentExportPlugin = (function (global) {
         if (global.Alert) {
           Alert.success(
             config.successTitle || 'Sắp ca thành công',
-            responseMessage(response, config.successMessage || 'Bảng ca chi tiết đã được cập nhật.')
+            responseMessage(response, config.successMessage || 'Bảng ca chi tiết đã được cập nhật tự động.')
           );
         }
         if (global.DynamicFormEngine && typeof DynamicFormEngine.reloadDetailTabs === 'function') {
@@ -19306,7 +21237,7 @@ var DocumentExportPlugin = (function (global) {
           if (refresh) refresh.click();
         }
       } else if (global.Alert) {
-        Alert.error(config.errorTitle || 'Không thể sắp ca', responseMessage(response, 'Procedure trả về lỗi.'));
+        Alert.error(config.errorTitle || 'Không thể sắp ca', responseMessage(response, 'Đã xảy ra lỗi khi thực thi sắp ca.'));
       }
       return response;
     }).catch(function (error) {
@@ -19364,7 +21295,7 @@ var DocumentExportPlugin = (function (global) {
 
     var needsSave = !context.isViewMode && config.saveBeforeRun !== false;
     if (needsSave) {
-      message += '<br><br><span style="color:#b45309;">Dữ liệu master và nhân viên sẽ được lưu trước khi chạy.</span>';
+      message += '<br><br><span style="color:#b45309;">Thông tin bảng ca và danh sách nhân viên sẽ được lưu tự động trước khi sắp ca.</span>';
     }
     if (config.leaveMessage) {
       message += '<br><span style="color:var(--color-text-secondary);">' + escapeHtml(config.leaveMessage) + '</span>';
@@ -20455,9 +22386,19 @@ window.DynamicFormEngine = (function () {
     return Array.isArray(schema) ? schema : globalFormSchema;
   }
   function _configuredFilterSchema() { return _schemaFor('filters').filter(function (field) { return field && field.showInFilter === true && field.supportsFilter !== false; }); }
+  function _reportFilterSchema() {
+    return Array.isArray(MODULE_CONFIG.ReportFilters)
+      ? MODULE_CONFIG.ReportFilters.filter(function (field) { return field && field.name; })
+      : [];
+  }
+  function _activeFilterSchema() {
+    var reportFilters = _reportFilterSchema();
+    return reportFilters.length > 0 ? reportFilters : _configuredFilterSchema();
+  }
 
   function _hasConfiguredFilters() {
     if (MODULE_CONFIG.HideFilterBtn) return false;
+    if (_reportFilterSchema().length > 0) return true;
 
     if (_usesUnifiedMetadata()) {
       return _configuredFilterSchema().length > 0;
@@ -20492,6 +22433,49 @@ window.DynamicFormEngine = (function () {
         field && field.orderNo
       ].join(':');
     }).join('|');
+  }
+
+  /*
+   * Report viewer capability: a report may expose its result schema from the
+   * stored procedure instead of maintaining a second list of day columns in
+   * the UI metadata. Existing CRUD forms continue to use their configured
+   * grid schema unchanged.
+   */
+  function _dynamicResultColumnsEnabled() {
+    return Boolean(MODULE_CONFIG && (
+      MODULE_CONFIG.DynamicResultColumns === true
+      || MODULE_CONFIG.dynamicResultColumns === true
+    ));
+  }
+
+  function _rowSelectionEnabled() {
+    return !(MODULE_CONFIG && (
+      MODULE_CONFIG.SelectableRows === false
+      || MODULE_CONFIG.selectableRows === false
+    ));
+  }
+
+  function _applyDynamicResultSchema(result, rows) {
+    if (!_dynamicResultColumnsEnabled()) return;
+    if (!window.DynamicResultSchema || typeof DynamicResultSchema.build !== 'function') return;
+
+    var nextGrid = DynamicResultSchema.build({
+      result: result,
+      rows: rows,
+      existingGrid: _schemaFor('grid')
+    });
+    if (!Array.isArray(nextGrid) || nextGrid.length === 0) return;
+
+    runtimeSchemas = runtimeSchemas || {};
+    runtimeSchemas.grid = nextGrid;
+    if (!Array.isArray(runtimeSchemas.edit)) runtimeSchemas.edit = [];
+    if (!Array.isArray(runtimeSchemas.add)) runtimeSchemas.add = [];
+
+    nextGrid.forEach(function (field) {
+      if (field && field.name && !globalDictionary[field.name]) {
+        globalDictionary[field.name] = field.label || field.name;
+      }
+    });
   }
 
   function _flushPendingFieldSyncRender() {
@@ -20545,6 +22529,7 @@ window.DynamicFormEngine = (function () {
       if (!detail || detail.formName !== currentFormName || !detail.state || !detail.state.runtimeSchemas) return;
       if (window.FieldSyncService && typeof FieldSyncService.getContextKey === 'function'
         && detail.contextKey && detail.contextKey !== FieldSyncService.getContextKey(currentFormName)) return;
+      if (MODULE_CONFIG && (MODULE_CONFIG.ReadOnlyReport === true || /(?:Report)$/i.test(String(currentFormName || '').trim()))) return;
       _applyFieldSyncState(detail.state);
     });
     document.addEventListener('focusout', function () {
@@ -20700,6 +22685,14 @@ window.DynamicFormEngine = (function () {
 
   /** Đọc selectedRows từ sessionStorage (silent fail, trả mảng rỗng nếu lỗi) */
   function _loadSelectedRows() {
+    // Selection is transient UI state. Read-only reports deliberately disable
+    // it, so purge any value left by an older bundle before rendering a badge.
+    if (!_rowSelectionEnabled()) {
+      selectedRows = [];
+      if (formState) formState.setSelectedRows([]);
+      _persistFormState();
+      return;
+    }
     selectedRows = formState ? formState.get().selectedRows || [] : [];
   }
 
@@ -20724,13 +22717,89 @@ window.DynamicFormEngine = (function () {
    * @returns {Object} payload đã gắn UserName, UserCreate, IsEdit
    */
   function _buildPayload(base, isEdit) {
-    var p = Object.assign({}, base);
+    var p = _normalizeWriteSource(
+      base,
+      isEdit
+    );
+
     p.UserName = _currentUser();
     p.UserCreate = _currentUser();
     p.IsEdit = isEdit ? 1 : 0;
+
     return p;
   }
+  function _isNullableWriteField(field) {
+    if (!field) return false;
 
+    return (
+      field.nullable === true
+      || field.nullable === 1
+      || String(field.nullable) === '1'
+      || field.isNullable === true
+      || field.isNullable === 1
+      || String(field.isNullable) === '1'
+      || field.IsNullable === true
+      || field.IsNullable === 1
+      || String(field.IsNullable) === '1'
+    );
+  }
+
+  /**
+   * Chuẩn hóa dữ liệu trước khi gửi API.
+   *
+   * Quy ước:
+   * - Input có giá trị: trim khoảng trắng.
+   * - Input rỗng và cột DB nullable: gửi null.
+   * - Input rỗng nhưng cột không nullable: giữ chuỗi rỗng
+   *   để validation/backend xử lý.
+   */
+  function _normalizeWriteSource(
+    base,
+    isEdit
+  ) {
+    var source =
+      base && typeof base === 'object'
+        ? Object.assign({}, base)
+        : {};
+
+    var schema =
+      _schemaFor(
+        isEdit ? 'edit' : 'add'
+      );
+
+    (schema || []).forEach(function (field) {
+      if (
+        !field
+        || !field.name
+        || !Object.prototype.hasOwnProperty.call(
+          source,
+          field.name
+        )
+      ) {
+        return;
+      }
+
+      var value = source[field.name];
+
+      if (typeof value !== 'string') {
+        return;
+      }
+
+      var normalized = value.trim();
+
+      if (normalized !== '') {
+        source[field.name] = normalized;
+        return;
+      }
+
+      source[field.name] =
+        _isNullableWriteField(field)
+          ? null
+          : '';
+    });
+
+    return source;
+  }
   function _hasContractValue(value) {
     return value !== undefined && value !== null && value !== '';
   }
@@ -21003,16 +23072,63 @@ window.DynamicFormEngine = (function () {
       && _hasPermission('EXPORT')
     );
   }
+  function _normalizeContractWriteValue(value, field) {
+    if (value === undefined || value === null) {
+      return value;
+    }
 
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    var normalized = value.trim();
+
+    if (normalized !== '') {
+      return normalized;
+    }
+
+    var renderRule = String(
+      field.renderRule
+      || field.formatType
+      || ''
+    ).trim().toLowerCase();
+
+    var hasLookup =
+      Boolean(
+        field.lookup
+        && field.lookup.disabled !== true
+      )
+      || renderRule === 'lookup'
+      || renderRule === 'sl'
+      || renderRule === 'select'
+      || renderRule === 'combo';
+
+    /*
+     * Lookup/select nullable để trống phải gửi NULL.
+     * Không gửi chuỗi rỗng vì cột có thể là khóa ngoại.
+     */
+    if (field.nullable === true && hasLookup) {
+      return null;
+    }
+
+    return normalized;
+  }
   function _buildContractWritePayload(base, isEdit, originalRow) {
-    var source = base && typeof base === 'object' ? base : {};
+    var source =
+      _normalizeWriteSource(
+        base,
+        isEdit
+      );
     var schema = _schemaFor(isEdit ? 'edit' : 'add');
     var payload = {};
     schema.forEach(function (field) {
       var allowed = isEdit ? field.supportsUpdate === true : field.supportsInsert === true;
       if (!allowed || !Object.prototype.hasOwnProperty.call(source, field.name)) return;
       if (_isBranchScopedWriteContract() && _isBranchPayloadField(field.name)) return;
-      payload[field.name] = source[field.name];
+      payload[field.name] = _normalizeContractWriteValue(
+        source[field.name],
+        field
+      );
     });
 
     if (isEdit && MODULE_CONFIG.PrimaryKey) {
@@ -21150,7 +23266,11 @@ window.DynamicFormEngine = (function () {
       && _isUnifiedMetadataForm(MODULE_CONFIG.FormName)
       && window.FieldSyncService
       && typeof FieldSyncService.observeForm === 'function') {
-      pConfig = FieldSyncService.observeForm(MODULE_CONFIG.FormName, []).then(function (state) {
+      pConfig = FieldSyncService.observeForm(
+        MODULE_CONFIG.FormName,
+        [],
+        MODULE_CONFIG.RefreshV2MetadataOnLoad === true
+      ).then(function (state) {
         fieldContractState = state || null;
         if (state && state.metadataActive === true && state.schema && state.runtimeSchemas) {
           if (!configuredPrimaryKey) MODULE_CONFIG.PrimaryKey = state.schema.primaryKey;
@@ -21167,15 +23287,17 @@ window.DynamicFormEngine = (function () {
         if (state && state.error) {
           throw new Error(state.error);
         }
-        if (state && state.runtimeMode === 'LEGACY_FULL' && state.managed === false) {
-          return loadLegacyMetadata().then(function (legacyResponse) {
-            if (legacyResponse && typeof legacyResponse === 'object') {
-              legacyResponse._fieldContractState = state || null;
-            }
-            return legacyResponse;
-          });
+        return loadLegacyMetadata().then(function (legacyResponse) {
+          if (legacyResponse && typeof legacyResponse === 'object') {
+            legacyResponse._fieldContractState = state || null;
+          }
+          return legacyResponse;
+        });
+      }).catch(function (err) {
+        if (err && err.message && err.message.indexOf('Metadata V2') !== -1) {
+          throw err;
         }
-        throw new Error('Form chưa được đăng ký metadata V2.');
+        return loadLegacyMetadata();
       });
     } else {
       pConfig = loadLegacyMetadata();
@@ -21689,6 +23811,7 @@ window.DynamicFormEngine = (function () {
         tabulatorActionBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">table_chart</span> <span>Tùy chọn bảng</span> <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span>';
 
         var tabulatorActionMenu = document.createElement('div');
+        tabulatorActionMenu.className = 'tabulator-action-menu';
         tabulatorActionMenu.style.cssText = 'display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 200px; background: var(--color-surface, #fff); border: 1px solid var(--color-border, #ccc); box-shadow: 0 8px 24px rgba(0,0,0,0.12); border-radius: 8px; z-index: 9999; padding: 8px;';
 
         // Helper tạo item
@@ -22164,19 +24287,26 @@ window.DynamicFormEngine = (function () {
         // Bật/tắt menu
         tabulatorActionBtn.addEventListener('click', function (e) {
           e.stopPropagation();
+          var userProfile = document.getElementById('vertical-user-profile');
+          var userDropdown = document.getElementById('vertical-user-dropdown');
+          if (userProfile && userDropdown) {
+            userProfile.classList.remove('open');
+            userDropdown.classList.remove('open');
+          }
           var isVisible = tabulatorActionMenu.style.display === 'block';
           document.querySelectorAll('.dropdown-menu-custom').forEach(function (el) { el.style.display = 'none'; });
 
           if (!isVisible) {
             var rect = tabulatorActionBtn.getBoundingClientRect();
             tabulatorActionMenu.style.top = (rect.bottom + 5) + 'px';
-            // Đẩy sang trái một chút nếu nút nằm ở góc phải
-            tabulatorActionMenu.style.left = (rect.right - 200) + 'px';
-            // Nếu bị tràn cạnh trái màn hình thì đẩy sát lề trái
-            if (parseInt(tabulatorActionMenu.style.left) < 10) {
-              tabulatorActionMenu.style.left = '10px';
-            }
             tabulatorActionMenu.style.display = 'block';
+
+            // Định vị theo kích thước thật của menu để không tràn cạnh màn hình
+            // trên các độ rộng desktop/tablet khác nhau.
+            var menuWidth = tabulatorActionMenu.getBoundingClientRect().width;
+            var maxLeft = Math.max(12, window.innerWidth - menuWidth - 12);
+            var preferredLeft = rect.right - menuWidth;
+            tabulatorActionMenu.style.left = Math.max(12, Math.min(preferredLeft, maxLeft)) + 'px';
           } else {
             tabulatorActionMenu.style.display = 'none';
           }
@@ -22401,6 +24531,15 @@ window.DynamicFormEngine = (function () {
           }, 500); // Tự động tìm sau 0.5s
         });
 
+        // Nếu người dùng đã nhập ở thanh search chung trước khi grid khởi tạo,
+        // tiếp tục dùng lại từ khóa đó thay vì bắt họ nhập lại.
+        if (window.__globalSearchKeyword) {
+          quickSearchInput.value = String(window.__globalSearchKeyword);
+          setTimeout(function () {
+            quickSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }, 0);
+        }
+
         searchWrapper.appendChild(quickSearchInput);
 
         // Để 2 nút đối xứng nhau, ta sẽ gom chúng vào chung 1 flex container
@@ -22419,10 +24558,10 @@ window.DynamicFormEngine = (function () {
         filterContainer.innerHTML = ''; // Xóa placeholder nếu có
 
         // 1. Tự động lấy các trường cấu hình ShowInFilter từ Database
-        var dynamicFilters = _configuredFilterSchema()
+        var dynamicFilters = _activeFilterSchema()
           .map(function (f) {
             // Chuyển đổi định dạng từ FormEngine sang FilterComponent
-            var filterType = 'text';
+            var filterType = f.type || 'text';
             var erpFilterType = Number(f.filterControlType);
             if (erpFilterType === 3) filterType = 'select';
             else if (erpFilterType === 6) filterType = 'select';
@@ -22435,8 +24574,16 @@ window.DynamicFormEngine = (function () {
               id: f.name,
               label: filterLabel,
               type: filterType,
-              placeholder: filterLabel
+              placeholder: f.placeholder || filterLabel,
+              readOnly: f.readOnly === true,
+              submit: f.submit !== false
             };
+            var defaultValue = typeof f.defaultValue === 'function'
+              ? f.defaultValue({ userName: _currentUser(), branchId: _currentBranchId() })
+              : f.defaultValue;
+            if (defaultValue !== undefined && defaultValue !== null) {
+              filterObj.defaultValue = defaultValue;
+            }
 
             // Parse DataSource cho trường Select/Dropdown
             if (erpFilterType === 6 || f.renderRule === 'sw') {
@@ -22458,14 +24605,29 @@ window.DynamicFormEngine = (function () {
                 filterObj.dataSource = f.dataSource;
                 // Tải dữ liệu động từ API (ví dụ: 'CF_BranchListFrm' hoặc 'SY_Period')
                 var apiSearchUrl = MODULE_CONFIG.ApiSearch || _gateway();
-                ApiClient.post(apiSearchUrl, { List: f.dataSource, FormName: f.dataSource, Func: 'View', Limit: 1000, UserName: _currentUser() }).then(function (res) {
+                var lookupPayload = {
+                  List: f.dataSource,
+                  FormName: f.dataSource,
+                  Func: 'View',
+                  Limit: 1000,
+                  UserName: _currentUser(),
+                  User: _currentUser(),
+                  BranchID: _currentBranchId()
+                };
+                if (f.dataSourceParams && typeof f.dataSourceParams === 'object') {
+                  Object.assign(lookupPayload, f.dataSourceParams);
+                  lookupPayload.JsonData = JSON.stringify(f.dataSourceParams);
+                }
+                ApiClient.post(apiSearchUrl, lookupPayload).then(function (res) {
                   var dataList = res.list || res.records || [];
                   var options = [];
                   if (dataList && dataList.length > 0) {
                     var keys = Object.keys(dataList[0]);
-                    var valKey = keys[0];
+                    var valKey = f.valueField && keys.indexOf(f.valueField) >= 0 ? f.valueField : keys[0];
                     var labelRegex = /name|tên|ten|label|desc|title/i;
-                    var displayKey = keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0];
+                    var displayKey = f.displayField && keys.indexOf(f.displayField) >= 0
+                      ? f.displayField
+                      : (keys.find(function (k) { return labelRegex.test(k); }) || keys[1] || keys[0]);
                     dataList.forEach(function (row) {
                       options.push({ value: row[valKey], label: row[displayKey] });
                     });
@@ -22475,7 +24637,10 @@ window.DynamicFormEngine = (function () {
                   var selectEl = document.getElementById(f.name);
                   if (selectEl) {
                     var hasSavedValue = window.currentFilters && window.currentFilters[f.name] !== undefined;
-                    var currentValue = hasSavedValue ? window.currentFilters[f.name] : '';
+                    var hasDefaultValue = defaultValue !== undefined && defaultValue !== null && defaultValue !== '';
+                    var currentValue = hasSavedValue
+                      ? window.currentFilters[f.name]
+                      : (hasDefaultValue ? defaultValue : '');
 
                     selectEl.innerHTML = '<option value="">-- Tất cả --</option>';
                     options.forEach(function (opt) {
@@ -22487,7 +24652,10 @@ window.DynamicFormEngine = (function () {
                     });
 
                     // Tự động chọn kỳ gần nhất nếu chưa có filter được thiết lập
-                    if (!hasSavedValue && options.length > 0 && (f.name.toLowerCase().indexOf('period') >= 0 || f.name.toLowerCase().indexOf('ky') >= 0)) {
+                    if (!hasSavedValue && !hasDefaultValue && options.length > 0
+                      && (f.autoSelect === 'closest-period'
+                        || f.name.toLowerCase().indexOf('period') >= 0
+                        || f.name.toLowerCase().indexOf('ky') >= 0)) {
                       var now = new Date();
                       var cy = now.getFullYear();
                       var cm = now.getMonth() + 1;
@@ -22640,7 +24808,9 @@ window.DynamicFormEngine = (function () {
         var allowedContractFilters = null;
         if (_usesUnifiedMetadata()) {
           allowedContractFilters = Object.create(null);
-          _schemaFor('filters').forEach(function (field) { allowedContractFilters[String(field.name).toLowerCase()] = true; });
+          _activeFilterSchema().forEach(function (field) {
+            if (field.submit !== false) allowedContractFilters[String(field.name).toLowerCase()] = true;
+          });
         }
         for (var k in window.currentFilters) {
           var normalizedFilterKey = String(k).toLowerCase();
@@ -22761,6 +24931,7 @@ window.DynamicFormEngine = (function () {
         var dataList = Array.isArray(result.list)
           ? result.list
           : (Array.isArray(result.records) ? result.records : []);
+        _applyDynamicResultSchema(result, dataList);
         gridData = dataList.map(function (item) {
           var row = Object.assign({}, item);
           // Lấy khóa chính từ cấu hình, nếu không có thì tự động lấy cột đầu tiên của dữ liệu
@@ -22848,6 +25019,7 @@ window.DynamicFormEngine = (function () {
 
 
       var tabulatorColumns = [];
+      var rowSelectionEnabled = _rowSelectionEnabled();
       var isMobile = window.innerWidth <= 768;
 
       // Đọc cấu hình cột đã lưu từ LocalStorage
@@ -22863,10 +25035,13 @@ window.DynamicFormEngine = (function () {
         if (storedOrderStr) savedOrder = JSON.parse(storedOrderStr);
       } catch (e) { }
 
-      // Cột Checkbox của Tabulator
-      tabulatorColumns.push({
-        formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: !isMobile
-      });
+      // Report viewers follow the desktop behavior: data is read-only and does
+      // not expose a row-selection checkbox or a persisted selection badge.
+      if (rowSelectionEnabled) {
+        tabulatorColumns.push({
+          formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 50, resizable: false, frozen: !isMobile
+        });
+      }
 
       var sampleRow = gridData && gridData.length > 0 ? gridData[0] : {};
       var rowKeys = Object.keys(sampleRow);
@@ -23194,10 +25369,41 @@ window.DynamicFormEngine = (function () {
             };
           }
 
+          var fName = actualField.toLowerCase();
+          var title = (colDef.title || '').toLowerCase();
+
+
+          var isBoolField = (f.renderRule === 'c' || f.renderRule === 'b' || f.renderRule === 'checkbox')
+            || fName === 'nhanvienmoi' || fName === 'thieubaohiem' || fName === 'thieuhd'
+            || fName === 'isactive' || fName === 'isuse' || fName === 'istaituyen';
+
+          if (fName === 'danhsachhopdong') {
+            colDef.formatter = function (cell) {
+              var v = cell.getValue();
+              if (!v) return '';
+              var items = String(v).split(/[\r\n]+/);
+              var badges = items.map(function (item) {
+                var clean = item.trim();
+                if (!clean) return '';
+                return '<span class="badge-status badge-info" style="margin:2px; font-size:12px; display:inline-block; font-weight:500;">' + clean + '</span>';
+              }).filter(Boolean);
+              return badges.length > 0 ? badges.join(' ') : v;
+            };
+          } else if (isBoolField) {
+            colDef.hozAlign = 'center';
+            colDef.width = 110;
+            colDef.formatter = function (cell) {
+              var v = cell.getValue();
+              var isChecked = Boolean(v === 1 || v === '1' || v === true || String(v).toLowerCase() === 'true' || String(v).toLowerCase() === 'y');
+              if (isChecked) {
+                return '<span style="display:inline-flex; align-items:center; justify-content:center; color:#2563eb; line-height:1;"><span class="material-symbols-outlined" style="font-size:22px;">check_box</span></span>';
+              }
+              return '<span style="display:inline-flex; align-items:center; justify-content:center; color:#d1d5db; line-height:1;"><span class="material-symbols-outlined" style="font-size:22px;">check_box_outline_blank</span></span>';
+            };
+          }
+
           // Smart UI/UX Defaults (Kế thừa cho toàn bộ lưới nếu không bị ghi đè)
           if (!colDef.formatter) {
-            var fName = actualField.toLowerCase();
-            var title = (colDef.title || '').toLowerCase();
 
             if (fName.includes('manhanvien') || fName === 'macode' || fName === 'employeeid' || fName === 'personid' || title.includes('mã nhân viên')) {
               colDef.cssClass = (colDef.cssClass ? colDef.cssClass + ' ' : '') + 'col-highlight-primary';
@@ -23243,8 +25449,8 @@ window.DynamicFormEngine = (function () {
 
       // Khôi phục vị trí cột nếu đã có dữ liệu lưu
       if (savedOrder && savedOrder.length > 0) {
-        // tabulatorColumns[0] là checkbox, tách riêng ra
-        var checkboxCol = tabulatorColumns.shift();
+        // Tách checkbox riêng nếu màn hiện tại có bật chọn dòng.
+        var checkboxCol = rowSelectionEnabled ? tabulatorColumns.shift() : null;
         tabulatorColumns.sort(function (a, b) {
           var idxA = savedOrder.indexOf(a.field);
           var idxB = savedOrder.indexOf(b.field);
@@ -23253,7 +25459,7 @@ window.DynamicFormEngine = (function () {
           if (idxB === -1) idxB = 9999;
           return idxA - idxB;
         });
-        tabulatorColumns.unshift(checkboxCol);
+        if (checkboxCol) tabulatorColumns.unshift(checkboxCol);
       }
 
       // Tạo thanh Pagination trước
@@ -23290,7 +25496,7 @@ window.DynamicFormEngine = (function () {
         data: gridData,
         columns: tabulatorColumns,
         layout: "fitDataFill",
-        selectableRows: true, // bật chọn dòng
+        selectableRows: rowSelectionEnabled,
         selectableRowsRangeMode: "click", // Shift + click range
         height: "100%", // Chiếm 100% chiều cao của flex container
         movableColumns: true, // Cho phép kéo thả cột
@@ -23306,10 +25512,13 @@ window.DynamicFormEngine = (function () {
       window.tabulatorInstance = new Tabulator(tableWrapper, tabulatorConfig);
 
       // Bắt sự kiện chọn dòng để update biến selectedRows
-      window.tabulatorInstance.on("rowSelectionChanged", function (data, rows) {
-        selectedRows = data;
-        _updateSelectionCounter();
-      });
+      if (rowSelectionEnabled) {
+        selectedRows = [];
+        window.tabulatorInstance.on("rowSelectionChanged", function (data, rows) {
+          selectedRows = data || [];
+          _updateSelectionCounter();
+        });
+      }
 
       // Bắt sự kiện kéo thả cột để lưu vị trí mới vào LocalStorage
       window.tabulatorInstance.on("columnMoved", function (column) {
@@ -23321,22 +25530,6 @@ window.DynamicFormEngine = (function () {
         });
         localStorage.setItem('tabulator_col_order_' + userName + '_' + formName, JSON.stringify(colOrder));
       });
-
-      // Hack cho Mobile/Touch: Cho phép click vào bất kỳ đâu trên dòng để CHỌN NHIỀU (Toggle) mà không cần giữ Ctrl
-      tableWrapper.addEventListener('click', function (e) {
-        if (e.target.closest('.tabulator-header')) return;
-        // Bỏ qua nếu click vào nút, link, hoặc input (như checkbox của Tabulator)
-        if (e.target.closest('button, a, input, select, textarea')) return;
-
-        var rowEl = e.target.closest('.tabulator-row');
-        if (rowEl) {
-          var row = window.tabulatorInstance.getRow(rowEl);
-          if (row && typeof row.toggleSelect === 'function') {
-            e.stopPropagation(); // Ngăn Tabulator clear các dòng khác
-            row.toggleSelect();
-          }
-        }
-      }, true);
 
       // Bắt sự kiện chỉnh sửa ô để lưu tự động vào DB
       window.tabulatorInstance.on("cellEdited", function (cell) {
@@ -23507,6 +25700,16 @@ window.DynamicFormEngine = (function () {
   }
 
   function _updateSelectionCounter() {
+    if (!_rowSelectionEnabled()) {
+      selectedRows = [];
+      var staleCounter = document.getElementById('selection-counter');
+      if (staleCounter) {
+        staleCounter.style.display = 'none';
+        staleCounter.innerHTML = '';
+      }
+      return;
+    }
+
     if (!window.tabulatorInstance) {
       // Đồng bộ trạng thái checkbox
       var allTrs = $container.querySelectorAll('#dynamic-grid-container tbody tr');
@@ -24117,14 +26320,14 @@ window.DynamicFormEngine = (function () {
           console.log('[PHOTO DEBUG] Detail View - row:', row);
           var photoBox = document.createElement('div');
           photoBox.className = 'photo-box-wrapper';
-          photoBox.style.cssText = 'width: 180px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
+          photoBox.style.cssText = 'width: 200px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; border: none; padding: 0; background: transparent;';
 
           var imgFrame = document.createElement('div');
           imgFrame.className = 'detail-img-frame';
-          imgFrame.style.cssText = 'width: 160px; height: 160px; border: 4px solid var(--color-surface, #fff); border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.08); position: relative;';
+          imgFrame.style.cssText = 'width: 180px; height: 180px; border: 3px solid #ffffff; border-radius: 18px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8fafc; box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8); position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);';
 
           var img = document.createElement('img');
-          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+          img.style.cssText = 'width: 100%; height: 100%; object-fit: cover; object-position: center top; transition: transform 0.3s ease;';
 
           var defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='175' viewBox='0 0 140 175' fill='%23f1f5f9'><rect width='100%25' height='100%25'/><circle cx='70' cy='70' r='30' fill='%23cbd5e1'/><path d='M30 140 C30 110, 110 110, 110 140 Z' fill='%23cbd5e1'/><text x='70' y='160' font-family='sans-serif' font-size='10' fill='%2364748b' text-anchor='middle'>Kh%C3%B4ng%20c%C3%B3%20%E1%BA%A3nh</text></svg>";
           var rawContent = '';
@@ -25251,32 +27454,34 @@ window.DynamicFormEngine = (function () {
       console.log('[PHOTO DEBUG] Edit Modal - row:', row);
       var photoBox = document.createElement('div');
       photoBox.className = 'photo-box-wrapper';
-      photoBox.style.width = '160px';
+      photoBox.style.width = '180px';
       photoBox.style.flexShrink = '0';
       photoBox.style.display = 'flex';
       photoBox.style.flexDirection = 'column';
       photoBox.style.alignItems = 'center';
-      photoBox.style.marginTop = '16px';
+      photoBox.style.marginTop = '12px';
 
       var imgFrame = document.createElement('div');
-      imgFrame.style.width = '120px';
-      imgFrame.style.height = '120px';
-      imgFrame.style.borderRadius = '50%';
-      imgFrame.style.border = '3px solid var(--color-primary)';
+      imgFrame.style.width = '150px';
+      imgFrame.style.height = '150px';
+      imgFrame.style.borderRadius = '18px';
+      imgFrame.style.border = '3px solid #ffffff';
       imgFrame.style.overflow = 'hidden';
       imgFrame.style.display = 'flex';
       imgFrame.style.alignItems = 'center';
       imgFrame.style.justifyContent = 'center';
-      imgFrame.style.background = '#f1f5f9';
+      imgFrame.style.background = '#f8fafc';
       imgFrame.style.position = 'relative';
       imgFrame.style.cursor = 'pointer';
       imgFrame.title = 'Bấm để thay đổi ảnh đại diện';
-      imgFrame.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+      imgFrame.style.boxShadow = '0 8px 24px -4px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(226, 232, 240, 0.8)';
+      imgFrame.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 
       var img = document.createElement('img');
       img.style.width = '100%';
       img.style.height = '100%';
       img.style.objectFit = 'cover';
+      img.style.objectPosition = 'center top';
 
       var rawContent = '';
       var fileNameVal = '';
@@ -25753,13 +27958,13 @@ window.DynamicFormEngine = (function () {
                     headers = Array.isArray(field.headers) && field.headers.length
                       ? field.headers.slice(0, displayKeys.length)
                       : displayKeys.map(function (k) {
-                      if (typeof currentDictionary !== 'undefined') {
-                        var kLower = k.toLowerCase();
-                        var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
-                        if (matchKey) return currentDictionary[matchKey].CaptionVN;
-                      }
-                      return k;
-                    });
+                        if (typeof currentDictionary !== 'undefined') {
+                          var kLower = k.toLowerCase();
+                          var matchKey = Object.keys(currentDictionary).find(function (dk) { return dk.toLowerCase() === kLower; });
+                          if (matchKey) return currentDictionary[matchKey].CaptionVN;
+                        }
+                        return k;
+                      });
                     var labelRegex = /name|tên|ten|label|desc|title/i;
                     var displayKey = displayKeys.find(function (k) { return labelRegex.test(k); });
                     if (displayKey) {
@@ -27046,6 +29251,15 @@ window.DynamicFormEngine = (function () {
 
   function requireAuthentication() {
     var token = global.ApiClient && ApiClient.getCookie ? ApiClient.getCookie('auth_token') : null;
+    if (!token) {
+      try {
+        var userStr = global.localStorage.getItem('pmql_user');
+        if (userStr) {
+          var userObj = JSON.parse(userStr);
+          token = userObj.access_token || userObj.token || null;
+        }
+      } catch (e) {}
+    }
     if (token) return true;
     global.location.href = 'login.html';
     return false;
@@ -27098,12 +29312,7 @@ window.DynamicFormEngine = (function () {
   function initializeUserInterface() {
     var hasUser = global.AppSession ? Object.keys(AppSession.getUser()).length > 0 : !!global.localStorage.getItem('pmql_user');
     if (hasUser && global.Navbar) {
-      Navbar.render('navbar-container');
-      if (Navbar.getLayout() === 'vertical') {
-        var verticalMain = document.getElementById('vertical-main');
-        var content = document.getElementById('app-content');
-        if (verticalMain && content && !verticalMain.contains(content)) verticalMain.appendChild(content);
-      }
+      Navbar.render();
     }
     if (global.AppTheme && typeof AppTheme.initialize === 'function') AppTheme.initialize();
   }
@@ -27251,9 +29460,9 @@ var Router = (function () {
        * liệu phát sinh có thể forceReadOnly để bảo vệ dữ liệu do SP tạo.
        */
       var next = Object.assign({}, behavior, tab);
-      next.fields = Array.isArray(tab.fields) && tab.fields.length
-        ? tab.fields.slice()
-        : (Array.isArray(behavior.fields) ? behavior.fields.slice() : []);
+      next.fields = Array.isArray(behavior.fields) && behavior.fields.length
+        ? behavior.fields.slice()
+        : (Array.isArray(tab.fields) ? tab.fields.slice() : []);
       next.headers = Object.assign({}, behavior.headers || {}, tab.headers || {});
       next.lookupConfig = Object.assign({}, behavior.lookupConfig || {}, tab.lookupConfig || {});
       next.fieldTypes = Object.assign({}, behavior.fieldTypes || {}, tab.fieldTypes || {});
@@ -27294,8 +29503,8 @@ var Router = (function () {
       }
     }
     var deducedKey = String(url || '').trim().replace(/-/g, '_').toUpperCase();
-    if (deducedKey === 'FORM_BUILDER') {
-      return { FormName: 'SY_FormatFields', PageTitle: 'Cấu hình động', UseSplitLayout: false };
+    if (deducedKey === 'FORM_BUILDER' || deducedKey === 'SY_FORMATFIELDS') {
+      return { FormName: 'SY_FormatfldTbl', PageTitle: 'Cấu hình động', UseSplitLayout: false };
     }
     return window.APP_MODULES[deducedKey] || null;
   }
@@ -27463,6 +29672,10 @@ var Router = (function () {
   }
 
   function _fadeIn($el) {
+    if (!$el) return;
+    /* Let the active page CSS choose block/flex. Forcing inline display:block
+       collapses the full-height flex chain used by dynamic data grids. */
+    $el.style.display = '';
     $el.style.opacity = '1';
     $el.style.transition = 'opacity 180ms ease';
   }
@@ -27644,7 +29857,7 @@ var Router = (function () {
     if (typeof ApiClient === 'undefined' || typeof API_CONFIG === 'undefined' || !API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION) {
       return Promise.resolve();
     }
-    return ApiClient.get(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_VERSION, { silent: true }).then(function (res) {
+    return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayPhienBanQuyen', Func: 'Execute' }, { silent: true }).then(function (res) {
       var localVer = localStorage.getItem('pmql_permission_ver');
       var records = res.list || res.records || [];
       var svVersion = records.length > 0 ? records[0].version : (res.version || '');
@@ -27655,7 +29868,7 @@ var Router = (function () {
       if ((svVersion && svVersion !== localVer) || isEmptyCache) {
         var userJson = localStorage.getItem('pmql_user');
         var userObj = userJson ? JSON.parse(userJson) : {};
-        return ApiClient.post(API_CONFIG.ENDPOINTS.PERMISSIONS.GET_MY_PERMISSIONS, { Username: userObj.UserName }, { silent: true }).then(function (permRes) {
+        return ApiClient.post(API_CONFIG.ENDPOINTS.ROUTER, { List: 'API_LayQuyenCuaToi', Func: 'Execute', User: userObj.UserName, Username: userObj.UserName }, { silent: true }).then(function (permRes) {
           var permMap = {};
           var permList = permRes.list || permRes.records || [];
           if (permList.length > 0) { localStorage.setItem('debug_perm_row', JSON.stringify(permList[0])); }

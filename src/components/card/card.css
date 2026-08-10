@@ -1,26 +1,30 @@
 /* ═══════════════════════════════════════════
-   CARD COMPONENTS
+   CARD COMPONENTS — Modern Enterprise Style
    ═══════════════════════════════════════════ */
 
 .card {
   background-color: var(--color-surface);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card, 12px);
   box-shadow: var(--shadow-card);
   border: 1px solid var(--color-border);
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: 16px;
   overflow: hidden;
-  transition: box-shadow var(--transition-normal), transform var(--transition-normal);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.card:hover {
-  box-shadow: var(--shadow-hover);
-  transform: translateY(-2px);
+.card--interactive {
+  cursor: pointer;
+}
+
+.card--interactive:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .card-header {
-  padding: 20px 24px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--color-border);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md, 15px);
   font-weight: 600;
   color: var(--color-text);
   display: flex;
@@ -29,20 +33,61 @@
 }
 
 .card-body {
-  padding: 24px;
+  padding: 16px 20px;
 }
 
-/* Edge-to-edge on mobile */
+/* Card Modifiers */
+.card--compact .card-header {
+  padding: 12px 16px;
+}
+
+.card--compact .card-body {
+  padding: 12px 16px;
+}
+
+.card--flush .card-body {
+  padding: 0;
+}
+
+.card--metric {
+  padding: 16px 20px;
+}
+
+.card--metric .card-body {
+  padding: 0;
+}
+
+.card--table {
+  margin-bottom: 16px;
+}
+
+.card--table .card-body {
+  padding: 0;
+}
+
+/* Shared soft surface treatment keeps data-heavy pages calm and readable. */
+.card {
+  border-color: #e9edf3;
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.035);
+}
+
+.card-header {
+  border-bottom-color: #eef1f5;
+}
+
+.card--interactive:hover {
+  border-color: #dbe5f4;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+}
+
 @media (max-width: 768px) {
   .card {
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    margin-left: -16px;
-    margin-right: -16px;
-    width: calc(100% + 32px);
+    border-radius: var(--radius-card, 12px);
+    margin-bottom: 12px;
   }
+
   .card-body {
-    padding: 16px;
+    padding: 12px 16px;
   }
 }

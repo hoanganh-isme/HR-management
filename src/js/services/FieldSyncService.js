@@ -39,6 +39,10 @@ window.FieldSyncService = (function (global) {
     return /(?:Frm|Report)$/i.test(String(formName || '').trim());
   }
 
+  function isReportForm(formName) {
+    return /(?:Report)$/i.test(String(formName || '').trim());
+  }
+
   function isPilot(formName) {
     // Form CRUD và report động đều dùng cùng nguồn metadata V2.
     if (!isMetadataContractForm(formName)) return false;
@@ -101,12 +105,21 @@ window.FieldSyncService = (function (global) {
       return {
         name: field.name,
         label: field.label || field.name,
+        captionVN: field.captionVN || field.CaptionVN || legacy.captionVN || legacy.CaptionVN || field.label || legacy.label || field.name,
         orderNo: field.orderNo || index + 1,
         position: 'grid',
         renderRule: engineRule(field.renderRule || legacy.renderRule || legacy.FormatID),
+        semanticRenderRule: field.semanticRenderRule || field.renderRule || legacy.semanticRenderRule || legacy.renderRule || legacy.FormatID || '',
         formatId: field.formatId || legacy.formatId || legacy.FormatID || '',
         FormatID: field.formatId || legacy.formatId || legacy.FormatID || '',
         formatType: field.formatType || legacy.formatType || legacy.FormatType || '',
+        sqlType: field.sqlType || legacy.sqlType || legacy.SqlType || '',
+        semanticRole: field.semanticRole || legacy.semanticRole || legacy.SemanticRole || '',
+        displayVariant: field.displayVariant || legacy.displayVariant || legacy.DisplayVariant || '',
+        toneMap: cloneValue(field.toneMap !== undefined ? field.toneMap : (legacy.toneMap || legacy.ToneMap || null)),
+        statusMap: cloneValue(field.statusMap !== undefined ? field.statusMap : (legacy.statusMap || legacy.StatusMap || null)),
+        avatarField: field.avatarField || legacy.avatarField || legacy.AvatarField || '',
+        secondaryField: field.secondaryField || legacy.secondaryField || legacy.SecondaryField || '',
         metadataSource: 'FIELD_SYNC_V2',
         // Field chỉ có ở V2 được hiển thị read-only và không gửi server-sort cho tới khi API có contract tương ứng.
         serverSortable: hasLegacyField,
@@ -117,6 +130,9 @@ window.FieldSyncService = (function (global) {
         isReadOnlyEdit: legacy.isReadOnlyEdit,
         ShowInEdit: editable ? 1 : 0,
         IsReadOnlyEdit: legacy.isReadOnlyEdit ? 1 : 0,
+        isPrimaryKey: field.isPrimaryKey === true || legacy.isPrimaryKey === true || legacy.IsPrimaryKey === 1,
+        isIdentity: field.isIdentity === true || legacy.isIdentity === true || legacy.IsIdentity === 1,
+        isSensitiveOrDenied: field.isSensitiveOrDenied === true || legacy.isSensitiveOrDenied === true || legacy.IsSensitiveOrDenied === 1,
         dataSource: field.dataSource || legacy.dataSource || legacy.DataSource || '',
         lookupKey: lookup && lookup.key ? lookup.key : (legacy.lookupKey || legacy.LookupKey || ''),
         minWidth: field.minWidth !== undefined ? field.minWidth : legacy.minWidth,
@@ -179,13 +195,21 @@ window.FieldSyncService = (function (global) {
     return {
       name: field.name,
       label: contextLabel,
+      captionVN: field.captionVN || field.CaptionVN || contextLabel,
       orderNo: contextOrder,
       position: 'grid',
       renderRule: engineRule(field.renderRule),
+      semanticRenderRule: field.semanticRenderRule || field.renderRule || '',
       formatId: field.formatId || '',
       FormatID: field.formatId || '',
       formatType: field.formatType || '',
       sqlType: field.sqlType || '',
+      semanticRole: field.semanticRole || '',
+      displayVariant: field.displayVariant || '',
+      toneMap: cloneValue(field.toneMap || null),
+      statusMap: cloneValue(field.statusMap || null),
+      avatarField: field.avatarField || '',
+      secondaryField: field.secondaryField || '',
       nullable: field.nullable === true,
       required: field.requiredOnInsert === true,
       metadataSource: 'FIELD_CONTRACT_V2',
@@ -782,11 +806,54 @@ window.FieldSyncService = (function (global) {
       var rolloutStatus = String(control.rolloutStatus || reasonStatus || 'NOT_REGISTERED').toUpperCase();
       if (metadata.metadataEnabled !== true) {
         clearFormTimers(formName);
+        var normName = normalizeName(formName);
+        var isReportForm = /(?:Report)$/i.test(String(formName || '').trim());
+        var hasCustomOrLegacy = isReportForm
+          || (Array.isArray(resolvedLegacySchema) && resolvedLegacySchema.length > 0)
+          || (entry && (entry.enableGrid === false || entry.legacyOnly === true))
+          || Boolean(
+              global.HRModuleDefinitions && Object.keys(global.HRModuleDefinitions).some(function (mod) {
+                var defs = global.HRModuleDefinitions[mod];
+                if (!defs || typeof defs !== 'object') return false;
+                return Object.keys(defs).some(function (key) {
+                  return normalizeName(key) === normName || key.toUpperCase() === String(formName).toUpperCase();
+                });
+              })
+          );
+
+        var isDeferredOrBlocked = rolloutStatus === 'DEFERRED'
+          || rolloutStatus === 'BLOCKED'
+          || rolloutStatus === 'NOT_REGISTERED'
+          || String(control.contractType || '').toUpperCase() === 'COMPLEX_DEFERRED';
+
+        // fallbackToLegacy: true → luôn dùng legacy state khi form chưa sẵn sàng V2,
+        // không cần custom schema. Đây là ý nghĩa chính xác của cờ này.
+        var shouldFallback = settings.fallbackToLegacy === true
+          ? (isDeferredOrBlocked || !metadata.registered)
+          : (hasCustomOrLegacy && isDeferredOrBlocked);
+
+        if (shouldFallback) {
+          var legacyState = legacyFullState(
+            formName,
+            resolvedLegacySchema,
+            'legacy-deferred-fallback',
+            null,
+            metadata.reasonCode || 'FIELD_CONTRACT_DEFERRED',
+            null
+          );
+          legacyState.managed = false;
+          legacyState.contract = control;
+          legacyState.rolloutStatus = rolloutStatus;
+          states[key] = legacyState;
+          dispatchUpdate(formName, legacyState);
+          return legacyState;
+        }
+
         var blockedMetadata = errorState(
           formName,
           'metadata-contract-blocked',
           metadata.reasonCode || 'FIELD_CONTRACT_METADATA_UNAVAILABLE',
-          'Form chưa đủ thông tin để tạo metadata V2.'
+          'Form ' + formName + ' (' + rolloutStatus + ') chưa sẵn sàng Metadata V2 và không có custom/legacy loader.'
         );
         blockedMetadata.managed = metadata.registered === true;
         blockedMetadata.contract = metadata.control || null;
@@ -892,6 +959,21 @@ window.FieldSyncService = (function (global) {
         states[key] = readOnly;
         dispatchUpdate(formName, readOnly);
         return readOnly;
+      }
+      // Lỗi mạng/HTTP không liên quan đến quyền: nếu fallbackToLegacy thì dùng legacy
+      if (settings.fallbackToLegacy === true) {
+        var networkFallback = legacyFullState(
+          formName,
+          resolvedLegacySchema,
+          'legacy-deferred-fallback',
+          null,
+          code || 'METADATA_NETWORK_ERROR',
+          null
+        );
+        networkFallback.rolloutStatus = 'UNKNOWN';
+        states[key] = networkFallback;
+        dispatchUpdate(formName, networkFallback);
+        return networkFallback;
       }
       var unavailable = errorState(
         formName,
@@ -1063,7 +1145,7 @@ window.FieldSyncService = (function (global) {
   }
 
   function ensurePolling(formName, legacySchema) {
-    if (!isPilot(formName) || typeof global.setInterval !== 'function') return;
+    if (isReportForm(formName) || !isPilot(formName) || typeof global.setInterval !== 'function') return;
     var key = stateKey(formName);
     var current = states[key];
     if (!current || current.pollAllowed !== true) {
@@ -1092,7 +1174,7 @@ window.FieldSyncService = (function (global) {
     }, intervalMs);
   }
 
-  function observeForm(formName, legacySchema) {
+  function observeForm(formName, legacySchema, forceRefresh) {
     var activePrefix = normalizeName(formName) + '|';
     Object.keys(timers).forEach(function (key) {
       if (key.indexOf(activePrefix) === 0) return;
@@ -1100,7 +1182,7 @@ window.FieldSyncService = (function (global) {
       delete timers[key];
     });
     installRefreshListeners();
-    return fetchState(formName, legacySchema, false).then(function (state) {
+    return fetchState(formName, legacySchema, forceRefresh === true).then(function (state) {
       ensurePolling(formName, legacySchema);
       return state;
     });

@@ -1,44 +1,80 @@
-CREATE OR ALTER PROCEDURE [dbo].[API_KinhPhiCongDoan]
-    @Keyword NVARCHAR(100) = NULL,
-    @BranchID VARCHAR(MAX) = NULL,
-    @User VARCHAR(50) = NULL
+USE [X26DIMTUTAC];
+GO
+
+CREATE OR ALTER PROCEDURE dbo.API_KinhPhiCongDoan
+    @Keyword  nvarchar(100) = NULL,
+    @BranchID varchar(max)   = NULL,
+    @PeriodID varchar(50)    = NULL,
+    @PhongBan nvarchar(100)  = NULL,
+    @User     varchar(50)    = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- 1. Nếu không truyền BranchID, lấy danh sách chi nhánh được phân quyền của User
-    IF ISNULL(@BranchID, '') = '' AND ISNULL(@User, '') <> ''
+    SET @Keyword  = NULLIF(LTRIM(RTRIM(@Keyword)), N'');
+    SET @BranchID = NULLIF(LTRIM(RTRIM(@BranchID)), '');
+    SET @PeriodID = NULLIF(LTRIM(RTRIM(@PeriodID)), '');
+    SET @PhongBan = NULLIF(LTRIM(RTRIM(@PhongBan)), N'');
+    SET @User     = NULLIF(LTRIM(RTRIM(@User)), '');
+
+    /*
+      Khi frontend không truyền BranchID, lấy danh sách chi nhánh
+      được phân quyền của user.
+    */
+    IF @BranchID IS NULL AND @User IS NOT NULL
     BEGIN
-        -- Lấy trực tiếp từ bảng tài khoản người dùng SY_User
-        SET @BranchID = (SELECT TOP 1 BranchID FROM dbo.SY_User WHERE UserName = @User)
-    END
+        SELECT TOP (1)
+            @BranchID =
+                NULLIF(LTRIM(RTRIM(U.BranchID)), '')
+        FROM dbo.SY_User AS U
+        WHERE U.UserName = @User
+          AND ISNULL(U.Disable, 0) = 0;
+    END;
 
-    -- 2. Truy vấn dữ liệu chính trả về cho Grid trên Web
-    SELECT 
-        KP.[UserAutoID],
-        KP.[PersonID],
-        KP.[PersonName],
-        KP.[ChucDanhChuyenMon],
-        KP.[MucDong],
-        KP.[KinhPhiNopCongDoanVN],
-        KP.[CongDoanVN],
-        KP.[CongDoanCTY],
-        P.BranchID
-    FROM [dbo].[HR_KinhPhiCongDoanTbl] KP
-    LEFT JOIN [dbo].[HR_PersonView] P ON KP.PersonID = P.PersonID
-    WHERE 
-        -- Bộ lọc từ khóa (Tìm theo mã hoặc tên nhân viên)
-        (ISNULL(@Keyword, '') = '' 
-         OR KP.PersonID LIKE '%' + @Keyword + '%' 
-         OR KP.PersonName LIKE N'%' + @Keyword + '%')
-        
-        -- Bộ lọc Chi nhánh (Hỗ trợ chọn nhiều chi nhánh dạng chuỗi cắt STRING_SPLIT)
-        AND (ISNULL(@BranchID, '') = '' 
-             OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
-    ORDER BY  KP.PersonID;
-END
+    /*
+      Trả dữ liệu giống Desktop App:
+
+      SELECT TOP 1000 HR_KinhPhiCongDoanTbl.*, A.LoaiHD
+      FROM HR_KinhPhiCongDoanTbl
+      LEFT JOIN HR_PersonView A ...
+    */
+    SELECT TOP (1000)
+        KP.*,
+        A.LoaiHD
+    FROM dbo.HR_KinhPhiCongDoanTbl AS KP
+    LEFT JOIN dbo.HR_PersonView AS A
+        ON A.PersonID = KP.PersonID
+    WHERE
+        (
+            @Keyword IS NULL
+            OR KP.PersonID LIKE N'%' + @Keyword + N'%'
+            OR KP.PersonName LIKE N'%' + @Keyword + N'%'
+        )
+        AND
+        (
+            @BranchID IS NULL
+            OR A.BranchID IN
+            (
+                SELECT LTRIM(RTRIM(S.value))
+                FROM STRING_SPLIT(@BranchID, ',') AS S
+                WHERE NULLIF(LTRIM(RTRIM(S.value)), '') IS NOT NULL
+            )
+        )
+        AND
+        (
+            @PeriodID IS NULL
+            OR KP.PeriodID = @PeriodID
+        )
+        AND
+        (
+            @PhongBan IS NULL
+            OR A.PhongBan = @PhongBan
+        )
+    ORDER BY
+        KP.PersonID,
+        KP.UserAutoID DESC;
+END;
 GO
-
 -- =========================================================================
 -- Helper API: Lấy danh sách nhân viên kèm tính toán Kinh Phí Công Đoàn
 -- Dùng để làm nguồn dữ liệu (DataSource) tìm kiếm chọn nhân viên cho Form

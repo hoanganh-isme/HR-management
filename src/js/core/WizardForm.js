@@ -137,10 +137,10 @@ var WizardForm = (function () {
 
       /* ── Avatar Layout ───────────────────────────────────────────── */
       '.wz-step-body-wrapper { display:flex; gap:24px; align-items:flex-start; margin-top:16px; }',
-      '.wz-avatar-col { width:180px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
-      '.wz-avatar-frame { width:150px; height:150px; border-radius:50%; overflow:hidden; border:4px solid var(--color-primary,#4338ca); box-shadow:0 6px 16px rgba(67,56,202,0.16); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:transform 0.2s ease; }',
-      '.wz-avatar-frame:hover { transform:scale(1.05); }',
-      '.wz-avatar-btn { border-radius:16px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
+      '.wz-avatar-col { width:200px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:4px; }',
+      '.wz-avatar-frame { width:175px; height:175px; border-radius:18px; overflow:hidden; border:3px solid #ffffff; box-shadow:0 8px 24px -4px rgba(15,23,42,0.12), 0 0 0 1px rgba(226,232,240,0.8); display:flex; justify-content:center; align-items:center; background:#f8fafc; cursor:pointer; transition:all 0.3s cubic-bezier(0.4,0,0.2,1); }',
+      '.wz-avatar-frame:hover { transform:scale(1.02); box-shadow:0 12px 32px -4px rgba(67,56,202,0.2); }',
+      '.wz-avatar-btn { border-radius:12px; font-weight:600; font-size:12px; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 12px; transition:all 0.2s ease; }',
       '.wz-avatar-btn:hover { background-color:var(--color-primary,#4338ca); color:#fff; }',
 
       /* ── Empty state ────────────────────────────────────────────── */

@@ -1,8 +1,4 @@
-USE X26DIMTUTAC
-GO
-
-IF OBJECT_ID('dbo.API_BaoHiem_Detail', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.API_BaoHiem_Detail;
+USE [X26DIMTUTAC]
 GO
 
 SET ANSI_NULLS ON
@@ -13,8 +9,9 @@ GO
 -- =========================================================================
 -- Stored Procedure: API_BaoHiem_Detail
 -- Description: Lấy danh sách chi tiết các dòng bảo hiểm cho một chứng từ
+-- Khớp 100% cấu hình Desktop ERP: Select top 1000 HR_BaoHiemChiTietTbl.*, A.PersonName, A.PhongBan, A.ChucDanhChuyenMon From HR_BaoHiemChiTietTbl Left join HR_PersonTbl A on HR_BaoHiemChiTietTbl.PersonID = A.PersonID
 -- =========================================================================
-CREATE PROCEDURE dbo.API_BaoHiem_Detail
+CREATE OR ALTER PROCEDURE dbo.API_BaoHiem_Detail
 (
     @DocumentID NVARCHAR(50) = ''
 )
@@ -23,25 +20,16 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT 
-        CT.UserAutoID,
-        CT.DocumentID,
-        CT.PersonID,
-        P.PersonName,
-        P.PhongBan,
-        P.TitleName,
-        ISNULL(H.ChucDanhChuyenMonHD, P.ChucDanhChuyenMon) AS ChucDanhChuyenMon,
-        CT.MucDong,
-        CT.MucDongBHXHNLD,
-        CT.MucDongBHXHNSDLD,
-        CT.MucDongBHYTNLD,
-        CT.MucDongBHYTNSDLD,
-        CT.MucDongBHTNNLD,
-        CT.MucDongBHTNNSDLD,
-        CT.GhiChu
-    FROM dbo.HR_BaoHiemChiTietTbl CT
-    LEFT JOIN dbo.HR_PersonTbl P ON CT.PersonID = P.PersonID
-    LEFT JOIN dbo.HR_HopDongTbl H ON CT.PersonID = H.PersonID
-    WHERE CT.DocumentID = @DocumentID
+        CT.*,
+        A.PersonName,
+        A.PhongBan,
+        A.ChucDanhChuyenMon
+    FROM dbo.HR_BaoHiemChiTietTbl CT WITH (NOLOCK)
+    LEFT JOIN dbo.HR_PersonTbl A WITH (NOLOCK) ON CT.PersonID = A.PersonID
+    WHERE (ISNULL(@DocumentID, '') = '' OR CT.DocumentID = @DocumentID)
     ORDER BY CT.UserAutoID ASC;
 END
+GO
+
+PRINT 'Da cap nhat API_BaoHiem_Detail khop 100% Desktop ERP thanh cong!';
 GO

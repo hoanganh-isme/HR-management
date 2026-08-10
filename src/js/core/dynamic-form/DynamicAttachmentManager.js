@@ -1,5 +1,15 @@
 /** Attachment tab orchestration. Business keys come only from tab configuration. */
 window.DynamicAttachmentManager = (function () {
+  function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function endpoint(moduleConfig) {
     return moduleConfig.apiGateway || AppConfig.apiGateway;
   }
@@ -192,45 +202,90 @@ window.DynamicAttachmentManager = (function () {
       var wrap = document.createElement('div');
       wrap.style.cssText = 'border:1px dashed var(--color-border-strong);border-radius:8px;padding:16px;background:var(--color-surface);display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;';
 
-      function processFile(file) {
-        if (!file) return;
-        if (file.size > 10 * 1024 * 1024) {
-          notify('error', 'Tệp quá lớn', 'Hệ thống chỉ hỗ trợ tệp tối đa 10MB.');
-          return;
+      function processFiles(fileList) {
+        if (!fileList) return;
+        var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
+        if (!files.length) return;
+
+        var validFiles = [];
+        for (var i = 0; i < files.length; i++) {
+          if (files[i].size > 10 * 1024 * 1024) {
+            notify('error', 'Tệp quá lớn', 'Tệp ' + files[i].name + ' vượt quá dung lượng tối đa 10MB.');
+          } else {
+            validFiles.push(files[i]);
+          }
         }
+        if (!validFiles.length) return;
+
         var keyField = tabDef.filterField || moduleConfig.PrimaryKey;
         var keyValue = row && row[moduleConfig.PrimaryKey];
-        var reader = new FileReader();
-        reader.onload = function (event) {
-          var bytes = new Uint8Array(event.target.result);
-          var hex = '0x' + Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-          var base64Reader = new FileReader();
-          base64Reader.onload = function (base64Event) {
-            var data = { IsEdit: 0, FileName: file.name, FileType: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) ? 1 : 0, STT: nextOrder, FileSize: file.size, Base64Content: String(base64Event.target.result).split(',')[1] || '', Content: hex };
-            data[keyField] = keyValue || '';
-            wrap.innerHTML = '<span style="color:var(--color-text-secondary);">Đang lưu tài liệu lên máy chủ...</span>';
-            api.post(gateway, { List: tabDef.saveApi || tabDef.api, Func: tabDef.saveFunc || 'Save', JsonData: JSON.stringify(data), UserName: currentUser() }).then(function (result) {
-              if (codeOf(result) === 0 || codeOf(result) === '0') { notify('success', 'Thành công', 'Tải tệp đính kèm lên thành công!'); reload(); }
-              else { notify('error', 'Lỗi lưu tệp', result && (result.msg || result.Msg) || 'Không thể lưu tệp lên CSDL.'); reload(); }
-            }).catch(function () { notify('error', 'Lỗi', 'Không thể kết nối đến máy chủ.'); reload(); });
+        var total = validFiles.length;
+
+        function uploadNext(index) {
+          if (index >= total) {
+            notify('success', 'Thành công', 'Đã tải lên thành công ' + total + ' tài liệu đính kèm!');
+            reload();
+            return;
+          }
+          var file = validFiles[index];
+          var currentSTT = nextOrder + index;
+          wrap.innerHTML = '<span style="color:var(--color-primary); font-weight:600;"><span class="spinner-border spinner-border-sm me-2"></span>Đang tải lên (' + (index + 1) + '/' + total + '): ' + escapeHTML(file.name) + '...</span>';
+
+          var reader = new FileReader();
+          reader.onload = function (event) {
+            var bytes = new Uint8Array(event.target.result);
+            var hex = '0x' + Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+            var base64Reader = new FileReader();
+            base64Reader.onload = function (base64Event) {
+              var data = {
+                IsEdit: 0,
+                FileName: file.name,
+                FileType: /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name) ? 1 : 0,
+                STT: currentSTT,
+                FileSize: file.size,
+                Base64Content: String(base64Event.target.result).split(',')[1] || '',
+                Content: hex
+              };
+              data[keyField] = keyValue || '';
+              api.post(gateway, {
+                List: tabDef.saveApi || tabDef.api,
+                Func: tabDef.saveFunc || 'Save',
+                JsonData: JSON.stringify(data),
+                UserName: currentUser()
+              }).then(function (result) {
+                if (codeOf(result) === 0 || codeOf(result) === '0') {
+                  uploadNext(index + 1);
+                } else {
+                  notify('error', 'Lỗi lưu tệp', (result && (result.msg || result.Msg)) || ('Không thể lưu tệp ' + file.name + ' lên CSDL.'));
+                  reload();
+                }
+              }).catch(function () {
+                notify('error', 'Lỗi', 'Không thể kết nối đến máy chủ.');
+                reload();
+              });
+            };
+            base64Reader.readAsDataURL(file);
           };
-          base64Reader.readAsDataURL(file);
-        };
-        reader.readAsArrayBuffer(file);
+          reader.readAsArrayBuffer(file);
+        }
+
+        uploadNext(0);
       }
 
       if (window.UIFileUpload && typeof UIFileUpload.create === 'function') {
         wrap.appendChild(UIFileUpload.create({
           id: 'attach-upload-input',
-          text: 'Kéo thả tệp/ảnh hoặc click để tải lên',
-          hint: 'Hỗ trợ: PDF, JPG, PNG... Tối đa 10MB',
-          onChange: processFile
+          text: 'Kéo thả tệp/ảnh hoặc click để tải lên nhiều tệp',
+          hint: 'Hỗ trợ: PDF, JPG, PNG, DOCX... (Tối đa 10MB/tệp)',
+          multiple: true,
+          onChange: processFiles
         }));
       } else {
         var input = document.createElement('input');
         input.type = 'file';
+        input.multiple = true;
         input.accept = tabDef.accept || '*/*';
-        input.onchange = function () { processFile(input.files && input.files[0]); };
+        input.onchange = function () { processFiles(input.files); };
         wrap.appendChild(input);
       }
       container.appendChild(wrap);

@@ -11,13 +11,23 @@ var MenusService = (function () {
   }
 
   function _currentGroupId() {
-    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    var rawUser = (typeof localStorage !== 'undefined') ? localStorage.getItem('pmql_user') : null;
+    var u = {};
+    try {
+      u = JSON.parse(rawUser || '{}');
+    } catch (e) {
+      u = {};
+    }
     var rawGroup = u.UserGroupID || u.userGroupID || u.GroupID || u.groupID || u.GroupUser || u.Group || u.NhomQuyen || 'admin';
     var grpStr = String(rawGroup).trim();
     if (grpStr.toLowerCase().indexOf('quản trị') !== -1 || grpStr.toLowerCase() === 'admin') {
       return 'admin';
     }
     return grpStr;
+  }
+
+  function isSuccessResponse(response) {
+    return !!(response && Number(response.code) === 0);
   }
 
   /**
@@ -29,7 +39,7 @@ var MenusService = (function () {
       var endpoint = _ep('GET_ALL');
       ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId() })
         .then(function (res) {
-          if (res && res.code === 0) {
+          if (isSuccessResponse(res)) {
             resolve(res.records || []);
           } else {
             console.warn('[MenusService] getAll — code != 0:', res && res.msg);
@@ -44,7 +54,7 @@ var MenusService = (function () {
   }
 
   /**
-   * Lưu menu (thêm mới hoặc cập nhật)
+   * Lưu menu raw (thêm mới hoặc cập nhật)
    * @param {Object} payload
    * @returns {Promise}
    */
@@ -53,16 +63,75 @@ var MenusService = (function () {
       var endpoint = _ep('SAVE');
       ApiClient.post(endpoint, payload)
         .then(function (res) {
-          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
-            res.code = 0;
-            res.msg = 'Lưu Menu thành công!';
-          }
           resolve(res);
         })
         .catch(function (err) {
           console.error('[MenusService] Lỗi save:', err);
           reject(err);
         });
+    });
+  }
+
+  /**
+   * Lưu menu thông qua MenuDefinition domain model và tự động làm mới metadata nếu cần
+   * @param {Object} definition
+   * @returns {Promise<Object>}
+   */
+  function saveDefinition(definition) {
+    var model = window.MenuDefinition || (typeof require !== 'undefined' ? require('../core/MenuDefinition') : null);
+    if (!model) {
+      return Promise.reject(new Error('MenuDefinition model không khả dụng.'));
+    }
+
+    var normalized = model.normalizeMenu(definition);
+    var validation = model.validate(normalized);
+    if (!validation.isValid) {
+      return Promise.reject(new Error(validation.errors.join('\n')));
+    }
+
+    var payload = model.toSavePayload(normalized, _currentGroupId());
+
+    return save(payload).then(function (res) {
+      if (!isSuccessResponse(res)) {
+        var errText = (res && res.msg) ? res.msg : 'Lưu Menu thất bại';
+        throw new Error(errText);
+      }
+
+      var formName = normalized.FormName;
+      var isDynamic = model.isDynamicFormName(formName);
+
+      if (isDynamic && window.FieldSyncService) {
+        if (typeof FieldSyncService.clearCache === 'function') {
+          FieldSyncService.clearCache(formName);
+        }
+
+        if (typeof FieldSyncService.refreshForm === 'function') {
+          return FieldSyncService.refreshForm(formName, [])
+            .then(function (state) {
+              return {
+                menuSaved: true,
+                metadataReady: true,
+                metadataState: state,
+                response: res
+              };
+            })
+            .catch(function (metaErr) {
+              console.warn('[MenusService] Menu đã lưu nhưng làm mới Metadata V2 gặp cảnh báo:', metaErr);
+              return {
+                menuSaved: true,
+                metadataReady: false,
+                metadataError: metaErr,
+                response: res
+              };
+            });
+        }
+      }
+
+      return {
+        menuSaved: true,
+        metadataReady: true,
+        response: res
+      };
     });
   }
 
@@ -76,10 +145,6 @@ var MenusService = (function () {
       var endpoint = _ep('DELETE');
       ApiClient.post(endpoint, { NhomNguoiDangThaoTac: _currentGroupId(), MenuID: menuId })
         .then(function (res) {
-          if (res && res.code === 1 && res.msg && res.msg.indexOf('Dữ liệu chưa đủ') !== -1) {
-            res.code = 0;
-            res.msg = 'Xóa Menu thành công!';
-          }
           resolve(res);
         })
         .catch(function (err) {
@@ -114,8 +179,17 @@ var MenusService = (function () {
   return {
     getAll: getAll,
     save: save,
+    saveDefinition: saveDefinition,
     deleteMenu: deleteMenu,
     updateOrder: updateOrder,
+    isSuccessResponse: isSuccessResponse,
     currentGroupId: _currentGroupId
   };
 })();
+
+if (typeof window !== 'undefined') {
+  window.MenusService = MenusService;
+}
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = MenusService;
+}

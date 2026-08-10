@@ -12,32 +12,18 @@ BEGIN
     SET @PhongBan = ISNULL(@PhongBan, '');
     SET @Keyword = ISNULL(@Keyword, '');
 
-    SELECT 
-        PAY.DocumentID,
-        PAY.DocumentDate,
-        PAY.PeriodID,
-        PAY.PersonID,
-        PAY.PersonName,
-        PAY.LuongCoBan,
-        PAY.LuongTong,
-        PAY.TienBuTru,
-        PAY.SoNguoiPhuThuoc,
-        PAY.MucDong,
-        PAY.TongLuong,
-        PAY.IsBH,
-        PAY.IsHuuTri,
-        P.PhongBan
-    FROM dbo.HR_PayrollTbl PAY
-    LEFT JOIN dbo.HR_PersonTbl P ON PAY.PersonID = P.PersonID
+    Select  top 1000 HR_PayrollTbl.*, A.PhongBan, A.BranchID
+    From HR_PayrollTbl
+    Left join HR_PersonTbl A on HR_PayrollTbl.PersonID = A.PersonID 
     WHERE 
-        (@PeriodID = '' OR PAY.PeriodID = @PeriodID)
-        AND (@PhongBan = '' OR P.PhongBan = @PhongBan)
+        (@PeriodID = '' OR HR_PayrollTbl.PeriodID = @PeriodID)
+        AND (@PhongBan = '' OR A.PhongBan = @PhongBan)
         AND (
             @Keyword = ''
-            OR PAY.PersonID LIKE '%' + @Keyword + '%'
-            OR PAY.PersonName LIKE N'%' + @Keyword + '%'
-            OR PAY.DocumentID LIKE '%' + @Keyword + '%'
+            OR HR_PayrollTbl.PersonID LIKE '%' + @Keyword + '%'
+            OR HR_PayrollTbl.PersonName LIKE N'%' + @Keyword + '%'
+            OR HR_PayrollTbl.DocumentID LIKE '%' + @Keyword + '%'
         )
-    ORDER BY PAY.PersonID ASC;
+    ORDER BY HR_PayrollTbl.PersonID ASC;
 END
 GO

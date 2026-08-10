@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap-utilities.min.css"
     crossorigin="anonymous">
   <!-- App Styles (design-tokens + global + layouts + 30 components) -->
-  <link rel="stylesheet" href="./src/css/styles.bundle.css?v=17">
+  <link rel="stylesheet" href="./src/css/styles.bundle.css?v=104">
   <link rel="stylesheet" href="./src/components/responsive-data-renderer/responsive-data-renderer.css?v=1">
 
   <!-- Thư viện Flatpickr (Datepicker đẹp) -->
@@ -47,10 +47,19 @@
   <!-- ══════════════════════════════════════════════
        APP SHELL
        ══════════════════════════════════════════════ -->
-  <div id="app">
+  <div id="app" class="app-shell layout-vertical">
 
-    <!-- Navbar / Sidebar container -->
-    <div id="navbar-container"></div>
+    <!-- Sidebar Container (Chỉ chứa Sidebar) -->
+    <aside id="sidebar-container" class="app-shell__sidebar"></aside>
+
+    <!-- Main Shell Section (Header + Main Content) -->
+    <section class="app-shell__main">
+      <!-- Header Container (Chỉ chứa Header) -->
+      <header id="header-container" class="app-shell__header"></header>
+
+      <!-- Vùng nội dung chính (Router inject trực tiếp vào đây, ĐỘC LẬP HOÀN TOÀN, KHÔNG BỊ MOVE) -->
+      <main id="app-content" class="app-content"></main>
+    </section>
 
     <!-- Splash screen khi JS chưa load xong -->
     <div id="app-splash"
@@ -66,10 +75,6 @@
           }
         }
       </style>
-    </div>
-
-    <!-- Vùng nội dung chính (Router inject vào đây) -->
-    <div id="app-content" class="app-content" style="display:none;">
     </div>
 
   </div>
@@ -97,7 +102,7 @@
   <script src="./env.js?v=17"></script>
 
   <!-- 2. App Bundle (utils + services + plugins + components + core runtime) -->
-  <script src="./src/js/app.bundle.js?v=40"></script>
+  <script src="./src/js/app.bundle.js?v=112"></script>
 
   <!-- 3. Tắt splash → hiện app -->
   <script>

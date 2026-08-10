@@ -397,3 +397,32 @@ BEGIN
     ORDER BY H.NgayHetHieuLuc;
 END;
 GO
+
+-- =========================================================================
+-- ĐĂNG KÝ ROUTE WA_API CHO TẤT CẢ DASHBOARD APIS (HỖ TRỢ API GATEWAY)
+-- =========================================================================
+IF OBJECT_ID(N'dbo.WA_API', N'U') IS NOT NULL
+BEGIN
+    DELETE FROM dbo.WA_API
+    WHERE list IN (
+        'API_HR_Dashboard_GetBranches',
+        'API_HR_Dashboard_OverviewToday',
+        'API_HR_Dashboard_Demographics',
+        'API_HR_Dashboard_Department',
+        'API_HR_Dashboard_Birthdays',
+        'API_HR_Dashboard_Payroll',
+        'API_HR_Dashboard_ContractsExpiring'
+    );
+
+    INSERT INTO dbo.WA_API (list, func, [SQL], Para)
+    VALUES
+    ('API_HR_Dashboard_GetBranches', 'View', N'API_HR_Dashboard_GetBranches', N'@UserName=N''{User}'', @BranchID=N''{BranchID}'''),
+    ('API_HR_Dashboard_OverviewToday', 'View', N'API_HR_Dashboard_OverviewToday', N'@Date=NULL, @UserName=N''{User}'', @BranchID=N''{BranchID}'''),
+    ('API_HR_Dashboard_Demographics', 'View', N'API_HR_Dashboard_Demographics', N'@UserName=N''{User}'', @BranchID=N''{BranchID}'''),
+    ('API_HR_Dashboard_Department', 'View', N'API_HR_Dashboard_Department', N'@UserName=N''{User}'', @BranchID=N''{BranchID}'''),
+    ('API_HR_Dashboard_Birthdays', 'View', N'API_HR_Dashboard_Birthdays', N'@UserName=N''{User}'', @BranchID=N''{BranchID}'''),
+    ('API_HR_Dashboard_Payroll', 'View', N'API_HR_Dashboard_Payroll', N'@PeriodID=N''{PeriodID}'', @UserName=N''{User}'', @BranchID=N''{BranchID}'''),
+    ('API_HR_Dashboard_ContractsExpiring', 'View', N'API_HR_Dashboard_ContractsExpiring', N'@Days=30, @UserName=N''{User}'', @BranchID=N''{BranchID}''');
+END;
+GO
+

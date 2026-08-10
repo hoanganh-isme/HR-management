@@ -131,8 +131,8 @@ export function createContractDocumentDb(config) {
         if (!isAdmin) {
             try {
                 const permissionResponse = await postJson(
-                    `${config.sqlApiBase}/api/API_LayQuyenCuaToi`,
-                    { Username: context.userName },
+                    `${config.sqlApiBase}/api/API_Gateway_Router`,
+                    { List: 'API_LayQuyenCuaToi', Func: 'Execute', Username: context.userName, User: context.userName },
                     context,
                     10000
                 );
@@ -154,13 +154,24 @@ export function createContractDocumentDb(config) {
             || isTrue(permission?.IsUpdate)
             || isTrue(permission?.canAdd)
             || isTrue(permission?.canEdit);
+        const canDelete = isAdmin
+            || isTrue(permission?.CanDelete)
+            || isTrue(permission?.IsDelete)
+            || isTrue(permission?.canDelete);
+        const canAdmin = isAdmin
+            || isTrue(permission?.CanAdmin)
+            || isTrue(permission?.IsAdmin)
+            || isTrue(permission?.isAdmin)
+            || isTrue(permission?.canAdmin)
+            || isTrue(permission?.Admin)
+            || isTrue(permission?.admin);
         if (!canView) throw createError('Người dùng không có quyền xem hợp đồng.', 403);
 
-        return { user, isAdmin, branches, canView, canWrite };
+        return { user, isAdmin, branches, canView, canWrite, canDelete, canAdmin };
     }
 
-    async function listTemplates(context) {
-        const access = await getUserAccess(context);
+    async function listTemplates(context, resolvedAccess = null) {
+        const access = resolvedAccess || await getUserAccess(context);
         if (!access.canWrite) throw createError('Người dùng không có quyền xuất hoặc sửa tài liệu hợp đồng.', 403);
         const response = await gateway({
             List: config.templateListName,

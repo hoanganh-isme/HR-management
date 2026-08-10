@@ -9,13 +9,14 @@ GO
 -- =========================================================================
 -- [API_BaoCaoChamCongChiTiet] - BÁO CÁO CHẤM CÔNG CHI TIẾT DÙNG TRÊN WEB APP
 -- =========================================================================
-    CREATE OR ALTER PROCEDURE dbo.API_BaoCaoChamCongChiTiet
+ALTER PROCEDURE dbo.API_BaoCaoChamCongChiTiet
 (
     @Template VARCHAR(50) = '',
     @Ngay NVARCHAR(50) = '',
     @PeriodID NVARCHAR(50) = '',
     @BranchID NVARCHAR(MAX) = '',
-    @Keyword NVARCHAR(200) = ''
+    @Keyword NVARCHAR(200) = '',
+    @ReadOnly BIT = 0
 )
 AS
 BEGIN
@@ -49,52 +50,71 @@ BEGIN
         END
     END
  
-    -- Thực hiện xử lý chấm công hàng ngày tương tự như Desktop App
-    EXEC dbo.HR_TimeSheetDay_Process_Stp 
-        @Period = @PeriodID, 
-        @BranchID = @BranchID;
- 
-    -- SELECT các cột giao diện cần dùng, tránh trùng tên cột gây lỗi 500 khi API Gateway convert sang JSON
-    SELECT 
-        T.PeriodID,
-        T.PersonID,
-        P.*,
-        T.Ngay,
-        T.ThoiGianVao,
-        T.ThoiGianRa,
-        T.GioVao,
-        T.GioRa,
-        T.SoGio,
-        T.SoCong,
-        T.SoPhut,
-        T.LyDo,
-        T.GhiChu
-    FROM dbo.HR_TimeSheetDayTbl T
-    LEFT JOIN dbo.HR_PersonTbl P ON T.PersonID = P.PersonID
-    OUTER APPLY (
-        SELECT TOP 1 HD_Sub.ChucDanhChuyenMonHD AS ChucDanh
-        FROM dbo.HR_HopDongTbl HD_Sub
-        WHERE HD_Sub.PersonID = P.PersonID
-        ORDER BY HD_Sub.NgayKyHopDong DESC
-    ) HD
-    WHERE 
-        (@PeriodID = '' OR T.PeriodID = @PeriodID)
-        AND (@NgayLoc IS NULL OR CAST(T.Ngay AS DATE) = @NgayLoc)
-        AND (
-            @BranchID = '' 
-            -- Dùng "Value" (chữ V hoa) để tương thích phân biệt hoa/thường (Case-Sensitive Collation)
-            OR P.BranchID IN (SELECT Value FROM dbo.SY_String2TableFnc(REPLACE(@BranchID, ',', ';')))
-        )
-        AND (
-            @Keyword = ''
-            OR T.PersonID LIKE '%' + @Keyword + '%'
-            OR P.PersonName LIKE N'%' + @Keyword + '%'
-            OR P.PhongBan LIKE N'%' + @Keyword + '%'
-        )
-    ORDER BY 
-        T.PeriodID DESC, 
-        P.PhongBan ASC, 
-        T.PersonID ASC, 
-        T.Ngay ASC;
+    -- Desktop chỉ xử lý lại dữ liệu khi người dùng yêu cầu chạy báo cáo.
+    -- Màn web là viewer nên truyền @ReadOnly = 1 để tuyệt đối không ghi DB.
+    IF ISNULL(@ReadOnly, 0) = 0 AND @PeriodID <> ''
+    BEGIN
+        EXEC dbo.HR_TimeSheetDay_Process_Stp
+            @Period = @PeriodID,
+            @BranchID = @BranchID;
+    END;
+
+    /*
+       Desktop trả T.*, P.*. Web cũng lấy schema trực tiếp từ hai bảng này,
+       nhưng sinh danh sách P.* động và loại mọi tên trùng với T.* để JSON
+       gateway luôn hợp lệ. Khi DB thêm field nhân viên/chấm công, web tự nhận
+       field mới mà không cần cập nhật SY_FormatFields.
+    */
+    DECLARE @PersonColumns NVARCHAR(MAX);
+    SELECT @PersonColumns = STUFF((
+        SELECT N', P.' + QUOTENAME(PC.name)
+        FROM sys.columns PC
+        WHERE PC.object_id = OBJECT_ID(N'dbo.HR_PersonTbl')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM sys.columns TC
+              WHERE TC.object_id = OBJECT_ID(N'dbo.HR_TimeSheetDayTbl')
+                AND TC.name = PC.name
+          )
+        ORDER BY PC.column_id
+        FOR XML PATH(''), TYPE
+    ).value('.', 'NVARCHAR(MAX)'), 1, 2, N'');
+
+    DECLARE @SQL NVARCHAR(MAX) = N'
+        SELECT T.*'
+        + CASE WHEN ISNULL(@PersonColumns, N'') = N'' THEN N'' ELSE N', ' + @PersonColumns END
+        + N', HD.ChucDanh AS ChucDanhHopDong
+        FROM dbo.HR_TimeSheetDayTbl T
+        LEFT JOIN dbo.HR_PersonTbl P ON T.PersonID = P.PersonID
+        OUTER APPLY (
+            SELECT TOP 1 HD_Sub.ChucDanhChuyenMonHD AS ChucDanh
+            FROM dbo.HR_HopDongTbl HD_Sub
+            WHERE HD_Sub.PersonID = P.PersonID
+            ORDER BY HD_Sub.NgayKyHopDong DESC
+        ) HD
+        WHERE (@PeriodID = N'''' OR T.PeriodID = @PeriodID)
+          AND (@NgayLoc IS NULL OR CAST(T.Ngay AS DATE) = @NgayLoc)
+          AND (
+              @BranchID = N''''
+              OR P.BranchID IN (
+                  SELECT Value
+                  FROM dbo.SY_String2TableFnc(REPLACE(@BranchID, N'','', N'';''))
+              )
+          )
+          AND (
+              @Keyword = N''''
+              OR T.PersonID LIKE N''%'' + @Keyword + N''%''
+              OR P.PersonName LIKE N''%'' + @Keyword + N''%''
+              OR P.PhongBan LIKE N''%'' + @Keyword + N''%''
+          )
+        ORDER BY T.PeriodID DESC, P.PhongBan, T.PersonID, T.Ngay;';
+
+    EXEC sys.sp_executesql
+        @SQL,
+        N'@PeriodID NVARCHAR(50), @NgayLoc DATE, @BranchID NVARCHAR(MAX), @Keyword NVARCHAR(200)',
+        @PeriodID = @PeriodID,
+        @NgayLoc = @NgayLoc,
+        @BranchID = @BranchID,
+        @Keyword = @Keyword;
 END
 GO

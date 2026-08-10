@@ -17,13 +17,19 @@ function assertUuid(value, label) {
 
 function assertTemplateBasename(value) {
     const fileName = String(value || '').trim();
-    if (!fileName || path.basename(fileName) !== fileName || !fileName.toLowerCase().endsWith('.docx')) {
+    const hasUnsafeWindowsCharacters = /[<>:"/\\|?*\u0000-\u001f]/.test(fileName);
+    if (!fileName
+        || fileName.length > 200
+        || path.basename(fileName) !== fileName
+        || hasUnsafeWindowsCharacters
+        || !fileName.toLowerCase().endsWith('.docx')) {
         throw createError('TemplateFile phải là basename của một file DOCX.');
     }
     return fileName;
 }
 
 async function writeAtomic(filePath, contents) {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
     const temporaryFile = `${filePath}.new`;
     await fs.writeFile(temporaryFile, contents);
     try {
@@ -108,6 +114,58 @@ export function createContractDocumentStore(config) {
         if (matches.length === 0) throw createError(`Không tìm thấy mẫu ${fileName} trong backend-app/samples.`, 404);
         if (matches.length > 1) throw createError(`Có nhiều file mẫu cùng tên ${fileName}; cần giữ tên duy nhất.`, 409);
         return { fileName, filePath: matches[0] };
+    }
+
+    async function createManagedTemplate(templateFile, buffer) {
+        const fileName = assertTemplateBasename(templateFile);
+        try {
+            await resolveTemplate(fileName);
+            throw createError(`Tệp mẫu ${fileName} đã tồn tại. Hãy chọn tên khác hoặc sửa bản ghi hiện có.`, 409);
+        } catch (error) {
+            if (error.statusCode !== 404) throw error;
+        }
+        const filePath = path.join(config.paths.samplesDir, fileName);
+        await writeAtomic(filePath, buffer);
+        return { fileName, filePath };
+    }
+
+    async function archiveManagedTemplate(templateFile) {
+        const template = await resolveTemplate(templateFile);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const baseName = path.basename(template.fileName, '.docx');
+        const backupName = `${baseName}_${timestamp}_${crypto.randomUUID()}.docx`;
+        const archivePath = path.join(config.paths.templateBackupsDir, backupName);
+        await fs.mkdir(config.paths.templateBackupsDir, { recursive: true });
+        await fs.rename(template.filePath, archivePath);
+        return {
+            fileName: template.fileName,
+            originalPath: template.filePath,
+            archivePath,
+            backupName
+        };
+    }
+
+    async function restoreArchivedTemplate(archive) {
+        if (!archive?.archivePath || !archive?.originalPath) return;
+        const backupRoot = path.resolve(config.paths.templateBackupsDir) + path.sep;
+        const samplesRoot = path.resolve(config.paths.samplesDir) + path.sep;
+        const archivePath = path.resolve(archive.archivePath);
+        const originalPath = path.resolve(archive.originalPath);
+        if (!archivePath.startsWith(backupRoot) || !originalPath.startsWith(samplesRoot)) {
+            throw createError('Đường dẫn phục hồi mẫu hợp đồng không hợp lệ.', 500);
+        }
+        await fs.mkdir(path.dirname(originalPath), { recursive: true });
+        await fs.rename(archivePath, originalPath);
+    }
+
+    async function removeManagedTemplate(templateFile, options = {}) {
+        try {
+            const template = await resolveTemplate(templateFile);
+            await fs.rm(template.filePath, { force: true });
+        } catch (error) {
+            if (options.ignoreMissing && error.statusCode === 404) return;
+            throw error;
+        }
     }
 
     async function createDraft(metadata, buffer) {
@@ -200,6 +258,14 @@ export function createContractDocumentStore(config) {
         return updated;
     }
 
+    async function syncAppliedTemplateFile(workspaceId, buffer) {
+        const { metadata } = await readTemplateWorkspace(workspaceId);
+        if (!metadata || !metadata.templateFile) return;
+        const template = await resolveTemplate(metadata.templateFile);
+        await writeAtomic(template.filePath, buffer);
+        console.log(`[Store Sync] Synchronized late OnlyOffice callback (${buffer.length} bytes) to ${template.filePath}`);
+    }
+
     async function applyTemplateWorkspace(workspaceId) {
         const { paths, metadata } = await readTemplateWorkspace(workspaceId);
         const template = await resolveTemplate(metadata.templateFile);
@@ -211,7 +277,7 @@ export function createContractDocumentStore(config) {
         const backupPath = path.join(config.paths.templateBackupsDir, backupName);
         await writeAtomic(backupPath, originalBuffer);
         await writeAtomic(template.filePath, editedBuffer);
-        await fs.rm(paths.directory, { recursive: true, force: true });
+        await updateTemplateWorkspaceMetadata(workspaceId, { applied: true, appliedAt: new Date().toISOString() });
         return { templateFile: template.fileName, backupName };
     }
 
@@ -257,6 +323,10 @@ export function createContractDocumentStore(config) {
 
     return {
         resolveTemplate,
+        createManagedTemplate,
+        archiveManagedTemplate,
+        restoreArchivedTemplate,
+        removeManagedTemplate,
         createDraft,
         readDraft,
         readDraftFile,
@@ -267,6 +337,7 @@ export function createContractDocumentStore(config) {
         readTemplateWorkspaceFile,
         updateTemplateWorkspaceMetadata,
         updateTemplateWorkspaceFile,
+        syncAppliedTemplateFile,
         applyTemplateWorkspace,
         deleteTemplateWorkspace,
         cleanupExpired,

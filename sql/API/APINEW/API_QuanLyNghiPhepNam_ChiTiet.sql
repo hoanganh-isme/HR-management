@@ -1,8 +1,11 @@
-USE X26DIMTUTAC
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
 GO
 
 -- =========================================================================
--- API Tab Chi tiết: Lịch sử phép năm theo PersonID (tất cả các năm)
+-- DETAIL API: Tab Phép năm theo PersonID (Bảng HR_PersonNghiPhepTbl)
+-- Theo đúng cấu hình Desktop App (Image 2 & Image 3)
 -- EXEC dbo.API_QuanLyNghiPhepNam_ChiTiet @PersonID = 'ED004'
 -- =========================================================================
 CREATE OR ALTER PROCEDURE dbo.API_QuanLyNghiPhepNam_ChiTiet
@@ -29,5 +32,5 @@ BEGIN
     FROM dbo.HR_PersonNghiPhepTbl N
     WHERE N.PersonID = @PersonID
     ORDER BY N.Nam DESC;
-END
+END;
 GO

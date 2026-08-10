@@ -33,6 +33,123 @@
     HidePrintBtn: true
   };
 
+  definitions.attendance['WA_TIMESHEETFRM'] = {
+    FormName: 'WA_TimeSheetFrm',
+    PrimaryKey: 'UserAutoID',
+    UpdateStatusAction: 'hr.timesheet.update_status',
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    HidePrintBtn: true
+  };
+
+  definitions.attendance['WA_TIMESHEETCTREPORT'] = {
+    FormName: 'WA_TimeSheetCTReport',
+    PrimaryKey: 'UserAutoID',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    MetadataSource: 'FIELD_SYNC_V2',
+    RefreshV2MetadataOnLoad: true,
+    SelectableRows: false,
+    HideSearch: true,
+    BranchFilterAsContext: true,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'Template',
+        label: 'Chọn mẫu',
+        renderRule: 'sl',
+        dataSource: 'API_ReportTemplateOptions',
+        dataSourceParams: { ReportName: 'HR_TimeSheetCTReport' },
+        valueField: 'Template',
+        displayField: 'TemplateName',
+        submit: false
+      },
+      {
+        name: 'PeriodID',
+        label: 'Kỳ',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period'
+      },
+      {
+        name: 'Ngay',
+        label: 'Ngày',
+        renderRule: 'd',
+        type: 'date',
+        submitFormat: 'yyyyMMdd'
+      },
+      {
+        name: 'BranchID',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      }
+    ]
+  };
+
+  /*
+   * Read-only report: its grid schema comes from the desktop stored procedure
+   * result so adding/removing result columns does not require UI metadata edits.
+   * Template is a presentation/PDF choice and does not change the read-only
+   * dataset, therefore the grid request does not submit it to the procedure.
+   */
+  definitions.attendance['WA_TIMESHEETTH2REPORT'] = {
+    FormName: 'WA_TimeSheetTH2Report',
+    PrimaryKey: 'UserAutoID',
+    ReadOnlyReport: true,
+    DynamicResultColumns: true,
+    SelectableRows: false,
+    HideAddBtn: true,
+    HideEditBtn: true,
+    HideDeleteBtn: true,
+    ReportFilters: [
+      {
+        name: 'Template',
+        label: 'Chọn mẫu',
+        renderRule: 'sl',
+        dataSource: 'API_ReportTemplateOptions',
+        dataSourceParams: { ReportName: 'HR_TimeSheetTH2Report' },
+        valueField: 'Template',
+        displayField: 'TemplateName',
+        submit: false
+      },
+      {
+        name: 'PeriodID',
+        label: 'Kỳ',
+        renderRule: 'sl',
+        dataSource: 'SY_Period',
+        valueField: 'PeriodID',
+        displayField: 'PeriodID',
+        autoSelect: 'closest-period'
+      },
+      {
+        name: 'BranchID1',
+        label: 'Chi nhánh',
+        renderRule: 'sl',
+        dataSource: 'CF_BranchListFrm',
+        valueField: 'BranchID',
+        displayField: 'BranchName'
+      },
+      {
+        name: 'ReportUser',
+        label: 'Người dùng',
+        type: 'text',
+        readOnly: true,
+        submit: false,
+        defaultValue: function (context) {
+          return context && context.userName ? context.userName : '';
+        }
+      }
+    ]
+  };
+
   definitions.attendance['WA_CALAMVIECFRM'] = {
     FormName: 'WA_CaLamViecFrm',
     PrimaryKey: 'SapCaID',
@@ -263,7 +380,7 @@
           list: 'WA_CaLamViecCNFrm',
           func: 'HR_SapCaChiNhanh_Process_Stp',
           idField: 'SapCaID',
-          leaveMessage: 'Đơn nghỉ phép đã duyệt, chưa hủy sẽ được procedure hiện có đưa vào bảng ca.'
+          leaveMessage: 'Các đơn nghỉ phép đã được duyệt sẽ được tự động tích hợp vào lịch làm việc.'
         }
       }
     ],
@@ -343,6 +460,14 @@
                       newRow['PhongBan'] = rowData.PhongBan || '';
                       newRow['TitleName'] = rowData.TitleName || '';
                       newRow['BranchID'] = rowData.BranchID || ctx.row['BranchID'] || '';
+                      newRow['ShiftID'] = rowData.ShiftID || '';
+                      newRow['Thu2'] = false;
+                      newRow['Thu3'] = false;
+                      newRow['Thu4'] = false;
+                      newRow['Thu5'] = false;
+                      newRow['Thu6'] = false;
+                      newRow['Thu7'] = false;
+                      newRow['ChuNhat'] = false;
                       newRow['GhiChu'] = '';
                       ctx.panel._currentRows.push(newRow);
                       added++;
@@ -372,15 +497,42 @@
               }
               return [d.PersonID || '', d.PersonName || '', d.PhongBan || d.BoPhan || '', d.TitleName || d.ChucVu || '', d.BranchID || ''];
             }
+          },
+          ShiftID: {
+            apiList: 'HR_ShiftListCNFrm',
+            headers: ['Chi nhánh', 'Mã ca', 'Tên ca', 'Loại ca'],
+            sourceFields: ['BranchID', 'ShiftID', 'ShiftName', 'LoaiCa'],
+            valueFields: ['BranchID', 'ShiftID'],
+            valueIndex: 1,
+            displayIndex: 1,
+            strictSelection: true,
+            masterFilters: { BranchID: 'BranchID' }
           }
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fieldTypes: {
+          Thu2: 'boolean',
+          Thu3: 'boolean',
+          Thu4: 'boolean',
+          Thu5: 'boolean',
+          Thu6: 'boolean',
+          Thu7: 'boolean',
+          ChuNhat: 'boolean'
+        },
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           PersonID: 'Mã nhân viên',
           PersonName: 'Họ tên',
+          BranchID: 'Chi nhánh',
           PhongBan: 'Bộ phận',
           TitleName: 'Chức vụ',
-          BranchID: 'Chi nhánh',
+          ShiftID: 'Ca',
+          Thu2: 'T2',
+          Thu3: 'T3',
+          Thu4: 'T4',
+          Thu5: 'T5',
+          Thu6: 'T6',
+          Thu7: 'T7',
+          ChuNhat: 'CN',
           GhiChu: 'Ghi chú'
         }
       },
@@ -614,7 +766,7 @@
           Thu7: 'boolean',
           ChuNhat: 'boolean'
         },
-        fields: ['PersonID', 'PersonName', 'PhongBan', 'TitleName', 'BranchID', 'GhiChu'],
+        fields: ['PersonID', 'PersonName', 'BranchID', 'PhongBan', 'ShiftID', 'Thu2', 'Thu3', 'Thu4', 'Thu5', 'Thu6', 'Thu7', 'ChuNhat', 'GhiChu'],
         headers: {
           SapCa: 'Sắp ca',
           PersonID: 'Mã nhân viên',

@@ -93,56 +93,78 @@ var UIInput = (function () {
     return match[3] + '/' + match[2] + '/' + match[1];
   }
 
+  function _attachFlatpickr(inputEl, defaultValue) {
+    if (!inputEl) return null;
+    if (inputEl._flatpickr) return inputEl._flatpickr;
+
+    var normalizedValue = _normalizeDateInput(defaultValue || inputEl.value);
+
+    function doAttach() {
+      if (typeof window.flatpickr !== 'undefined' && !inputEl._flatpickr) {
+        var locale = (window.flatpickr.l10ns && window.flatpickr.l10ns.vn) ? "vn" : "default";
+        var fp = window.flatpickr(inputEl, {
+          altInput: true,
+          altFormat: "d/m/Y",
+          dateFormat: "Y-m-d",
+          defaultDate: normalizedValue || null,
+          locale: locale,
+          allowInput: true,
+          disableMobile: true
+        });
+        return fp;
+      }
+      return null;
+    }
+
+    var instance = doAttach();
+    if (!instance) {
+      var handleFocus = function () {
+        var fp = doAttach();
+        if (fp) {
+          inputEl.removeEventListener('focus', handleFocus);
+          inputEl.removeEventListener('click', handleFocus);
+          setTimeout(function () { fp.open(); }, 50);
+        }
+      };
+      inputEl.addEventListener('focus', handleFocus);
+      inputEl.addEventListener('click', handleFocus);
+    }
+    return instance;
+  }
+
   function createDate(config) {
     var normalizedValue = _normalizeDateInput(config.value);
-    var displayValue = _toVietnameseDate(normalizedValue);
     var inputConfig = Object.assign({}, config, { value: normalizedValue || '' });
     var obj = _createBaseWrapper(inputConfig, 'text');
-    if (normalizedValue) obj.input.value = normalizedValue;
+    obj.input.type = 'text';
+    obj.input.placeholder = config.placeholder || 'dd/mm/yyyy';
 
-    // Thêm icon lịch (tùy chọn)
+    // Thêm icon lịch click được
     var icon = document.createElement('span');
     icon.className = 'material-symbols-outlined';
-    icon.innerText = 'calendar_today';
+    icon.innerText = 'calendar_month';
     icon.style.position = 'absolute';
     icon.style.right = '10px';
-    icon.style.top = '36px'; // canh giữa theo height của input
-    icon.style.color = 'var(--color-text-secondary)';
-    icon.style.pointerEvents = 'none';
+    icon.style.top = config.label ? '34px' : '10px';
+    icon.style.color = 'var(--color-primary, #2563eb)';
+    icon.style.cursor = 'pointer';
     icon.style.fontSize = '18px';
-    
-    // Đảm bảo wrapper là relative để canh vị trí icon
+    icon.style.zIndex = '2';
+
     obj.wrapper.style.position = 'relative';
-    
-    // Ẩn icon nếu đang dùng label inline hoặc config khác
-    if (!config.label) icon.style.top = '10px';
     obj.wrapper.appendChild(icon);
 
-    if (typeof window.flatpickr !== 'undefined') {
-      window.flatpickr(obj.input, {
-        altInput: true,
-        altFormat: "d/m/Y",
-        dateFormat: "Y-m-d",
-        defaultDate: normalizedValue || null,
-        locale: "vn",
-        allowInput: true
-      });
-    } else {
-      /*
-       * Không dùng native input[type=date] ở fallback vì trình duyệt/OS có thể
-       * hiển thị mm/dd/yyyy. Giữ text dd/mm/yyyy để UI nhân sự thống nhất.
-       * DynamicFormEngine sẽ chuẩn hóa về yyyy-mm-dd trước khi gửi API.
-       */
-      obj.input.type = 'text';
-      obj.input.inputMode = 'numeric';
-      obj.input.placeholder = config.placeholder || 'dd/mm/yyyy';
-      obj.input.pattern = '\\d{1,2}/\\d{1,2}/\\d{4}';
-      obj.input.value = displayValue || '';
-      obj.input.onblur = function () {
-        var normalized = _normalizeDateInput(obj.input.value);
-        obj.input.value = _toVietnameseDate(normalized);
-      };
-    }
+    var fp = _attachFlatpickr(obj.input, normalizedValue);
+
+    icon.onclick = function (e) {
+      e.stopPropagation();
+      var fpInst = obj.input._flatpickr || _attachFlatpickr(obj.input, normalizedValue);
+      if (fpInst) {
+        fpInst.open();
+      } else {
+        obj.input.focus();
+      }
+    };
 
     return obj.wrapper;
   }

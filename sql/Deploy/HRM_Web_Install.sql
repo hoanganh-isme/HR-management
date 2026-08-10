@@ -174,6 +174,7 @@ CREATE TABLE #ApiManifest (
     func varchar(50) NOT NULL,
     [SQL] nvarchar(128) NOT NULL,
     Para nvarchar(max) NULL,
+    AllowUpdate bit NOT NULL DEFAULT (0),
     PRIMARY KEY (list, func)
 );
 
@@ -195,8 +196,8 @@ VALUES
 ('WA_TimeSheetFrm', 'HR_PayRoll_Process_Stp', N'HR_PayRoll_Process_Stp', N'@PeriodID=N''{PeriodID}'''),
 ('WA_TimeSheetDayFrm', 'View', N'API_XuLyChamCongHangNgay', N'@Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''),
 ('WA_TimeSheetDay_Process_Stp', 'View', N'WA_TimeSheetDay_Process_Stp', N'@PeriodID=N''{PeriodID}'', @BranchID=N''{BranchID}'''),
-('WA_TimeSheetCTReport', 'View', N'API_BaoCaoChamCongChiTiet', N'@Template=''{Template}'', @Ngay=''{Ngay}'', @PeriodID=N''{PeriodID}'', @BranchID=N''{BranchID}'', @Keyword=N''{Keyword}'''),
-('WA_TimeSheetTH2Report', 'View', N'API_BaoCaoChamCongTongHop', N'@PeriodID=N''{PeriodID}'', @PhongBan=N''{PhongBan}'', @Keyword=N''{Keyword}'''),
+('WA_TimeSheetCTReport', 'View', N'HR_TimeSheetCTReportStp', N'@Ngay=N''{Ngay}'', @PeriodID=N''{PeriodID}'', @BranchID=N''{BranchID}'''),
+('WA_TimeSheetTH2Report', 'View', N'HR_TimeSheetTH2ReportStp', N'@PeriodID=N''{PeriodID}'', @BranchID1=N''{BranchID1}'', @User=''{User}'', @ReadOnly=1'),
 ('WA_CaLamViecFrm', 'View', N'API_CaLamViec', N'@Keyword=N''{Keyword}'''),
 ('WA_CaLamViecFrm', 'Save', N'API_LuuDong', N'@List=N''{List}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
 ('WA_CaLamViecFrm', 'Delete', N'API_XoaDong', N'@List=N''{List}'', @Ids=N''{Ids}'', @Data=N''{JsonData}'', @UserName=N''{User}'''),
@@ -222,7 +223,13 @@ VALUES
 ('WA_TitleListFrm', 'View', N'API_TruyVanDong', N'@List=N''{List}'', @Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''),
 ('WA_ShiftListFrm', 'View', N'API_TruyVanDong', N'@List=N''{List}'', @Keyword=N''{Keyword}'', @SortColumn=N''{SortColumn}'', @SortDir=N''{SortDir}'', @Data=N''{JsonData}'''),
 ('WA_HinhThucNghiListFrm', 'View', N'API_DanhSachHinhThucNghi', N'@Keyword=N''{Keyword}'''),
-('CF_BranchListFrm', 'View', N'API_DanhSachChiNhanh', N'@Keyword=N''{Keyword}''');
+('API_ReportTemplateOptions', 'View', N'API_ReportTemplateOptions', N'@ReportName=N''{ReportName}'''),
+('CF_BranchListFrm', 'View', N'API_DanhSachChiNhanh', N'@Keyword=N''{Keyword}'', @UserBranchID=N''{BranchID}''');
+
+/* Route được duyệt để web tái sử dụng trực tiếp SP desktop, không sửa định nghĩa SP. */
+UPDATE #ApiManifest
+SET AllowUpdate = 1
+WHERE list = 'WA_TimeSheetCTReport' AND func = 'View';
 
 CREATE TABLE #FormatManifest (
     FormName varchar(100) NOT NULL,
@@ -789,9 +796,11 @@ BEGIN TRY
     INSERT INTO #Audit (ObjectName, BusinessKey, StatusCode, Detail)
     SELECT 'WA_API', CONCAT(a.list, ':', a.func),
            CASE WHEN x.STT IS NULL THEN 'MISSING'
+                WHEN (ISNULL(x.[SQL], '') <> ISNULL(a.[SQL], '') OR ISNULL(x.Para, '') <> ISNULL(a.Para, '')) AND a.AllowUpdate = 1 THEN 'UPDATE_READY'
                 WHEN ISNULL(x.[SQL], '') <> ISNULL(a.[SQL], '') OR ISNULL(x.Para, '') <> ISNULL(a.Para, '') THEN 'CONFLICT'
                 ELSE 'IMPLEMENTED' END,
            CASE WHEN x.STT IS NULL THEN N'Có thể thêm theo list+func.'
+                WHEN (ISNULL(x.[SQL], '') <> ISNULL(a.[SQL], '') OR ISNULL(x.Para, '') <> ISNULL(a.Para, '')) AND a.AllowUpdate = 1 THEN N'Route được phép cập nhật theo manifest đã duyệt.'
                 WHEN ISNULL(x.[SQL], '') <> ISNULL(a.[SQL], '') OR ISNULL(x.Para, '') <> ISNULL(a.Para, '') THEN N'Giữ nguyên routing hiện hữu; cần review explicit update.'
                 ELSE N'Đã khớp routing.' END
     FROM #ApiManifest a
@@ -881,6 +890,17 @@ BEGIN TRY
 
     IF @DryRun = 0
     BEGIN
+        UPDATE api
+        SET api.[SQL] = a.[SQL],
+            api.Para = a.Para
+        OUTPUT 'WA_API', CONCAT(inserted.list, ':', inserted.func), 'UPDATE'
+          INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
+        FROM dbo.WA_API api
+        INNER JOIN #ApiManifest a ON a.list = api.list AND a.func = api.func
+        WHERE a.AllowUpdate = 1
+          AND (ISNULL(api.[SQL], '') <> ISNULL(a.[SQL], '') OR ISNULL(api.Para, '') <> ISNULL(a.Para, ''))
+          AND 1 = (SELECT COUNT(*) FROM dbo.WA_API x WHERE x.list = a.list AND x.func = a.func);
+
         INSERT INTO dbo.WA_Menu (MenuID, Parent, VN, EN, FormName, FormKey, isDisable, isNotCheckPermission)
         OUTPUT 'WA_Menu', inserted.MenuID, 'INSERT'
           INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
@@ -902,6 +922,83 @@ BEGIN TRY
         SELECT a.list, a.func, a.[SQL], a.Para
         FROM #ApiManifest a
         WHERE NOT EXISTS (SELECT 1 FROM dbo.WA_API x WHERE x.list = a.list AND x.func = a.func);
+
+        /*
+          Báo cáo chỉ đọc dùng metadata V2 từ result-set của SP desktop.
+          Không tạo bảng mới, không đổi SP và không đọc SY_FormatFields legacy.
+        */
+        IF OBJECT_ID(N'dbo.WA_FieldContractRegistry', N'U') IS NOT NULL
+        BEGIN
+            IF EXISTS
+            (
+                SELECT 1
+                FROM dbo.WA_FieldContractRegistry
+                WHERE WebFormName = 'WA_TimeSheetCTReport'
+            )
+            BEGIN
+                UPDATE dbo.WA_FieldContractRegistry
+                SET ERPFormID = 'WA_TimeSheetCTReport',
+                    PermissionFormName = 'WA_TimeSheetCTReport',
+                    ContractType = 'READ_ONLY',
+                    ExpectedTableName = N'HR_TimeSheetDayTbl',
+                    ExpectedPrimaryKey = N'UserAutoID',
+                    ViewList = 'WA_TimeSheetCTReport',
+                    ViewProcedure = N'HR_TimeSheetCTReportStp',
+                    SaveProcedure = NULL,
+                    DeleteProcedure = NULL,
+                    WritePolicy = 'READ_ONLY',
+                    BranchPolicy = 'AUTO_SCHEMA',
+                    DeletePolicy = 'NONE',
+                    RolloutStatus = 'SHADOW',
+                    RolloutReason = N'DESKTOP_REPORT_RESULT_SET_METADATA_V2',
+                    SchemaVersion = 2,
+                    IsEnabled = 1,
+                    UpdatedAt = SYSUTCDATETIME(),
+                    UpdatedBy = 'HRM_WEB_INSTALL'
+                OUTPUT 'WA_FieldContractRegistry', inserted.WebFormName, 'UPDATE'
+                  INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
+                WHERE WebFormName = 'WA_TimeSheetCTReport'
+                  AND
+                  (
+                      ERPFormID <> 'WA_TimeSheetCTReport'
+                      OR PermissionFormName <> 'WA_TimeSheetCTReport'
+                      OR ContractType <> 'READ_ONLY'
+                      OR ExpectedTableName <> N'HR_TimeSheetDayTbl'
+                      OR ExpectedPrimaryKey <> N'UserAutoID'
+                      OR ISNULL(ViewList, '') <> 'WA_TimeSheetCTReport'
+                      OR ISNULL(ViewProcedure, '') <> N'HR_TimeSheetCTReportStp'
+                      OR SaveProcedure IS NOT NULL
+                      OR DeleteProcedure IS NOT NULL
+                      OR WritePolicy <> 'READ_ONLY'
+                      OR BranchPolicy <> 'AUTO_SCHEMA'
+                      OR DeletePolicy <> 'NONE'
+                      OR RolloutStatus <> 'SHADOW'
+                      OR SchemaVersion <> 2
+                      OR IsEnabled <> 1
+                  );
+            END
+            ELSE
+            BEGIN
+                INSERT INTO dbo.WA_FieldContractRegistry
+                (
+                    WebFormName, ERPFormID, PermissionFormName, ContractType,
+                    ExpectedTableName, ExpectedPrimaryKey, ViewList, ViewProcedure,
+                    SaveProcedure, DeleteProcedure, WritePolicy, BranchPolicy,
+                    DeletePolicy, RolloutStatus, RolloutReason, SchemaVersion,
+                    IsEnabled, CreatedAt, CreatedBy, UpdatedAt, UpdatedBy
+                )
+                OUTPUT 'WA_FieldContractRegistry', inserted.WebFormName, 'INSERT'
+                  INTO #AppliedChanges (ObjectName, BusinessKey, ChangeType)
+                VALUES
+                (
+                    'WA_TimeSheetCTReport', 'WA_TimeSheetCTReport', 'WA_TimeSheetCTReport', 'READ_ONLY',
+                    N'HR_TimeSheetDayTbl', N'UserAutoID', 'WA_TimeSheetCTReport', N'HR_TimeSheetCTReportStp',
+                    NULL, NULL, 'READ_ONLY', 'AUTO_SCHEMA',
+                    'NONE', 'SHADOW', N'DESKTOP_REPORT_RESULT_SET_METADATA_V2', 2,
+                    1, SYSUTCDATETIME(), 'HRM_WEB_INSTALL', SYSUTCDATETIME(), 'HRM_WEB_INSTALL'
+                );
+            END;
+        END;
 
         INSERT INTO dbo.SY_FormatFields
             (FormName, FieldName, CaptionVN, FormatID, CaptionEN, DataSource, IsRequired, FormPosition,

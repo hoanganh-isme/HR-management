@@ -28,7 +28,7 @@ var HRM_DOCUMENT_SERVICE_BASE = HRM_RUNTIME_CONFIG.DOCUMENT_SERVICE_BASE ||
  */
 var HRM_EXISTING_FIELD_SYNC = HRM_RUNTIME_CONFIG.FIELD_SYNC || {};
 var HRM_USES_LEGACY_PILOT_CONFIG = Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'pilotForms')
-  && !Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'rolloutMode');
+    && !Object.prototype.hasOwnProperty.call(HRM_EXISTING_FIELD_SYNC, 'rolloutMode');
 
 HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     enabled: true,
@@ -36,25 +36,26 @@ HRM_RUNTIME_CONFIG.FIELD_SYNC = Object.assign({
     rolloutMode: 'registry',
     includeForms: [],
     excludeForms: [],
-    fallbackToLegacy: false,
+    fallbackToLegacy: true,
     pollSeconds: 360,
     metadataBaseUrl: HRM_DOCUMENT_SERVICE_BASE.replace(/\/+$/, '') + '/api/metadata'
 }, HRM_EXISTING_FIELD_SYNC);
 
 // Cấu hình production cũ chỉ có pilotForms tiếp tục giữ đúng phạm vi pilot.
 if (HRM_USES_LEGACY_PILOT_CONFIG) {
-  HRM_RUNTIME_CONFIG.FIELD_SYNC.rolloutMode = 'pilot';
+    HRM_RUNTIME_CONFIG.FIELD_SYNC.rolloutMode = 'pilot';
 }
 
 if (typeof window !== 'undefined') {
     window.HRM_RUNTIME_CONFIG = HRM_RUNTIME_CONFIG;
 }
-
+// http://nhansu2.bms79.com
+// http://nhansu.bms7.net/
 // 1. Tham số môi trường (Environment Variables)
 const ENV_VARS = {
-    API_BASE: 'http://nhansu2.bms79.com', // Domain backend thực tế
+    API_BASE: 'http://nhansu.bms7.net', // Domain backend thực tế
     DOCUMENT_SERVICE_BASE: HRM_DOCUMENT_SERVICE_BASE,
-    ONLYOFFICE_PUBLIC_URL: HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8001' : HRM_FRONTEND_ORIGIN + '/onlyoffice'),
+    ONLYOFFICE_PUBLIC_URL: HRM_RUNTIME_CONFIG.ONLYOFFICE_PUBLIC_URL || (HRM_LOCAL_DOCUMENT_DEVELOPMENT ? 'http://127.0.0.1:8082' : HRM_FRONTEND_ORIGIN + '/onlyoffice'),
 
     // Tự động phát hiện HOST chạy (Local dev vs Production)
     get BACKEND_HOST() {

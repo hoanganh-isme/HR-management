@@ -17,13 +17,13 @@ IF OBJECT_ID(N'dbo.API_Web_LookupSchemaV2', N'P') IS NULL
 GO
 
 ALTER PROCEDURE dbo.API_Web_LookupSchemaV2
-    @WebFormName varchar(100),
+    @WebFormName varchar(100) = '',
     @ERPFormID varchar(100) = NULL,
-    @LookupKey varchar(64),
+    @LookupKey varchar(64) = '',
     @Keyword nvarchar(200) = NULL,
     @Page int = 1,
     @PageSize int = 30,
-    @UserName varchar(100),
+    @UserName varchar(100) = '',
     @BranchID varchar(max) = NULL
 AS
 BEGIN

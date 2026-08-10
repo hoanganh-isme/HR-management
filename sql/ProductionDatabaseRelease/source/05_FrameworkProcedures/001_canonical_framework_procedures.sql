@@ -2387,6 +2387,28 @@ END;
                 WHERE X.error_number IS NOT NULL
             )
             BEGIN
+                ;WITH DescribedResult AS
+                (
+                    SELECT
+                        X.column_ordinal,
+                        X.name,
+                        X.system_type_name,
+                        X.is_nullable,
+                        X.max_length,
+                        X.source_schema,
+                        X.source_table,
+                        X.source_column,
+                        ROW_NUMBER() OVER
+                        (
+                            PARTITION BY LOWER(X.name) COLLATE DATABASE_DEFAULT
+                            ORDER BY X.column_ordinal
+                        ) AS DuplicateOrdinal
+                    FROM sys.dm_exec_describe_first_result_set_for_object
+                        (@ResultProcedureObjectID, 1) AS X
+                    WHERE ISNULL(X.is_hidden, 0) = 0
+                      AND X.error_number IS NULL
+                      AND NULLIF(LTRIM(RTRIM(X.name)), '') IS NOT NULL
+                )
                 INSERT INTO @ResultFields
                 (
                     FieldOrdinal, FieldName, SqlType, IsNullable, MaxLength,
@@ -2401,25 +2423,98 @@ END;
                     X.source_schema,
                     X.source_table,
                     X.source_column
-                FROM sys.dm_exec_describe_first_result_set_for_object
-                    (@ResultProcedureObjectID, 1) AS X
-                WHERE ISNULL(X.is_hidden, 0) = 0
-                  AND X.error_number IS NULL
-                  AND NULLIF(LTRIM(RTRIM(X.name)), '') IS NOT NULL;
+                FROM DescribedResult AS X
+                WHERE X.DuplicateOrdinal = 1;
             END;
         END TRY
         BEGIN CATCH
             DELETE FROM @ResultFields;
         END CATCH;
 
+        /*
+          Một số report desktop gọi procedure xử lý trước SELECT nên SQL Server
+          không mô tả được result-set. Với SELECT T.*, P.* ta vẫn có thể lấy schema
+          động từ các bảng được đánh dấu is_select_all trong dependency metadata.
+          Bảng contract chính được ưu tiên khi hai bảng có cột trùng tên.
+        */
+        IF NOT EXISTS (SELECT 1 FROM @ResultFields)
+        BEGIN
+            BEGIN TRY
+                DECLARE @ResultProcedureName nvarchar(517) =
+                    QUOTENAME(OBJECT_SCHEMA_NAME(@ResultProcedureObjectID)) + N'.' +
+                    QUOTENAME(OBJECT_NAME(@ResultProcedureObjectID));
+
+                ;WITH SelectedTables AS
+                (
+                    SELECT DISTINCT
+                        O.object_id,
+                        S.name AS SchemaName,
+                        O.name AS TableName,
+                        CASE
+                            WHEN O.name COLLATE DATABASE_DEFAULT = @ExpectedTable COLLATE DATABASE_DEFAULT THEN 0
+                            ELSE 1
+                        END AS TablePriority
+                    FROM sys.dm_sql_referenced_entities(@ResultProcedureName, N'OBJECT') AS R
+                    INNER JOIN sys.schemas AS S
+                      ON S.name COLLATE DATABASE_DEFAULT = R.referenced_schema_name COLLATE DATABASE_DEFAULT
+                    INNER JOIN sys.objects AS O
+                      ON O.schema_id = S.schema_id
+                     AND O.name COLLATE DATABASE_DEFAULT = R.referenced_entity_name COLLATE DATABASE_DEFAULT
+                     AND O.[type] IN ('U', 'V')
+                    WHERE R.referenced_database_name IS NULL
+                      AND ISNULL(R.is_select_all, 0) = 1
+                ),
+                RankedColumns AS
+                (
+                    SELECT
+                        T.SchemaName,
+                        T.TableName,
+                        T.TablePriority,
+                        C.column_id,
+                        C.name AS FieldName,
+                        CONVERT(nvarchar(256), TYPE_NAME(C.user_type_id)) AS SqlType,
+                        C.is_nullable AS IsNullable,
+                        C.max_length AS MaxLength,
+                        ROW_NUMBER() OVER
+                        (
+                            PARTITION BY LOWER(C.name) COLLATE DATABASE_DEFAULT
+                            ORDER BY T.TablePriority, T.TableName, C.column_id
+                        ) AS DuplicateOrdinal
+                    FROM SelectedTables AS T
+                    INNER JOIN sys.columns AS C
+                      ON C.object_id = T.object_id
+                ),
+                UniqueColumns AS
+                (
+                    SELECT *
+                    FROM RankedColumns
+                    WHERE DuplicateOrdinal = 1
+                )
+                INSERT INTO @ResultFields
+                (
+                    FieldOrdinal, FieldName, SqlType, IsNullable, MaxLength,
+                    SourceSchema, SourceTable, SourceColumn
+                )
+                SELECT
+                    ROW_NUMBER() OVER
+                    (
+                        ORDER BY U.TablePriority, U.TableName, U.column_id
+                    ) AS FieldOrdinal,
+                    U.FieldName,
+                    U.SqlType,
+                    U.IsNullable,
+                    U.MaxLength,
+                    U.SchemaName,
+                    U.TableName,
+                    U.FieldName
+                FROM UniqueColumns AS U;
+            END TRY
+            BEGIN CATCH
+                DELETE FROM @ResultFields;
+            END CATCH;
+        END;
+
         IF EXISTS (SELECT 1 FROM @ResultFields)
-           AND NOT EXISTS
-           (
-               SELECT LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
-               FROM @ResultFields AS F
-               GROUP BY LOWER(F.FieldName) COLLATE DATABASE_DEFAULT
-               HAVING COUNT(*) > 1
-           )
            AND
            (
                @ContractType = 'READ_ONLY'
@@ -2654,17 +2749,35 @@ END;
             FROM dbo.SY_FmtFldTbl AS X
             WHERE X.FieldName COLLATE DATABASE_DEFAULT =
                   RF.FieldName COLLATE DATABASE_DEFAULT
-              AND (
-                  X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
-                  OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-                  OR X.FormName IS NULL
-                  OR LTRIM(RTRIM(X.FormName)) = ''
-              )
-            ORDER BY CASE
+            /*
+              Desktop tái sử dụng caption của cùng FieldName giữa nhiều form. Caption
+              có nghĩa được ưu tiên trước caption kỹ thuật (Person Name/PersonName),
+              sau đó mới xét form hiện tại và mức độ dùng chung. Nhờ vậy result-set
+              của report không rơi về tên cột kỹ thuật khi caption tiếng Việt đang
+              được cấu hình ở một form desktop khác.
+            */
+            ORDER BY
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                     LOWER(REPLACE(REPLACE(RF.FieldName, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                ELSE 0
+            END,
+            CASE
                 WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
                 WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
-                ELSE 3
-            END, X.AutoID
+                WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                ELSE 4
+            END,
+            (
+                SELECT COUNT_BIG(*)
+                FROM dbo.SY_FmtFldTbl AS SharedCaption
+                WHERE SharedCaption.FieldName COLLATE DATABASE_DEFAULT =
+                      X.FieldName COLLATE DATABASE_DEFAULT
+                  AND NULLIF(LTRIM(RTRIM(SharedCaption.CaptionVN)), N'') COLLATE DATABASE_DEFAULT =
+                      NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') COLLATE DATABASE_DEFAULT
+            ) DESC,
+            X.AutoID
         ) AS ResultCaption
         LEFT JOIN dbo.SY_FmatTbl AS ResultFormat
           ON ResultFormat.FormatID COLLATE DATABASE_DEFAULT =
@@ -2881,15 +2994,27 @@ END;
         SELECT TOP (1) X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
         FROM dbo.SY_FmtFldTbl AS X
         WHERE X.FieldName COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
-          AND (
-              X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT
-              OR X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
-              OR X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = ''
-          )
-        ORDER BY CASE
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
-            WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
-            ELSE 3 END,
+        ORDER BY
+            CASE
+                WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                     LOWER(REPLACE(REPLACE(C.name, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                ELSE 0
+            END,
+            CASE
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                ELSE 4
+            END,
+            (
+                SELECT COUNT_BIG(*)
+                FROM dbo.SY_FmtFldTbl AS SharedCaption
+                WHERE SharedCaption.FieldName COLLATE DATABASE_DEFAULT =
+                      X.FieldName COLLATE DATABASE_DEFAULT
+                  AND NULLIF(LTRIM(RTRIM(SharedCaption.CaptionVN)), N'') COLLATE DATABASE_DEFAULT =
+                      NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') COLLATE DATABASE_DEFAULT
+            ) DESC,
             X.AutoID
     ) AS M
     LEFT JOIN dbo.SY_FmatTbl AS F

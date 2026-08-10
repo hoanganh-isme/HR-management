@@ -1,5 +1,4 @@
-USE X26DIMTUTAC
-GO
+
 CREATE OR ALTER PROCEDURE dbo.API_BangPhuCap
 (
     @Keyword NVARCHAR(200) = ''
@@ -9,18 +8,7 @@ BEGIN
     SET NOCOUNT ON;
     SET @Keyword = ISNULL(@Keyword, '');
 
-    SELECT 
-        MaPhuCap,
-        TenPhuCap,
-        NhomPhuCap,
-        TienPhuCapNgay,
-        TienPhuCapThang,
-        GhiChu,
-        DVT,
-        UserCreate,
-        UserUpdate,
-        DateUpdate,
-        DateCreate
+    SELECT TOP 1000 *
     FROM dbo.HR_BangPhuCapTbl
     WHERE 
         @Keyword = ''

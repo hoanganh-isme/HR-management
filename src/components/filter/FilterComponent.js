@@ -42,8 +42,34 @@ var FilterComponent = (function () {
     wrapper.appendChild(gridContainer);
 
     var inputs = {};
+    var filterById = {};
+
+    function defaultValueFor(filter) {
+      return filter.defaultValue !== undefined && filter.defaultValue !== null
+        ? filter.defaultValue
+        : '';
+    }
+
+    function initialValueFor(filter) {
+      if (typeof window !== 'undefined'
+        && window.currentFilters
+        && window.currentFilters[filter.id] !== undefined) {
+        return window.currentFilters[filter.id];
+      }
+      return defaultValueFor(filter);
+    }
+
+    function collectValues() {
+      var values = {};
+      for (var key in inputs) {
+        var filter = filterById[key];
+        if (!filter || filter.submit !== false) values[key] = inputs[key].value;
+      }
+      return values;
+    }
 
     filters.forEach(function (f) {
+      filterById[f.id] = f;
       var controlWrapper;
       var config = { id: f.id, label: f.label, placeholder: f.placeholder };
 
@@ -63,11 +89,7 @@ var FilterComponent = (function () {
           hiddenInput.id = f.id;
           hiddenInput.name = f.id;
 
-          if (typeof window !== 'undefined' && window.currentFilters && window.currentFilters[f.id] !== undefined) {
-            hiddenInput.value = window.currentFilters[f.id];
-          } else {
-            hiddenInput.value = '';
-          }
+          hiddenInput.value = initialValueFor(f);
           controlWrapper.appendChild(hiddenInput);
 
           var comboLoading = UIControls.createDataComboBox({ placeholder: 'Đang tải...' });
@@ -152,7 +174,51 @@ var FilterComponent = (function () {
 
         } else {
           var opts = f.options ? f.options.map(function (o) { return { value: o.value !== undefined ? o.value : o, label: o.label || o }; }) : [];
-          controlWrapper = UIInput.createSelect(config, opts);
+
+          if (window.UIControls && typeof UIControls.createDataComboBox === 'function') {
+            controlWrapper = document.createElement('div');
+            controlWrapper.className = 'form-group';
+
+            if (config.label) {
+              var lbl = document.createElement('label');
+              lbl.innerText = config.label;
+              controlWrapper.appendChild(lbl);
+            }
+
+            var hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.id = f.id;
+            hiddenInput.name = f.id;
+            var initVal = initialValueFor(f) || (opts[0] ? opts[0].value : '');
+            hiddenInput.value = initVal;
+            controlWrapper.appendChild(hiddenInput);
+
+            var comboData = opts.map(function (o) { return [o.value, o.label]; });
+            var newCombo = UIControls.createDataComboBox({
+              placeholder: f.placeholder || '-- Tất cả --',
+              headers: ['Mã / Giá trị', 'Tên / Nhãn'],
+              data: comboData,
+              colFilterIndex: 1,
+              onSelect: function (r) {
+                hiddenInput.value = r ? r[0] : '';
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              },
+              onChange: function (val) {
+                hiddenInput.value = val;
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            });
+
+            var displayInput = newCombo.querySelector('input.ui-input');
+            if (initVal && displayInput) {
+              var matchedOpt = opts.find(function (o) { return String(o.value) === String(initVal); });
+              if (matchedOpt) displayInput.value = matchedOpt.label;
+            }
+
+            controlWrapper.appendChild(newCombo);
+          } else {
+            controlWrapper = UIInput.createSelect(config, opts);
+          }
         }
       } else if (f.type === 'date') {
         controlWrapper = UIInput.createDate(config);
@@ -207,8 +273,14 @@ var FilterComponent = (function () {
           });
         }
 
-        if (typeof window !== 'undefined' && window.currentFilters && window.currentFilters[f.id] !== undefined) {
-          inp.value = window.currentFilters[f.id];
+        inp.value = initialValueFor(f);
+
+        if (f.readOnly === true) {
+          inp.readOnly = true;
+          inp.setAttribute('aria-readonly', 'true');
+          inp.style.background = 'var(--color-surface-elevated, #f8fafc)';
+          inp.style.color = 'var(--color-text-secondary, #64748b)';
+          inp.style.cursor = 'not-allowed';
         }
 
         inputs[f.id] = inp;
@@ -225,9 +297,7 @@ var FilterComponent = (function () {
       keywordInput.addEventListener('input', function () {
         clearTimeout(_liveTimer);
         _liveTimer = setTimeout(function () {
-          var values = {};
-          for (var k in inputs) { values[k] = inputs[k].value; }
-          onSearch(values);
+          onSearch(collectValues());
           // KHÔNG đóng panel — để người dùng tiếp tục tinh chỉnh
         }, 400);
       });
@@ -235,9 +305,7 @@ var FilterComponent = (function () {
       keywordInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
           clearTimeout(_liveTimer);
-          var values = {};
-          for (var k in inputs) { values[k] = inputs[k].value; }
-          onSearch(values);
+          onSearch(collectValues());
         }
       });
     }
@@ -253,16 +321,16 @@ var FilterComponent = (function () {
     btnReset.onmouseout = function() { this.style.background = 'var(--color-surface, #fff)'; this.style.color = 'var(--color-text-secondary, #64748b)'; };
     btnReset.onclick = function () {
       for (var key in inputs) {
-        inputs[key].value = '';
+        inputs[key].value = defaultValueFor(filterById[key]);
         var wrapper = inputs[key].closest('.form-group') || inputs[key].parentElement;
         if (wrapper) {
           var displayInput = wrapper.querySelector('.combo-box-container input.ui-input');
-          if (displayInput) {
-            displayInput.value = '';
+          if (displayInput && inputs[key].type !== 'hidden') {
+            displayInput.value = inputs[key].value;
           }
         }
       }
-      if (typeof onSearch === 'function') onSearch({});
+      if (typeof onSearch === 'function') onSearch(collectValues());
     };
 
     var btnSearch = document.createElement('button');
@@ -271,10 +339,7 @@ var FilterComponent = (function () {
     btnSearch.style.cssText = 'font-weight: 600; border-radius: 6px; padding: 8px 16px; border: none; cursor: pointer; transition: all 0.2s;';
     btnSearch.onclick = function () {
       if (typeof onSearch === 'function') {
-        var values = {};
-        for (var key in inputs) {
-          values[key] = inputs[key].value;
-        }
+        var values = collectValues();
         console.log('[FilterComponent] Submitting values:', values);
         onSearch(values);
 
@@ -395,15 +460,26 @@ var FilterComponent = (function () {
     // Click bên ngoài thì tự đóng Panel
     document.addEventListener('click', function (e) {
       if (wrapper.style.display !== 'none') {
-        var isInsidePanel = wrapper.contains(e.target);
-        var isDropdownClick = e.target.closest('.data-dropdown-menu'); // allow clicking combobox dropdown
+        var targetNode = e.target;
+
+        // Nếu e.target đã bị gỡ khỏi DOM (ví dụ: nút chuyển tháng/năm của Flatpickr re-render), bỏ qua không đóng panel
+        if (!targetNode || targetNode.isConnected === false || (typeof document.contains === 'function' && !document.contains(targetNode))) {
+          return;
+        }
+
+        var clickTarget = targetNode.nodeType === 1 ? targetNode : targetNode.parentElement;
+        if (!clickTarget) return;
+
+        var isInsidePanel = wrapper.contains(clickTarget);
+        var isDropdownClick = clickTarget.closest('.data-dropdown-menu, .search-dropdown-menu, .combo-box-dropdown');
+        var isDatePickerClick = clickTarget.closest('.flatpickr-calendar, .flatpickr-monthDropdown-months, .flatpickr-current-month');
         var isClickOnButton = false;
-        var clickedBtn = e.target.closest('button');
+        var clickedBtn = clickTarget.closest('button');
         if (clickedBtn && (clickedBtn.innerHTML.indexOf('filter_alt') !== -1 || clickedBtn.innerText.trim() === 'Lọc' || clickedBtn.getAttribute('data-tooltip') === 'Lọc / Tìm kiếm dữ liệu')) {
           isClickOnButton = true;
         }
 
-        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && dummyContainer.parentElement) {
+        if (!isInsidePanel && !isClickOnButton && !isDropdownClick && !isDatePickerClick && dummyContainer.parentElement) {
           dummyContainer.parentElement.style.display = 'none'; // Ẩn cha đi thì Observer sẽ ẩn Panel
         }
       }

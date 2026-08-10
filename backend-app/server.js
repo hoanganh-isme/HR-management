@@ -13,6 +13,7 @@ import { createContractDocumentStore } from './src/contracts/contract-document.s
 import { createContractDocumentDb } from './src/contracts/contract-document.db.js';
 import { createContractDocumentService } from './src/contracts/contract-document.service.js';
 import { createContractDocumentRouter } from './src/contracts/contract-document.routes.js';
+import { createContractTemplateRepository } from './src/contracts/contract-template.repository.js';
 import { createFieldSyncConfig } from './src/field-sync/field-sync.config.js';
 import { createFieldSyncGateway, FieldSyncGatewayError } from './src/field-sync/field-sync.gateway.js';
 import { createFieldContractRepository } from './src/field-sync/field-contract.repository.js';
@@ -98,10 +99,14 @@ const SQL_API_USER = documentConfig.sqlApiUser;
 
 const contractDocumentStore = createContractDocumentStore(documentConfig);
 const contractDocumentDb = createContractDocumentDb(documentConfig);
+const contractTemplateRepository = createContractTemplateRepository({
+    config: documentConfig
+});
 const contractDocumentService = createContractDocumentService(
     documentConfig,
     contractDocumentStore,
-    contractDocumentDb
+    contractDocumentDb,
+    contractTemplateRepository
 );
 
 app.use('/api', createContractDocumentRouter(documentConfig, contractDocumentService));
@@ -118,7 +123,7 @@ app.use('/api/metadata', createFieldSyncRouter({
     config: fieldSyncConfig,
     repository: fieldContractRepository
 }));
-const dashboardRepository = createDashboardRepository({ sqlServer });
+const dashboardRepository = createDashboardRepository({ sqlServer, gateway: fieldSyncGateway });
 app.use('/api/dashboard', createDashboardRouter({
     gateway: fieldSyncGateway,
     repository: dashboardRepository
@@ -239,7 +244,9 @@ async function fetchSetupInfo(authToken) {
     const now = Date.now();
     if (_setupCache && (now - _setupCacheTime) < SETUP_CACHE_TTL) return _setupCache;
     try {
-        const url = `${SQL_API_BASE}/api/API_LayGiaTriSetup`;
+        const payload = { List: 'API_LayGiaTriSetup', Func: 'Execute' };
+        const qs = encodeURIComponent(JSON.stringify(payload));
+        const url = `${SQL_API_BASE}/api/API_Gateway_Router?q=${qs}`;
         const headers = {};
         if (authToken) headers['Authorization'] = authToken;
         const resp = await axiosGetWithRetry(url, { headers, timeout: 8000 }, 3, 1000);
@@ -566,7 +573,7 @@ app.post('/api/documents/generate', async (req, res) => {
         // ── Xác định branch folder để lưu file ─────────────────────────────
         const userBranches = await getUserBranchesFromDB(req);
         const rowBranch = dataMap.BranchID || dataMap.branchId || dataMap.MaChiNhanh || null;
-        
+
         let targetBranch;
         if (userBranches === null) {
             // Admin (BranchID=null): Luôn lưu là file Hệ thống (_admin). 
@@ -864,6 +871,9 @@ app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const status = Number(error.statusCode) || 500;
     if (status >= 500) console.error('[SERVER]', error.message);
+    if (status >= 500 && error instanceof FieldSyncGatewayError) {
+        console.error('[FIELD METADATA DIAGNOSTIC]', error.diagnosticCode, error.details);
+    }
     if (String(req.path || '').toLowerCase().startsWith('/api/metadata')) res.set('Cache-Control', 'private, no-store');
     const body = { success: false, message: error.message || 'Lỗi máy chủ.' };
     if (isExcelImportError(error) && /^[A-Z0-9_]{3,80}$/.test(String(error.code || ''))) {
@@ -880,6 +890,11 @@ app.use((error, req, res, next) => {
         if (Number.isInteger(details.upstreamStatus)) safeDetails.upstreamStatus = details.upstreamStatus;
         if (Number.isInteger(details.upstreamCode)) safeDetails.upstreamCode = details.upstreamCode;
         if (Number.isInteger(details.errorNumber)) safeDetails.errorNumber = details.errorNumber;
+        if (!documentConfig.isProduction) {
+            if (details.sqlErrorMessage) safeDetails.sqlErrorMessage = details.sqlErrorMessage;
+            if (details.sqlErrorProcedure) safeDetails.sqlErrorProcedure = details.sqlErrorProcedure;
+            if (Number.isInteger(details.sqlErrorLine)) safeDetails.sqlErrorLine = details.sqlErrorLine;
+        }
         if (Object.keys(safeDetails).length) body.diagnostic = safeDetails;
     }
     return res.status(status).json(body);

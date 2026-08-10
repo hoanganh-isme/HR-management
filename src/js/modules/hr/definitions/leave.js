@@ -5,14 +5,14 @@
     FormName: 'WA_QuanLyNghiPhepNamFrm',
     PrimaryKey: 'PersonID',
     ModalWidth: '960px',
-    hideDetailTabsInEditMode: true,
-    UseSplitLayout: true,
-    SplitLayoutSelectText: 'Vui lòng chọn nhân viên để xem chi tiết',
     DetailTabs: [
       {
-        label: 'Chi tiết phép năm',
+        tabId: 'DETAIL_TAB_1',
+        label: 'Chi tiết Phép năm',
         api: 'API_QuanLyNghiPhepNam_ChiTiet',
         filterField: 'PersonID',
+        tableName: 'HR_PersonNghiPhepTbl',
+        primaryKey: 'UserAutoID',
         fields: [
           'Nam', 'SoNgay', 'GhiChu', 'PhepThamNien', 'SoNgayDaSuDung',
           'SoNgayConLai', 'PhepTonNamTruoc', 'SoNgayPhepTet', 'SoNgayPhepOm', 'NgayCapNhat'

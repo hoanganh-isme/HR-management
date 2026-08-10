@@ -7,7 +7,6 @@
   "css": [
     "src/css/design-tokens.css",
     "src/css/global.css",
-    "src/css/layouts/navbar.css",
     "src/css/layouts/sidebar.css",
     "src/css/layouts/header.css",
     "src/css/layouts/dashboard.css",
@@ -56,7 +55,8 @@
     "src/components/responsive-data-renderer/responsive-data-renderer.css",
     "src/components/column-caption-editor/column-caption-editor.css",
     "src/components/excel-import/excel-import.css",
-    "src/css/modules/contract-document.css"
+    "src/css/modules/contract-document.css",
+    "src/css/layouts/navbar.css"
   ],
   "js": [
     "src/js/utils/apiClient.js",
@@ -74,6 +74,8 @@
     "src/js/utils/UITooltip.js",
     "src/js/utils/PrintUtils.js",
     "src/js/utils/TableColumnLayout.js",
+    "src/js/utils/DynamicResultSchema.js",
+    "src/js/core/MenuDefinition.js",
     "src/js/services/SystemDataService.js",
     "src/js/services/MenusService.js",
     "src/js/services/PeriodManager.js",
@@ -106,6 +108,7 @@
     "src/components/icon/Icon.js",
     "src/components/action-toolbar/ActionToolbar.js",
     "src/components/card/Card.js",
+    "src/components/table/TableSemantic.js",
     "src/components/table/Table.js",
     "src/components/tabs/Tabs.js",
     "src/components/tabs/NestedTabs.js",
@@ -144,6 +147,7 @@
     "src/js/modules/hr/definitions/leave.js",
     "src/js/modules/hr/definitions/payroll.js",
     "src/js/modules/hr/definitions/contract.js",
+    "src/js/modules/hr/definitions/reports.js",
     "src/js/modules/hr/HRMetadataAdapter.js",
     "src/js/modules/hr/actions/contract-document.api.js",
     "src/js/modules/hr/actions/contract-document.actions.js",

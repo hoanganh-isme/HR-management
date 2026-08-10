@@ -25,6 +25,16 @@ function positiveInteger(value, fallback) {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function withFormIdentity(params) {
+    const source = params && typeof params === 'object' ? params : {};
+    const formName = String(source.WebFormName || source.FormName || '').trim();
+    return {
+        ...source,
+        FormName: formName,
+        WebFormName: formName
+    };
+}
+
 function sleep(milliseconds) {
     return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -71,6 +81,15 @@ export class FieldSyncGatewayError extends Error {
                 : undefined,
             errorNumber: Number.isInteger(safeInput.errorNumber) && safeInput.errorNumber >= 0 && safeInput.errorNumber <= 2147483647
                 ? safeInput.errorNumber
+                : undefined,
+            sqlErrorMessage: typeof safeInput.sqlErrorMessage === 'string'
+                ? safeInput.sqlErrorMessage.trim().slice(0, 1000)
+                : undefined,
+            sqlErrorProcedure: typeof safeInput.sqlErrorProcedure === 'string'
+                ? safeInput.sqlErrorProcedure.trim().slice(0, 256)
+                : undefined,
+            sqlErrorLine: Number.isInteger(safeInput.sqlErrorLine) && safeInput.sqlErrorLine >= 0
+                ? safeInput.sqlErrorLine
                 : undefined
         });
     }
@@ -90,6 +109,16 @@ function assertGatewaySuccess(payload, records) {
     const recordCode = Number(records[0] && records[0].code);
     const upstreamCode = Number.isInteger(envelopeCode) ? envelopeCode : Number.isInteger(recordCode) ? recordCode : undefined;
     const errorNumber = Number(payload?.error_number ?? records[0]?.error_number);
+    const sqlErrorMessage = String(payload?.error_message ?? records[0]?.error_message ?? '').trim();
+    const sqlErrorProcedure = String(payload?.error_procedure ?? records[0]?.error_procedure ?? '').trim();
+    const sqlErrorLineValue = Number(payload?.error_line ?? records[0]?.error_line);
+    const diagnostic = {
+        upstreamCode,
+        errorNumber: Number.isInteger(errorNumber) ? errorNumber : undefined,
+        sqlErrorMessage,
+        sqlErrorProcedure,
+        sqlErrorLine: Number.isInteger(sqlErrorLineValue) ? sqlErrorLineValue : undefined
+    };
     const explicitFailure = payload && (payload.success === false || payload.Success === false || payload.error === true || payload.Error === true);
     const invalidEnvelopeCode = payload && payload.code !== undefined && !Number.isFinite(envelopeCode) && records.length === 0;
     if (invalidEnvelopeCode) throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_ENVELOPE_INVALID');
@@ -104,13 +133,10 @@ function assertGatewaySuccess(payload, records) {
                 'Không có quyền đọc metadata của trang trong phạm vi hiện tại.',
                 403,
                 FIELD_METADATA_FORBIDDEN_ERRORS.get(errorNumber),
-                { upstreamCode, errorNumber }
+                diagnostic
             );
         }
-        throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_ENVELOPE_REJECTED', {
-            upstreamCode,
-            errorNumber: Number.isInteger(errorNumber) ? errorNumber : undefined
-        });
+        throw new FieldSyncGatewayError(undefined, 502, 'ERP_GATEWAY_ENVELOPE_REJECTED', diagnostic);
     }
 }
 
@@ -167,6 +193,10 @@ export function createFieldSyncGateway(config, httpClient = axios) {
             if (error instanceof FieldSyncGatewayError) throw error;
             const status = error && error.response && error.response.status;
             if (status === 401 || status === 403) throw new FieldSyncGatewayError('Phiên đăng nhập không hợp lệ.', status);
+            if (context && context.userName) {
+                console.warn('[AUTH_FALLBACK] Không kết nối được dịch vụ auth từ xa, sử dụng username từ token:', context.userName);
+                return context.userName;
+            }
             throw new FieldSyncGatewayError('Không thể xác minh phiên đăng nhập.', 503, 'ERP_AUTH_UNAVAILABLE');
         }
     }
@@ -221,11 +251,11 @@ export function createFieldSyncGateway(config, httpClient = axios) {
         const page = Number(extra.page || jsonData?.Page || 1);
         const pageSize = Number(extra.limit || jsonData?.pageSize || jsonData?.PageSize || 50);
         /*
-         * API_Gateway_Router has a fixed wire contract.  FormName, ERPFormID,
-         * LookupKey and PageSize are deliberately carried in JsonData because
-         * they are not parameters of the router procedure itself.  Sending
-         * arbitrary top-level properties makes stricter HTTP model binders
-         * reject the request before SQL is reached.
+         * API_Gateway_Router has a fixed wire contract. FormName/WebFormName,
+         * ERPFormID, LookupKey and PageSize are deliberately carried in
+         * JsonData because they are not parameters of the router procedure
+         * itself. Sending arbitrary top-level properties makes stricter HTTP
+         * model binders reject the request before SQL is reached.
          */
         const payload = {
             List: list,
@@ -289,24 +319,26 @@ export function createFieldSyncGateway(config, httpClient = axios) {
 
     return Object.freeze({
         verifySession,
+        postGateway,
         gridSchema(params, context) {
-            return postGateway(FIELD_SYNC_CONTRACTS.gridSchema, context, params);
+            return postGateway(FIELD_SYNC_CONTRACTS.gridSchema, context, withFormIdentity(params));
         },
         gridCompare(params, context) {
-            return postGateway(FIELD_SYNC_CONTRACTS.gridCompare, context, params);
+            return postGateway(FIELD_SYNC_CONTRACTS.gridCompare, context, withFormIdentity(params));
         },
         lookupSchema(params, context) {
-            return postGateway(FIELD_SYNC_CONTRACTS.lookupSchema, context, params, {
+            const metadataParams = withFormIdentity(params);
+            return postGateway(FIELD_SYNC_CONTRACTS.lookupSchema, context, metadataParams, {
                 keyword: params.Keyword,
                 page: params.Page,
                 limit: params.PageSize
             });
         },
         joinSchema(params, context) {
-            return postGateway(FIELD_SYNC_CONTRACTS.joinSchema, context, params);
+            return postGateway(FIELD_SYNC_CONTRACTS.joinSchema, context, withFormIdentity(params));
         },
         fieldContractResolve(params, context) {
-            return postGateway(FIELD_SYNC_CONTRACTS.fieldContractResolve, context, params);
+            return postGateway(FIELD_SYNC_CONTRACTS.fieldContractResolve, context, withFormIdentity(params));
         },
         registeredLookup(list, params, context) {
             if (!SAFE_REGISTERED_LIST.test(String(list || ''))) throw new FieldSyncGatewayError('Lookup chưa được đăng ký.', 409);
@@ -317,7 +349,12 @@ export function createFieldSyncGateway(config, httpClient = axios) {
             });
         },
         async updateFieldFormat(params, context) {
-            return await postGateway(FIELD_SYNC_CONTRACTS.updateFieldFormat, context, params, { func: 'View' });
+            return await postGateway(
+                FIELD_SYNC_CONTRACTS.updateFieldFormat,
+                context,
+                withFormIdentity(params),
+                { func: 'View' }
+            );
         },
         formatList(context) {
             return postGateway(FIELD_SYNC_CONTRACTS.formatList, context, {});

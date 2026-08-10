@@ -1,5 +1,4 @@
-USE [X26DIMTUTAC]
-GO
+
 
 SET ANSI_NULLS ON
 GO
@@ -52,35 +51,23 @@ BEGIN
         END
     END
 
-    -- Truy vấn kết hợp dữ liệu bảng chấm công chi tiết và thông tin nhân viên
-    -- Lưu ý: Cần chọn cột UserAutoID làm khoá chính để thực hiện chức năng Thêm/Sửa/Xoá trên Grid
-    SELECT 
-        T.UserAutoID,
-        T.PersonID,
-        P.PersonName,
-        P.PhongBan,
-        P.BranchID,
-        P.LoaiHD,
-        T.PeriodID,
-        T.Ngay,
-        T.ThoiGianVao,
-        T.ThoiGianRa,
-        T.GioVao,
-        T.GioRa,
-        T.SoGio,
-        T.SoPhut,
-        T.SoCong,
-        T.GhiChu,
-        T.LyDo
+    -- Truy vấn kết hợp dữ liệu bảng chấm công chi tiết và thông tin nhân viên theo Desktop App
+    -- Chọn TOP 1000 T.*, A.PersonName, A.PhongBan, A.BranchID, A.LoaiHD từ HR_TimeSheetDayTbl kết hợp HR_PersonView A
+    SELECT TOP 1000
+        T.*,
+        A.PersonName,
+        A.PhongBan,
+        A.BranchID,
+        A.LoaiHD
     FROM dbo.HR_TimeSheetDayTbl T
-    LEFT JOIN dbo.HR_PersonView P ON T.PersonID = P.PersonID
+    LEFT JOIN dbo.HR_PersonView A ON T.PersonID = A.PersonID
     WHERE 
         -- Bộ lọc Kỳ lương (PeriodID)
         (@PeriodID IS NULL OR @PeriodID = '' OR T.PeriodID = @PeriodID)
         -- Bộ lọc Chi nhánh (BranchID)
-        AND (@BranchID IS NULL OR @BranchID = '' OR P.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
+        AND (@BranchID IS NULL OR @BranchID = '' OR A.BranchID IN (SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@BranchID, ',')))
         -- Bộ lọc Bộ phận (PhongBan)
-        AND (@PhongBan IS NULL OR @PhongBan = '' OR P.PhongBan = @PhongBan)
+        AND (@PhongBan IS NULL OR @PhongBan = '' OR A.PhongBan = @PhongBan)
         -- Bộ lọc Ngày (Ngay)
         AND (
             ISNULL(@NgayLoc, '') = '' 
@@ -88,12 +75,12 @@ BEGIN
             OR CAST(T.Ngay AS DATE) = CAST(@NgayLoc AS DATE)
         )
         -- Bộ lọc Loại hợp đồng (LoaiHD)
-        AND (@LoaiHD IS NULL OR @LoaiHD = '' OR P.LoaiHD = @LoaiHD)
+        AND (@LoaiHD IS NULL OR @LoaiHD = '' OR A.LoaiHD = @LoaiHD)
         -- Tìm kiếm chung theo Keyword (Mã NV hoặc Tên NV)
         AND (
             @Keyword = ''
             OR T.PersonID LIKE '%' + @Keyword + '%'
-            OR P.PersonName LIKE N'%' + @Keyword + '%'
+            OR A.PersonName LIKE N'%' + @Keyword + '%'
         )
     ORDER BY 
         CASE WHEN @SortColumn = 'PeriodID' AND @SortDir = 'DESC' THEN T.PeriodID END DESC,

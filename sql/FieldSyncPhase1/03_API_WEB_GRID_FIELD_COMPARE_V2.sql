@@ -9,9 +9,9 @@ IF OBJECT_ID(N'dbo.API_Web_GridFieldCompareV2', N'P') IS NULL
 GO
 
 ALTER PROCEDURE dbo.API_Web_GridFieldCompareV2
-    @WebFormName varchar(100),
+    @WebFormName varchar(100) = '',
     @ERPFormID varchar(100) = NULL,
-    @UserName varchar(100),
+    @UserName varchar(100) = '',
     @BranchID varchar(max) = NULL
 AS
 BEGIN
