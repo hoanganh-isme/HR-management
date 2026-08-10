@@ -1,6 +1,7 @@
 /*
-  Seed idempotent cho sáu form và hai dataset đã được audit ở các phase trước.
-  Chỉ cập nhật lại bản ghi còn do seed sở hữu, không ghi đè quyết định manual.
+  Seed idempotent cho các form và dataset đã được audit.
+  Chỉ cập nhật lại bản ghi còn do seed sở hữu, ngoại trừ quyết định canonical
+  đã audit riêng cho WA_PersonFullFrm.
 */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
@@ -86,6 +87,14 @@ BEGIN TRY
             'SHADOW', N'DESKTOP_REPORT_RESULT_SET_METADATA_V2'
         ),
         (
+            'WA_PersonFullFrm', 'WA_PersonFullFrm', 'WA_PersonFullFrm',
+            'COMPLEX_DEFERRED', N'HR_PersonTbl', N'PersonID',
+            'WA_PersonFullFrm', N'API_HoSoNhanVien',
+            NULL, NULL,
+            'CUSTOM_PROCEDURE', 'BRANCH_SCOPED', 'AUTO_SCHEMA',
+            'DEFERRED', N'WIZARD_ATTACHMENT_CURRENT_BUSINESS_METADATA_V2'
+        ),
+        (
             'WA_CaLamViecFrm', 'WA_CaLamViecFrm', 'WA_CaLamViecFrm',
             'MASTER_DETAIL_SIMPLE', N'HR_SapCaTbl', N'SapCaID',
             'WA_CaLamViecFrm', N'API_TruyVanDong_V2',
@@ -106,6 +115,28 @@ BEGIN TRY
         FROM dbo.WA_FieldContractRegistry AS R
         WHERE R.WebFormName = V.WebFormName
     );
+
+    UPDATE R
+    SET R.ERPFormID = 'WA_PersonFullFrm',
+        R.PermissionFormName = 'WA_PersonFullFrm',
+        R.ContractType = 'COMPLEX_DEFERRED',
+        R.ExpectedTableName = N'HR_PersonTbl',
+        R.ExpectedPrimaryKey = N'PersonID',
+        R.ViewList = 'WA_PersonFullFrm',
+        R.ViewProcedure = N'API_HoSoNhanVien',
+        R.SaveProcedure = NULL,
+        R.DeleteProcedure = NULL,
+        R.WritePolicy = 'CUSTOM_PROCEDURE',
+        R.BranchPolicy = 'BRANCH_SCOPED',
+        R.DeletePolicy = 'AUTO_SCHEMA',
+        R.RolloutStatus = 'DEFERRED',
+        R.RolloutReason = N'WIZARD_ATTACHMENT_CURRENT_BUSINESS_METADATA_V2',
+        R.SchemaVersion = 2,
+        R.IsEnabled = 1,
+        R.UpdatedAt = @Now,
+        R.UpdatedBy = @Actor
+    FROM dbo.WA_FieldContractRegistry AS R
+    WHERE R.WebFormName = 'WA_PersonFullFrm';
 
     /*
       Danh mục chi nhánh chỉ đọc các cột vật lý của CF_BranchTbl nên đã được audit
@@ -269,7 +300,7 @@ SELECT *
 FROM dbo.WA_FieldContractRegistry
 WHERE WebFormName IN
     ('WA_BangThueTNCNFrm', 'WA_ChucDanhFrm', 'WA_TitleListFrm', 'WA_ShiftListFrm',
-     'CF_BranchListFrm', 'WA_CaLamViecFrm')
+     'CF_BranchListFrm', 'WA_CaLamViecFrm', 'WA_PersonFullFrm')
 ORDER BY WebFormName;
 
 SELECT *

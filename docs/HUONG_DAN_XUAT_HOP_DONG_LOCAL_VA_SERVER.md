@@ -34,7 +34,7 @@ docker compose -f docker-compose.document.local.yml up -d
 docker compose -f docker-compose.document.local.yml ps
 ```
 
-Mở `http://127.0.0.1:8001/web-apps/apps/api/documents/api.js`. Nếu trình duyệt hiển thị hoặc tải được JavaScript thì Document Server đã sẵn sàng.
+Mở `http://127.0.0.1:8082/web-apps/apps/api/documents/api.js`. Nếu trình duyệt hiển thị hoặc tải được JavaScript thì Document Server đã sẵn sàng.
 
 Compose local bật `ALLOW_PRIVATE_IP_ADDRESS=true` để OnlyOffice trong container được phép tải DOCX và gửi callback tới `host.docker.internal`. Chỉ dùng thiết lập này trong môi trường local tin cậy; production nên dùng hostname/container network nội bộ được kiểm soát.
 
@@ -62,12 +62,12 @@ Repository đã có `.vscode/settings.json` để Live Server bỏ qua `backend-
 - Frontend: `http://127.0.0.1:5500`
 - Document API: `http://127.0.0.1:8081`
 - Health check: `http://127.0.0.1:8081/health`
-- OnlyOffice: `http://127.0.0.1:8001`
+- OnlyOffice: `http://127.0.0.1:8082`
 - URL Node.js cung cấp cho container: `http://host.docker.internal:8081`
 
 ### 8. Xử lý lỗi thường gặp
 
-- Port 8001 bị chiếm: chạy `Get-NetTCPConnection -LocalPort 8001`, dừng chương trình không cần thiết hoặc đổi port đồng bộ trong compose, `env.js` và `.env`.
+- Port 8082 bị chiếm: chạy `Get-NetTCPConnection -LocalPort 8082`, dừng chương trình không cần thiết hoặc đổi port đồng bộ trong compose, `env.js` và `.env`.
 - Port 8081 bị chiếm: chạy `Get-NetTCPConnection -LocalPort 8081`; không chạy hai backend cùng lúc.
 - Docker Desktop chưa chạy: mở Docker Desktop, chờ trạng thái Engine running rồi chạy lại compose.
 - OnlyOffice chưa sẵn sàng: xem log bằng `docker compose -f docker-compose.document.local.yml logs -f` và đợi API JavaScript trả HTTP 200.
@@ -95,24 +95,30 @@ Chọn đúng một hợp đồng và bấm **Xuất Hợp Đồng**. Hệ thố
 
 Trong editor có các nút **Xem trước**, **Tải DOCX**, **Tải bản đã sửa lên**, **Lưu vào hợp đồng** và **Đóng**. OnlyOffice callback cập nhật file trong draft. Khi OnlyOffice không chạy, vẫn có thể tải DOCX, sửa bằng WPS/Word rồi tải file lên lại. Chỉ nút **Lưu vào hợp đồng** mới finalize vào attachment DB và reload tab tài liệu.
 
-### Quản lý mẫu
+### Quản lý cấu hình và sửa tài liệu hợp đồng
 
-Bấm **Quản lý mẫu hợp đồng**, chọn một `TemplateFile` đã đăng ký. Backend copy file active sang `backend-app/storage/template-workspaces/{workspaceId}/template.docx`; OnlyOffice chỉ sửa bản copy này. Dùng **Kiểm tra placeholder** để xem biến hợp lệ và biến chưa xác định. Khi bấm **Áp dụng mẫu**, backend backup mẫu cũ vào `backend-app/samples/backups`, thay file active bằng thao tác atomic và xóa workspace sau khi thành công.
+Trước lần sử dụng đầu tiên, chạy `sql/API/API_HopDongTemplate_Manage.sql` và cập nhật `sql/API/API_LayQuyenCuaToi.sql` trong đúng database mà SQL API đang sử dụng. Các script chỉ tạo/cập nhật procedure và route `WA_API`, không xóa dữ liệu `HR_HopDongAddfile` hiện có.
+
+Bấm **Quản lý hợp đồng** để mở danh sách cấu hình từ `HR_HopDongAddfile`. Nút này chỉ hiển thị và backend chỉ cho thao tác khi nhóm được đánh dấu quyền **Admin** trên form hợp đồng. Có thể thêm, sửa, xóa, tìm kiếm và tải tệp DOCX. Tệp mới được lưu vào `backend-app/samples`; khi thay hoặc xóa, tệp cũ được chuyển vào `backend-app/samples/backups` để có thể phục hồi. Form và nhãn trường được backend trả về theo schema dùng chung, không phụ thuộc tên file cố định trên frontend.
+
+Trong **Quản lý hợp đồng**, chọn một mẫu rồi bấm **Sửa tài liệu hợp đồng**. Backend copy file active sang `backend-app/storage/template-workspaces/{workspaceId}/template.docx`; OnlyOffice chỉ sửa bản copy này. Dùng **Kiểm tra mẫu** để xem biến hợp lệ và biến chưa xác định. Khi bấm **Áp dụng mẫu**, backend backup mẫu cũ vào `backend-app/samples/backups`, thay file active bằng thao tác atomic và xóa workspace sau khi thành công.
 
 Muốn khôi phục mẫu, chọn file backup phù hợp trong `backend-app/samples/backups`, dừng phiên chỉnh sửa mẫu đang mở, sao chép backup về đúng tên `TemplateFile` trong `backend-app/samples`, sau đó khởi động lại thao tác quản lý mẫu. Luôn giữ một bản backup ngoài máy chủ trước khi khôi phục thủ công.
 
 ## C. Cách đọc source code
 
 1. `src/js/modules/hr/definitions/contract.js`: khai báo form hợp đồng, khóa chính, tab attachment và bật nút xuất hợp đồng; được DynamicFormEngine đọc.
-2. `src/js/utils/DocumentExportPlugin.js`: nhận danh sách dòng đang chọn, tạo hai nút mỏng và gọi ContractDocumentActions; không gọi HTTP.
-3. `src/js/modules/hr/actions/contract-document.actions.js`: dựng modal chọn mẫu, editor overlay, preview, upload, finalize và quản lý mẫu; gọi ContractDocumentApi.
-4. `src/js/modules/hr/actions/contract-document.api.js`: nhận dữ liệu từ actions, chỉ thực hiện HTTP và trả JSON.
-5. `backend-app/src/contracts/contract-document.routes.js`: nhận request Express, kiểm tra request cơ bản, gọi service và trả response.
-6. `backend-app/src/contracts/contract-document.service.js`: điều phối tạo draft, editor config, callback, upload, finalize và workspace mẫu.
-7. `backend-app/src/contracts/contract-document.db.js`: đọc hợp đồng, mẫu, quyền và lưu attachment qua SQL API Gateway.
-8. `backend-app/src/contracts/contract-document.store.js`: đọc/ghi draft và workspace trên filesystem bằng file `.new` rồi rename.
-9. `backend-app/src/contracts/docx-template.js`: kiểm tra cấu trúc DOCX, render placeholder và đọc danh sách placeholder.
-10. `backend-app/src/config/document-config.js`: đọc `.env`, fallback development từ `env.js`, kiểm tra secret và cung cấp URL/path cho các file backend khác.
+2. `src/js/utils/DocumentExportPlugin.js`: nhận danh sách dòng đang chọn, tạo các nút nghiệp vụ và gọi ContractDocumentActions; không gọi HTTP.
+3. `src/js/modules/hr/actions/contract-template-manager.js`: màn hình CRUD responsive, sinh form theo schema backend và không biết cấu trúc SQL.
+4. `src/js/modules/hr/actions/contract-document.actions.js`: dựng modal chọn mẫu, editor overlay, preview, upload, finalize và điều phối màn hình quản lý; gọi ContractDocumentApi.
+5. `src/js/modules/hr/actions/contract-document.api.js`: nhận dữ liệu từ actions, chỉ thực hiện HTTP và trả JSON.
+6. `backend-app/src/contracts/contract-document.routes.js`: nhận request Express, tách multipart DOCX, gọi service và trả response.
+7. `backend-app/src/contracts/contract-document.service.js`: điều phối CRUD cấu hình/file, tạo draft, editor config, callback, upload, finalize và workspace mẫu.
+8. `backend-app/src/contracts/contract-template.repository.js`: CRUD cấu hình qua cùng SQL API dùng cho web/desktop.
+9. `backend-app/src/contracts/contract-document.db.js`: đọc hợp đồng, mẫu, quyền và lưu attachment qua SQL API Gateway.
+10. `backend-app/src/contracts/contract-document.store.js`: đọc/ghi draft, workspace và mẫu DOCX; thay/xóa mẫu theo cơ chế backup.
+11. `backend-app/src/contracts/docx-template.js`: kiểm tra cấu trúc DOCX, render placeholder và đọc danh sách placeholder.
+12. `backend-app/src/config/document-config.js`: đọc `.env`, fallback development từ `env.js`, kiểm tra secret và cung cấp schema/path dùng chung.
 
 API SQL thực tế dùng để lưu attachment là `POST {SQL_API_BASE}/api/API_Gateway_Router` với `List: "API_HopDongLaoDong_Attach"`, `Func: "Save"` và `JsonData` gồm `UserAutoID`, `MaHopDong`, `FileName`, `FileType`, `FileSize`, `Content`, `Base64Content`. Cấu hình `WA_API` hiện tại chuyển thao tác Save này vào procedure chuyên biệt `API_HopDongLaoDong_Attach_Save`; backend dùng đúng contract đã đăng ký, không tự đoán tên procedure.
 
@@ -161,7 +167,7 @@ location /doc-api/ {
 }
 
 location /onlyoffice/ {
-    proxy_pass http://127.0.0.1:8001/;
+    proxy_pass http://127.0.0.1:8082/;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

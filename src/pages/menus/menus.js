@@ -1429,7 +1429,7 @@ var MenusPage = (function () {
           try {
             if (window.FieldSyncService && formName) {
               FieldSyncService.clearCache(formName);
-              FieldSyncService.fetchManagedState(formName, null, true).catch(function () {});
+              FieldSyncService.refreshForm(formName).catch(function () {});
             }
           } catch (e) {}
           _closeModal();

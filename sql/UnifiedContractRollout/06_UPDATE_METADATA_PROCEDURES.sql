@@ -569,35 +569,62 @@ END;
         ) AS ResultFlags
         OUTER APPLY
         (
-            SELECT TOP (1)
-                X.FormatID,
-                X.Caption AS CaptionVN,
-                CAST(NULL AS nvarchar(200)) AS CaptionEN,
-                X.Align AS AlignX,
-                X.MinWidth,
-                X.MaxWidth,
-                X.ControlType,
-                X.NumberDecimal,
-                X.FormatString,
-                X.MaskString,
-                X.MaxLength,
-                X.MinValue,
-                X.MaxValue,
-                X.OrderNo,
-                X.ShowInGrid,
-                X.ShowInAdd,
-                X.ShowInEdit,
-                X.ShowInFilter,
-                X.IsReadOnlyAdd,
-                X.IsReadOnlyEdit
-            FROM dbo.WA_FieldUiContractV2 AS X
-            WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
-                  @WebFormName COLLATE DATABASE_DEFAULT
-              AND X.DatasetKey COLLATE DATABASE_DEFAULT =
-                  'MAIN' COLLATE DATABASE_DEFAULT
-              AND X.IsEnabled = 1
-              AND X.FieldName COLLATE DATABASE_DEFAULT =
-                  RF.FieldName COLLATE DATABASE_DEFAULT
+            SELECT
+                COALESCE(NULLIF(SharedField.FormatID, ''), NULLIF(WebField.FormatID, '')) AS FormatID,
+                COALESCE(
+                    NULLIF(SharedField.CaptionVN, N''),
+                    NULLIF(SharedField.CaptionEN, N''),
+                    NULLIF(WebField.Caption, N'')
+                ) AS CaptionVN,
+                NULLIF(SharedField.CaptionEN, N'') AS CaptionEN,
+                COALESCE(NULLIF(SharedField.AlignX, ''), NULLIF(WebField.Align, '')) AS AlignX,
+                COALESCE(SharedField.MinWidth, WebField.MinWidth) AS MinWidth,
+                COALESCE(SharedField.MaxWidth, WebField.MaxWidth) AS MaxWidth,
+                WebField.ControlType,
+                WebField.NumberDecimal,
+                WebField.FormatString,
+                WebField.MaskString,
+                WebField.MaxLength,
+                WebField.MinValue,
+                WebField.MaxValue,
+                WebField.OrderNo,
+                WebField.ShowInGrid,
+                WebField.ShowInAdd,
+                WebField.ShowInEdit,
+                WebField.ShowInFilter,
+                WebField.IsReadOnlyAdd,
+                WebField.IsReadOnlyEdit
+            FROM (VALUES (1)) AS Seed(N)
+            OUTER APPLY
+            (
+                SELECT TOP (1)
+                    X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+                FROM dbo.SY_FmtFldTbl AS X
+                WHERE X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+                ORDER BY
+                    CASE
+                        WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                        WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                             LOWER(REPLACE(REPLACE(RF.FieldName, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                        ELSE 0
+                    END,
+                    CASE
+                        WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                        WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                        WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                        ELSE 4
+                    END,
+                    X.AutoID
+            ) AS SharedField
+            OUTER APPLY
+            (
+                SELECT TOP (1) X.*
+                FROM dbo.WA_FieldUiContractV2 AS X
+                WHERE X.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+                  AND X.DatasetKey COLLATE DATABASE_DEFAULT = 'MAIN' COLLATE DATABASE_DEFAULT
+                  AND X.IsEnabled = 1
+                  AND X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+            ) AS WebField
         ) AS ResultCaption
         OUTER APPLY
         (
@@ -854,35 +881,62 @@ END;
                 WHEN @EnableView = 1 AND Base.IsServerManaged = 0 AND Base.IsDenied = 0 THEN 1 ELSE 0 END) AS CanQuery
     ) AS Flags
     OUTER APPLY (
-        SELECT TOP (1)
-            X.FormatID,
-            X.Caption AS CaptionVN,
-            CAST(NULL AS nvarchar(200)) AS CaptionEN,
-            X.Align AS AlignX,
-            X.MinWidth,
-            X.MaxWidth,
-            X.ControlType,
-            X.NumberDecimal,
-            X.FormatString,
-            X.MaskString,
-            X.MaxLength,
-            X.MinValue,
-            X.MaxValue,
-            X.OrderNo,
-            X.ShowInGrid,
-            X.ShowInAdd,
-            X.ShowInEdit,
-            X.ShowInFilter,
-            X.IsReadOnlyAdd,
-            X.IsReadOnlyEdit
-        FROM dbo.WA_FieldUiContractV2 AS X
-        WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
-              @WebFormName COLLATE DATABASE_DEFAULT
-          AND X.DatasetKey COLLATE DATABASE_DEFAULT =
-              'MAIN' COLLATE DATABASE_DEFAULT
-          AND X.FieldName COLLATE DATABASE_DEFAULT =
-              C.name COLLATE DATABASE_DEFAULT
-          AND X.IsEnabled = 1
+        SELECT
+            COALESCE(NULLIF(SharedField.FormatID, ''), NULLIF(WebField.FormatID, '')) AS FormatID,
+            COALESCE(
+                NULLIF(SharedField.CaptionVN, N''),
+                NULLIF(SharedField.CaptionEN, N''),
+                NULLIF(WebField.Caption, N'')
+            ) AS CaptionVN,
+            NULLIF(SharedField.CaptionEN, N'') AS CaptionEN,
+            COALESCE(NULLIF(SharedField.AlignX, ''), NULLIF(WebField.Align, '')) AS AlignX,
+            COALESCE(SharedField.MinWidth, WebField.MinWidth) AS MinWidth,
+            COALESCE(SharedField.MaxWidth, WebField.MaxWidth) AS MaxWidth,
+            WebField.ControlType,
+            WebField.NumberDecimal,
+            WebField.FormatString,
+            WebField.MaskString,
+            WebField.MaxLength,
+            WebField.MinValue,
+            WebField.MaxValue,
+            WebField.OrderNo,
+            WebField.ShowInGrid,
+            WebField.ShowInAdd,
+            WebField.ShowInEdit,
+            WebField.ShowInFilter,
+            WebField.IsReadOnlyAdd,
+            WebField.IsReadOnlyEdit
+        FROM (VALUES (1)) AS Seed(N)
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+            FROM dbo.SY_FmtFldTbl AS X
+            WHERE X.FieldName COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
+            ORDER BY
+                CASE
+                    WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                    WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                         LOWER(REPLACE(REPLACE(C.name, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                    ELSE 0
+                END,
+                CASE
+                    WHEN X.FormName COLLATE DATABASE_DEFAULT = @ERPFormID COLLATE DATABASE_DEFAULT THEN 1
+                    WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 2
+                    WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 3
+                    ELSE 4
+                END,
+                X.AutoID
+        ) AS SharedField
+        OUTER APPLY
+        (
+            SELECT TOP (1) X.*
+            FROM dbo.WA_FieldUiContractV2 AS X
+            WHERE X.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+              AND X.DatasetKey COLLATE DATABASE_DEFAULT = 'MAIN' COLLATE DATABASE_DEFAULT
+              AND X.FieldName COLLATE DATABASE_DEFAULT = C.name COLLATE DATABASE_DEFAULT
+              AND X.IsEnabled = 1
+        ) AS WebField
     ) AS M
     OUTER APPLY
     (
@@ -1541,35 +1595,61 @@ BEGIN
      AND (RF.SourceTable IS NULL OR RF.SourceTable COLLATE DATABASE_DEFAULT = @ExpectedTable COLLATE DATABASE_DEFAULT)
     OUTER APPLY
     (
-        SELECT TOP (1)
-            X.FormatID,
-            X.Caption AS CaptionVN,
-            CAST(NULL AS nvarchar(200)) AS CaptionEN,
-            X.Align AS AlignX,
-            X.MinWidth,
-            X.MaxWidth,
-            X.ControlType,
-            X.NumberDecimal,
-            X.FormatString,
-            X.MaskString,
-            X.MaxLength,
-            X.MinValue,
-            X.MaxValue,
-            X.OrderNo,
-            X.ShowInGrid,
-            X.ShowInAdd,
-            X.ShowInEdit,
-            X.ShowInFilter,
-            X.IsReadOnlyAdd,
-            X.IsReadOnlyEdit
-        FROM dbo.WA_FieldUiContractV2 AS X
-        WHERE X.WebFormName COLLATE DATABASE_DEFAULT =
-              @WebFormName COLLATE DATABASE_DEFAULT
-          AND X.DatasetKey COLLATE DATABASE_DEFAULT =
-              @DetailKey COLLATE DATABASE_DEFAULT
-          AND X.FieldName COLLATE DATABASE_DEFAULT =
-              RF.FieldName COLLATE DATABASE_DEFAULT
-          AND X.IsEnabled = 1
+        SELECT
+            COALESCE(NULLIF(SharedField.FormatID, ''), NULLIF(WebField.FormatID, '')) AS FormatID,
+            COALESCE(
+                NULLIF(SharedField.CaptionVN, N''),
+                NULLIF(SharedField.CaptionEN, N''),
+                NULLIF(WebField.Caption, N'')
+            ) AS CaptionVN,
+            NULLIF(SharedField.CaptionEN, N'') AS CaptionEN,
+            COALESCE(NULLIF(SharedField.AlignX, ''), NULLIF(WebField.Align, '')) AS AlignX,
+            COALESCE(SharedField.MinWidth, WebField.MinWidth) AS MinWidth,
+            COALESCE(SharedField.MaxWidth, WebField.MaxWidth) AS MaxWidth,
+            WebField.ControlType,
+            WebField.NumberDecimal,
+            WebField.FormatString,
+            WebField.MaskString,
+            WebField.MaxLength,
+            WebField.MinValue,
+            WebField.MaxValue,
+            WebField.OrderNo,
+            WebField.ShowInGrid,
+            WebField.ShowInAdd,
+            WebField.ShowInEdit,
+            WebField.ShowInFilter,
+            WebField.IsReadOnlyAdd,
+            WebField.IsReadOnlyEdit
+        FROM (VALUES (1)) AS Seed(N)
+        OUTER APPLY
+        (
+            SELECT TOP (1)
+                X.FormatID, X.CaptionVN, X.CaptionEN, X.AlignX, X.MinWidth, X.MaxWidth
+            FROM dbo.SY_FmtFldTbl AS X
+            WHERE X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+            ORDER BY
+                CASE
+                    WHEN NULLIF(LTRIM(RTRIM(X.CaptionVN)), N'') IS NULL THEN 2
+                    WHEN LOWER(REPLACE(REPLACE(LTRIM(RTRIM(X.CaptionVN)), N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT =
+                         LOWER(REPLACE(REPLACE(RF.FieldName, N' ', N''), N'_', N'')) COLLATE DATABASE_DEFAULT THEN 1
+                    ELSE 0
+                END,
+                CASE
+                    WHEN X.FormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT THEN 1
+                    WHEN X.FormName IS NULL OR LTRIM(RTRIM(X.FormName)) = '' THEN 2
+                    ELSE 3
+                END,
+                X.AutoID
+        ) AS SharedField
+        OUTER APPLY
+        (
+            SELECT TOP (1) X.*
+            FROM dbo.WA_FieldUiContractV2 AS X
+            WHERE X.WebFormName COLLATE DATABASE_DEFAULT = @WebFormName COLLATE DATABASE_DEFAULT
+              AND X.DatasetKey COLLATE DATABASE_DEFAULT = @DetailKey COLLATE DATABASE_DEFAULT
+              AND X.FieldName COLLATE DATABASE_DEFAULT = RF.FieldName COLLATE DATABASE_DEFAULT
+              AND X.IsEnabled = 1
+        ) AS WebField
     ) AS M
     OUTER APPLY
     (

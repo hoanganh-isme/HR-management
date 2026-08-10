@@ -28,7 +28,7 @@
     var name = formName.trim();
     if (!name) return false;
     if (/^[A-Za-z0-9_]+(Frm|Report)$/i.test(name)) return true;
-    if (name.toLowerCase() === 'sy_formatfldtbl' || name.toLowerCase() === 'sy_formatfields') return true;
+    if (name.toLowerCase() === 'sy_formatfldtbl') return true;
     return false;
   }
 

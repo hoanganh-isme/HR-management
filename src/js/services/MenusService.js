@@ -106,7 +106,7 @@ var MenusService = (function () {
         }
 
         if (typeof FieldSyncService.refreshForm === 'function') {
-          return FieldSyncService.refreshForm(formName, [])
+          return FieldSyncService.refreshForm(formName)
             .then(function (state) {
               return {
                 menuSaved: true,

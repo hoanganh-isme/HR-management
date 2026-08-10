@@ -9,7 +9,7 @@ window.DynamicDetailManager = (function () {
    * 5. Fallback tách CamelCase: "PersonName" → "Person Name"
    *
    * KHÔNG hard-code caption trong file JS.
-   * Caption phải đến từ DB (SY_FmtFldTbl / SY_FormatFields) qua API.
+   * Caption phải đến từ desktop dictionary qua Field Contract V2.
    */
   function _getFieldCaption(fieldName, fieldObj, tabHeaders, dict) {
     if (fieldObj && fieldObj.label) return fieldObj.label;

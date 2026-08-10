@@ -3,7 +3,7 @@
   DROP_CANDIDATES - HRM_DB_CLEANUP_20260729
   FILE SINH TỰ ĐỘNG. KHÔNG SỬA TRỰC TIẾP.
   Build: node ./scripts/db-release/build-production-database-release.mjs
-  Package manifest SHA-256: 11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb
+  Package manifest SHA-256: 4e594fe8ca7978f795ada71b45044019c79cee25ec9b060a83c7a5e2bd79fbe0
 */
 :on error exit
 :setvar TargetDatabase "X26DIMTUTAC"

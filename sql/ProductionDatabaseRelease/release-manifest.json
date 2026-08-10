@@ -72,22 +72,22 @@
   "generated": {
     "HRM_DATABASE_INSTALL_ALL.sql": {
       "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_INSTALL_ALL.sql",
-      "sha256": "59e12d046d4cb40642d83d8c3f86eed8655e6b36324e8ccb6e1b515ff5f3ca2f",
-      "bytes": 307048
+      "sha256": "7dcdeffe6cfb181e38aafa80be35d7e4cf7b60284b18c31ee3d667481b69c658",
+      "bytes": 317876
     },
     "HRM_DATABASE_VERIFY_ALL.sql": {
       "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_VERIFY_ALL.sql",
-      "sha256": "808bdfeb2837c7163b158d896519aca815717589528e7e2ffe72acd0b419bf2e",
-      "bytes": 26833
+      "sha256": "2a7bd88ea04e547f8bd9d1f41019d0488115b75a7996e461e0e2cfda71dae9ae",
+      "bytes": 27510
     },
     "HRM_DATABASE_ROLLBACK_ALL.sql": {
       "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_ROLLBACK_ALL.sql",
-      "sha256": "1f00691fdec021e9e90b320178b8ab3b967b6431d8d328ea0df1628e917fdbf7",
+      "sha256": "c49a225fca5028e93378583cf30690c774511e0598448d68b2bc844156e9f0b6",
       "bytes": 2304
     },
     "HRM_DATABASE_DROP_CANDIDATES.sql": {
       "path": "sql/ProductionDatabaseRelease/generated/HRM_DATABASE_DROP_CANDIDATES.sql",
-      "sha256": "35549ff5856394d449fe2833f7afa008bfc9cd39f328f03a8b182886fc794dbe",
+      "sha256": "3e3fd520ca5c9366481b2cdc609817d2340956914af76857f270d073a3b27e54",
       "bytes": 956
     }
   },
@@ -98,21 +98,21 @@
     "sql/ProductionDatabaseRelease/source/03_Views/001_canonical_views.sql": "58559440b9dbef56f9ba472b2b88ff32fff1d496ebd7b9cc13ca2a1570ec15f6",
     "sql/ProductionDatabaseRelease/source/04_Functions/001_canonical_functions.sql": "62922653939a652d58e124bfb585fbb60fde182fc5091ef4d0c3370b2b9d74fa",
     "sql/ProductionDatabaseRelease/source/05_FrameworkProcedures/001_canonical_framework_procedures.sql": "6ecc7ceea8ef55f1735f76c336089640fa1d84c0759df78c7b65867cb144d5c4",
-    "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql": "8627fe02aa5dbf6de994f1e54c1799919a881d60b74b72d967c0c64a73d59ad9",
+    "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql": "77079c8c6b7944b0ad46fa96c21d1d8ff7f357a1d1cbec9474846f96fdd52bca",
     "sql/ProductionDatabaseRelease/source/07_Dashboard/001_dashboard_procedures.sql": "491d0837ed372d0d2c4c25e20ad3c83278419ccf8eeca6e16d3ffde3a4b30175",
     "sql/ProductionDatabaseRelease/source/08_ExcelImport/001_excel_import_support.sql": "5b42b6b7fdc50b28f4484a2e86825817a5722e340290f48a4edad2a430ccc800",
     "sql/ProductionDatabaseRelease/source/09_DocumentsAndAttachments/001_document_attachment_decision.sql": "703925ec53a4be3e14825f9a2c23b2544cba98c51596dbeda953e20ea8c72917",
     "sql/ProductionDatabaseRelease/source/10_EContract/001_econtract_decision.sql": "f93eb51c0bf627f2c3ba11de74acebb70bb58036affd66afa91c76eebb2903f6",
-    "sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql": "00241aa31700afcbe674289cd5059e24ddbac87b4da6b8eca1a8390102052beb",
+    "sql/ProductionDatabaseRelease/source/11_MetadataRegistry/001_field_contract_seed.sql": "9660095445be4f20bf52c9bf9b976efc7e988ed83947fbec1972d83bb03c6043",
     "sql/ProductionDatabaseRelease/source/12_SystemSeeds/001_explicit_system_seed.sql": "1e5aca82b18958383589dcdf8fc378fd065d9604e97a699a089c482b628fc867",
-    "sql/ProductionDatabaseRelease/source/13_WaApiCutover/001_route_backup_and_cutover.sql": "8c661836caf3f9e9f14340a3e6ae10a75091245eb541f152de4a8d5ef9babd59",
+    "sql/ProductionDatabaseRelease/source/13_WaApiCutover/001_route_backup_and_cutover.sql": "77c6717f19e730b89f12432669ebbbb9f48798e3fee6b7a30faf20e322f4928a",
     "sql/ProductionDatabaseRelease/source/14_Verification/001_install_summary.sql": "6ac258c3ee00156e567da4d74f72eed4215ad3eaa3f673bef2e6f1aa7365d951",
-    "sql/ProductionDatabaseRelease/source/14_Verification/002_verify_all.sql": "9374c52ca53f7a42ba9ef90d1a4ce79df1bdcb5e379363ad27ab18913116ae23",
+    "sql/ProductionDatabaseRelease/source/14_Verification/002_verify_all.sql": "025eff05f6859c2a10f675ad3e764d99a624eb94735b6f0687949644da476379",
     "sql/ProductionDatabaseRelease/source/15_Rollback/001_rollback_all.sql": "e88745a666c80e89bcaa807333df826b5e28a8de11f8afb90d9de5b312115cd8",
     "sql/ProductionDatabaseRelease/source/15_Rollback/002_drop_candidates_readonly.sql": "09c76d52bea25e513372105694034e5608a4522f7d0cd28be9c71bf66b29db36"
   },
-  "packageManifestSha256": "11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb",
-  "canonicalObjectCount": 50,
+  "packageManifestSha256": "4e594fe8ca7978f795ada71b45044019c79cee25ec9b060a83c7a5e2bd79fbe0",
+  "canonicalObjectCount": 51,
   "canonicalObjects": [
     {
       "type": "FUNCTION",
@@ -311,6 +311,12 @@
       "type": "PROCEDURE",
       "schema": "dbo",
       "name": "API_PersonAttach_SaveAvatar",
+      "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
+    },
+    {
+      "type": "PROCEDURE",
+      "schema": "dbo",
+      "name": "API_SaoChepQuyenNhom",
       "sourceFile": "sql/ProductionDatabaseRelease/source/06_BusinessProcedures/001_approved_business_procedures.sql"
     },
     {

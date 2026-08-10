@@ -48,8 +48,7 @@
         dataSource: 'CF_BranchListFrm'
       }
     ],
-    // Fallback cục bộ chỉ dùng khi API metadata không trả SY_FormatFields.
-    // HRMetadataAdapter luôn ưu tiên contract trong DB trước các khai báo này.
+    // Cấu hình tĩnh của module chỉ dùng cho khai báo nghiệp vụ ngoài dynamic form.
     FormFields: [
       { name: 'DocumentID', label: 'Số chứng từ', required: true, isReadOnlyEdit: true, position: 'grid', orderNo: 1 },
       { name: 'DocumentDate', label: 'Ngày chứng từ', required: true, renderRule: 'd', position: 'grid', orderNo: 2 },

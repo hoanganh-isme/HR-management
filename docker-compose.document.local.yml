@@ -4,7 +4,7 @@ services:
     container_name: hrm-onlyoffice-document-server
     restart: unless-stopped
     ports:
-      - "8001:80"
+      - "8082:80"
     environment:
       JWT_ENABLED: "false"
       # Chỉ dùng cho local: Document Server phải gọi được Node.js qua

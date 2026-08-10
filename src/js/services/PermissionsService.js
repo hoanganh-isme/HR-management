@@ -20,6 +20,11 @@ var PermissionsService = (function () {
     return grpStr;
   }
 
+  function _currentUserName() {
+    var u = JSON.parse(localStorage.getItem('pmql_user') || '{}');
+    return String(u.UserName || u.userName || u.Username || u.username || '').trim();
+  }
+
   /**
    * Lấy danh sách nhóm quyền
    * @returns {Promise<Array>}
@@ -107,6 +112,31 @@ var PermissionsService = (function () {
   }
 
   /**
+   * Sao chép toàn bộ quyền từ một nhóm nguồn sang nhóm đích trong một transaction SQL.
+   * @param {string} sourceGroupId
+   * @param {string} targetGroupId
+   * @returns {Promise<Object>}
+   */
+  function copyGroupPermissions(sourceGroupId, targetGroupId) {
+    var endpoint = _ep('COPY_GROUP_PERMISSIONS');
+    return ApiClient.post(endpoint, {
+      List: 'API_SaoChepQuyenNhom',
+      Func: 'Execute',
+      UserName: _currentUserName(),
+      JsonData: JSON.stringify({
+        SourceUserGroupID: String(sourceGroupId || '').trim(),
+        TargetUserGroupID: String(targetGroupId || '').trim()
+      })
+    }).then(function (res) {
+      var records = res && (res.records || res.list || res.data);
+      return Array.isArray(records) && records.length > 0 ? records[0] : res;
+    }).catch(function (err) {
+      console.error('[PermissionsService] Lỗi copyGroupPermissions:', err);
+      throw err;
+    });
+  }
+
+  /**
    * Đồng bộ quyền truy cập toàn hệ thống
    * @returns {Promise}
    */
@@ -127,6 +157,7 @@ var PermissionsService = (function () {
     getMenusByGroup: getMenusByGroup,
     getFullMenusByGroup: getFullMenusByGroup,
     savePermission: savePermission,
+    copyGroupPermissions: copyGroupPermissions,
     sync: sync
   };
 })();

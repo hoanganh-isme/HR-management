@@ -3,7 +3,7 @@
   VERIFY_ALL - HRM_DB_CLEANUP_20260729
   FILE SINH TỰ ĐỘNG. KHÔNG SỬA TRỰC TIẾP.
   Build: node ./scripts/db-release/build-production-database-release.mjs
-  Package manifest SHA-256: 11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb
+  Package manifest SHA-256: 4e594fe8ca7978f795ada71b45044019c79cee25ec9b060a83c7a5e2bd79fbe0
 */
 :on error exit
 :setvar TargetDatabase "X26DIMTUTAC"
@@ -16,7 +16,7 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 GO
 
-/* ===== SOURCE: sql/ProductionDatabaseRelease/source/14_Verification/002_verify_all.sql | SHA-256: 9374c52ca53f7a42ba9ef90d1a4ce79df1bdcb5e379363ad27ab18913116ae23 ===== */
+/* ===== SOURCE: sql/ProductionDatabaseRelease/source/14_Verification/002_verify_all.sql | SHA-256: 025eff05f6859c2a10f675ad3e764d99a624eb94735b6f0687949644da476379 ===== */
 
 /*
   VERIFY_ALL chỉ SELECT/THROW; không sửa dữ liệu.
@@ -213,6 +213,27 @@ SET @Blocking +=
 SELECT N'09_CONTRACT_REGISTRY' AS VerifyGroup,ContractType,RolloutStatus,COUNT(*) AS ContractCount
 FROM dbo.WA_FieldContractRegistry GROUP BY ContractType,RolloutStatus;
 
+SELECT N'09_PERSONFULL_METADATA_V2' AS VerifyGroup,
+       WebFormName,ERPFormID,ExpectedTableName,ExpectedPrimaryKey,
+       ViewProcedure,ContractType,RolloutStatus,IsEnabled
+FROM dbo.WA_FieldContractRegistry
+WHERE WebFormName='WA_PersonFullFrm';
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM dbo.WA_FieldContractRegistry
+    WHERE WebFormName='WA_PersonFullFrm'
+      AND ERPFormID='WA_PersonFullFrm'
+      AND ExpectedTableName=N'HR_PersonTbl'
+      AND ExpectedPrimaryKey=N'PersonID'
+      AND ViewProcedure=N'API_HoSoNhanVien'
+      AND ContractType='COMPLEX_DEFERRED'
+      AND RolloutStatus='DEFERRED'
+      AND SchemaVersion=2
+      AND IsEnabled=1
+)
+    SET @Blocking += 1;
+
 /* 10. Dataset registry. */
 SELECT N'10_DATASET_REGISTRY' AS VerifyGroup,* FROM dbo.WA_FieldDatasetRegistry;
 
@@ -347,7 +368,7 @@ IF NOT EXISTS
     FROM dbo.WA_DatabaseReleaseHistory
     WHERE ReleaseID=N'HRM_DB_CLEANUP_20260729'
       AND Status='INSTALLED'
-      AND ManifestSha256='11262ea8af90fb2a9fd1c9ccafc19e9faeb36479dfddbb9ff0e4700b99d30feb'
+      AND ManifestSha256='4e594fe8ca7978f795ada71b45044019c79cee25ec9b060a83c7a5e2bd79fbe0'
 )
     SET @Blocking += 1;
 
