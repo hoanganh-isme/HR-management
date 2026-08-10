@@ -7,7 +7,7 @@ const WRITABLE_CONTRACT_TYPES = new Set([
 ]);
 
 /*
- * Import dùng DB Field Contract làm nguồn sự thật. Static migration registry
+ * Import dùng DB Field Contract làm nguồn sự thật. Lookup execution allow-list
  * chỉ còn là fallback ở FieldContractRepository và không giới hạn danh sách
  * form được phép import.
  */

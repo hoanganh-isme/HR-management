@@ -24,7 +24,91 @@ function base64UrlJson(value) {
     return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
 
-export function createContractDocumentService(config, store, db) {
+export function createContractDocumentService(config, store, db, templateRepository = null) {
+    let templateMutationQueue = Promise.resolve();
+
+    function serializeTemplateMutation(operation) {
+        const result = templateMutationQueue.then(operation, operation);
+        templateMutationQueue = result.catch(() => {});
+        return result;
+    }
+
+    function cleanText(value, label, maxLength, required = false) {
+        const result = String(value || '').trim();
+        if (required && !result) throw createError(`${label} là bắt buộc.`);
+        if (result.length > maxLength) throw createError(`${label} không được vượt quá ${maxLength} ký tự.`);
+        if (/[\u0000-\u001f]/.test(result)) throw createError(`${label} chứa ký tự không hợp lệ.`);
+        return result;
+    }
+
+    function createTemplateRecordId(formName, loaiHD) {
+        return Buffer.from(JSON.stringify([formName, loaiHD]), 'utf8').toString('base64url');
+    }
+
+    function parseTemplateRecordId(recordId) {
+        try {
+            const raw = String(recordId || '');
+            if (!raw || raw.length > 1000) throw new Error('invalid');
+            const [formName, loaiHD] = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+            if (String(formName).toLowerCase() !== config.contractFormName.toLowerCase()) throw new Error('invalid');
+            return {
+                formName: config.contractFormName,
+                loaiHD: cleanText(loaiHD, 'Loại hợp đồng', 100, true)
+            };
+        } catch {
+            throw createError('Mã cấu hình mẫu hợp đồng không hợp lệ.', 400);
+        }
+    }
+
+    function normalizeTemplateRecord(input, current = null) {
+        const values = input?.fields || input || {};
+        const file = input?.file || null;
+        const loaiHD = cleanText(values.loaiHD, 'Loại hợp đồng', 100, true);
+        const description = cleanText(values.description, 'Ghi chú', 500, false);
+        const templateFile = file
+            ? cleanText(file.fileName, 'Tên tệp DOCX', 200, true)
+            : String(current?.templateFile || '');
+        if (!templateFile) throw createError('Tệp mẫu DOCX là bắt buộc.');
+        if (file) validateDocx(file.buffer, config.maxDocxSizeBytes);
+        return {
+            formName: config.contractFormName,
+            loaiHD,
+            templateFile,
+            description,
+            file
+        };
+    }
+
+    async function requireTemplateManagementAccess(context) {
+        if (!templateRepository) throw createError('Kho cấu hình mẫu hợp đồng chưa được khởi tạo.', 503);
+        const access = await db.getUserAccess(context);
+        if (!access.canAdmin) {
+            throw createError('Người dùng chưa được cấp quyền Admin trên form hợp đồng.', 403);
+        }
+        return access;
+    }
+
+    async function presentTemplateRecord(row) {
+        const formName = row.formName || row.FormName || config.contractFormName;
+        const loaiHD = row.loaiHD || row.LoaiHD || '';
+        const templateFile = row.templateFile || row.TemplateFile || '';
+        const description = row.description || row.GhiChu || '';
+        let available = true;
+        try {
+            await store.resolveTemplate(templateFile);
+        } catch {
+            available = false;
+        }
+        return {
+            id: createTemplateRecordId(formName, loaiHD),
+            formName,
+            loaiHD,
+            templateFile,
+            description,
+            available
+        };
+    }
+
     function assertOwner(metadata, context) {
         if (!context?.userName || !sameUser(metadata.userName, context.userName)) {
             throw createError('Workspace không thuộc người dùng hiện tại.', 403);
@@ -108,9 +192,13 @@ export function createContractDocumentService(config, store, db) {
     async function getTemplates(context) {
         let rows = [];
         try {
-            rows = await db.listTemplates(context);
-        } catch {
-            rows = [];
+            rows = await templateRepository.list(config.contractFormName, context);
+        } catch (repositoryError) {
+            try {
+                rows = await db.listTemplates(context);
+            } catch {
+                rows = [];
+            }
         }
         const templates = [];
         const seenFiles = new Set();
@@ -134,9 +222,10 @@ export function createContractDocumentService(config, store, db) {
         }
 
         try {
-            const sampleFiles = await fs.readdir(config.samplesDir);
-            for (const file of sampleFiles) {
-                if (file.toLowerCase().endsWith('.docx') && !seenFiles.has(file.toLowerCase())) {
+            const sampleEntries = await fs.readdir(config.paths.samplesDir, { withFileTypes: true });
+            for (const entry of sampleEntries) {
+                const file = entry.name;
+                if (entry.isFile() && file.toLowerCase().endsWith('.docx') && !seenFiles.has(file.toLowerCase())) {
                     seenFiles.add(file.toLowerCase());
                     templates.push({
                         formName: config.contractFormName,
@@ -147,11 +236,122 @@ export function createContractDocumentService(config, store, db) {
                     });
                 }
             }
-        } catch {
-            /* ignore read dir error */
+        } catch (error) {
+            console.warn(`[Contract Templates] Không thể đọc thư mục mẫu ${config.paths.samplesDir}: ${error.message}`);
         }
 
         return templates;
+    }
+
+    async function getTemplateRegistry(context) {
+        const access = await requireTemplateManagementAccess(context);
+        const rows = await templateRepository.list(config.contractFormName, context);
+        const items = await Promise.all(rows.map(presentTemplateRecord));
+        return {
+            formName: config.contractFormName,
+            title: 'Quản lý hợp đồng',
+            description: 'Quản lý loại hợp đồng và tệp DOCX dùng để xuất tài liệu.',
+            schema: config.templateRegistry.fields,
+            permissions: { canWrite: access.canAdmin, canDelete: access.canAdmin },
+            items
+        };
+    }
+
+    async function createTemplateRecord(context, input) {
+        return serializeTemplateMutation(async () => {
+            await requireTemplateManagementAccess(context);
+            const record = normalizeTemplateRecord(input);
+            await store.createManagedTemplate(record.templateFile, record.file.buffer);
+            try {
+                const saved = await templateRepository.create(record, context);
+                return presentTemplateRecord(saved);
+            } catch (error) {
+                await store.removeManagedTemplate(record.templateFile, { ignoreMissing: true }).catch(() => {});
+                throw error;
+            }
+        });
+    }
+
+    async function updateTemplateRecord(context, recordId, input) {
+        return serializeTemplateMutation(async () => {
+            await requireTemplateManagementAccess(context);
+            const key = parseTemplateRecordId(recordId);
+            const current = await templateRepository.find(key.formName, key.loaiHD, context);
+            if (!current) throw createError('Cấu hình mẫu hợp đồng không còn tồn tại.', 404);
+            const record = normalizeTemplateRecord(input, current);
+
+            if (!record.file) {
+                return presentTemplateRecord(await templateRepository.update(key.formName, key.loaiHD, record, context));
+            }
+
+            const sameFile = record.templateFile.toLowerCase() === String(current.templateFile).toLowerCase();
+            if (sameFile) {
+                let archive = null;
+                try {
+                    archive = await store.archiveManagedTemplate(current.templateFile);
+                } catch (error) {
+                    if (error.statusCode !== 404) throw error;
+                }
+                try {
+                    await store.createManagedTemplate(record.templateFile, record.file.buffer);
+                    const saved = await templateRepository.update(key.formName, key.loaiHD, record, context);
+                    return presentTemplateRecord(saved);
+                } catch (error) {
+                    await store.removeManagedTemplate(record.templateFile, { ignoreMissing: true }).catch(() => {});
+                    if (archive) {
+                        await store.restoreArchivedTemplate(archive).catch((restoreError) => {
+                            console.error('[CONTRACT TEMPLATE RESTORE]', restoreError.message);
+                        });
+                    }
+                    throw error;
+                }
+            }
+
+            await store.createManagedTemplate(record.templateFile, record.file.buffer);
+            let saved;
+            try {
+                saved = await templateRepository.update(key.formName, key.loaiHD, record, context);
+            } catch (error) {
+                await store.removeManagedTemplate(record.templateFile, { ignoreMissing: true }).catch(() => {});
+                throw error;
+            }
+
+            let references = 1;
+            try {
+                references = await templateRepository.countByFile(key.formName, current.templateFile, context);
+            } catch (error) {
+                console.warn('[CONTRACT TEMPLATE REFERENCE COUNT]', error.message);
+            }
+            if (references === 0) {
+                await store.archiveManagedTemplate(current.templateFile).catch((error) => {
+                    console.warn('[CONTRACT TEMPLATE ARCHIVE]', error.message);
+                });
+            }
+            return presentTemplateRecord(saved);
+        });
+    }
+
+    async function deleteTemplateRecord(context, recordId) {
+        return serializeTemplateMutation(async () => {
+            await requireTemplateManagementAccess(context);
+            const key = parseTemplateRecordId(recordId);
+            const removed = await templateRepository.remove(key.formName, key.loaiHD, context);
+            let references = 1;
+            try {
+                references = await templateRepository.countByFile(key.formName, removed.templateFile, context);
+            } catch (error) {
+                console.warn('[CONTRACT TEMPLATE REFERENCE COUNT]', error.message);
+            }
+            let backupName = '';
+            if (references === 0) {
+                try {
+                    backupName = (await store.archiveManagedTemplate(removed.templateFile)).backupName;
+                } catch (error) {
+                    if (error.statusCode !== 404) console.warn('[CONTRACT TEMPLATE ARCHIVE]', error.message);
+                }
+            }
+            return { id: recordId, templateFile: removed.templateFile, backupName };
+        });
     }
 
     function resolveTemplateFileName(input) {
@@ -356,6 +556,7 @@ export function createContractDocumentService(config, store, db) {
     }
 
     async function createTemplateWorkspace(context, input) {
+        await requireTemplateManagementAccess(context);
         const templateFile = resolveTemplateFileName(input);
         const template = await requireRegisteredTemplate(context, templateFile);
         const targetFile = template.templateFile || template.fileName;
@@ -381,6 +582,7 @@ export function createContractDocumentService(config, store, db) {
     }
 
     async function getTemplateWorkspaceEditor(context, workspaceId) {
+        await requireTemplateManagementAccess(context);
         const { metadata } = await store.readTemplateWorkspace(workspaceId);
         assertOwner(metadata, context);
         return buildEditorConfig(metadata, 'template');
@@ -393,6 +595,7 @@ export function createContractDocumentService(config, store, db) {
     }
 
     async function uploadTemplateWorkspace(context, workspaceId, buffer) {
+        await requireTemplateManagementAccess(context);
         const { metadata } = await store.readTemplateWorkspace(workspaceId);
         assertOwner(metadata, context);
         validateDocx(buffer, config.maxDocxSizeBytes);
@@ -441,6 +644,7 @@ export function createContractDocumentService(config, store, db) {
     }
 
     async function validateTemplateWorkspace(context, workspaceId) {
+        await requireTemplateManagementAccess(context);
         const { metadata } = await store.readTemplateWorkspace(workspaceId);
         assertOwner(metadata, context);
         const buffer = await store.readTemplateWorkspaceFile(workspaceId);
@@ -455,6 +659,7 @@ export function createContractDocumentService(config, store, db) {
     }
 
     async function applyTemplateWorkspace(context, workspaceId) {
+        await requireTemplateManagementAccess(context);
         const { metadata } = await store.readTemplateWorkspace(workspaceId);
         assertOwner(metadata, context);
         await requireRegisteredTemplate(context, metadata.templateFile);
@@ -464,6 +669,7 @@ export function createContractDocumentService(config, store, db) {
     }
 
     async function closeTemplateWorkspace(context, workspaceId) {
+        await requireTemplateManagementAccess(context);
         const { metadata } = await store.readTemplateWorkspace(workspaceId);
         assertOwner(metadata, context);
         await store.deleteTemplateWorkspace(workspaceId);
@@ -476,6 +682,10 @@ export function createContractDocumentService(config, store, db) {
     return {
         authenticateContext,
         getTemplates,
+        getTemplateRegistry,
+        createTemplateRecord,
+        updateTemplateRecord,
+        deleteTemplateRecord,
         createDraft,
         getDraftEditor,
         getDraftFile,

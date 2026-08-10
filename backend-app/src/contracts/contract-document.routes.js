@@ -29,16 +29,70 @@ async function requestContext(req, service) {
     return service.authenticateContext(authorization, claimedUserName);
 }
 
-function extractMultipartFile(buffer, contentType) {
+function parseMultipartPayload(buffer, contentType) {
     const boundaryMatch = String(contentType || '').match(/boundary=(?:"([^"]+)"|([^;]+))/i);
     if (!boundaryMatch) throw createError('Multipart upload thiếu boundary.');
-    const boundary = boundaryMatch[1] || boundaryMatch[2];
-    const headerEnd = buffer.indexOf(Buffer.from('\r\n\r\n'));
-    if (headerEnd < 0) throw createError('Multipart upload không có phần nội dung file.');
-    const dataStart = headerEnd + 4;
-    const dataEnd = buffer.indexOf(Buffer.from(`\r\n--${boundary}`), dataStart);
-    if (dataEnd < dataStart) throw createError('Multipart upload không kết thúc đúng định dạng.');
-    return buffer.subarray(dataStart, dataEnd);
+    const boundary = Buffer.from(`--${(boundaryMatch[1] || boundaryMatch[2]).trim()}`);
+    const separator = Buffer.from('\r\n\r\n');
+    const fields = {};
+    const files = {};
+    let cursor = 0;
+
+    while (cursor < buffer.length) {
+        const boundaryStart = buffer.indexOf(boundary, cursor);
+        if (boundaryStart < 0) break;
+        let partStart = boundaryStart + boundary.length;
+        if (buffer.subarray(partStart, partStart + 2).toString() === '--') break;
+        if (buffer.subarray(partStart, partStart + 2).toString() === '\r\n') partStart += 2;
+        const nextBoundary = buffer.indexOf(boundary, partStart);
+        if (nextBoundary < 0) break;
+        let partEnd = nextBoundary;
+        if (buffer.subarray(partEnd - 2, partEnd).toString() === '\r\n') partEnd -= 2;
+        const headerEnd = buffer.indexOf(separator, partStart);
+        if (headerEnd < partStart || headerEnd >= partEnd) {
+            cursor = nextBoundary;
+            continue;
+        }
+
+        const rawHeaders = buffer.subarray(partStart, headerEnd).toString('utf8');
+        const disposition = rawHeaders.split(/\r\n/).find((line) => /^content-disposition:/i.test(line)) || '';
+        const nameMatch = disposition.match(/\bname="([^"]+)"/i);
+        if (!nameMatch) {
+            cursor = nextBoundary;
+            continue;
+        }
+        const body = buffer.subarray(headerEnd + separator.length, partEnd);
+        const name = nameMatch[1];
+        const fileNameMatch = disposition.match(/\bfilename="([^"]*)"/i);
+        const encodedFileNameMatch = disposition.match(/\bfilename\*=UTF-8''([^;]+)/i);
+        let fileName = fileNameMatch?.[1] || '';
+        if (encodedFileNameMatch?.[1]) {
+            try { fileName = decodeURIComponent(encodedFileNameMatch[1]); } catch { /* keep fallback */ }
+        }
+        if (fileName) {
+            const typeMatch = rawHeaders.match(/^content-type:\s*([^\r\n]+)/im);
+            files[name] = { fileName, contentType: typeMatch?.[1]?.trim() || '', buffer: body };
+        } else {
+            fields[name] = body.toString('utf8');
+        }
+        cursor = nextBoundary;
+    }
+
+    return { fields, files };
+}
+
+function extractMultipartFile(buffer, contentType) {
+    const payload = parseMultipartPayload(buffer, contentType);
+    const file = Object.values(payload.files)[0];
+    if (!file) throw createError('Multipart upload không có phần nội dung file.');
+    return file.buffer;
+}
+
+function templateRecordPayload(req) {
+    if (!Buffer.isBuffer(req.body)) throw createError('Thiếu dữ liệu cấu hình mẫu hợp đồng.');
+    const parsed = parseMultipartPayload(req.body, req.headers['content-type']);
+    const file = parsed.files.file || Object.values(parsed.files)[0] || null;
+    return { fields: parsed.fields, file };
 }
 
 function uploadedBuffer(req) {
@@ -70,6 +124,37 @@ export function createContractDocumentRouter(config, service) {
 
     router.get('/contract-templates', asyncRoute(async (req, res) => {
         res.json({ success: true, data: await service.getTemplates(await requestContext(req, service)) });
+    }));
+
+    router.get('/contract-template-records', asyncRoute(async (req, res) => {
+        const data = await service.getTemplateRegistry(await requestContext(req, service));
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.json({ success: true, data });
+    }));
+
+    router.post('/contract-template-records', rawUpload, asyncRoute(async (req, res) => {
+        const data = await service.createTemplateRecord(
+            await requestContext(req, service),
+            templateRecordPayload(req)
+        );
+        res.status(201).json({ success: true, data });
+    }));
+
+    router.put('/contract-template-records/:recordId', rawUpload, asyncRoute(async (req, res) => {
+        const data = await service.updateTemplateRecord(
+            await requestContext(req, service),
+            req.params.recordId,
+            templateRecordPayload(req)
+        );
+        res.json({ success: true, data });
+    }));
+
+    router.delete('/contract-template-records/:recordId', asyncRoute(async (req, res) => {
+        const data = await service.deleteTemplateRecord(
+            await requestContext(req, service),
+            req.params.recordId
+        );
+        res.json({ success: true, data });
     }));
 
     router.post('/contract-drafts', asyncRoute(async (req, res) => {

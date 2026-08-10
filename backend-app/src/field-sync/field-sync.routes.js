@@ -71,15 +71,15 @@ function assertSchemaMatchesContract(schema, contract) {
         throw contractError('Metadata không trả TableName.', 'FIELD_CONTRACT_TABLE_MISSING');
     }
     if (!sameIdentifier(schema.tableName, contract.expectedTableName)) {
-        throw contractError('TableName không khớp migration registry.', 'FIELD_CONTRACT_TABLE_MISMATCH');
+        throw contractError('TableName không khớp DB contract registry.', 'FIELD_CONTRACT_TABLE_MISMATCH');
     }
     if (!schema.primaryKey) {
         throw contractError('Metadata không trả PrimaryKey.', 'FIELD_CONTRACT_PRIMARY_KEY_MISSING');
     }
     if (!sameIdentifier(schema.primaryKey, contract.expectedPrimaryKey)) {
-        throw contractError('PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
+        throw contractError('PrimaryKey không khớp DB contract registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
     }
-    if (contract.rolloutStatus === 'ACTIVE' && contract.source !== 'STATIC_COMPATIBILITY_FALLBACK') {
+    if (contract.rolloutStatus === 'ACTIVE') {
         const registeredView = schema?.runtimeRoutes?.view?.registeredProcedure;
         const registeredSave = schema?.runtimeRoutes?.save?.registeredProcedure;
         const registeredDelete = schema?.runtimeRoutes?.delete?.registeredProcedure;
@@ -100,7 +100,7 @@ function assertComparisonMatchesContract(comparison, contract) {
         throw contractError('Compare metadata không trả V2 PrimaryKey.', 'FIELD_CONTRACT_PRIMARY_KEY_MISSING');
     }
     if (!sameIdentifier(v2PrimaryKey, contract.expectedPrimaryKey)) {
-        throw contractError('Compare V2 PrimaryKey không khớp migration registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
+        throw contractError('Compare V2 PrimaryKey không khớp DB contract registry.', 'FIELD_CONTRACT_PRIMARY_KEY_MISMATCH');
     }
 }
 
@@ -350,9 +350,7 @@ export function createFieldSyncRouter({
                     throw error;
                 }
                 schema = normalizeGridSchema(rows, formName, erpFormName);
-                if (names.contract.rolloutStatus === 'ACTIVE') {
-                    assertSchemaMatchesContract(schema, names.contract);
-                }
+                assertSchemaMatchesContract(schema, names.contract);
                 schema = cache.set(key, schema);
             }
             return res.json({
@@ -401,9 +399,7 @@ export function createFieldSyncRouter({
                     throw error;
                 }
                 comparison = normalizeGridCompare(rows, formName, erpFormName);
-                if (names.contract.rolloutStatus === 'ACTIVE') {
-                    assertComparisonMatchesContract(comparison, names.contract);
-                }
+                assertComparisonMatchesContract(comparison, names.contract);
                 comparison = cache.set(key, comparison);
             }
             return res.json({
@@ -466,9 +462,7 @@ export function createFieldSyncRouter({
                         formName,
                         detailContract.detailKey
                     );
-                    if (detailContract.rolloutStatus === 'ACTIVE') {
-                        assertJoinSchemaMatchesContract(schema, detailContract);
-                    }
+                    assertJoinSchemaMatchesContract(schema, detailContract);
                 } else {
                     const schemaRows = await gateway.gridSchema(
                         { FormName: formName, ERPFormID: erpFormName },
@@ -545,9 +539,7 @@ export function createFieldSyncRouter({
                     )
                     : normalizeGridSchema(refreshedRows, formName, erpFormName);
                 if (detailContract) {
-                    if (detailContract.rolloutStatus === 'ACTIVE') {
-                        assertJoinSchemaMatchesContract(refreshedSchema, detailContract);
-                    }
+                    assertJoinSchemaMatchesContract(refreshedSchema, detailContract);
                 } else {
                     assertSchemaMatchesContract(refreshedSchema, names.contract);
                 }
@@ -692,12 +684,10 @@ export function createFieldSyncRouter({
                         detailKey
                     );
 
-                    if (contract.rolloutStatus === 'ACTIVE') {
-                        assertJoinSchemaMatchesContract(
-                            schema,
-                            contract
-                        );
-                    }
+                    assertJoinSchemaMatchesContract(
+                        schema,
+                        contract
+                    );
 
                     schema = cache.set(key, schema);
                 }

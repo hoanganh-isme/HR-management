@@ -75,6 +75,45 @@ const uploadsDir = path.join(backendRoot, 'uploads');
 const contractDraftsDir = path.join(storageDir, 'contract-drafts');
 const templateWorkspacesDir = path.join(storageDir, 'template-workspaces');
 const templateBackupsDir = path.join(samplesDir, 'backups');
+const contractFormName = 'WA_HopDongLaoDongFrm';
+
+const templateRegistry = Object.freeze({
+    apiListName: 'API_HopDongTemplate_Manage',
+    schemaName: 'dbo',
+    tableName: 'HR_HopDongAddfile',
+    columns: Object.freeze({
+        formName: 'FormName',
+        contractType: 'LoaiHD',
+        templateFile: 'TemplateFile',
+        description: 'GhiChu'
+    }),
+    fields: Object.freeze([
+        Object.freeze({
+            name: 'loaiHD',
+            label: 'Loại hợp đồng',
+            type: 'text',
+            required: true,
+            maxLength: 100,
+            searchable: true
+        }),
+        Object.freeze({
+            name: 'templateFile',
+            label: 'Tệp mẫu DOCX',
+            type: 'file',
+            accept: '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            requiredOnCreate: true,
+            searchable: true
+        }),
+        Object.freeze({
+            name: 'description',
+            label: 'Ghi chú',
+            type: 'textarea',
+            required: false,
+            maxLength: 500,
+            searchable: true
+        })
+    ])
+});
 
 [storageDir, samplesDir, uploadsDir, contractDraftsDir, templateWorkspacesDir, templateBackupsDir].forEach((dir) => {
     fs.mkdirSync(dir, { recursive: true });
@@ -125,9 +164,10 @@ export const documentConfig = Object.freeze({
         .split(',')
         .map((origin) => origin.trim())
         .filter(Boolean),
-    contractFormName: 'WA_HopDongLaoDongFrm',
+    contractFormName,
     templateListName: 'HR_HopDongAddfile',
     attachmentListName: 'API_HopDongLaoDong_Attach',
+    templateRegistry,
     paths: Object.freeze({
         backendRoot,
         repositoryRoot,

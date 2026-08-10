@@ -1,6 +1,4 @@
 import { FieldSyncCache } from './field-sync.cache.js';
-import { getFieldContractMigration } from './field-contract.registry.js';
-import { getPhase4JoinContract, listPhase4JoinContracts } from './phase4-join.registry.js';
 import { FieldSyncGatewayError } from './field-sync.gateway.js';
 
 const SAFE_FORM = /^[A-Za-z0-9_.-]{1,100}$/;
@@ -155,80 +153,6 @@ function normalizeContractRows(rows, requestedFormName) {
     });
 }
 
-/*
- * @deprecated
- * DB contract registry is the primary rollout source.
- * Fallback này chỉ giữ năm form đã audit trong lúc DB chưa cài installer mới.
- */
-function compatibilityFallback(formName) {
-    const entry = getFieldContractMigration(formName);
-    // WA_BaoHiemFrm và các form mới có trong phase4-join registry nhưng chưa có
-    // trong FIELD_CONTRACT_MIGRATION_REGISTRY – vẫn cần hỗ trợ dataset lookup.
-    const allJoinContracts = listPhase4JoinContracts();
-    const formContracts = allJoinContracts.filter(
-        (c) => String(c.webFormName || '').toLowerCase() === String(formName || '').toLowerCase()
-    );
-    if (!entry && formContracts.length === 0) return null;
-    const datasets = formContracts.map((item) => {
-        return Object.freeze({
-            datasetKey: item.detailKey,
-            apiList: item.apiList,
-            viewProcedure: item.expectedProcedure,
-            expectedTableName: item.expectedTableName,
-            expectedPrimaryKey: item.expectedPrimaryKey,
-            parentField: item.parentField || '',
-            childField: item.childField || '',
-            readOnly: item.readOnly === true,
-            saveProcedure: item.expectedSaveProcedure || '',
-            deleteProcedure: item.expectedDeleteProcedure || '',
-            writePolicy: item.readOnly ? 'READ_ONLY' : 'VIEW_PHYSICAL_COLUMNS',
-            branchPolicy: 'AUTO_SCHEMA',
-            rolloutStatus: 'ACTIVE',
-            rolloutReason: 'COMPATIBILITY_FALLBACK',
-            schemaVersion: 2
-        });
-    }).filter(Boolean);
-    // Form trong phase4 registry nhưng không có trong MIGRATION_REGISTRY: build từ join contracts
-    const webFormName = entry ? entry.webFormName : (formContracts[0]?.webFormName || formName);
-    const erpFormId   = entry ? entry.erpFormId   : webFormName;
-    return Object.freeze({
-        webFormName,
-        erpFormId,
-        permissionFormName: (entry && entry.permissionFormName) || webFormName,
-        contractType: datasets.length ? 'MASTER_DETAIL_SIMPLE' : (
-            entry && entry.oldView && entry.oldView !== 'API_TruyVanDong'
-                ? 'JOIN_VIEW_SINGLE_TABLE'
-                : 'SIMPLE_TABLE'
-        ),
-        expectedTableName:  (entry && entry.expectedTableName)  || (formContracts[0]?.expectedTableName || ''),
-        expectedPrimaryKey: (entry && entry.expectedPrimaryKey) || (formContracts[0]?.expectedPrimaryKey || ''),
-        viewList: webFormName,
-        viewProcedure: (entry && entry.viewV2) || '',
-        saveProcedure:    (entry && entry.saveV2)   || '',
-        deleteProcedure:  (entry && entry.deleteV2) || '',
-        writePolicy:  (entry && entry.writePolicy)  || 'SAFE_TABLE_COLUMNS',
-        branchPolicy: (entry && entry.branchPolicy) || 'AUTO_SCHEMA',
-        deletePolicy: (entry && entry.deletePolicy) || 'AUTO_SCHEMA',
-        rolloutStatus: 'ACTIVE',
-        rolloutReason: 'COMPATIBILITY_FALLBACK',
-        schemaVersion: 2,
-        isEnabled: true,
-        source: 'STATIC_COMPATIBILITY_FALLBACK',
-        datasets: Object.freeze(datasets)
-    });
-}
-
-function shouldUseCompatibilityFallback(error) {
-    const code = String(error?.diagnosticCode || error?.code || '').toUpperCase();
-    return [
-        'ERP_GATEWAY_HTTP_ERROR',
-        'ERP_GATEWAY_NETWORK',
-        'ERP_GATEWAY_TIMEOUT',
-        'ERP_GATEWAY_UNKNOWN',
-        'ERP_GATEWAY_ENVELOPE_REJECTED'
-    ].includes(code);
-}
-
 export function createFieldContractRepository({
     gateway,
     config,
@@ -254,20 +178,14 @@ export function createFieldContractRepository({
 
         const resolvePromise = typeof gateway?.fieldContractResolve === 'function'
             ? gateway.fieldContractResolve({ FormName: formName }, context)
-            : Promise.reject(new FieldSyncGatewayError('Gateway does not support fieldContractResolve', 502, 'ERP_GATEWAY_HTTP_ERROR'));
+            : Promise.reject(new FieldSyncGatewayError(
+                'Gateway does not support fieldContractResolve',
+                502,
+                'ERP_GATEWAY_HTTP_ERROR'
+            ));
 
         const request = resolvePromise
             .then((rows) => cache.set(key, normalizeContractRows(rows, formName)))
-            .catch((error) => {
-                const fallback = (shouldUseCompatibilityFallback(error) || typeof gateway?.fieldContractResolve !== 'function')
-                    ? compatibilityFallback(formName)
-                    : null;
-                if (fallback) return cache.set(key, fallback);
-                if (!fallback && (shouldUseCompatibilityFallback(error) || typeof gateway?.fieldContractResolve !== 'function')) {
-                    throw contractError('Form chưa được khai báo hoặc allow-list.', 'FIELD_CONTRACT_FORM_NOT_ALLOWLISTED', 404);
-                }
-                throw error;
-            })
             .finally(() => {
                 if (pending.get(key) === request) pending.delete(key);
             });
